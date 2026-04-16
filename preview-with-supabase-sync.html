@@ -187,5 +187,30 @@
       setInterval(syncLoop, 5000);
     });
   </script>
+  <script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const u = params.get('url');
+  const k = params.get('key');
+  if (u && k) {
+    localStorage.setItem('_sbUrl', u);
+    localStorage.setItem('_sbKey', k);
+    setTimeout(() => {
+      const urlInput = document.getElementById('sb-url');
+      const keyInput = document.getElementById('sb-key');
+      if (urlInput) { urlInput.value = u; urlInput.dispatchEvent(new Event('input')); }
+      if (keyInput) { keyInput.value = k; keyInput.dispatchEvent(new Event('input')); }
+      document.querySelectorAll('button').forEach(btn => {
+        if (btn.textContent.trim().includes('Save')) btn.click();
+      });
+    }, 800);
+    setTimeout(() => {
+      document.querySelectorAll('button').forEach(btn => {
+        if (btn.textContent.trim().includes('Pull')) btn.click();
+      });
+    }, 1800);
+  }
+})();
+</script>
 </body>
 </html>
