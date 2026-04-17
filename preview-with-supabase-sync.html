@@ -109,6 +109,27 @@
     .footer-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
     .help { font-size: 12px; color: #94a3b8; line-height: 1.35; }
 
+    /* Small loading spinner (top-right) */
+    .loading-indicator {
+      position: fixed;
+      top: 10px;
+      right: 58px; /* leave room for the gear button */
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      border: 2px solid rgba(148, 163, 184, 0.25);
+      border-top-color: rgba(226, 232, 240, 0.95);
+      animation: spin .8s linear infinite;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 60;
+      transition: opacity .12s ease-in-out;
+      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.35);
+    }
+    .loading-indicator.on { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     @media (max-width: 900px) {
       .bar { gap: 10px; padding: 10px; }
       input,
@@ -134,6 +155,8 @@
   </style>
 </head>
 <body>
+  <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
+
   <button id="open-settings" class="gear-btn" type="button" title="Settings (Supabase Sync)" aria-label="Open Supabase Sync Settings">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
@@ -180,6 +203,9 @@
 
   <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html"></iframe>
 
+  <!-- Supabase client (Realtime uses WebSocket; REST-only fetch stays as-is) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <script>
     const SYNC_KEYS = [
       "_machines","_moldDB","_customerDB","_specDB","_machineDB","_moldRegistry","_customerRegistry",
@@ -194,10 +220,21 @@
 
     let frameReady = false;
     let lastPullAt = localStorage.getItem("_sbLastPullAt") || new Date(0).toISOString();
+    let sbClient = null;
+    let sbChannel = null;
+    let sbClientSig = "";
+    let loadingCount = 0;
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
     function setStatus(msg) { document.getElementById("status").textContent = "status: " + msg; }
+    function setLoading(isLoading) {
+      loadingCount = Math.max(0, loadingCount + (isLoading ? 1 : -1));
+      const el = document.getElementById("loading-indicator");
+      if (!el) return;
+      if (loadingCount > 0) el.classList.add("on");
+      else el.classList.remove("on");
+    }
 
     function headers() {
       return {
@@ -209,14 +246,20 @@
     }
 
     async function testConn() {
+      setLoading(true);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key&limit=1";
-      const r = await fetch(url, { headers: headers() });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      setStatus("connected");
+      try {
+        const r = await fetch(url, { headers: headers() });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        setStatus("connected");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function pushNow() {
       if (!frameReady) return;
+      setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const now = new Date().toISOString();
       const rows = [];
@@ -229,26 +272,37 @@
       }
       if (!rows.length) { setStatus("no data to push"); return; }
 
-      const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
-      const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
-      if (!r.ok) throw new Error("push failed HTTP " + r.status);
-      setStatus("push ok: " + rows.length + " keys");
+      try {
+        const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
+        const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
+        if (!r.ok) throw new Error("push failed HTTP " + r.status);
+        setStatus("push ok: " + rows.length + " keys");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function pullNow() {
       if (!frameReady) return;
+      setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const f = encodeURIComponent(lastPullAt);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + f + "&order=updated_at.asc";
-      const r = await fetch(url, { headers: headers() });
-      if (!r.ok) throw new Error("pull failed HTTP " + r.status);
-      const rows = await r.json();
-      rows.forEach((row) => {
-        try { w.localStorage.setItem(row.storage_key, row.storage_value); } catch (e) {}
-      });
-      lastPullAt = new Date().toISOString();
-      localStorage.setItem("_sbLastPullAt", lastPullAt);
-      setStatus("pull ok: " + rows.length + " changes");
+      try {
+        const r = await fetch(url, { headers: headers() });
+        if (!r.ok) throw new Error("pull failed HTTP " + r.status);
+        const rows = await r.json();
+        let maxUpdatedAt = lastPullAt;
+        rows.forEach((row) => {
+          try { w.localStorage.setItem(row.storage_key, row.storage_value); } catch (e) {}
+          if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+        });
+        lastPullAt = maxUpdatedAt;
+        localStorage.setItem("_sbLastPullAt", lastPullAt);
+        setStatus("pull ok: " + rows.length + " changes");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function syncLoop() {
@@ -261,10 +315,74 @@
       }
     }
 
+    function ensureSbClient() {
+      const url = sbUrl();
+      const key = sbKey();
+      if (!url || !key) return null;
+      const sig = url + "|" + key.slice(0, 12);
+      if (sbClient && sbClientSig === sig) return sbClient;
+      sbClientSig = sig;
+      try {
+        // supabase-js v2 exposes window.supabase.createClient
+        sbClient = window.supabase.createClient(url, key, {
+          realtime: { params: { eventsPerSecond: 5 } }
+        });
+      } catch (e) {
+        sbClient = null;
+      }
+      return sbClient;
+    }
+
+    async function stopRealtime() {
+      try {
+        if (sbChannel) {
+          await sbChannel.unsubscribe();
+        }
+      } catch (e) {}
+      sbChannel = null;
+    }
+
+    async function startRealtime() {
+      const client = ensureSbClient();
+      if (!client) { setStatus("waiting: set Supabase URL & key"); return; }
+
+      await stopRealtime();
+
+      // Listen for any changes in app_storage and refresh via pullNow()
+      sbChannel = client
+        .channel("app_storage_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "app_storage" },
+          async () => {
+            // Pull only deltas since lastPullAt
+            pullNow().catch((e) => setStatus("error: " + e.message));
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") setStatus("realtime: listening");
+          else if (status === "CHANNEL_ERROR") setStatus("realtime: channel error");
+          else if (status === "TIMED_OUT") setStatus("realtime: timed out");
+          else if (status === "CLOSED") setStatus("realtime: closed");
+        });
+    }
+
+    async function initialPullAndListen() {
+      try {
+        await testConn();
+        await pullNow();
+        await startRealtime();
+      } catch (e) {
+        setStatus("error: " + e.message);
+      }
+    }
+
     document.getElementById("save-conf").addEventListener("click", () => {
       localStorage.setItem("_sbUrl", sbUrl());
       localStorage.setItem("_sbKey", sbKey());
       setStatus("config saved");
+      // Recreate realtime with new config, and refresh once
+      if (frameReady) initialPullAndListen();
     });
     document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("error: " + e.message)));
     document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("error: " + e.message)));
@@ -306,8 +424,7 @@
 
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;
-      await syncLoop();
-      setInterval(syncLoop, 5000);
+      await initialPullAndListen();
     });
   </script>
 </body>
