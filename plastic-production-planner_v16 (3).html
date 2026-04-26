@@ -16031,8 +16031,18 @@ function renderRawmat(){
     const regMax = reg ? toNum(reg.maxStock, 0) : 0;
     const curMin = toNum(s.min, NaN);
     const curMax = toNum(s.max, NaN);
-    s.min = Number.isFinite(curMin) ? curMin : regMin;
-    s.max = Number.isFinite(curMax) && curMax > 0 ? curMax : (regMax > 0 ? regMax : 9999);
+    // Registry is source-of-truth for threshold values when available.
+    // This keeps "วัตถุดิบ Batch" aligned with "ทะเบียนวัตถุดิบ".
+    if (reg && Number.isFinite(regMin) && (regMin > 0 || !Number.isFinite(curMin) || curMin === 0)) {
+      s.min = regMin;
+    } else {
+      s.min = Number.isFinite(curMin) ? curMin : 0;
+    }
+    if (reg && Number.isFinite(regMax) && regMax > 0) {
+      s.max = regMax;
+    } else {
+      s.max = Number.isFinite(curMax) && curMax > 0 ? curMax : 9999;
+    }
   });
 
   // show add plastic button only on plastic tab
