@@ -19793,8 +19793,22 @@ var currentRptKey = null; // var so window.currentRptKey works
 let currentNgHour = null;
 let currentLtHour = null;
 
-const NG_DEFECTS = ['เปลือย/หน้าขาด','เป็นรอย/scratch','สีผิดเพี้ยน','ขนาดเกิน spec','แตกร้าว','มีเศษพลาสติก','ฝาปิดไม่สนิท','หดเสียรูป','ไหม้/ดำ','บวม/โป่ง'];
-const LT_REASONS = ['Breakdown เครื่อง','ซ่อมบำรุง PM','รอวัตถุดิบ','แม่พิมพ์ขัดข้อง','หยุดตรวจ QC','Setup/เปลี่ยนงาน','ขาดแคลนพนักงาน','ไฟ/น้ำ/ลม ขัดข้อง'];
+let NG_DEFECTS = ['เปลือย/หน้าขาด','เป็นรอย/scratch','สีผิดเพี้ยน','ขนาดเกิน spec','แตกร้าว','มีเศษพลาสติก','ฝาปิดไม่สนิท','หดเสียรูป','ไหม้/ดำ','บวม/โป่ง'];
+let LT_REASONS = ['Breakdown เครื่อง','ซ่อมบำรุง PM','รอวัตถุดิบ','แม่พิมพ์ขัดข้อง','หยุดตรวจ QC','Setup/เปลี่ยนงาน','ขาดแคลนพนักงาน','ไฟ/น้ำ/ลม ขัดข้อง'];
+
+function getActiveEmpList(){
+  var src = (typeof EMPLOYEE_REGISTRY!=='undefined' && EMPLOYEE_REGISTRY && EMPLOYEE_REGISTRY.length)
+    ? EMPLOYEE_REGISTRY
+    : (typeof employees!=='undefined' ? employees : []);
+  return src.filter(function(e){ return (e.status||'active')==='active' && e.name; });
+}
+
+function rptHourOrder(h, shift){
+  var hh = parseInt(h)||0;
+  if(shift==='กะดึก') return hh>=20 ? hh : hh+24; // 20..23 then 00..07
+  if(shift==='กะเช้า') return hh>=8 && hh<20 ? hh : hh+24;
+  return hh>=8 ? hh : hh+24; // all: day first, then night
+}
 
 function initBatchData(){
   // batchMatStock / batchMbStock โหลดจาก localStorage
@@ -19882,10 +19896,10 @@ function renderDailyRpt(){
 
   // ── KPI Summary ──
   var filtRows = _rptShiftFilter==='all' ? rpt.rows : rpt.rows.filter(function(r){ return r.shift===_rptShiftFilter; });
-  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced-r.ng); },0);
+  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
   var totalNg  = filtRows.reduce(function(s,r){ return s+r.ng; },0);
   var totalLt  = filtRows.reduce(function(s,r){ return s+r.ltMins; },0);
-  var totalProd= filtRows.reduce(function(s,r){ return s+r.produced; },0);
+  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0)+(r.ng||0); },0);
   var totalTgt = filtRows.reduce(function(s,r){ return s+r.target; },0);
   var eff  = totalTgt>0 ? Math.round(totalOk/totalTgt*100) : 0;
   var ngRate = totalProd>0 ? (totalNg/totalProd*100).toFixed(2) : '0.00';
@@ -19898,9 +19912,13 @@ function renderDailyRpt(){
 
   // ── Hourly rows ──
   var html = '';
-  rpt.rows.forEach(function(r, idx){
+  var renderRows = (rpt.rows||[]).slice().sort(function(a,b){
+    return rptHourOrder(a.hour,a.shift) - rptHourOrder(b.hour,b.shift);
+  });
+  renderRows.forEach(function(r){
+    var idx = rpt.rows.indexOf(r);
     if(_rptShiftFilter!=='all' && r.shift!==_rptShiftFilter) return;
-    var ok     = r.produced - r.ng;
+    var ok     = r.produced||0;
     var effHr  = r.target>0 ? Math.round(ok/r.target*100) : 0;
     var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
     var shiftCol = r.shift==='กะเช้า'?'rgba(121,192,255,0.07)':'rgba(210,168,255,0.07)';
@@ -19915,8 +19933,8 @@ function renderDailyRpt(){
     // Operator — now a select
     html += '<div class="hr-cell" style="min-width:100px">';
     var empOpts = '<option value="'+( r.operator||'')+'">'+(r.operator||'เลือก')+'</option>';
-    if(typeof employees!=='undefined'){
-      var machEmps = employees.filter(function(e){ return e.status==='active'; });
+    var machEmps = getActiveEmpList();
+    if(machEmps.length){
       empOpts = '<option value="">เลือก</option>' + machEmps.map(function(e){
         return '<option value="'+e.name+'"'+(e.name===r.operator?' selected':'')+'>'+e.name+'</option>';
       }).join('');
@@ -19955,10 +19973,10 @@ function renderDailyRpt(){
   // ── Quick add defect/LT shortcuts ──
   document.getElementById('ng-defect-list').innerHTML = NG_DEFECTS.map(function(d){
     return '<span class="ng-tag" onclick="quickAddNg(\''+d+'\')" style="cursor:pointer">'+d+'</span>';
-  }).join('');
+  }).join('') + ' <span class="ng-tag" onclick="addCustomNgDefect()" style="cursor:pointer;border-style:dashed">+ เพิ่มอาการ</span>';
   document.getElementById('lt-reason-list').innerHTML = LT_REASONS.map(function(r){
     return '<span class="lt-tag" onclick="quickAddLt(\''+r+'\')" style="cursor:pointer">'+r+'</span>';
-  }).join('');
+  }).join('') + ' <span class="lt-tag" onclick="addCustomLtReason()" style="cursor:pointer;border-style:dashed">+ เพิ่มสาเหตุ</span>';
 
   // ── Shift summary ──
   var shifts = ['กะเช้า','กะดึก'];
@@ -19968,7 +19986,7 @@ function renderDailyRpt(){
     var sn = sRows.reduce(function(a,r){ return a+r.ng; },0);
     var sl = sRows.reduce(function(a,r){ return a+r.ltMins; },0);
     var se = sRows.reduce(function(a,r){ return a+r.target; },0);
-    var seff = se>0?Math.round((sp-sn)/se*100):0;
+    var seff = se>0?Math.round(sp/se*100):0;
     var sCol = seff>=90?'var(--green)':seff>=70?'var(--yellow)':'var(--red)';
     return '<div style="background:var(--bg3);border-radius:8px;padding:12px;text-align:center">'
       +'<div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--text2)">กะ'+s+'</div>'
@@ -20044,7 +20062,7 @@ function updateRptRow(idx, field, val){
         if(domRow){
           var cells = domRow.querySelectorAll('.hr-cell');
           // cell 5 = OK (green), cell 8 = EFF
-          var ok = (r.produced||0) - (r.ng||0);
+          var ok = (r.produced||0);
           var effHr = r.target>0 ? Math.round(ok/r.target*100) : 0;
           var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
           if(cells[5]) cells[5].innerHTML = ok>0 ? '<span style="font-weight:700;font-family:monospace;color:var(--green)">'+ok.toLocaleString()+'</span>' : '-';
@@ -20061,10 +20079,10 @@ function rptUpdateSummary(){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
   var filtRows = _rptShiftFilter==='all' ? rpt.rows : rpt.rows.filter(function(r){ return r.shift===_rptShiftFilter; });
-  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced-r.ng); },0);
+  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
   var totalNg  = filtRows.reduce(function(s,r){ return s+r.ng; },0);
   var totalLt  = filtRows.reduce(function(s,r){ return s+r.ltMins; },0);
-  var totalProd= filtRows.reduce(function(s,r){ return s+r.produced; },0);
+  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0)+(r.ng||0); },0);
   var totalTgt = filtRows.reduce(function(s,r){ return s+r.target; },0);
   var eff = totalTgt>0 ? Math.round(totalOk/totalTgt*100) : 0;
   var ngRate = totalProd>0 ? (totalNg/totalProd*100).toFixed(2) : '0.00';
@@ -20187,8 +20205,9 @@ function openHrEntryModal(idx){
       opEl.value = r.operator||'';
     } else if(opEl.tagName==='SELECT'){
       opEl.innerHTML = '<option value="">-- เลือก --</option>';
-      if(typeof employees!=='undefined'){
-        employees.filter(function(e){ return e.status==='active'; }).forEach(function(e){
+      var empList = getActiveEmpList();
+      if(empList.length){
+        empList.forEach(function(e){
           var opt = document.createElement('option');
           opt.value = e.name;
           opt.textContent = e.name+' ('+e.dept+')';
@@ -20303,6 +20322,38 @@ function saveLtEntry(){
 }
 function quickAddNg(defect){ if(currentNgHour!==null) document.getElementById('ng-defect-type').value=defect; }
 function quickAddLt(reason){ if(currentLtHour!==null) document.getElementById('lt-detail').value=reason; }
+function addCustomNgDefect(){
+  var name = (prompt('เพิ่มอาการเสีย NG ใหม่:','')||'').trim();
+  if(!name) return;
+  if(NG_DEFECTS.indexOf(name)===-1) NG_DEFECTS.push(name);
+  var sel = document.getElementById('ng-defect-type');
+  if(sel && !Array.from(sel.options).find(function(o){ return o.value===name || o.text===name; })){
+    var opt = document.createElement('option');
+    opt.textContent = name;
+    opt.value = name;
+    sel.appendChild(opt);
+  }
+  if(sel) sel.value = name;
+  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt();
+}
+function addCustomLtReason(){
+  var name = (prompt('เพิ่มสาเหตุ Loss/Breakdown ใหม่:','')||'').trim();
+  if(!name) return;
+  if(LT_REASONS.indexOf(name)===-1) LT_REASONS.push(name);
+  ['lt-category','hre-lt-reason'].forEach(function(id){
+    var sel = document.getElementById(id);
+    if(sel && !Array.from(sel.options).find(function(o){ return (o.value||o.text)===name || o.text===name; })){
+      var opt = document.createElement('option');
+      opt.textContent = name;
+      opt.value = id==='lt-category' ? 'OTHER' : name;
+      sel.appendChild(opt);
+    }
+    if(sel) sel.value = id==='lt-category' ? 'OTHER' : name;
+  });
+  var ltd = document.getElementById('lt-detail');
+  if(ltd && !ltd.value) ltd.value = name;
+  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt();
+}
 
 function saveDailyRpt(){
   if(!currentRptKey) return;
@@ -20317,7 +20368,7 @@ function saveDailyRpt(){
   // Update machine running status in dashboard
   var m = MACHINES.find(function(x){ return x.id===rpt.machine; });
   if(m){
-    var totalOk = rpt.rows.reduce(function(s,r){ return s+Math.max(0,r.produced-r.ng); },0);
+    var totalOk = rpt.rows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
     m.todayOk = totalOk;
   }
   // Refresh TT cards if visible
@@ -23102,7 +23153,7 @@ function rptLoadTTOptions(){
     var j = jobs.find(function(x){ return x.name===e.jobName; })||{};
     var rptKey = e.machine+'_'+date;
     var hasReport = !!dailyReports[rptKey];
-    var totalOk = hasReport ? dailyReports[rptKey].rows.reduce(function(s,r){return s+Math.max(0,r.produced-r.ng);},0) : 0;
+    var totalOk = hasReport ? dailyReports[rptKey].rows.reduce(function(s,r){return s+Math.max(0,r.produced||0);},0) : 0;
     var totalTgt = hasReport ? dailyReports[rptKey].rows.reduce(function(s,r){return s+r.target;},0) : 0;
     var eff = totalTgt>0 ? Math.round(totalOk/totalTgt*100) : 0;
     var statusCol = m.status==='running'?'#3fb950':m.status==='idle'?'#e3b341':'#f85149';
@@ -23227,7 +23278,14 @@ function rptFillOperatorsFromHR(){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
   // Find operators assigned to this machine from HR attendance data
-  var machEmp = (typeof employees!=='undefined'?employees:[]).filter(function(e){ return e.mainMachine===rpt.machine&&e.status==='active'; });
+  var empSrc = getActiveEmpList();
+  var machEmp = empSrc.filter(function(e){
+    return (e.mainMachine===rpt.machine || e.machine===rpt.machine || !e.mainMachine) && (e.shift===rpt.shift || !e.shift);
+  });
+  if(!machEmp.length){
+    machEmp = empSrc.filter(function(e){ return e.mainMachine===rpt.machine || e.machine===rpt.machine; });
+  }
+  if(!machEmp.length) machEmp = empSrc;
   if(!machEmp.length){ if(typeof _toast==='function') _toast('ไม่พบพนักงานที่ผูกกับเครื่อง '+rpt.machine); return; }
   rpt.rows.forEach(function(r,i){ if(!r.operator) r.operator = machEmp[i%machEmp.length].name; });
   renderDailyRpt();
@@ -23270,7 +23328,7 @@ function initDailyRptPage(){
   ['rpt-supervisor','rpt-qc'].forEach(function(id){
     var el = document.getElementById(id);
     if(el && el.tagName==='SELECT'){
-      var empList = typeof employees!=='undefined' ? employees.filter(function(e){ return e.status==='active'; }) : [];
+      var empList = getActiveEmpList();
       el.innerHTML = '<option value="">-- เลือก --</option>' + empList.map(function(e){ return '<option value="'+e.name+'">'+e.name+' ('+e.position+'/'+e.dept+')</option>'; }).join('');
     }
   });
@@ -34955,7 +35013,7 @@ function calcHreOk(){
   const ngEl = document.getElementById('hre-ng-total');
   const okEl = document.getElementById('hre-ok-calc');
   if(ngEl) ngEl.textContent = ngTotal.toLocaleString();
-  if(okEl) okEl.textContent = Math.max(0,prod-ngTotal).toLocaleString();
+  if(okEl) okEl.textContent = Math.max(0,prod).toLocaleString();
 }
 function closePrintPanel(){
   document.getElementById('tpp-overlay').classList.remove('open');
