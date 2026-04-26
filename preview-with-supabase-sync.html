@@ -225,6 +225,9 @@
     let sbChannel = null;
     let sbClientSig = "";
     let loadingCount = 0;
+    let autoSyncTimer = null;
+    let autoSyncRunning = false;
+    const AUTO_SYNC_MS = 30000;
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
@@ -397,13 +400,32 @@
     }
 
     async function syncLoop() {
+      if (autoSyncRunning) return;
+      autoSyncRunning = true;
       try {
         await testConn();
         await pushNow();
         await pullNow();
       } catch (e) {
         setStatus("error: " + e.message);
+      } finally {
+        autoSyncRunning = false;
       }
+    }
+
+    function stopAutoSync() {
+      if (autoSyncTimer) clearInterval(autoSyncTimer);
+      autoSyncTimer = null;
+    }
+
+    function startAutoSync() {
+      stopAutoSync();
+      if (!frameReady) return;
+      if (!sbUrl() || !sbKey()) return;
+      autoSyncTimer = setInterval(() => {
+        syncLoop().catch((e) => setStatus("error: " + e.message));
+      }, AUTO_SYNC_MS);
+      setStatus("auto-sync: every " + Math.round(AUTO_SYNC_MS / 1000) + "s");
     }
 
     function ensureSbClient() {
@@ -473,7 +495,10 @@
       localStorage.setItem("_sbKey", sbKey());
       setStatus("config saved");
       // Recreate realtime with new config, and refresh once
-      if (frameReady) initialPullAndListen();
+      if (frameReady) {
+        initialPullAndListen();
+        startAutoSync();
+      }
     });
     document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("error: " + e.message)));
     document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("error: " + e.message)));
@@ -532,6 +557,7 @@
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;
       await initialPullAndListen();
+      startAutoSync();
     });
   </script>
 </body>
