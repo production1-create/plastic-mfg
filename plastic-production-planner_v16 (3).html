@@ -16004,9 +16004,18 @@ function renderRawmat(){
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
   };
+  const regByCodeLatest = (code)=>{
+    const key = String(code||'').trim().toUpperCase();
+    if(!key) return null;
+    for(let i=(RAWMAT_REGISTRY||[]).length-1;i>=0;i--){
+      const r = RAWMAT_REGISTRY[i];
+      if(String(r?.code||'').trim().toUpperCase()===key) return r;
+    }
+    return null;
+  };
   const getCat = (p)=>{
     try{
-      const reg = (RAWMAT_REGISTRY||[]).find(r=>r.code===p);
+      const reg = regByCodeLatest(p);
       return (reg&&reg.category) ? reg.category : 'plastic';
     }catch(e){ return 'plastic'; }
   };
@@ -16026,7 +16035,7 @@ function renderRawmat(){
   mats.forEach((p)=>{
     if(!rawMatStock[p]) rawMatStock[p] = {qty:0,min:0,max:9999,grade:''};
     const s = rawMatStock[p];
-    const reg = (RAWMAT_REGISTRY||[]).find(r=>r.code===p) || null;
+    const reg = regByCodeLatest(p);
     const regMin = reg ? toNum(reg.minStock, 0) : 0;
     const regMax = reg ? toNum(reg.maxStock, 0) : 0;
     const curMin = toNum(s.min, NaN);
@@ -16082,7 +16091,7 @@ function renderRawmat(){
     const low=s.qty<s.min;
     const col=low?'var(--red)':s.qty>s.max?'var(--orange)':'var(--green)';
     const status=low?'ต่ำกว่า Min':s.qty>s.max?'เกิน Max':'ปกติ';
-    const reg=RAWMAT_REGISTRY.find(r=>r.code===p)||null;
+    const reg=regByCodeLatest(p);
     const pendingKg=[...purchaseRequests,...rawMatPRList].filter(pr=>(pr.status==='pending'||pr.status==='รออนุมัติ')&&pr.material===p).reduce((a,pr)=>a+(pr.qty||0),0);
     return `<div class="card" style="${low?'border:1px solid var(--red)':''}">
       <div class="flex justify-between items-center mb-2">
@@ -16102,7 +16111,7 @@ function renderRawmat(){
 
   if(tbody) tbody.innerHTML=mats.map(p=>{
     const s=rawMatStock[p];
-    const reg=RAWMAT_REGISTRY.find(r=>r.code===p)||null;
+    const reg=regByCodeLatest(p);
     const cfg=rawMatSettings[p]||{ltDays:14,minOrderQty:500,supplier:'-',price:0};
     const price=reg?reg.price:(cfg.price||0);
     const suppId=reg?reg.supplier:(cfg.supplier||'');
