@@ -16000,6 +16000,10 @@ function getRawmatMonthlyUsage(material){
 
 function renderRawmat(){
   const allMats=Object.keys(rawMatStock||{});
+  const toNum = (v, fallback)=>{
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
   const getCat = (p)=>{
     try{
       const reg = (RAWMAT_REGISTRY||[]).find(r=>r.code===p);
@@ -16016,6 +16020,20 @@ function renderRawmat(){
   const cards=document.getElementById('rawmat-cards');
   const tbody=document.getElementById('rawmat-tbody');
   const today=new Date().toISOString().split('T')[0];
+
+  // Keep stock thresholds displayable even when localStorage values are missing/invalid.
+  // Prefer values from stock object, then fallback to registry minStock/maxStock.
+  mats.forEach((p)=>{
+    if(!rawMatStock[p]) rawMatStock[p] = {qty:0,min:0,max:9999,grade:''};
+    const s = rawMatStock[p];
+    const reg = (RAWMAT_REGISTRY||[]).find(r=>r.code===p) || null;
+    const regMin = reg ? toNum(reg.minStock, 0) : 0;
+    const regMax = reg ? toNum(reg.maxStock, 0) : 0;
+    const curMin = toNum(s.min, NaN);
+    const curMax = toNum(s.max, NaN);
+    s.min = Number.isFinite(curMin) ? curMin : regMin;
+    s.max = Number.isFinite(curMax) && curMax > 0 ? curMax : (regMax > 0 ? regMax : 9999);
+  });
 
   // show add plastic button only on plastic tab
   const addBtn=document.getElementById('rm-add-plastic-btn');
