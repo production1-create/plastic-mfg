@@ -31,12 +31,104 @@
       touch-action: manipulation;
     }
     .pill { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid #334155; }
-    iframe { width: 100%; height: calc(100vh - 120px); border: 0; background: #fff; }
+    iframe { width: 100%; height: 100vh; border: 0; background: #fff; }
 
     /* Prefer dynamic viewport on iOS/modern mobile browsers */
     @supports (height: 100dvh) {
-      iframe { height: calc(100dvh - 120px); }
+      iframe { height: 100dvh; }
     }
+
+    .gear-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(10px);
+      z-index: 50;
+    }
+    .gear-btn svg { width: 18px; height: 18px; }
+    .gear-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+    dialog#sb-settings {
+      width: min(680px, calc(100vw - 24px));
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 0;
+      background: #0b1220;
+      color: #e2e8f0;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    }
+    dialog#sb-settings::backdrop { background: rgba(2, 6, 23, 0.75); }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid #334155;
+      background: #0b1220;
+    }
+    .modal-title { font-size: 14px; font-weight: 600; letter-spacing: .2px; }
+    .close-btn {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: #111827;
+    }
+    .modal-body { padding: 12px; display: grid; gap: 10px; }
+    .compact input {
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 14px;
+      min-width: 0;
+      width: 100%;
+    }
+    .compact input.url { min-width: 0; width: 100%; }
+    .compact button {
+      padding: 8px 10px;
+      border-radius: 10px;
+      min-height: 36px;
+      font-size: 14px;
+    }
+    .row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr;
+      align-items: center;
+    }
+    .grid-2 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    .grid-3 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr 1fr; }
+    .footer-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .help { font-size: 12px; color: #94a3b8; line-height: 1.35; }
+
+    /* Small loading spinner (top-right) */
+    .loading-indicator {
+      position: fixed;
+      top: 10px;
+      right: 58px; /* leave room for the gear button */
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      border: 2px solid rgba(148, 163, 184, 0.25);
+      border-top-color: rgba(226, 232, 240, 0.95);
+      animation: spin .8s linear infinite;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 60;
+      transition: opacity .12s ease-in-out;
+      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.35);
+    }
+    .loading-indicator.on { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     @media (max-width: 900px) {
       .bar { gap: 10px; padding: 10px; }
@@ -53,28 +145,66 @@
         width: 100%;
         text-align: center;
       }
-      iframe { height: calc(100vh - 200px); }
       @supports (height: 100dvh) {
-        iframe { height: calc(100dvh - 200px); }
+        iframe { height: 100dvh; }
       }
+      iframe { height: 100vh; }
+      dialog#sb-settings { width: calc(100vw - 16px); }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="bar">
-    <input id="sb-url" class="url" placeholder="https://YOUR_PROJECT.supabase.co" />
-    <input id="sb-key" placeholder="Supabase anon public key" />
-    <button id="save-conf">Save config</button>
-    <button id="test-conn">Test</button>
-  </div>
-  <div class="bar">
-    <button id="push-now">Push now</button>
-    <button id="pull-now">Pull now</button>
-    <button id="back-prev-menu" type="button" title="กลับไปหน้าเมนูที่เปิดก่อนหน้า (ในแอป)">← เมนูก่อนหน้า</button>
-    <span id="status" class="pill">status: waiting</span>
-  </div>
+  <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
+
+  <button id="open-settings" class="gear-btn" type="button" title="Settings (Supabase Sync)" aria-label="Open Supabase Sync Settings">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M19.4 15a8 8 0 0 0 .1-1 8 8 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-1.7-1l-.4-2.6H10l-.4 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a8 8 0 0 0-.1 1c0 .3 0 .7.1 1l-2 1.5 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.6h4l.4-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
+  <dialog id="sb-settings" aria-labelledby="sb-settings-title">
+    <div class="modal-head">
+      <div id="sb-settings-title" class="modal-title">Supabase Sync</div>
+      <button id="close-settings" class="close-btn" type="button" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:18px;height:18px;">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body compact">
+      <div class="row">
+        <input id="sb-url" class="url" placeholder="https://YOUR_PROJECT.supabase.co" />
+        <input id="sb-key" placeholder="Supabase anon public key" />
+      </div>
+
+      <div class="grid-2">
+        <button id="save-conf" type="button">Save config</button>
+        <button id="test-conn" type="button">Test</button>
+      </div>
+
+      <div class="grid-2">
+        <button id="push-now" type="button">Push now</button>
+        <button id="pull-now" type="button">Pull now</button>
+      </div>
+
+      <div class="grid-1">
+        <button id="back-prev-menu" type="button" title="กลับไปหน้าเมนูที่เปิดก่อนหน้า (ในแอป)">← เมนูก่อนหน้า</button>
+      </div>
+
+      <div class="footer-line">
+        <span id="status" class="pill">status: waiting</span>
+        <div class="help">Tip: แตะไอคอนเฟืองเพื่อซ่อน/แสดงแถบ Sync</div>
+      </div>
+    </div>
+  </dialog>
 
   <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html"></iframe>
+
+  <!-- Supabase client (Realtime uses WebSocket; REST-only fetch stays as-is) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     const SYNC_KEYS = [
@@ -90,10 +220,21 @@
 
     let frameReady = false;
     let lastPullAt = localStorage.getItem("_sbLastPullAt") || new Date(0).toISOString();
+    let sbClient = null;
+    let sbChannel = null;
+    let sbClientSig = "";
+    let loadingCount = 0;
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
     function setStatus(msg) { document.getElementById("status").textContent = "status: " + msg; }
+    function setLoading(isLoading) {
+      loadingCount = Math.max(0, loadingCount + (isLoading ? 1 : -1));
+      const el = document.getElementById("loading-indicator");
+      if (!el) return;
+      if (loadingCount > 0) el.classList.add("on");
+      else el.classList.remove("on");
+    }
 
     function headers() {
       return {
@@ -105,14 +246,20 @@
     }
 
     async function testConn() {
+      setLoading(true);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key&limit=1";
-      const r = await fetch(url, { headers: headers() });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      setStatus("connected");
+      try {
+        const r = await fetch(url, { headers: headers() });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        setStatus("connected");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function pushNow() {
       if (!frameReady) return;
+      setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const now = new Date().toISOString();
       const rows = [];
@@ -125,26 +272,37 @@
       }
       if (!rows.length) { setStatus("no data to push"); return; }
 
-      const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
-      const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
-      if (!r.ok) throw new Error("push failed HTTP " + r.status);
-      setStatus("push ok: " + rows.length + " keys");
+      try {
+        const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
+        const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
+        if (!r.ok) throw new Error("push failed HTTP " + r.status);
+        setStatus("push ok: " + rows.length + " keys");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function pullNow() {
       if (!frameReady) return;
+      setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const f = encodeURIComponent(lastPullAt);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + f + "&order=updated_at.asc";
-      const r = await fetch(url, { headers: headers() });
-      if (!r.ok) throw new Error("pull failed HTTP " + r.status);
-      const rows = await r.json();
-      rows.forEach((row) => {
-        try { w.localStorage.setItem(row.storage_key, row.storage_value); } catch (e) {}
-      });
-      lastPullAt = new Date().toISOString();
-      localStorage.setItem("_sbLastPullAt", lastPullAt);
-      setStatus("pull ok: " + rows.length + " changes");
+      try {
+        const r = await fetch(url, { headers: headers() });
+        if (!r.ok) throw new Error("pull failed HTTP " + r.status);
+        const rows = await r.json();
+        let maxUpdatedAt = lastPullAt;
+        rows.forEach((row) => {
+          try { w.localStorage.setItem(row.storage_key, row.storage_value); } catch (e) {}
+          if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+        });
+        lastPullAt = maxUpdatedAt;
+        localStorage.setItem("_sbLastPullAt", lastPullAt);
+        setStatus("pull ok: " + rows.length + " changes");
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function syncLoop() {
@@ -157,10 +315,74 @@
       }
     }
 
+    function ensureSbClient() {
+      const url = sbUrl();
+      const key = sbKey();
+      if (!url || !key) return null;
+      const sig = url + "|" + key.slice(0, 12);
+      if (sbClient && sbClientSig === sig) return sbClient;
+      sbClientSig = sig;
+      try {
+        // supabase-js v2 exposes window.supabase.createClient
+        sbClient = window.supabase.createClient(url, key, {
+          realtime: { params: { eventsPerSecond: 5 } }
+        });
+      } catch (e) {
+        sbClient = null;
+      }
+      return sbClient;
+    }
+
+    async function stopRealtime() {
+      try {
+        if (sbChannel) {
+          await sbChannel.unsubscribe();
+        }
+      } catch (e) {}
+      sbChannel = null;
+    }
+
+    async function startRealtime() {
+      const client = ensureSbClient();
+      if (!client) { setStatus("waiting: set Supabase URL & key"); return; }
+
+      await stopRealtime();
+
+      // Listen for any changes in app_storage and refresh via pullNow()
+      sbChannel = client
+        .channel("app_storage_changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "app_storage" },
+          async () => {
+            // Pull only deltas since lastPullAt
+            pullNow().catch((e) => setStatus("error: " + e.message));
+          }
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") setStatus("realtime: listening");
+          else if (status === "CHANNEL_ERROR") setStatus("realtime: channel error");
+          else if (status === "TIMED_OUT") setStatus("realtime: timed out");
+          else if (status === "CLOSED") setStatus("realtime: closed");
+        });
+    }
+
+    async function initialPullAndListen() {
+      try {
+        await testConn();
+        await pullNow();
+        await startRealtime();
+      } catch (e) {
+        setStatus("error: " + e.message);
+      }
+    }
+
     document.getElementById("save-conf").addEventListener("click", () => {
       localStorage.setItem("_sbUrl", sbUrl());
       localStorage.setItem("_sbKey", sbKey());
       setStatus("config saved");
+      // Recreate realtime with new config, and refresh once
+      if (frameReady) initialPullAndListen();
     });
     document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("error: " + e.message)));
     document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("error: " + e.message)));
@@ -181,36 +403,29 @@
     if (savedUrl) document.getElementById("sb-url").value = savedUrl;
     if (savedKey) document.getElementById("sb-key").value = savedKey;
 
+    const settingsDlg = document.getElementById("sb-settings");
+    const openSettings = document.getElementById("open-settings");
+    const closeSettings = document.getElementById("close-settings");
+
+    function openSettingsModal() {
+      if (typeof settingsDlg.showModal === "function") settingsDlg.showModal();
+      else settingsDlg.setAttribute("open", "open");
+      try { document.getElementById("sb-url").focus(); } catch (e) {}
+    }
+    function closeSettingsModal() {
+      if (typeof settingsDlg.close === "function") settingsDlg.close();
+      else settingsDlg.removeAttribute("open");
+    }
+    openSettings.addEventListener("click", openSettingsModal);
+    closeSettings.addEventListener("click", closeSettingsModal);
+    settingsDlg.addEventListener("click", (e) => {
+      if (e.target === settingsDlg) closeSettingsModal();
+    });
+
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;
-      await syncLoop();
-      setInterval(syncLoop, 5000);
+      await initialPullAndListen();
     });
   </script>
-<script>
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  const u = params.get('url');
-  const k = params.get('key');
-  if (u && k) {
-    localStorage.setItem('_sbUrl', u);
-    localStorage.setItem('_sbKey', k);
-    setTimeout(() => {
-      const urlInput = document.getElementById('sb-url');
-      const keyInput = document.getElementById('sb-key');
-      if (urlInput) { urlInput.value = u; urlInput.dispatchEvent(new Event('input')); }
-      if (keyInput) { keyInput.value = k; keyInput.dispatchEvent(new Event('input')); }
-      document.querySelectorAll('button').forEach(btn => {
-        if (btn.textContent.trim().includes('Save')) btn.click();
-      });
-    }, 800);
-    setTimeout(() => {
-      document.querySelectorAll('button').forEach(btn => {
-        if (btn.textContent.trim().includes('Pull')) btn.click();
-      });
-    }, 1800);
-  }
-})();
-</script>
 </body>
 </html>
