@@ -245,12 +245,25 @@
       };
     }
 
+    async function readErrorText(resp) {
+      try {
+        const t = await resp.text();
+        if (!t) return "";
+        return t.length > 260 ? t.slice(0, 260) + "..." : t;
+      } catch (e) {
+        return "";
+      }
+    }
+
     async function testConn() {
       setLoading(true);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key&limit=1";
       try {
         const r = await fetch(url, { headers: headers() });
-        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (!r.ok) {
+          const msg = await readErrorText(r);
+          throw new Error("HTTP " + r.status + (msg ? " - " + msg : ""));
+        }
         setStatus("connected");
       } finally {
         setLoading(false);
@@ -275,7 +288,10 @@
       try {
         const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
         const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
-        if (!r.ok) throw new Error("push failed HTTP " + r.status);
+        if (!r.ok) {
+          const msg = await readErrorText(r);
+          throw new Error("push failed HTTP " + r.status + (msg ? " - " + msg : ""));
+        }
         setStatus("push ok: " + rows.length + " keys");
       } finally {
         setLoading(false);
@@ -290,7 +306,10 @@
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + f + "&order=updated_at.asc";
       try {
         const r = await fetch(url, { headers: headers() });
-        if (!r.ok) throw new Error("pull failed HTTP " + r.status);
+        if (!r.ok) {
+          const msg = await readErrorText(r);
+          throw new Error("pull failed HTTP " + r.status + (msg ? " - " + msg : ""));
+        }
         const rows = await r.json();
         let maxUpdatedAt = lastPullAt;
         rows.forEach((row) => {
@@ -403,6 +422,22 @@
     if (savedUrl) document.getElementById("sb-url").value = savedUrl;
     if (savedKey) document.getElementById("sb-key").value = savedKey;
 
+    // Allow pre-filling by URL query:
+    // ?url=https://PROJECT.supabase.co&key=... (or &apikey=...)
+    try {
+      const q = new URLSearchParams(window.location.search || "");
+      const urlParam = (q.get("url") || "").trim();
+      const keyParam = (q.get("key") || q.get("apikey") || "").trim();
+      if (urlParam) {
+        document.getElementById("sb-url").value = urlParam;
+        localStorage.setItem("_sbUrl", urlParam);
+      }
+      if (keyParam) {
+        document.getElementById("sb-key").value = keyParam;
+        localStorage.setItem("_sbKey", keyParam);
+      }
+    } catch (e) {}
+
     const settingsDlg = document.getElementById("sb-settings");
     const openSettings = document.getElementById("open-settings");
     const closeSettings = document.getElementById("close-settings");
@@ -429,4 +464,3 @@
   </script>
 </body>
 </html>
- 
