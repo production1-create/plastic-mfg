@@ -215,8 +215,9 @@
       "_manualCostEntries","_dailyReports","_robotRegistry","_ttData","_jobs","_kpiTableData",
       "_dashWidgets","_dashCharts","_dashChartPeriod","_condStdList","_rawMatLedger","_rawMatPRList",
       "_limitSamples","_machGroups","_qrt_scans","_qrt_scans2","_sigStore","_sigLog","_mbColors","_mbStock","_mbLedger",
-      "_rgStock","_rgLedger"
+      "_rgStock","_rgLedger","pmf_users_v5"
     ];
+    const COLLAB_MERGE_KEYS = ["_dailyReports", "pmf_users_v5"];
 
     let frameReady = false;
     let lastPullAt = localStorage.getItem("_sbLastPullAt") || new Date(0).toISOString();
@@ -243,6 +244,64 @@
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
       };
+    }
+
+    function safeJsonParse(v, fallback) {
+      try { return JSON.parse(v); } catch (e) { return fallback; }
+    }
+    function toTs(v) {
+      const t = new Date(v || 0).getTime();
+      return Number.isFinite(t) ? t : 0;
+    }
+    function mergeUsersValue(localStr, remoteStr) {
+      const a = safeJsonParse(localStr, []);
+      const b = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(a) || !Array.isArray(b)) return localStr || remoteStr || "";
+      const byUser = {};
+      [...b, ...a].forEach((u) => {
+        if (!u || !u.username) return;
+        const prev = byUser[u.username];
+        if (!prev || toTs(u.updatedAt || u.createdAt) >= toTs(prev.updatedAt || prev.createdAt)) byUser[u.username] = u;
+      });
+      return JSON.stringify(Object.values(byUser));
+    }
+    function mergeRowsByHour(localRows, remoteRows) {
+      const byHour = {};
+      [...(remoteRows || []), ...(localRows || [])].forEach((r) => {
+        if (!r || typeof r.hour === "undefined") return;
+        const key = `${r.shift || ""}_${r.hour}`;
+        const prev = byHour[key];
+        if (!prev || toTs(r._updatedAt || r.updatedAt) >= toTs(prev._updatedAt || prev.updatedAt)) byHour[key] = r;
+      });
+      return Object.values(byHour).sort((x, y) => (x.hour || 0) - (y.hour || 0));
+    }
+    function mergeDailyReportsValue(localStr, remoteStr) {
+      const a = safeJsonParse(localStr, {});
+      const b = safeJsonParse(remoteStr, {});
+      if (!a || typeof a !== "object" || !b || typeof b !== "object") return localStr || remoteStr || "";
+      const merged = { ...b, ...a };
+      Object.keys(merged).forEach((k) => {
+        const la = a[k], rb = b[k];
+        if (!la || !rb) return;
+        const preferLocal = toTs(la._updatedAt || la.savedAt) >= toTs(rb._updatedAt || rb.savedAt);
+        const base = preferLocal ? { ...rb, ...la } : { ...la, ...rb };
+        base.rows = mergeRowsByHour(la.rows, rb.rows);
+        merged[k] = base;
+      });
+      return JSON.stringify(merged);
+    }
+    function mergeValueByKey(key, localStr, remoteStr) {
+      if (key === "pmf_users_v5") return mergeUsersValue(localStr, remoteStr);
+      if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
+      return localStr;
+    }
+    async function fetchServerValueByKey(key) {
+      const q = encodeURIComponent(key);
+      const url = sbUrl() + "/rest/v1/app_storage?select=storage_value&storage_key=eq." + q + "&limit=1";
+      const r = await fetch(url, { headers: headers() });
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return rows && rows[0] ? rows[0].storage_value : null;
     }
 
     async function readErrorText(resp) {
@@ -279,6 +338,13 @@
       for (const key of SYNC_KEYS) {
         let value = null;
         try { value = w.localStorage.getItem(key); } catch (e) {}
+        if (typeof value === "string" && COLLAB_MERGE_KEYS.includes(key)) {
+          const remoteVal = await fetchServerValueByKey(key);
+          if (typeof remoteVal === "string") {
+            value = mergeValueByKey(key, value, remoteVal);
+            try { w.localStorage.setItem(key, value); } catch (e) {}
+          }
+        }
         if (typeof value === "string") {
           rows.push({ storage_key: key, storage_value: value, updated_at: now });
         }
@@ -313,7 +379,13 @@
         const rows = await r.json();
         let maxUpdatedAt = lastPullAt;
         rows.forEach((row) => {
-          try { w.localStorage.setItem(row.storage_key, row.storage_value); } catch (e) {}
+          let nextVal = row.storage_value;
+          if (COLLAB_MERGE_KEYS.includes(row.storage_key)) {
+            let curVal = null;
+            try { curVal = w.localStorage.getItem(row.storage_key); } catch (e) {}
+            if (typeof curVal === "string") nextVal = mergeValueByKey(row.storage_key, curVal, row.storage_value);
+          }
+          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
           if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
         });
         lastPullAt = maxUpdatedAt;
