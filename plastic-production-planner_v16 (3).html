@@ -3165,6 +3165,12 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div id="rm-tab-stock">
     <!-- Pending PR banner -->
     <div id="rm-pr-banner" style="margin-bottom:10px"></div>
+    <!-- Sub tabs: แยกประเภทสต็อก -->
+    <div class="tabs" style="margin-bottom:10px">
+      <div class="tab active" id="rm-stock-tab-plastic" onclick="rmStockCatTab('plastic',this)">🧪 สต็อกเม็ด</div>
+      <div class="tab" id="rm-stock-tab-mb" onclick="rmStockCatTab('mb_color',this)">🎨 สต็อกสี (MB)</div>
+      <div class="tab" id="rm-stock-tab-pack" onclick="rmStockCatTab('packaging',this)">📦 วัสดุกล่อง/บรรจุภัณฑ์</div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px" id="rawmat-cards"></div>
     <div style="background:var(--bg2);border-radius:10px;border:1px solid var(--border);overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
@@ -3172,7 +3178,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div style="display:flex;gap:6px">
           <input id="rm-stock-search" placeholder="🔍 ค้นหา..." oninput="renderRawmat()"
             style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;width:140px">
-          <button onclick="rmAddPlastic()" style="padding:5px 10px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit" title="เพิ่มประเภทเม็ดพลาสติก">+ เพิ่มเม็ด</button>
+          <button id="rm-add-plastic-btn" onclick="rmAddPlastic()" style="padding:5px 10px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit" title="เพิ่มประเภทเม็ดพลาสติก">+ เพิ่มเม็ด</button>
         </div>
       </div>
       <div style="overflow-x:auto">
@@ -5220,6 +5226,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <option value="nissei">🟢 Nissei</option>
           <option value="fanuc">🟠 Fanuc</option>
           <option value="sumitomo">🟣 Sumitomo</option>
+          <option value="mitsubishi">🔴 Mitsubishi</option>
+          <option value="assembly">🧩 ไลน์ประกอบ</option>
           <option value="general">⚙️ อื่นๆ</option>
         </select>
         <button onclick="mregExportCSV()" style="padding:6px 14px;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">📤 Export</button>
@@ -6333,6 +6341,33 @@ var CUSTOMER_REGISTRY = JSON.parse(localStorage.getItem('_customerRegistry')||'n
 function saveCustomerRegistry(){ try{ localStorage.setItem('_customerRegistry',JSON.stringify(CUSTOMER_REGISTRY)); }catch(e){} }
 function getCustomerById(id){ return CUSTOMER_REGISTRY.find(function(c){return c.id===id;})||null; }
 
+function _normalizeText(v){
+  if(v===null||v===undefined) return '';
+  var s=String(v).replace(/\s+/g,' ').trim();
+  if(!s||s.toLowerCase()==='undefined'||s.toLowerCase()==='null') return '';
+  return s;
+}
+
+function getAllCustomerNames(){
+  var set=new Set();
+  try{
+    (jobs||[]).forEach(function(j){ var n=_normalizeText(j&&j.customer); if(n) set.add(n); });
+  }catch(e){}
+  try{
+    (JOB_REGISTRY||[]).forEach(function(j){ var n=_normalizeText(j&&j.customer); if(n) set.add(n); });
+  }catch(e){}
+  try{
+    (CUSTOMER_REGISTRY||[]).forEach(function(c){
+      var n=_normalizeText((typeof c==='string')?c:(c&&c.name));
+      if(n) set.add(n);
+    });
+  }catch(e){}
+  try{
+    (CUSTOMER_DB||[]).forEach(function(c){ var n=_normalizeText(c&&c.name); if(n) set.add(n); });
+  }catch(e){}
+  return Array.from(set).sort(function(a,b){ return a.localeCompare(b,'th'); });
+}
+
 var QC_SPEC_REGISTRY = (function(){try{var _q=localStorage.getItem('_qcSpecRegistry');return _q?JSON.parse(_q):[];}catch(e){return [];}})();
 function saveQcSpecRegistry(){ try{ localStorage.setItem('_qcSpecRegistry',JSON.stringify(QC_SPEC_REGISTRY)); }catch(e){} }
 function getQcSpecByJob(jobName){
@@ -6412,6 +6447,32 @@ function getJobById(id){ return JOB_REGISTRY.find(function(j){return j.id===id;}
 function getJobByName(name){ return JOB_REGISTRY.find(function(j){return j.name===name;})||null; }
 function getJobsForMachine(machId){ return JOB_REGISTRY.filter(function(j){return j.machine===machId&&j.status==='active';}); }
 function getJobsForCustomer(custId){ return JOB_REGISTRY.filter(function(j){return j.customerId===custId||j.customer===custId;}); }
+
+function sanitizeJobRegistry(){
+  var before=Array.isArray(JOB_REGISTRY)?JOB_REGISTRY.length:0;
+  if(!Array.isArray(JOB_REGISTRY)) JOB_REGISTRY=[];
+  JOB_REGISTRY = JOB_REGISTRY
+    .filter(function(j){
+      if(!j || typeof j!=='object') return false;
+      var id=_normalizeText(j.id);
+      var name=_normalizeText(j.name);
+      if(!id || !name) return false;
+      return true;
+    })
+    .map(function(j){
+      j.id=_normalizeText(j.id);
+      j.name=_normalizeText(j.name);
+      j.customer=_normalizeText(j.customer);
+      j.machine=_normalizeText(j.machine);
+      j.plastic=_normalizeText(j.plastic);
+      j.grade=_normalizeText(j.grade);
+      j.mb=_normalizeText(j.mb)||'-';
+      j.process=_normalizeText(j.process);
+      j.processDetail=_normalizeText(j.processDetail);
+      return j;
+    });
+  if(JOB_REGISTRY.length!==before) saveJobRegistry();
+}
 
 // ════════════════════════════════════════════════════════════════
 // EMPLOYEE REGISTRY — ทะเบียนพนักงาน
@@ -8386,6 +8447,7 @@ var BRAND_CONFIG = {
   fanuc:     {label:'Fanuc',     icon:'🟠', color:'#ff7b00'},
   sumitomo:  {label:'Sumitomo',  icon:'🟣', color:'#d2a8ff'},
   mitsubishi:{label:'Mitsubishi',icon:'🔴', color:'#f85149'},
+  assembly:  {label:'ไลน์ประกอบ',icon:'🧩', color:'#e3b341'},
   general:   {label:'อื่นๆ',     icon:'⚙️', color:'#8b949e'},
 };
 
@@ -8985,7 +9047,7 @@ function renderJobRegistry(){
   // Populate filter dropdowns
   var custSel=document.getElementById('jobreg-customer');
   if(custSel&&custSel.options.length<=1){
-    var custs=[...new Set(JOB_REGISTRY.map(function(j){return j.customer;}))].filter(Boolean).sort();
+    var custs=getAllCustomerNames();
     custSel.innerHTML='<option value="">🏢 ทุกลูกค้า</option>'+custs.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
     if(custF) custSel.value=custF;
   }
@@ -8996,10 +9058,12 @@ function renderJobRegistry(){
   }
 
   var list=JOB_REGISTRY.filter(function(j){
+    if(!j || typeof j!=='object') return false;
+    if(!_normalizeText(j.id) || !_normalizeText(j.name)) return false;
     if(search && !(j.name||'').toLowerCase().includes(search) && !(j.customer||'').toLowerCase().includes(search)) return false;
-    if(custF && j.customer!==custF) return false;
-    if(machF && j.machine!==machF) return false;
-    if(statF && j.status!==statF) return false;
+    if(custF && (j.customer||'')!==custF) return false;
+    if(machF && (j.machine||'')!==machF) return false;
+    if(statF && (j.status||'')!==statF) return false;
     return true;
   });
 
@@ -9030,7 +9094,7 @@ function renderJobRegistry(){
       +'<td style="padding:8px;text-align:center"><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(121,192,255,0.12);color:#79c0ff">'+(j.plastic||'—')+'</span></td>'
       +'<td style="padding:8px;text-align:center;font-size:10px;color:var(--text3)">'+(j.mb&&j.mb!=='-'?(j.mb+(j.mbRatio?' '+j.mbRatio+'%':'')):'—')+'</td>'
       +'<td style="padding:8px;text-align:center;font-weight:700;color:#3fb950">'+(j.targetPerHr||'—')+'</td>'
-      +'<td style="padding:8px;font-size:10px;color:var(--text3)">'+(j.process||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;color:var(--text3)">'+(j.process||'—')+(j.processDetail?'<div style="font-size:9px;color:var(--text3);opacity:.9;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">↳ '+j.processDetail+'</div>':'')+'</td>'
       +'<td style="padding:8px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+sc+'18;color:'+sc+'">'+j.status+'</span></td>'
       +'<td style="padding:8px;text-align:center"><button onclick="jobregEdit(\''+j.id+'\')" style="padding:4px 10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">✏️</button>'
       +'<button onclick="jobregDelete(\''+j.id+'\')" style="'+_DEL_BTN+'">🗑</button></td>'
@@ -9043,6 +9107,7 @@ function jobregAdd(){
   document.getElementById('jobedit-title').textContent='📦 เพิ่มงานใหม่';
   ['name','plastic','grade','mb','moldcode','wicode','process','remark'].forEach(function(f){var el=document.getElementById('je-'+f);if(el)el.value='';});
   ['cavity','ct','eff','target','packqty','mbratio'].forEach(function(f){var el=document.getElementById('je-'+f);if(el)el.value='';});
+  var pd=document.getElementById('je-process-detail'); if(pd) pd.value='';
   document.getElementById('je-status').value='active';
   var puEl=document.getElementById('je-packunit');if(puEl)puEl.value='ชิ้น/กล่อง';
   var moldInfoEl=document.getElementById('je-mold-info');if(moldInfoEl)moldInfoEl.style.display='none';
@@ -9066,6 +9131,7 @@ function jobregEdit(id){
   document.getElementById('je-eff').value=j.efficiency||'';
   document.getElementById('je-target').value=j.targetPerHr||'';
   document.getElementById('je-process').value=j.process||'';
+  if(document.getElementById('je-process-detail')) document.getElementById('je-process-detail').value=j.processDetail||'';
   document.getElementById('je-moldcode').value=j.moldCode||'';
   document.getElementById('je-wicode').value=j.wiCode||'';
   document.getElementById('je-packqty').value=j.packingQty||'';
@@ -9083,7 +9149,12 @@ function jobregEdit(id){
 
 function _jobregPopulateDropdowns(selCust,selMach){
   var custSel=document.getElementById('je-customer');
-  if(custSel){ custSel.innerHTML='<option value="">— เลือกลูกค้า —</option>'+CUSTOMER_REGISTRY.map(function(c){return '<option value="'+c.name+'" '+(c.name===selCust?'selected':'')+'>'+c.name+'</option>';}).join(''); if(selCust)custSel.value=selCust; }
+  if(custSel){
+    var custs=getAllCustomerNames();
+    custSel.innerHTML='<option value="">— เลือกลูกค้า —</option>'
+      +custs.map(function(n){return '<option value="'+n+'" '+(n===selCust?'selected':'')+'>'+n+'</option>';}).join('');
+    if(selCust) custSel.value=selCust;
+  }
   var machSel=document.getElementById('je-machine');
   if(machSel){ machSel.innerHTML='<option value="">— เลือกเครื่อง —</option>'+MACHINES.map(function(m){return '<option value="'+m.id+'" '+(m.id===selMach?'selected':'')+'>'+m.id+' ('+m.ton+'T)</option>';}).join(''); if(selMach)machSel.value=selMach; }
 }
@@ -9286,10 +9357,8 @@ function jeInitModal(){
   // Customer list
   var custEl=document.getElementById('je-customer');
   if(custEl){
-    var custs=new Set();
-    jobs.forEach(function(j){if(j.customer)custs.add(j.customer);});
-    if(typeof CUSTOMER_REGISTRY!=='undefined') CUSTOMER_REGISTRY.forEach(function(c){custs.add(c.name||c);});
-    custEl.innerHTML='<option value="">— เลือกลูกค้า —</option>'+[...custs].sort().map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+    var custs=getAllCustomerNames();
+    custEl.innerHTML='<option value="">— เลือกลูกค้า —</option>'+custs.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
   }
   // Machine list
   var machEl=document.getElementById('je-machine');
@@ -9297,6 +9366,19 @@ function jeInitModal(){
     machEl.innerHTML='<option value="">— เลือกเครื่อง —</option>'
       +MACHINES.filter(function(m){return !m.machineType||m.machineType==='injection';})
         .map(function(m){return '<option value="'+m.id+'">'+m.id+' ('+m.ton+'T)</option>';}).join('');
+  }
+
+  // Process detail visibility
+  var pEl=document.getElementById('je-process');
+  var pdWrap=document.getElementById('je-process-detail-wrap');
+  function _syncPD(){
+    var v=_normalizeText(pEl&&pEl.value);
+    var show = (v==='หยอดกาว' || v==='Hot Stamp' || v==='โซนิค');
+    if(pdWrap) pdWrap.style.display = show ? 'block' : 'none';
+  }
+  if(pEl){
+    pEl.onchange=_syncPD;
+    _syncPD();
   }
 }
 
@@ -9326,7 +9408,14 @@ function jobregSave(){
   if(!name){if(typeof _infoToast==="function") _infoToast('กรุณากรอกชื่องาน');return;}
   if(!id) id='JOB-'+String(Date.now()).slice(-6);
   var custName=document.getElementById('je-customer').value;
-  var custObj=CUSTOMER_REGISTRY.find(function(c){return c.name===custName;})||null;
+  var custObj=(function(){
+    var n=_normalizeText(custName);
+    if(!n) return null;
+    var inReg=(CUSTOMER_REGISTRY||[]).find(function(c){ return _normalizeText(c&&c.name)===n; })||null;
+    if(inReg) return inReg;
+    var inDb=(CUSTOMER_DB||[]).find(function(c){ return _normalizeText(c&&c.name)===n; })||null;
+    return inDb;
+  })();
   var cav=parseInt(document.getElementById('je-cavity').value)||0;
   var ct=parseFloat(document.getElementById('je-ct').value)||0;
   var eff=parseInt(document.getElementById('je-eff').value)||85;
@@ -9340,6 +9429,7 @@ function jobregSave(){
     mbRatio:parseFloat(document.getElementById('je-mbratio').value)||0,
     cavity:cav,cycleTime:ct,efficiency:eff,targetPerHr:tgt,
     process:document.getElementById('je-process').value.trim(),
+    processDetail:document.getElementById('je-process-detail')?document.getElementById('je-process-detail').value.trim():'',
     moldCode:document.getElementById('je-moldcode').value.trim(),
     wiCode:document.getElementById('je-wicode').value.trim(),
     packingQty:parseInt(document.getElementById('je-packqty').value)||0,
@@ -9354,7 +9444,7 @@ function jobregSave(){
   var jIdx=jobs.findIndex(function(j){return j.name===name;});
   var jObj={name:obj.name,cav:obj.cavity,ct:obj.cycleTime,eff:obj.efficiency,target:obj.targetPerHr,
     machine:obj.machine,ton:obj.ton,customer:obj.customer,plastic:obj.plastic,grade:obj.grade,
-    mb:obj.mb,mbRatio:obj.mbRatio,process:obj.process};
+    mb:obj.mb,mbRatio:obj.mbRatio,process:obj.process,processDetail:obj.processDetail};
   if(jIdx>=0) jobs[jIdx]=Object.assign(jobs[jIdx],jObj); else jobs.push(Object.assign({jobType:'injection',wt:0,packingStd:{qty:obj.packingQty,unit:obj.packingUnit}},jObj));
   closeModal('modal-job-edit');
   renderJobRegistry();
@@ -9362,8 +9452,12 @@ function jobregSave(){
 }
 
 function jobregExport(){
-  var rows=[['ID','ชื่องาน','ลูกค้า','เครื่อง','Cavity','CycleTime','EFF%','เป้า/ชม','พลาสติก','เกรด','MB','%MB','กระบวนการ','Mold Code','WI Code','จำนวน/กล่อง','สถานะ','หมายเหตุ']];
-  JOB_REGISTRY.forEach(function(j){rows.push([j.id,j.name,j.customer||'',j.machine||'',j.cavity||0,j.cycleTime||0,j.efficiency||0,j.targetPerHr||0,j.plastic||'',j.grade||'',j.mb||'',j.mbRatio||0,j.process||'',j.moldCode||'',j.wiCode||'',j.packingQty||0,j.status,j.remark||'']);});
+  var rows=[['ID','ชื่องาน','ลูกค้า','เครื่อง','Cavity','CycleTime','EFF%','เป้า/ชม','พลาสติก','เกรด','MB','%MB','กระบวนการ','รายละเอียดกระบวนการหลัง','Mold Code','WI Code','จำนวน/กล่อง','สถานะ','หมายเหตุ']];
+  JOB_REGISTRY.forEach(function(j){
+    if(!j || typeof j!=='object') return;
+    if(!_normalizeText(j.id) || !_normalizeText(j.name)) return;
+    rows.push([j.id,j.name,j.customer||'',j.machine||'',j.cavity||0,j.cycleTime||0,j.efficiency||0,j.targetPerHr||0,j.plastic||'',j.grade||'',j.mb||'',j.mbRatio||0,j.process||'',j.processDetail||'',j.moldCode||'',j.wiCode||'',j.packingQty||0,j.status,j.remark||'']);
+  });
   if(typeof _downloadCsv==='function') _downloadCsv(rows,'job_registry');
 }
 
@@ -15880,6 +15974,16 @@ function saveMix(){
 }
 
 // ===================== RAWMAT =====================
+var _rmStockCat = 'plastic'; // plastic | mb_color | packaging
+
+function rmStockCatTab(cat, el){
+  _rmStockCat = cat || 'plastic';
+  // toggle active UI
+  document.querySelectorAll('#rm-tab-stock .tab').forEach(function(b){ b.classList.remove('active'); });
+  if(el) el.classList.add('active');
+  renderRawmat();
+}
+
 function getRawmatMonthlyUsage(material){
   // Estimate monthly usage from running orders + BOM
   let kgPerMonth = 0;
@@ -15895,10 +15999,27 @@ function getRawmatMonthlyUsage(material){
 }
 
 function renderRawmat(){
-  const plastics=Object.keys(rawMatStock);
+  const allMats=Object.keys(rawMatStock||{});
+  const getCat = (p)=>{
+    try{
+      const reg = (RAWMAT_REGISTRY||[]).find(r=>r.code===p);
+      return (reg&&reg.category) ? reg.category : 'plastic';
+    }catch(e){ return 'plastic'; }
+  };
+  const mats = allMats.filter(p=>{
+    const c=getCat(p);
+    if(_rmStockCat==='mb_color') return c==='mb_color';
+    if(_rmStockCat==='packaging') return c==='packaging';
+    // plastic tab: include plastic + unknown (not mb_color/packaging)
+    return c!=='mb_color' && c!=='packaging';
+  });
   const cards=document.getElementById('rawmat-cards');
   const tbody=document.getElementById('rawmat-tbody');
   const today=new Date().toISOString().split('T')[0];
+
+  // show add plastic button only on plastic tab
+  const addBtn=document.getElementById('rm-add-plastic-btn');
+  if(addBtn) addBtn.style.display = (_rmStockCat==='plastic') ? '' : 'none';
 
   // PR pending banner
   const bannerEl=document.getElementById('rm-pr-banner');
@@ -15928,7 +16049,7 @@ function renderRawmat(){
     } else { bannerEl.innerHTML=''; }
   }
 
-  if(cards) cards.innerHTML=plastics.map(p=>{
+  if(cards) cards.innerHTML=mats.map(p=>{
     const s=rawMatStock[p]; const pct=Math.round(s.qty/(s.max||1)*100);
     const low=s.qty<s.min;
     const col=low?'var(--red)':s.qty>s.max?'var(--orange)':'var(--green)';
@@ -15942,7 +16063,7 @@ function renderRawmat(){
       </div>
       <div class="kpi-value mono" style="font-size:20px;color:${col}">${s.qty.toLocaleString()}<span style="font-size:11px;color:var(--text3)"> kg</span></div>
       <div class="progress mt-2"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
-      <div style="font-size:10px;color:var(--text3);margin-top:4px">Min: ${s.min.toLocaleString()} | Max: ${s.max.toLocaleString()}</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: ${(s.min||0).toLocaleString()} | Max: ${(s.max||0).toLocaleString()}</div>
       ${reg&&reg.grade?`<div style="font-size:10px;color:#79c0ff;margin-top:2px">เกรด: ${reg.grade}</div>`:''}
       ${reg&&reg.price?`<div style="font-size:10px;color:#e3b341;margin-top:2px">฿ ${reg.price.toLocaleString()}/kg</div>`:''}
       ${pendingKg>0?`<div style="font-size:10px;color:#e3b341;margin-top:3px;font-weight:700">⏳ รอเข้า: ${pendingKg.toLocaleString()} kg</div>`:''}
@@ -15951,7 +16072,7 @@ function renderRawmat(){
     </div>`;
   }).join('');
 
-  if(tbody) tbody.innerHTML=plastics.map(p=>{
+  if(tbody) tbody.innerHTML=mats.map(p=>{
     const s=rawMatStock[p];
     const reg=RAWMAT_REGISTRY.find(r=>r.code===p)||null;
     const cfg=rawMatSettings[p]||{ltDays:14,minOrderQty:500,supplier:'-',price:0};
@@ -15973,8 +16094,8 @@ function renderRawmat(){
       <td style="padding:8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">${price>0?price.toLocaleString()+' ฿':'—'}</td>
       <td style="padding:8px;font-size:11px;color:var(--text3)">${suppName}</td>
       <td style="padding:8px;text-align:center;font-weight:700;font-size:13px;color:${col}">${s.qty.toLocaleString()}</td>
-      <td style="padding:8px;text-align:center;font-size:11px">${s.min.toLocaleString()}</td>
-      <td style="padding:8px;text-align:center;font-size:11px">${s.max.toLocaleString()}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:var(--text2);font-weight:700">${(s.min||0).toLocaleString()}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:var(--text2);font-weight:700">${(s.max||0).toLocaleString()}</td>
       <td style="padding:8px;text-align:center;font-size:11px">${(reg?reg.leadTime:cfg.ltDays)||14}</td>
       <td style="padding:8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">${pendingKg>0?pendingKg.toLocaleString()+' kg':'—'}</td>
       <td style="padding:8px;text-align:center;font-size:11px">${nextArrival?'<span style="color:#3fb950;font-weight:700">'+nextArrival.expectedDate+'</span><br><span style="font-size:9px;color:var(--text3)">'+nextArrival.id+'</span>':'—'}</td>
@@ -17224,7 +17345,7 @@ function renderMachineStatus(){
   var machSVG='<svg width="26" height="26" viewBox="0 0 32 32" fill="none"><rect x="2" y="10" width="18" height="14" rx="1.5" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.6)" stroke-width="1"/><rect x="20" y="13" width="9" height="8" rx="1" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/><rect x="7" y="7" width="8" height="4" rx="0.5" fill="rgba(255,255,255,0.25)"/><line x1="5" y1="15" x2="13" y2="15" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/><line x1="5" y1="18" x2="13" y2="18" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/><circle cx="23" cy="17" r="2" fill="rgba(255,255,255,0.5)"/></svg>';
   var robotSVG='<svg width="26" height="26" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="7" r="4" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.6)" stroke-width="1"/><rect x="10" y="11" width="12" height="10" rx="1.5" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/><line x1="10" y1="13" x2="4" y2="19" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><line x1="22" y1="13" x2="28" y2="19" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><line x1="13" y1="21" x2="11" y2="28" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/><line x1="19" y1="21" x2="21" y2="28" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/></svg>';
   var otherSVG='<svg width="26" height="26" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="8" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/><circle cx="16" cy="16" r="3" fill="rgba(255,255,255,0.5)"/><line x1="16" y1="5" x2="16" y2="9" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><line x1="16" y1="23" x2="16" y2="27" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><line x1="5" y1="16" x2="9" y2="16" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/><line x1="23" y1="16" x2="27" y2="16" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/></svg>';
-  var typeIcons={injection:machSVG,robot:robotSVG,screen:otherSVG,spray:otherSVG,oven:otherSVG,grinder:otherSVG,conveyor:otherSVG,other:otherSVG};
+  var typeIcons={injection:machSVG,robot:robotSVG,screen:otherSVG,spray:otherSVG,oven:otherSVG,assembly:otherSVG,glue:otherSVG,hotstamp:otherSVG,grinder:otherSVG,conveyor:otherSVG,other:otherSVG};
 
   grid.innerHTML=list.length?list.map(function(m){
     var st=m.status||'idle';
@@ -24132,7 +24253,7 @@ function renderPage(id){
   }
   else if(id==='moldregistry'){ renderMoldRegistry(); }
   else if(id==='customers'){ renderCustomerRegistry(); }
-  else if(id==='jobreg'){ initJobRegistry(); renderJobRegistry(); }
+  else if(id==='jobreg'){ initJobRegistry(); sanitizeJobRegistry(); renderJobRegistry(); }
   else if(id==='rawmatreg'){ renderRawmatRegistry(); }
   else if(id==='supplierreg'){ renderSupplierRegistry(); }
   else if(id==='pmchecklist'){ renderPmChecklistRegistry(); }
@@ -32669,6 +32790,7 @@ function masterInit(){
 
   // ── โหลด Registry (Job / Employee / Customer / Mold) ──────────
   initJobRegistry();        // sync JOB_REGISTRY จาก JOBS_RAW ถ้ายังว่าง
+  sanitizeJobRegistry();    // ล้างข้อมูล job ที่เป็น undefined/ไม่ครบ
   initEmployeeRegistry();   // sync EMPLOYEE_REGISTRY จาก employees ถ้ายังว่าง
   if(typeof initCustomerDB==='function') initCustomerDB(); // seed จาก JOBS_RAW ถ้าว่าง
 
@@ -42391,6 +42513,9 @@ function approvalProcDelete(id){
             <option value="screen">🖨️ เครื่องสกรีน (Screen Printing)</option>
             <option value="spray">💨 เครื่องพ่น (Spray)</option>
             <option value="oven">🔆 ตู้อบ (Oven)</option>
+            <option value="assembly">🧩 ไลน์ประกอบ (Assembly)</option>
+            <option value="glue">🧴 หยอดกาว (Glue)</option>
+            <option value="hotstamp">🔥 Hot Stamp</option>
             <option value="grinder">⚙️ เครื่องบด (Grinder)</option>
             <option value="conveyor">📦 สายพาน (Conveyor)</option>
             <option value="other">🔧 อื่นๆ (Other)</option>
@@ -42405,6 +42530,7 @@ function approvalProcDelete(id){
             <option value="fanuc">🟠 Fanuc</option>
             <option value="sumitomo">🟣 Sumitomo</option>
             <option value="mitsubishi">🔴 Mitsubishi</option>
+            <option value="assembly">🧩 ไลน์ประกอบ</option>
             <option value="general">⚙️ อื่นๆ / General</option>
           </select>
         </div>
@@ -42679,8 +42805,13 @@ function approvalProcDelete(id){
             <option>ตัด/OK</option><option>คัด/OK</option><option>ตัด+แต่ง</option>
             <option>ประกอบ</option><option>ประกอบ+ตัด</option><option>พ่นสี</option>
             <option>ชุบ</option><option>พิมพ์สกรีน</option><option>ไม่มี</option>
+            <option>หยอดกาว</option><option>Hot Stamp</option><option>โซนิค</option>
           </select>
         </div>
+      </div>
+      <div id="je-process-detail-wrap" style="display:none;margin-top:10px">
+        <div class="form-label">รายละเอียดกระบวนการหลัง (หยอดกาว / Hot Stamp / โซนิค)</div>
+        <input id="je-process-detail" placeholder="เช่น: หยอดกาว 2 จุด / Hot Stamp ฟอยล์เงินตำแหน่ง A / โซนิค 3 จุด" style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
       </div>
     </div>
 
