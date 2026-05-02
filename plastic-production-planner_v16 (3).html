@@ -1713,12 +1713,21 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
       <div class="flex gap-2" style="align-items:center;flex-wrap:wrap">
         <button class="page-print-btn" onclick="openPrintPanel('page-timetable')">🖨 สอบกลับ & พิมพ์</button>
+        <div style="display:flex;background:var(--bg3);border-radius:8px;padding:3px;gap:2px;border:1px solid var(--border)" title="แยกชีต: ฉีด vs ประกอบ/ไลน์รอง">
+          <button type="button" id="tt-tab-inj" onclick="ttSetSheet('injection')" style="padding:5px 12px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;background:var(--accent);color:#fff">🏭 เครื่องฉีด</button>
+          <button type="button" id="tt-tab-asm" onclick="ttSetSheet('assembly')" style="padding:5px 12px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;background:transparent;color:var(--text2)">🧩 ประกอบ/ไลน์รอง</button>
+        </div>
         <div id="tt-view-tabs" style="display:flex;background:var(--bg3);border-radius:8px;padding:3px;gap:2px;border:1px solid var(--border)">
           <button id="tt-btn-day"   onclick="ttView='day';renderTT()"   style="padding:5px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s">รายวัน</button>
           <button id="tt-btn-month" onclick="ttView='month';renderTT()" style="padding:5px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s">รายเดือน</button>
           <button id="tt-btn-year"  onclick="ttView='year';renderTT()"  style="padding:5px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s">รายปี</button>
         </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ttShiftDays(-7)" title="เลื่อนย้อนหลัง 7 วัน">« −7 วัน</button>
         <input type="date" id="tt-date" style="width:145px;padding:6px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px" onchange="renderTT()">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ttShiftDays(7)" title="เลื่อนไปข้างหน้า 7 วัน">+7 วัน »</button>
+        <select id="tt-zone-filter" onchange="renderTT()" style="padding:6px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;max-width:160px" title="กรองตาม Zone เครื่อง">
+          <option value="all">🏭 ทุก Zone</option>
+        </select>
         <select id="tt-machine-filter" onchange="renderTT()" style="padding:6px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px">
           <option value="">🏭 ทุกเครื่อง</option>
           <option value="20">20 เครื่องแรก</option>
@@ -1726,11 +1735,24 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <option value="50">50 เครื่อง</option>
           <option value="100">100 เครื่อง</option>
         </select>
+        <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px;white-space:nowrap" title="ใช้คำนวณเป้าต่อวัน + นำเข้า TT (ซิงค์กับหน้า Order ถ้ามีช่องเดียวกัน)">⏱ ชม./วัน
+          <input type="number" id="tt-hours-tt" value="20" min="1" max="24" style="width:48px;padding:4px 6px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px" oninput="ttSyncHoursToOrders();">
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ttToggleMachPick()">☑ เลือกเครื่อง</button>
       </div>
+    </div>
+  </div>
+  <div id="tt-mach-pick-panel" class="card mb-3" style="display:none;padding:12px 14px">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">เลือกเครื่องที่จะแสดง (ติ๊กแล้วกด &quot;ใช้การเลือกนี้&quot; — ไม่ติ๊กเลย = แสดงทั้งหมด)</div>
+    <div id="tt-mach-pick-body" style="display:flex;flex-wrap:wrap;gap:8px;max-height:160px;overflow-y:auto"></div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-primary btn-sm" onclick="ttSaveMachPick()">✓ ใช้การเลือกนี้</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="ttClearMachPick()">รีเซ็ต (ทุกเครื่อง)</button>
     </div>
   </div>
   <!-- Summary bar -->
   <div id="tt-summary-bar" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>
+  <div id="tt-manpower-bar" class="card mb-3" style="padding:10px 14px;display:none"></div>
   <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--border)" id="tt-container">
     <div id="tt-content"></div>
   </div>
@@ -13007,6 +13029,76 @@ function refreshDash(){ renderDash(); }
 
 // ===================== MACHINES =====================
 let ttView = 'day';
+window._ttSheet = 'injection';
+function ttSetSheet(s){
+  window._ttSheet = (s === 'assembly') ? 'assembly' : 'injection';
+  if(typeof renderTT === 'function') renderTT();
+}
+function ttGetHoursPerDay(){
+  var a = document.getElementById('tt-hours-tt');
+  var b = document.getElementById('tt-hours-per-day');
+  var v = parseInt((a && a.value) || (b && b.value), 10);
+  if(!isFinite(v) || v < 1) return 20;
+  return Math.min(24, Math.max(1, v));
+}
+function ttSyncHoursToOrders(){
+  var src = document.getElementById('tt-hours-tt');
+  var dst = document.getElementById('tt-hours-per-day');
+  if(src && dst) dst.value = src.value;
+}
+function ttShiftDays(delta){
+  var el = document.getElementById('tt-date');
+  if(!el) return;
+  var base = el.value ? new Date(el.value + 'T12:00:00') : new Date();
+  if(isNaN(base.getTime())) base = new Date();
+  base.setDate(base.getDate() + (delta || 0));
+  el.value = base.toISOString().split('T')[0];
+  if(typeof renderTT === 'function') renderTT();
+}
+function ttToggleMachPick(){
+  var p = document.getElementById('tt-mach-pick-panel');
+  if(!p) return;
+  p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
+  if(p.style.display === 'block' && typeof renderTT === 'function') renderTT();
+}
+function ttJobPlanningGroup(j){
+  var job = jobs.find(function(x){ return x.name === j.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(j.jobName) : null);
+  var wg = job ? _jobWorkGroup(job) : 'injection';
+  return (wg === 'assembly' || wg === 'secondary') ? 'assembly' : 'injection';
+}
+function ttDailyTargetPcsForJob(jobName){
+  var j = jobs.find(function(jj){ return jj.name === jobName; }) || (typeof getJobByName === 'function' ? getJobByName(jobName) : null);
+  var t = j && j.target ? +j.target : 0;
+  if(!isFinite(t) || t <= 0) return 0;
+  return Math.round(t * ttGetHoursPerDay());
+}
+function ttDailyOkFromReport(machineId, dateStr){
+  var k = (machineId || '') + '_' + dateStr;
+  var rpt = dailyReports[k];
+  if(!rpt || !Array.isArray(rpt.rows)) return null;
+  var tp = 0, tn = 0;
+  rpt.rows.forEach(function(r){ tp += (+r.produced || 0); tn += (+r.ng || 0); });
+  return Math.max(0, tp - tn);
+}
+function ttBomHeadcount(jobName){
+  var j = jobs.find(function(jj){ return jj.name === jobName; }) || (typeof getJobByName === 'function' ? getJobByName(jobName) : null);
+  if(!j) return 0;
+  var w = parseInt(j.workers, 10);
+  if(!isFinite(w) || w < 0) w = parseInt(j.numWorkers, 10);
+  return (isFinite(w) && w > 0) ? w : 0;
+}
+function ttSaveMachPick(){
+  var arr = [];
+  document.querySelectorAll('.tt-mach-pick:checked').forEach(function(cb){ arr.push(cb.value); });
+  try{ localStorage.setItem('_ttMachPick', JSON.stringify(arr)); }catch(e){}
+  if(typeof _toast === 'function') _toast('✅ บันทึกการเลือกเครื่อง ' + arr.length + ' เครื่อง');
+  if(typeof renderTT === 'function') renderTT();
+}
+function ttClearMachPick(){
+  try{ localStorage.removeItem('_ttMachPick'); }catch(e){}
+  document.querySelectorAll('.tt-mach-pick').forEach(function(cb){ cb.checked = true; });
+  if(typeof renderTT === 'function') renderTT();
+}
 // Machine runtime data
 function getMachineRunData(m){
   // Find linked order
@@ -13781,7 +13873,7 @@ function importToTT(orderNo){
   if(job && job.target > 0){
     // job.target = pcs/hr (targetPerHr), ไม่ต้องหาร 3600
     // ดึงค่าชั่วโมงทำงาน/วัน จาก input ถ้ามี ไม่งั้นใช้ค่า default 20 ชม.
-    const hoursPerDay = parseInt(document.getElementById('tt-hours-per-day')?.value) || 20;
+    const hoursPerDay = typeof ttGetHoursPerDay === 'function' ? ttGetHoursPerDay() : (parseInt(document.getElementById('tt-hours-per-day')?.value, 10) || 20);
     const targetPerDay = job.target * hoursPerDay; // pcs/hr × hrs/day = pcs/day
     const daysRequired = Math.ceil(o.qty / targetPerDay);
     daysNeeded = Math.max(1, daysRequired);
@@ -13931,7 +14023,56 @@ function renderTT(){
   const date=dateEl.value;
   const cont=document.getElementById('tt-content');
   const maxM = parseInt(document.getElementById('tt-machine-filter')?.value||MACHINES.length)||MACHINES.length;
-  const machineList = MACHINES.slice(0,maxM);
+  const sheet = (window._ttSheet === 'assembly') ? 'assembly' : 'injection';
+  const zoneSel = document.getElementById('tt-zone-filter');
+  if(zoneSel && zoneSel.options.length <= 1){
+    zoneSel.innerHTML = '<option value="all">🏭 ทุก Zone</option>'
+      + (ZONES||[]).map(function(z){ return '<option value="'+z.id+'">'+z.name+'</option>'; }).join('');
+    zoneSel.value = 'all';
+  }
+  const zoneId = (zoneSel && zoneSel.value) ? zoneSel.value : 'all';
+  const injMach = (MACHINES||[]).filter(function(m){ return !m.machineType || m.machineType === 'injection'; });
+  const asmMach = (MACHINES||[]).filter(function(m){ return m.machineType === 'assembly' || m.machineType === 'secondary'; });
+  var baseMach = (sheet === 'injection') ? injMach.slice() : (asmMach.length ? asmMach.slice() : []);
+  if(sheet === 'assembly' && baseMach.length === 0){
+    var tmpSet = new Set();
+    for(var di = 0; di < 35; di++){
+      var dd = new Date(date + 'T12:00:00');
+      dd.setDate(dd.getDate() + di);
+      var ds = dd.toISOString().split('T')[0];
+      (ttData[ds] || []).forEach(function(j){
+        if(ttJobPlanningGroup(j) === 'assembly') tmpSet.add(j.machine || '');
+      });
+    }
+    baseMach = Array.from(tmpSet).filter(Boolean).sort().map(function(id){
+      return { id: id, ton: '—', status: 'idle', machineType: 'assembly' };
+    });
+  }
+  var candAfterZone = (typeof filterMachinesByZone === 'function') ? filterMachinesByZone(baseMach, zoneId) : baseMach;
+  var pickArr = [];
+  try{ pickArr = JSON.parse(localStorage.getItem('_ttMachPick') || '[]'); }catch(e2){ pickArr = []; }
+  if(!Array.isArray(pickArr)) pickArr = [];
+  var pickBody = document.getElementById('tt-mach-pick-body');
+  if(pickBody && candAfterZone.length){
+    pickBody.innerHTML = candAfterZone.map(function(m){
+      var on = (pickArr.length === 0) || (pickArr.indexOf(m.id) >= 0);
+      return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin:2px 8px 2px 0;cursor:pointer"><input type="checkbox" class="tt-mach-pick" value="'+m.id+'" '+(on ? 'checked' : '')+'> <span class="mono">'+m.id+'</span></label>';
+    }).join('');
+  } else if(pickBody) pickBody.innerHTML = '<span style="font-size:11px;color:var(--text3)">ไม่มีรายการเครื่องในชีตนี้</span>';
+  var machineList = candAfterZone.slice(0, maxM);
+  if(pickArr.length > 0){
+    machineList = machineList.filter(function(m){ return pickArr.indexOf(m.id) >= 0; });
+  }
+  const hoursDay = typeof ttGetHoursPerDay === 'function' ? ttGetHoursPerDay() : 20;
+  ['tt-tab-inj','tt-tab-asm'].forEach(function(tid){
+    var b = document.getElementById(tid);
+    if(!b) return;
+    var act = (tid === 'tt-tab-inj' && sheet === 'injection') || (tid === 'tt-tab-asm' && sheet === 'assembly');
+    b.style.background = act ? 'var(--accent)' : 'transparent';
+    b.style.color = act ? '#fff' : 'var(--text2)';
+  });
+  var mpBarHide = document.getElementById('tt-manpower-bar');
+  if(mpBarHide && ttView !== 'day') mpBarHide.style.display = 'none';
 
   // Update tab active state
   ['day','month','year'].forEach(v=>{
@@ -14014,9 +14155,22 @@ function renderTT(){
         +'</div>'
       +'</div>'
       +'<div style="font-size:10px;color:var(--text2);margin-top:2px">📦 '+j.lot+'</div>'
-      +'<div style="font-size:10px;color:var(--text3)">เป้า: '+(j.qty||0).toLocaleString()+' ชิ้น'
+      +'<div style="font-size:10px;color:var(--text3)">แผนงานรวม: '+(j.qty||0).toLocaleString()+' ชิ้น'
         +(j.dayIndex?' <span style="color:#79c0ff">(วันที่ '+j.dayIndex+'/'+j.totalDays+')</span>':'')
       +'</div>'
+      +(function(){
+        var jM = jobs.find(function(jj){ return jj.name === j.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(j.jobName) : null);
+        var phr = (jM && jM.target) ? +jM.target : 0;
+        var dayTgt = (typeof ttDailyTargetPcsForJob === 'function') ? ttDailyTargetPcsForJob(j.jobName) : Math.round(phr * hoursDay);
+        var okD = (typeof ttDailyOkFromReport === 'function') ? ttDailyOkFromReport(j.machine, rptDate) : null;
+        var tLine = '<div style="font-size:10px;color:#79c0ff;font-weight:700;margin-top:2px">เป้าต่อวัน: '+dayTgt.toLocaleString()+' ชิ้น'
+          +(phr>0 ? ' <span style="color:var(--text3);font-weight:600">('+hoursDay+'h×'+phr+'/h)</span>' : '')
+          +'</div>';
+        var aLine = (okD === null)
+          ? '<div style="font-size:10px;color:var(--text3);margin-top:1px">ผลิตได้/วัน: — <span style="font-size:9px">(ยังไม่กรอกรายงาน)</span></div>'
+          : '<div style="font-size:10px;color:#3fb950;font-weight:700;margin-top:1px">ผลิตได้/วัน: '+okD.toLocaleString()+' ชิ้น <span style="font-size:9px;color:var(--text3);font-weight:600">(OK)</span></div>';
+        return tLine + aLine;
+      })()
       +'<div style="display:flex;gap:4px;margin-top:4px;align-items:center">'
         +'<span class="badge mat-'+pl+'" style="font-size:9px">'+pl+'</span>'
         +(hasMB?'<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,0.15);border-radius:4px;padding:1px 5px;font-size:9px;color:var(--text)">'
@@ -14031,7 +14185,11 @@ function renderTT(){
 
   // ─── SUMMARY BAR ────────────────────────────────────────────────────
   function buildSummaryBar(dateKeys){
-    const allJobs = dateKeys.flatMap(d=>(ttData[d]||[]));
+    const allJobs = dateKeys.flatMap(d=>(ttData[d]||[])).filter(function(j){
+      var g = typeof ttJobPlanningGroup === 'function' ? ttJobPlanningGroup(j) : 'injection';
+      if(sheet === 'injection') return g === 'injection';
+      return g === 'assembly';
+    });
     const running = machineList.filter(m=>allJobs.find(j=>j.machine===m.id)).length;
     const idle    = machineList.length - running;
     const jobCount= allJobs.length;
@@ -14067,8 +14225,32 @@ function renderTT(){
       return d.toISOString().split('T')[0];
     });
     buildSummaryBar(days);
+    const mpBar=document.getElementById('tt-manpower-bar');
+    if(mpBar){
+      mpBar.style.display='';
+      var mpH='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">👷 กำลังคนรวมตามวัน <span style="font-weight:600;color:var(--text3)">(ผลรวมจาก BOM: จำนวนคน/เครื่องของแต่ละงานในแผน)</span></div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+      days.forEach(function(d){
+        var sum=0;
+        (ttData[d]||[]).forEach(function(j){
+          var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(j):'injection';
+          if((sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly'))
+            sum+=(typeof ttBomHeadcount==='function'?ttBomHeadcount(j.jobName):0);
+        });
+        mpH+='<div style="min-width:92px;text-align:center;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">'
+          +'<div style="font-size:9px;color:var(--text3)">'+d+'</div>'
+          +'<div style="font-size:18px;font-weight:800;color:#a371f7">'+sum+'</div>'
+          +'<div style="font-size:9px;color:var(--text3)">คน</div></div>';
+      });
+      mpH+='</div>';
+      mpBar.innerHTML=mpH;
+    }
     const today=new Date().toISOString().split('T')[0];
     const DOW=['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+    if(!machineList.length){
+      cont.innerHTML='<div class="card" style="padding:36px;text-align:center;color:var(--text3);font-size:14px">ยังไม่มีเครื่องหรือแผนงานในกลุ่มนี้<br><span style="font-size:12px">ลองเพิ่มเครื่องประเภทประกอบ/ไลน์รองใน ทะเบียนเครื่องจักร หรือนำ Order ประกอบเข้า TT</span></div>';
+      return;
+    }
 
     let html='<table style="border-collapse:separate;border-spacing:0;width:100%;min-width:900px">'
       +'<thead><tr>'
@@ -14092,7 +14274,13 @@ function renderTT(){
 
     machineList.forEach((m,mi)=>{
       const rowBg = mi%2===0?'var(--bg)':'rgba(22,27,34,0.6)';
-      const hasAnyJob=days.some(d=>(ttData[d]||[]).find(x=>x.machine===m.id));
+      const hasAnyJob=days.some(function(d){
+        return (ttData[d]||[]).find(function(x){
+          if(x.machine!==m.id) return false;
+          var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+          return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+        });
+      });
       const rowStyle = hasAnyJob?'background:'+rowBg+';':'background:'+rowBg+';opacity:0.65;';
       html+='<tr style="'+rowStyle+'">'
         +'<td style="position:sticky;left:0;z-index:2;background:'+(hasAnyJob?'rgba(14,20,27,0.98)':'rgba(13,17,23,0.98)')+';padding:6px 10px;border-right:1px solid var(--border);border-bottom:1px solid rgba(48,54,61,0.4);white-space:nowrap">'
@@ -14106,26 +14294,27 @@ function renderTT(){
         const isToday=d===today;
         const dt=new Date(d+'T00:00:00');
         const isWknd=dt.getDay()===0||dt.getDay()===6;
-        const dayJobs=(ttData[d]||[]).filter(x=>x.machine===m.id).map(x=>({...x,date:d,machine:m.id}));
+        const dayJobs=(ttData[d]||[]).filter(function(x){
+          if(x.machine!==m.id) return false;
+          var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+          return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+        }).map(x=>({...x,date:d,machine:m.id}));
         const bgCell=isToday?'rgba(56,139,253,0.05)':isWknd?'rgba(255,166,87,0.03)':'transparent';
         const borderStyle=isToday?'border:1px solid rgba(56,139,253,0.3);':'border-right:1px solid rgba(48,54,61,0.4);border-bottom:1px solid rgba(48,54,61,0.4);';
         html+='<td style="padding:5px;'+borderStyle+'vertical-align:top;min-height:70px;background:'+bgCell+';cursor:pointer;position:relative" onclick="addTTEntry(\''+m.id+'\',\''+d+'\')">';
         if(dayJobs.length){
           dayJobs.forEach(j=>{ html+=jobCard(j); });
-          // Show report status indicator for today
-          if(isToday){
-            const rptKey=m.id+'_'+d;
-            const hasRpt=!!dailyReports[rptKey];
-            const rptBg=hasRpt?'rgba(63,185,80,0.15)':'rgba(248,81,73,0.1)';
-            const rptBorder=hasRpt?'rgba(63,185,80,0.3)':'rgba(248,81,73,0.3)';
-            const rptColor=hasRpt?'#3fb950':'#f85149';
-            html+='<div style="margin-top:3px;text-align:center">'
-              +'<button onclick="event.stopPropagation();ttOpenDailyRpt(\''+m.id+'\',\''+d+'\',\'\')" '
-                +'style="padding:2px 8px;background:'+rptBg+';border:1px solid '+rptBorder+';color:'+rptColor+';border-radius:4px;cursor:pointer;font-size:9px;font-weight:700;width:100%">'
-                +(hasRpt?'📝 ดูรายงาน':'📝 กรอกรายงาน')
-              +'</button>'
-            +'</div>';
-          }
+          const rptKey=m.id+'_'+d;
+          const hasRpt=!!dailyReports[rptKey];
+          const rptBg=hasRpt?'rgba(63,185,80,0.15)':'rgba(248,81,73,0.1)';
+          const rptBorder=hasRpt?'rgba(63,185,80,0.3)':'rgba(248,81,73,0.3)';
+          const rptColor=hasRpt?'#3fb950':'#f85149';
+          html+='<div style="margin-top:3px;text-align:center">'
+            +'<button onclick="event.stopPropagation();ttOpenDailyRpt(\''+m.id+'\',\''+d+'\',\'\')" '
+              +'style="padding:2px 8px;background:'+rptBg+';border:1px solid '+rptBorder+';color:'+rptColor+';border-radius:4px;cursor:pointer;font-size:9px;font-weight:700;width:100%">'
+              +(hasRpt?'📝 ดูรายงาน':'📝 กรอกรายงาน')
+            +'</button>'
+          +'</div>';
         } else if(m.status==='running'&&d===today){
           const si=MACHINES.indexOf(m)%jobs.length;
           const sj=jobs[si];
@@ -14143,7 +14332,13 @@ function renderTT(){
     html+='</tbody></table>';
     // Count today's reports
     const todayD = today;
-    const todayMachWithJobs = machineList.filter(m=>(ttData[todayD]||[]).find(x=>x.machine===m.id));
+    const todayMachWithJobs = machineList.filter(function(m){
+      return (ttData[todayD]||[]).find(function(x){
+        if(x.machine!==m.id) return false;
+        var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+        return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+      });
+    });
     const todayMachWithRpt  = todayMachWithJobs.filter(m=>dailyReports[m.id+'_'+todayD]);
     const pendingRpt = todayMachWithJobs.length - todayMachWithRpt.length;
     html+='<div style="padding:8px 12px;font-size:11px;color:var(--text3);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'
@@ -14165,6 +14360,11 @@ function renderTT(){
     const dateKeys=Array.from({length:daysInMonth},(_,i)=>month+'-'+String(i+1).padStart(2,'0'));
     buildSummaryBar(dateKeys);
     const DOW_SHORT=['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+    if(!machineList.length){
+      cont.innerHTML='<div class="card" style="padding:36px;text-align:center;color:var(--text3)">ไม่มีเครื่องในกลุ่มนี้ตามตัวกรอง</div>';
+      return;
+    }
 
     let html='<table style="border-collapse:separate;border-spacing:0;width:100%;min-width:1200px">'
       +'<colgroup><col style="width:110px">';
@@ -14189,7 +14389,11 @@ function renderTT(){
     machineList.forEach((m,mi)=>{
       const rowBg=mi%2===0?'var(--bg)':'rgba(22,27,34,0.5)';
       // Check if this machine has any job this month
-      const monthJobs=dateKeys.flatMap(dk=>(ttData[dk]||[]).filter(x=>x.machine===m.id));
+      const monthJobs=dateKeys.flatMap(dk=>(ttData[dk]||[]).filter(function(x){
+        if(x.machine!==m.id) return false;
+        var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+        return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+      }));
       const hasAny=monthJobs.length>0;
       html+='<tr style="background:'+rowBg+';'+(hasAny?'':'opacity:0.55;')+'">'
         +'<td style="position:sticky;left:0;z-index:2;background:rgba(13,17,23,0.98);padding:5px 8px;border-right:1px solid var(--border);border-bottom:1px solid rgba(48,54,61,0.3);white-space:nowrap">'
@@ -14201,7 +14405,11 @@ function renderTT(){
 
       for(let d=1;d<=daysInMonth;d++){
         const dk=month+'-'+String(d).padStart(2,'0');
-        const dayJobs=(ttData[dk]||[]).filter(x=>x.machine===m.id);
+        const dayJobs=(ttData[dk]||[]).filter(function(x){
+          if(x.machine!==m.id) return false;
+          var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+          return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+        });
         const isToday=dk===today;
         const dt=new Date(dk+'T00:00:00');
         const isWknd=dt.getDay()===0||dt.getDay()===6;
@@ -14254,6 +14462,11 @@ function renderTT(){
     }
     buildSummaryBar(allDateKeys);
 
+    if(!machineList.length){
+      cont.innerHTML='<div class="card" style="padding:36px;text-align:center;color:var(--text3)">ไม่มีเครื่องในกลุ่มนี้ตามตัวกรอง</div>';
+      return;
+    }
+
     // Count jobs per machine per month
     const machineMonthData={};
     machineList.forEach(m=>{
@@ -14264,7 +14477,11 @@ function renderTT(){
         const plastics={};
         for(let d=1;d<=dim;d++){
           const dk=moStr+'-'+String(d).padStart(2,'0');
-          const jbs=(ttData[dk]||[]).filter(x=>x.machine===m.id);
+          const jbs=(ttData[dk]||[]).filter(function(x){
+            if(x.machine!==m.id) return false;
+            var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
+            return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
+          });
           count+=jbs.length;
           jbs.forEach(j=>{ const p=j.plastic||'PP'; plastics[p]=(plastics[p]||0)+1; });
         }
@@ -24867,7 +25084,12 @@ function renderPage(id){
   else if(id==='orders') renderOrders();
   else if(id==='order-await'){ if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage(); }
   else if(id==='shipment-history'){ if(typeof renderShipmentHistoryPage==='function') renderShipmentHistoryPage(); }
-  else if(id==='timetable') renderTT();
+  else if(id==='timetable'){
+    var _htt = document.getElementById('tt-hours-tt');
+    var _hord = document.getElementById('tt-hours-per-day');
+    if(_htt && _hord && _hord.value) _htt.value = _hord.value;
+    renderTT();
+  }
   else if(id==='bom') renderBom();
   else if(id==='dc') dcRender();
   else if(id==='qrtrack'){ qrtRender(); }
