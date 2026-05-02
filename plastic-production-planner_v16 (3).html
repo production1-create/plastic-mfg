@@ -1438,23 +1438,30 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
       <!-- Day selector -->
       <div id="dcp-sel-day" style="display:flex;align-items:center;gap:6px">
-        <input type="date" id="dcp-date" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+        <input type="date" id="dcp-date" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
       </div>
       <!-- Month selector -->
       <div id="dcp-sel-month" style="display:none;align-items:center;gap:6px">
-        <input type="month" id="dcp-month-val" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+        <input type="month" id="dcp-month-val" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
       </div>
       <!-- Year selector -->
       <div id="dcp-sel-year" style="display:none;align-items:center;gap:6px">
-        <select id="dcp-year-val" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px"></select>
+        <select id="dcp-year-val" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px"></select>
       </div>
       <!-- Range selector -->
       <div id="dcp-sel-range" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:11px;color:var(--text3)">จาก</span>
-        <input type="date" id="dcp-from" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+        <input type="date" id="dcp-from" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
         <span style="font-size:11px;color:var(--text3)">ถึง</span>
-        <input type="date" id="dcp-to" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+        <input type="date" id="dcp-to" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
       </div>
+      <span style="font-size:11px;color:var(--text3);white-space:nowrap;margin-left:4px">กรอง</span>
+      <select id="dash-data-machine" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" title="กรองตามเครื่อง" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;max-width:140px">
+        <option value="">ทุกเครื่อง</option>
+      </select>
+      <select id="dash-data-job" onchange="if(typeof renderDashCharts==='function')renderDashCharts()" title="กรองตามชื่องาน" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;max-width:180px">
+        <option value="">ทุกชื่องาน</option>
+      </select>
       <button onclick="renderDashCharts()" style="padding:5px 14px;background:rgba(163,113,247,0.15);border:1px solid rgba(163,113,247,0.4);color:#a371f7;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">▶ แสดงกราฟ</button>
     </div>
     <!-- Charts grid -->
@@ -1512,6 +1519,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="drsum-machine" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;font-family:Inter,sans-serif;min-width:110px" onchange="renderDrSum()">
           <option value="">⚙️ ทุกเครื่อง</option>
         </select>
+        <select id="drsum-job" style="padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;font-family:Inter,sans-serif;min-width:140px;max-width:200px" onchange="renderDrSum()" title="กรองตามชื่องาน">
+          <option value="">📦 ทุกชื่องาน</option>
+        </select>
         <button onclick="showPage('dailyrpt')" style="padding:5px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:#79c0ff;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">📝 เปิดใบรายงาน</button>
         <button onclick="showPage('nganalysis')" style="padding:5px 12px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">🔴 NG Analysis</button>
         <button onclick="drSumExport()" style="padding:5px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">📥 Export</button>
@@ -1529,6 +1539,13 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- ── Row 3: Material / Packing ─────────────────────────── -->
     <div style="margin-bottom:6px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase">📦 วัตถุดิบ · เศษบด · Packing</div>
     <div id="drsum-material-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px"></div>
+
+    <!-- ── Row 3B: EFF รายเครื่อง (OK/เป้า จาก rows) ───────────────── -->
+    <div style="margin-bottom:6px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.8px;text-transform:uppercase">📈 EFF การผลิต (ตามเครื่อง · จาก OK÷เป้าในใบรายงาน)</div>
+    <div id="drsum-eff-wrap" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">แสดงเครื่องที่มีข้อมูลในช่วงที่เลือก — EFF = OK÷เป้า (จำกัดไม่เกิน 100%)</div>
+      <div id="drsum-eff-bars"></div>
+    </div>
 
     <!-- ── Row 4: Charts (NG breakdown + Downtime + PPM trend) ── -->
     <div id="drsum-charts-row" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px">
@@ -17293,6 +17310,9 @@ var _DASH_WIDGETS = [
   {id:'actionplan',label:'📌 Action Plan ค้างดำเนินการ', fn:'dashWidgetActionPlan'},
   {id:'top10ng',   label:'🏆 Top 10 PPM สูงสุด',         fn:'dashWidgetTop10NG'},
   {id:'top10oee',  label:'📉 Top 10 OEE ต่ำสุด',         fn:'dashWidgetTop10OEE'},
+  {id:'apprqueue', label:'✅ ใบอนุมัติกระบวนการค้าง',   fn:'dashWidgetApprovalQueue'},
+  {id:'duesoon',   label:'📅 Order ใกล้ส่ง (7 วัน)',    fn:'dashWidgetDueSoon'},
+  {id:'condtoday', label:'🌡️ Condition วันนี้',         fn:'dashWidgetCondToday'},
 ];
 
 var _dashActiveWidgets = JSON.parse(localStorage.getItem('_dashWidgets')||'null') || ['rawmat','orders','machines','kpi'];
@@ -17351,7 +17371,9 @@ var _DASH_CHARTS = [
   {id:'chart-orders',  label:'📋 จำนวน Orders',           color:'#388bfd'},
 ];
 
-var _dashActiveCharts = JSON.parse(localStorage.getItem('_dashCharts')||'null') || [];
+var _dashActiveCharts = JSON.parse(localStorage.getItem('_dashCharts')||'null');
+if(!_dashActiveCharts || !_dashActiveCharts.length)
+  _dashActiveCharts = ['chart-eff','chart-ng','chart-output','chart-downtime'];
 var _dashChartPeriod  = localStorage.getItem('_dashChartPeriod') || 'day';
 
 function dashEditCharts(){
@@ -17401,6 +17423,9 @@ function dashChartPeriod(p){
     if(btn){ btn.style.background=k===p?'var(--accent)':'var(--bg3)'; btn.style.color=k===p?'#fff':'var(--text2)'; btn.style.fontWeight=k===p?'700':'400'; }
     if(sel) sel.style.display=k===p?'flex':'none';
   });
+  var sec=document.getElementById('dash-chart-section');
+  if(sec && sec.style.display!=='none' && _dashActiveCharts && _dashActiveCharts.length)
+    setTimeout(function(){ if(typeof renderDashCharts==='function') renderDashCharts(); }, 0);
 }
 
 // Get date range from current period settings
@@ -17431,42 +17456,107 @@ function _dashGetDateRange(){
   return {from:today, to:today, label:today, groupBy:'day'};
 }
 
-// Aggregate dailyReports data for chart
+/** สรุปตัวเลขจาก rows ของใบรายงานรายวัน (ระดับบันทึกไม่มี eff/ng รวม — ต้องคำนวณจาก rows) */
+function _dashRptRowTotals(rpt){
+  var rows=rpt.rows||[];
+  var produced=0,ng=0,target=0,ltMins=0;
+  rows.forEach(function(row){
+    produced+=row.produced||0;
+    ng+=row.ng||0;
+    target+=row.target||0;
+    ltMins+=row.ltMins||0;
+  });
+  var ok=Math.max(0,produced-ng);
+  var effPct=target>0?Math.min(100,(ok/target)*100):null;
+  var ngPct=produced>0?(ng/produced*100):0;
+  var ppm=produced>0?Math.round(ng/produced*1e6):0;
+  return {produced,ng,target,ltMins,ok,effPct,ngPct,ppm};
+}
+
+function _dashPopulateDataFilters(){
+  var mSel=document.getElementById('dash-data-machine');
+  var jSel=document.getElementById('dash-data-job');
+  if(!mSel||!jSel) return;
+  var prevM=mSel.value, prevJ=jSel.value;
+  var machSet=new Set();
+  var jobSet=new Set();
+  Object.values(dailyReports||{}).forEach(function(r){
+    if(r.machine) machSet.add(r.machine);
+    if(r.jobName) jobSet.add(r.jobName);
+  });
+  (MACHINES||[]).forEach(function(m){ if(m&&m.id) machSet.add(m.id); });
+  mSel.innerHTML='<option value="">ทุกเครื่อง</option>'+Array.from(machSet).sort().map(function(m){
+    return '<option value="'+String(m).replace(/"/g,'&quot;')+'">'+m+'</option>';
+  }).join('');
+  jSel.innerHTML='<option value="">ทุกชื่องาน</option>'+Array.from(jobSet).sort().map(function(j){
+    return '<option value="'+String(j).replace(/"/g,'&quot;')+'">'+(j.length>36?j.slice(0,36)+'…':j)+'</option>';
+  }).join('');
+  if(prevM&&[...mSel.options].some(function(o){return o.value===prevM;})) mSel.value=prevM;
+  if(prevJ&&[...jSel.options].some(function(o){return o.value===prevJ;})) jSel.value=prevJ;
+}
+
+// Aggregate dailyReports data for chart (สะสมจาก rows + กรองเครื่อง/งาน)
 function _dashAggData(key, range){
+  var machF=(document.getElementById('dash-data-machine')||{}).value||'';
+  var jobF=(document.getElementById('dash-data-job')||{}).value||'';
   var reports=Object.values(dailyReports||{}).filter(function(r){
-    return r.date && r.date>=range.from && r.date<=range.to;
+    if(!r||!r.date||r.date<range.from||r.date>range.to) return false;
+    if(machF&&r.machine!==machF) return false;
+    if(jobF&&(r.jobName||'')!==jobF) return false;
+    return true;
   });
-  if(!reports.length) return {labels:[], values:[], rawData:[]};
+  if(!reports.length) return {labels:[], values:[]};
 
+  function bucketInit(){
+    return {sumP:0,sumN:0,sumT:0,sumOk:0,sumLt:0};
+  }
   var groups={};
-  reports.forEach(function(r){
-    var gk;
-    if(range.groupBy==='day') gk=r.date;
-    else if(range.groupBy==='month') gk=r.date.substring(0,7);
-    else if(range.groupBy==='hour') gk=r.shift||r.date;
-    else gk=r.date;
-    if(!groups[gk]) groups[gk]={vals:[], count:0, sum:0};
-    var v=0;
-    if(key==='eff')      v=r.eff||0;
-    else if(key==='ng')  v=r.target>0?(r.ng||0)/r.target*100:0;
-    else if(key==='output') v=r.produced||0;
-    else if(key==='ngcost') v=(r.ng||0)*(r.unitCost||50);
-    else if(key==='ppm') v=r.produced>0?Math.round((r.ng||0)/r.produced*1e6):0;
-    else if(key==='downtime') v=r.downtime||r.lt||0;
-    groups[gk].vals.push(v); groups[gk].sum+=v; groups[gk].count++;
-  });
-
-  var isSum=(key==='output'||key==='ngcost'||key==='downtime');
-  var sorted=Object.keys(groups).sort();
   var thM=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  if(range.groupBy==='hour'){
+    for(var h=0;h<24;h++){
+      var hk=String(h).padStart(2,'0')+':00';
+      groups[hk]=bucketInit();
+    }
+    reports.forEach(function(rpt){
+      (rpt.rows||[]).forEach(function(row){
+        var hi=row.hour!=null?parseInt(row.hour,10):0;
+        if(isNaN(hi)||hi<0||hi>23) hi=0;
+        var gk=String(hi).padStart(2,'0')+':00';
+        if(!groups[gk]) groups[gk]=bucketInit();
+        var g=groups[gk];
+        g.sumP+=row.produced||0;
+        g.sumN+=row.ng||0;
+        g.sumT+=row.target||0;
+        g.sumOk+=Math.max(0,(row.produced||0)-(row.ng||0));
+        g.sumLt+=row.ltMins||0;
+      });
+    });
+  } else {
+    reports.forEach(function(rpt){
+      var gk=range.groupBy==='month'?rpt.date.substring(0,7):rpt.date;
+      if(!groups[gk]) groups[gk]=bucketInit();
+      var t=_dashRptRowTotals(rpt);
+      var g=groups[gk];
+      g.sumP+=t.produced; g.sumN+=t.ng; g.sumT+=t.target; g.sumOk+=t.ok; g.sumLt+=t.ltMins;
+    });
+  }
+
+  var sorted=Object.keys(groups).sort();
   var labels=sorted.map(function(k){
-    if(k.length===7){ var p=k.split('-'); return thM[+p[1]]+' '+p[0]; }
+    if(k.length===7&&k.indexOf(':')<0){ var p=k.split('-'); return thM[+p[1]]+' '+p[0]; }
     if(k.length===10){ return k.substring(5).replace('-','/'); }
     return k;
   });
   var values=sorted.map(function(k){
     var g=groups[k];
-    return isSum ? +g.sum.toFixed(2) : +(g.sum/g.count).toFixed(2);
+    if(key==='eff')      return g.sumT>0?+Math.min(100,(g.sumOk/g.sumT*100)).toFixed(1):0;
+    if(key==='ng')      return g.sumP>0?+(g.sumN/g.sumP*100).toFixed(2):0;
+    if(key==='output')   return +g.sumP.toFixed(0);
+    if(key==='ngcost')   return +(g.sumN*50).toFixed(0);
+    if(key==='ppm')      return g.sumP>0?Math.round(g.sumN/g.sumP*1e6):0;
+    if(key==='downtime') return +(g.sumLt/60).toFixed(2);
+    return 0;
   });
   return {labels:labels, values:values};
 }
@@ -17494,6 +17584,7 @@ function _dashStockData(key, range){
 function renderDashCharts(){
   var chartsGrid=document.getElementById('dash-charts-grid');
   if(!chartsGrid) return;
+  if(typeof _dashPopulateDataFilters==='function') _dashPopulateDataFilters();
   var range=_dashGetDateRange();
   var chartDefs={
     'chart-eff':    {key:'eff',     label:'EFF% ประสิทธิภาพ', color:'#388bfd', unit:'%', isStock:false},
@@ -17525,8 +17616,7 @@ function renderDashCharts(){
     +'</div>';
   }).join('');
 
-  // Render each chart with a small delay
-  setTimeout(function(){
+  function _dashDrawAllCharts(){
     _dashActiveCharts.forEach(function(cid){
       var def=chartDefs[cid]; if(!def) return;
       var data=def.isStock?_dashStockData(def.key, range):_dashAggData(def.key, range);
@@ -17542,12 +17632,19 @@ function renderDashCharts(){
       if(nodata) nodata.style.display='none';
       _drawBarChart(canvas, data.labels, data.values, def.color, def.unit);
     });
-  }, 80);
+  }
+  setTimeout(_dashDrawAllCharts, 40);
+  requestAnimationFrame(function(){ requestAnimationFrame(_dashDrawAllCharts); });
+  setTimeout(_dashDrawAllCharts, 220);
+  setTimeout(_dashDrawAllCharts, 600);
 }
 
 // Draw bar chart on canvas without external library
 function _drawBarChart(canvas, labels, values, color, unit){
-  var W=canvas.offsetWidth||400, H=160;
+  var par=canvas.parentElement;
+  var rectW=par?par.getBoundingClientRect().width:0;
+  var W=Math.max(280, Math.floor(rectW>40?rectW-28:(canvas.offsetWidth||400)));
+  var H=160;
   canvas.width=W; canvas.height=H;
   var ctx=canvas.getContext('2d');
   if(!ctx) return;
@@ -17607,6 +17704,7 @@ function _drawBarChart(canvas, labels, values, color, unit){
 
 
 function renderDashboard(){
+  if(typeof _dashPopulateDataFilters==='function') _dashPopulateDataFilters();
   // update date
   var dateEl=document.getElementById('dash-date');
   if(dateEl) dateEl.textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -17689,19 +17787,78 @@ function dashWidgetFG(){
 }
 
 function dashWidgetOrders(){
-  var active=orders.filter(function(o){return o.status==='กำลังผลิต'||o.status==='รอผลิต';}).slice(0,6);
+  var active=orders.filter(function(o){return o.status==='กำลังผลิต'||o.status==='รอผลิต';}).slice(0,8);
   var html=active.length?active.map(function(o){
     var pct=o.qty>0?Math.round(o.produced/o.qty*100):0;
-    return '<div style="margin-bottom:8px">'
-      +'<div style="display:flex;justify-content:space-between;font-size:11px"><span style="font-weight:600">'+o.orderNo+'</span><span style="color:var(--text3)">'+o.dueDate+'</span></div>'
-      +'<div style="font-size:10px;color:var(--text3);margin-bottom:3px">'+o.jobName.substring(0,30)+'</div>'
+    return '<div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;font-size:11px">'
+        +'<span style="font-weight:800;font-family:monospace;color:var(--accent2)">'+o.orderNo+'</span>'
+        +'<span class="badge badge-yellow" style="font-size:9px;flex-shrink:0">'+(o.status||'')+'</span></div>'
+      +'<div style="font-size:11px;font-weight:600;color:var(--text);margin:2px 0">'+(o.jobName||'').substring(0,40)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-bottom:4px">'
+        +'🏭 <b>'+(o.machine||'—')+'</b> · ลูกค้า '+(o.customer||'—')
+        +(o.plastic?' · <span class="badge mat-'+(o.plastic||'')+'" style="font-size:9px">'+(o.plastic||'')+'</span>':'')
+        +' · ส่ง '+(o.dueDate||'—')+'</div>'
       +'<div style="display:flex;align-items:center;gap:6px">'
         +'<div style="flex:1;height:6px;background:var(--bg3);border-radius:3px"><div style="width:'+pct+'%;height:100%;border-radius:3px;background:'+(pct>=100?'#3fb950':pct>=50?'#e3b341':'#388bfd')+'"></div></div>'
-        +'<span style="font-size:10px;color:var(--text3)">'+pct+'%</span>'
+        +'<span style="font-size:10px;color:var(--text3);white-space:nowrap">'+pct+'% · '+(o.produced||0).toLocaleString()+'/'+(o.qty||0).toLocaleString()+'</span>'
       +'</div>'
     +'</div>';
   }).join(''):'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">ไม่มี Order ที่กำลังผลิต</div>';
-  return _dashWidgetCard('📋 Orders ที่กำลังผลิต',html);
+  return _dashWidgetCard('📋 Orders ที่กำลังผลิต (รายละเอียด)',html,
+    '<button type="button" onclick="showPage(\'orders\',null,\'injection\')" style="padding:2px 8px;font-size:10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--accent2);cursor:pointer;font-family:inherit;font-weight:700">ไป Order →</button>');
+}
+
+function dashWidgetApprovalQueue(){
+  var docs=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs:[];
+  var pend=docs.filter(function(d){
+    var s=d.status||'';
+    return s==='รออนุมัติ'||s==='รอผลิต'||!s;
+  }).slice(0,7);
+  var html=pend.length?pend.map(function(d){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="min-width:0"><div style="font-size:11px;font-weight:700;font-family:monospace;color:#388bfd">'+(d.docNo||d.id||'—')+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(d.jobName||'—')+' · '+(d.machine||'—')+'</div></div>'
+      +'<span class="badge badge-yellow" style="font-size:9px;flex-shrink:0">'+(d.status||'รอ')+'</span></div>';
+  }).join(''):'<div style="color:#3fb950;font-size:12px;text-align:center;padding:16px">✅ ไม่มีใบอนุมัติค้าง</div>';
+  return _dashWidgetCard('✅ ใบอนุมัติกระบวนการ (คิว)',html,
+    '<button type="button" onclick="showPage(\'approvalproc\',null,\'injection\')" style="padding:2px 8px;font-size:10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:#a371f7;cursor:pointer;font-family:inherit;font-weight:700">เปิดใบอนุมัติ →</button>');
+}
+
+function dashWidgetDueSoon(){
+  var today=new Date(); today.setHours(0,0,0,0);
+  var in7=new Date(today); in7.setDate(in7.getDate()+7);
+  var list=(orders||[]).filter(function(o){
+    if(!o.dueDate||o.status==='พร้อมส่ง'||o.status==='ส่งแล้ว') return false;
+    var d=new Date(o.dueDate); if(isNaN(d)) return false;
+    d.setHours(0,0,0,0);
+    return d>=today&&d<=in7;
+  }).sort(function(a,b){return (a.dueDate||'').localeCompare(b.dueDate||'');}).slice(0,8);
+  var html=list.length?list.map(function(o){
+    var days=Math.ceil((new Date(o.dueDate)-today)/86400000);
+    var col=days<=1?'#f85149':days<=3?'#e3b341':'#388bfd';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="min-width:0"><div style="font-size:11px;font-weight:700">'+o.orderNo+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(o.jobName||'')+' · '+(o.machine||'')+'</div></div>'
+      +'<span style="font-size:10px;font-weight:800;color:'+col+';flex-shrink:0">อีก '+days+' วัน</span></div>';
+  }).join(''):'<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">ไม่มี Order ที่ครบกำหนดใน 7 วัน</div>';
+  return _dashWidgetCard('📅 Order ใกล้กำหนดส่ง (7 วัน)',html);
+}
+
+function dashWidgetCondToday(){
+  var today=new Date().toISOString().split('T')[0];
+  var acts=(typeof condActualList!=='undefined'&&condActualList)?condActualList:[];
+  var doneMach=new Set();
+  acts.forEach(function(a){ if(a.date===today&&a.machine) doneMach.add(a.machine); });
+  var done=doneMach.size;
+  var expect=(MACHINES||[]).length;
+  var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;margin-bottom:8px">'
+    +'<div style="background:rgba(56,139,253,0.1);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:#388bfd">'+done+'</div><div style="font-size:10px;color:var(--text3)">บันทึกวันนี้</div></div>'
+    +'<div style="background:var(--bg3);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:var(--text2)">'+(expect||'—')+'</div><div style="font-size:10px;color:var(--text3)">เครื่องในระบบ</div></div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:var(--text3);text-align:center">เปรียบเทียบคร่าว ๆ — บันทึก Condition ประจำวันต่อเครื่อง</div>';
+  return _dashWidgetCard('🌡️ Condition ประจำวัน',html,
+    '<button type="button" onclick="showPage(\'conddaily\',null)" style="padding:2px 8px;font-size:10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:#79c0ff;cursor:pointer;font-family:inherit;font-weight:700">เปิดบันทึก →</button>');
 }
 
 function dashWidgetMachines(){
@@ -17733,9 +17890,14 @@ function dashWidgetKPI(){
   var today=new Date().toISOString().split('T')[0];
   var month=today.substring(0,7);
   var rpts=Object.values(dailyReports||{}).filter(function(r){return r.date&&r.date.startsWith(month);});
-  var avgEff=rpts.length?rpts.reduce(function(s,r){return s+(r.eff||0);},0)/rpts.length:0;
-  var totalNG=rpts.reduce(function(s,r){return s+(r.ng||0);},0);
-  var totalProd=rpts.reduce(function(s,r){return s+(r.produced||0);},0);
+  var tw={sumOk:0,sumT:0,sumP:0,sumN:0};
+  rpts.forEach(function(r){
+    var t=typeof _dashRptRowTotals==='function'?_dashRptRowTotals(r):{ok:0,target:0,produced:0,ng:0};
+    tw.sumOk+=t.ok; tw.sumT+=t.target; tw.sumP+=t.produced; tw.sumN+=t.ng;
+  });
+  var avgEff=tw.sumT>0?Math.min(100,(tw.sumOk/tw.sumT)*100):0;
+  var totalNG=tw.sumN;
+  var totalProd=tw.sumP;
   var ppm=totalProd>0?Math.round(totalNG/totalProd*1000000):0;
   var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
     +'<div style="background:rgba(63,185,80,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#3fb950">'+avgEff.toFixed(1)+'%</div><div style="font-size:10px;color:var(--text3)">EFF เฉลี่ย</div></div>'
@@ -17845,8 +18007,11 @@ function dashWidgetDelivery(){
 function dashWidgetNG(){
   var month=new Date().toISOString().substring(0,7);
   var rpts=Object.values(dailyReports||{}).filter(function(r){return r.date&&r.date.startsWith(month);});
-  var totalNG=rpts.reduce(function(s,r){return s+(r.ng||0);},0);
-  var totalProd=rpts.reduce(function(s,r){return s+(r.produced||0);},0);
+  var totalNG=0,totalProd=0;
+  rpts.forEach(function(r){
+    var t=typeof _dashRptRowTotals==='function'?_dashRptRowTotals(r):{produced:0,ng:0};
+    totalProd+=t.produced; totalNG+=t.ng;
+  });
   var ngPct=totalProd>0?(totalNG/totalProd*100):0;
   var ppm=totalProd>0?Math.round(totalNG/totalProd*1000000):0;
   var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center">'
@@ -31820,6 +31985,11 @@ function drSumInit(){
     const machs=[...new Set(Object.values(dailyReports||{}).map(r=>r.machine).filter(Boolean))].sort();
     machs.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; mSel.appendChild(o); });
   }
+  const jSel=document.getElementById('drsum-job');
+  if(jSel && jSel.options.length<=1){
+    const jobs=[...new Set(Object.values(dailyReports||{}).map(r=>r.jobName).filter(Boolean))].sort();
+    jobs.forEach(j=>{ const o=document.createElement('option'); o.value=j; o.textContent=j.length>40?j.slice(0,40)+'…':j; jSel.appendChild(o); });
+  }
   // Range defaults
   const fromEl=document.getElementById('drsum-from'), toEl=document.getElementById('drsum-to');
   if(fromEl&&!fromEl.value){ const d=new Date(); d.setDate(d.getDate()-6); fromEl.value=d.toISOString().split('T')[0]; }
@@ -31858,7 +32028,10 @@ function renderDrSum(){
   drSumInit();
   const f    = _drSumGetFilter();
   const machF= document.getElementById('drsum-machine')?.value||'';
-  const rpts = Object.values(dailyReports||{}).filter(r=>_drSumMatch(r,f)&&(!machF||r.machine===machF));
+  const jobF = document.getElementById('drsum-job')?.value||'';
+  const rpts = Object.values(dailyReports||{}).filter(function(r){
+    return _drSumMatch(r,f)&&(!machF||r.machine===machF)&&(!jobF||(r.jobName||'')===jobF);
+  });
 
   // ── Aggregate ──────────────────────────────────────────────
   let totProd=0,totOK=0,totNG=0,totDT=0,totScrap=0,totBox=0,totBag=0,totCost=0,totMatKg=0;
@@ -31948,9 +32121,49 @@ function renderDrSum(){
       </div>`).join('');
   }
 
+  // ── Row 3B: EFF by machine ───────────────────────────────────
+  const effWrap=document.getElementById('drsum-eff-wrap');
+  const effBars=document.getElementById('drsum-eff-bars');
+  if(effWrap&&effBars){
+    const effByMach={};
+    rpts.forEach(function(r){
+      var rows=r.rows||[];
+      var prod=rows.reduce(function(s,x){return s+(x.produced||0);},0);
+      var ng=rows.reduce(function(s,x){return s+(x.ng||0);},0);
+      var tgt=rows.reduce(function(s,x){return s+(x.target||0);},0);
+      var ok=Math.max(0,prod-ng);
+      var m=r.machine||'—';
+      if(!effByMach[m]) effByMach[m]={sumT:0,sumOk:0};
+      effByMach[m].sumT+=tgt;
+      effByMach[m].sumOk+=ok;
+    });
+    var effRows=Object.entries(effByMach).map(function(e){
+      var eff=e[1].sumT>0?Math.min(100,(e[1].sumOk/e[1].sumT)*100):0;
+      return {m:e[0],eff:eff};
+    }).filter(function(x){return x.eff>0||effByMach[x.m].sumT>0;}).sort(function(a,b){return b.eff-a.eff;});
+    if(rpts.length&&effRows.length){
+      effWrap.style.display='block';
+      var maxE=Math.max.apply(null,effRows.map(function(x){return x.eff;}))||100;
+      effBars.innerHTML=effRows.slice(0,12).map(function(x){
+        var w=Math.round(x.eff/Math.max(maxE,1)*100);
+        var col=x.eff>=90?'#3fb950':x.eff>=80?'#e3b341':'#f85149';
+        return '<div style="margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">'
+          +'<span style="font-weight:700;color:var(--accent2)">'+x.m+'</span>'
+          +'<span style="font-weight:800;color:'+col+'">'+x.eff.toFixed(1)+'%</span></div>'
+          +'<div style="height:10px;background:var(--bg4);border-radius:5px;overflow:hidden">'
+          +'<div style="width:'+w+'%;height:100%;background:linear-gradient(90deg,'+col+','+col+'88);border-radius:5px"></div>'
+          +'</div></div>';
+      }).join('');
+    } else {
+      effWrap.style.display='none';
+      effBars.innerHTML='';
+    }
+  }
+
   // ── Row 4: Charts ───────────────────────────────────────────
   const chartsRow=document.getElementById('drsum-charts-row');
-  const hasChartData=Object.keys(ngByDefect).length||Object.keys(ltByReason).length;
+  const hasChartData=Object.keys(ngByDefect).length||Object.keys(ltByReason).length||rpts.length>0;
   if(chartsRow) chartsRow.style.display=hasChartData?'grid':'none';
 
   // NG Pareto bars
