@@ -4499,6 +4499,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab(this,'tab-mold-list')">🔩 รายการแม่พิมพ์</div>
+    <div class="tab" id="tab-btn-mold-ledger" onclick="switchTab(this,'tab-mold-ledger');moldLedgerInitForm('');renderMoldLedger()">📋 เบิก–รับ & ประวัติซ่อม</div>
     <div class="tab" onclick="switchTab(this,'tab-mold-prep');renderMoldPrepPlan()">📅 แผนเตรียมแม่พิมพ์</div>
     <div class="tab" onclick="switchTab(this,'tab-mold-maint');renderMaintenancePlan()">🔧 แผนซ่อมบำรุง</div>
   </div>
@@ -4507,6 +4508,89 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>รหัสแม่พิมพ์</th><th>ชื่องาน</th><th>Cavity</th><th>Shot สะสม</th><th>Shot PM ถัดไป</th><th>% ถึง PM</th><th>PM ล่าสุด</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
       <tbody id="molds-tbody"></tbody>
+    </table></div></div>
+  </div>
+  <!-- Tab: เบิก–รับ / ซ่อม / เวลารับส่ง -->
+  <div id="tab-mold-ledger" style="display:none">
+    <div class="card mb-3" style="padding:14px 16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--accent2)">บันทึกเบิก–จ่าย / รับคืน · Shot / ชิ้นงาน · ซ่อม & tooling · เวลารับส่ง (ฝ่ายผลิต ⟷ แม่พิมพ์)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <div class="form-group"><div class="form-label">แม่พิมพ์ *</div>
+          <select id="moldld-mold" style="width:100%"></select></div>
+        <div class="form-group"><div class="form-label">ประเภทรายการ</div>
+          <select id="moldld-action" style="width:100%">
+            <option value="issue_to_prod">เบิกไปผลิต (แม่พิมพ์ → ฝ่ายผลิต)</option>
+            <option value="return_from_prod">รับคืนจากผลิต</option>
+            <option value="send_repair">ส่งซ่อม / PM / แม่พิมพ์</option>
+            <option value="return_from_repair">รับคืนหลังซ่อม</option>
+            <option value="in_use_repair">ซ่อม / เปลี่ยน tooling ระหว่างใช้งาน</option>
+          </select></div>
+        <div class="form-group"><div class="form-label">Shot ณ รายการ</div>
+          <input type="number" id="moldld-shot" min="0" step="1" placeholder="สะสม" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px"></div>
+        <div class="form-group"><div class="form-label">จำนวนชิ้นที่ฉีด (pcs)</div>
+          <input type="number" id="moldld-pcs" min="0" step="1" placeholder="0" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px"></div>
+        <div class="form-group"><div class="form-label">ผู้เบิก / ผู้ส่งมอบ</div>
+          <input type="text" id="moldld-issue-by" placeholder="ชื่อ" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px"></div>
+        <div class="form-group"><div class="form-label">ผู้รับ / ผู้รับมอบ</div>
+          <input type="text" id="moldld-recv-by" placeholder="ชื่อ" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px"></div>
+        <div class="form-group"><div class="form-label">เครื่องจักร (ถ้ามี)</div>
+          <select id="moldld-machine" style="width:100%"><option value="">— ไม่ระบุ —</option></select></div>
+        <div class="form-group"><div class="form-label">ระยะ / ประเภทงานซ่อม</div>
+          <select id="moldld-interval" style="width:100%">
+            <option value="">—</option>
+            <option value="pm_plan">PM ตามแผน</option>
+            <option value="emergency">ฉุกเฉิน</option>
+            <option value="tooling">เปลี่ยน tooling / อุปกรณ์</option>
+            <option value="other">อื่นๆ</option>
+          </select></div>
+      </div>
+      <div class="form-group" style="margin-top:8px"><div class="form-label">อาการ / หัวข้อซ่อม</div>
+        <textarea id="moldld-symptom" rows="2" placeholder="อาการที่พบ" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px;font-family:inherit"></textarea></div>
+      <div class="form-group"><div class="form-label">รายละเอียดการซ่อม / วิธีแก้</div>
+        <textarea id="moldld-repair" rows="2" placeholder="งานที่ทำ" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px;font-family:inherit"></textarea></div>
+      <div class="form-group"><div class="form-label">เปลี่ยน tooling / อะไหล่</div>
+        <textarea id="moldld-tooling" rows="1" placeholder="รายการเปลี่ยน" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px;font-family:inherit"></textarea></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:8px">
+        <div class="form-group"><div class="form-label">ส่งมอบออก (รับ–ส่ง)</div>
+          <input type="datetime-local" id="moldld-t-out" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:6px"></div>
+        <div class="form-group"><div class="form-label">รับกลับ (รับ–ส่ง)</div>
+          <input type="datetime-local" id="moldld-t-in" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:6px"></div>
+        <div class="form-group"><div class="form-label">เริ่มซ่อม / เตรียม</div>
+          <input type="datetime-local" id="moldld-t-rs" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:6px"></div>
+        <div class="form-group"><div class="form-label">เสร็จซ่อม / เตรียม</div>
+          <input type="datetime-local" id="moldld-t-re" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:6px"></div>
+        <div class="form-group"><div class="form-label">สรุปผลการซ่อม</div>
+          <select id="moldld-repair-result" style="width:100%">
+            <option value="na">ไม่เกี่ยวข้อง</option>
+            <option value="pass">ซ่อมผ่าน</option>
+            <option value="fail">ซ่อมไม่ผ่าน</option>
+          </select></div>
+        <div class="form-group"><div class="form-label">เตรียมแม่พิมพ์ทันเวลา?</div>
+          <select id="moldld-prep-ontime" style="width:100%">
+            <option value="na">ไม่เกี่ยวข้อง</option>
+            <option value="yes">ทัน</option>
+            <option value="no">ไม่ทัน</option>
+          </select></div>
+      </div>
+      <div class="form-group" style="margin-top:8px"><div class="form-label">หมายเหตุ</div>
+        <input type="text" id="moldld-note" placeholder="เพิ่มเติม" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-primary btn-sm" onclick="moldLedgerSave()">💾 บันทึกประวัติ</button>
+        <span style="font-size:11px;color:var(--text3);align-self:center">ระบบคำนวณเวลาใช้ (นาที) จากช่วงรับส่ง และช่วงซ่อมอัตโนมัติในตารางด้านล่าง</span>
+      </div>
+    </div>
+    <div class="card mb-3 flex justify-between items-center" style="padding:12px 16px;flex-wrap:wrap;gap:10px">
+      <div style="font-size:13px;font-weight:600">ประวัติย้อนหลัง</div>
+      <div class="flex gap-2" style="flex-wrap:wrap">
+        <select id="moldld-filter-mold" onchange="renderMoldLedger()" style="min-width:160px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)"><option value="">ทุกแม่พิมพ์</option></select>
+        <input type="month" id="moldld-filter-month" onchange="renderMoldLedger()" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+      </div>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>วันที่บันทึก</th><th>แม่พิมพ์</th><th>ประเภท</th><th>Shot</th><th>ชิ้น</th><th>ผู้เบิก/ส่ง</th><th>ผู้รับ</th><th>อาการ/ซ่อม</th><th>เวลา (รับส่ง / ซ่อม)</th><th>สรุป</th><th></th>
+      </tr></thead>
+      <tbody id="mold-ledger-tbody"></tbody>
     </table></div></div>
   </div>
   <!-- Tab: Prep Plan -->
@@ -6054,9 +6138,11 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="page-print-btn" onclick="openPrintPanel('page-actionplan')">🖨 พิมพ์</button>
+        <button type="button" onclick="apForceAutoGenerate()" style="padding:6px 14px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit" title="สร้างรายการจาก EFF/NG/OTD/แม่พิมพ์/วัตถุดิบ/วิกฤติ">🤖 สร้างจากระบบ (วันนี้)</button>
         <button onclick="editAP('')" style="padding:6px 16px;background:var(--accent);border:none;color:#fff;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">+ เพิ่ม Action Plan</button>
       </div>
     </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px;max-width:920px;line-height:1.45">ระบบสร้าง Action Plan อัตโนมัติ<strong>วันละครั้ง</strong>เมื่อเปิดแอป — กรอกชื่องาน/อาการ/ปัญหาให้แล้ว เหลือให้กรอก<strong>สาเหตุ</strong>กับ<strong>การแก้ไข</strong> — ที่มา: EFF ต่ำ, NG สูง, งานส่งไม่ทัน, แม่พิมพ์ซ่อมบ่อย, วัตถุดิบใกล้หมด/เบิกถี่, สัญญาณวิกฤติ</div>
   </div>
 
   <!-- KPI Row -->
@@ -6363,8 +6449,7 @@ function getMold(id){ return MOLD_DB.find(function(m){return m.id===id;})||null;
 function getMoldByCode(code){ return MOLD_DB.find(function(m){return m.code===code;})||null; }
 
 function initMoldDB(){
-  // MOLD_DB โหลดจาก localStorage แล้ว
-  // ไม่ inject ข้อมูลจำลอง
+  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -7083,6 +7168,34 @@ function loadFgLedger(){
   try{ var d=localStorage.getItem('_fgLedger'); if(d) fgLedger=JSON.parse(d); }catch(e){}
 }
 let moldData = [];
+/** เบิก–รับ / ซ่อม / เตรียมแม่พิมพ์ — บันทึกร่วมฝ่ายผลิต–ฝ่ายแม่พิมพ์ */
+let moldLedger = [];
+function loadMoldLedger(){
+  try{ var d=localStorage.getItem('_moldLedger'); if(d) moldLedger=JSON.parse(d); if(!Array.isArray(moldLedger)) moldLedger=[]; }catch(e){ moldLedger=[]; }
+}
+function saveMoldLedger(){
+  try{ localStorage.setItem('_moldLedger', JSON.stringify(moldLedger)); }catch(e){}
+}
+function syncMoldDataFromMoldDB(){
+  moldData = (MOLD_DB||[]).map(function(m){
+    var shot = (m.totalShot!=null&&m.totalShot!=='')?Number(m.totalShot):Number(m.shot)||0;
+    if(isNaN(shot)) shot=0;
+    var pmShot = Number(m.pmInterval||m.pmShot)||500000;
+    if(isNaN(pmShot)||pmShot<=0) pmShot=500000;
+    return {
+      code: m.code||'',
+      jobName: m.name||m.jobName||'',
+      cav: m.cavity||m.cav||1,
+      shot: shot,
+      pmShot: pmShot,
+      lastPm: m.lastPm||'',
+      status: m.status||'ปกติ',
+      moldId: m.id,
+      pmList: m.remark||''
+    };
+  });
+}
+loadMoldLedger();
 let rawMatStock = {
   PP:{qty:0,min:0,max:0,grade:'PP-H110'},
   LDPE:{qty:0,min:0,max:0,grade:'LDPE-2426H'},
@@ -7707,6 +7820,8 @@ function moldregSave(){
   initMoldDB(); // sync moldData
   closeModal('modal-mold-edit');
   renderMoldRegistry();
+  if(typeof renderMolds==='function') renderMolds();
+  if(typeof renderMoldLedger==='function') renderMoldLedger();
   _toast('✅ บันทึกแม่พิมพ์ '+code+' แล้ว');
 }
 
@@ -17856,7 +17971,7 @@ function dashWidgetCondToday(){
     +'<div style="background:rgba(56,139,253,0.1);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:#388bfd">'+done+'</div><div style="font-size:10px;color:var(--text3)">บันทึกวันนี้</div></div>'
     +'<div style="background:var(--bg3);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:var(--text2)">'+(expect||'—')+'</div><div style="font-size:10px;color:var(--text3)">เครื่องในระบบ</div></div>'
     +'</div>'
-    +'<div style="font-size:10px;color:var(--text3);text-align:center">เปรียบเทียบคร่าว ๆ — บันทึก Condition ประจำวันต่อเครื่อง</div>';
+    +'<div style="font-size:10px;color:var(--text3);text-align:center">จำนวนเครื่องที่มีบันทึก Condition จริงใน condActualList วันนี้</div>';
   return _dashWidgetCard('🌡️ Condition ประจำวัน',html,
     '<button type="button" onclick="showPage(\'conddaily\',null)" style="padding:2px 8px;font-size:10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:#79c0ff;cursor:pointer;font-family:inherit;font-weight:700">เปิดบันทึก →</button>');
 }
@@ -19332,17 +19447,14 @@ function renderDelivery(){
 // ===================== MOLDS =====================
 function renderMolds(){
   const tbody=document.getElementById('molds-tbody');
-  // Sync MOLD_REGISTRY → moldData for backward compatibility
-  if(MOLD_REGISTRY.length>0){
-    moldData = MOLD_REGISTRY.map(function(m){
-      return {code:m.code,jobName:m.name,cav:m.cavities,shot:m.shot||0,pmShot:m.pmInterval||150000,lastPm:m.lastPm||'',status:m.status||'ปกติ'};
-    });
-  }
-  tbody.innerHTML=moldData.slice(0,30).map(m=>{
-    const pct=Math.min(100,Math.round(m.shot/m.pmShot*100));
-    const nextPm=((Math.ceil(m.shot/m.pmShot)*m.pmShot)).toLocaleString();
+  if(!tbody) return;
+  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
+  tbody.innerHTML=(moldData.length?moldData.slice(0,30):[]).map(m=>{
+    const pmDen=Math.max(1,m.pmShot||1);
+    const pct=Math.min(100,Math.round(m.shot/pmDen*100));
+    const nextPm=((Math.ceil(m.shot/pmDen)*pmDen)).toLocaleString();
     const badge=m.status==='ต้องทำ PM'?'badge-red':m.status==='เฝ้าระวัง'?'badge-yellow':'badge-green';
-    const pmDate=new Date(m.lastPm); pmDate.setMonth(pmDate.getMonth()+3);
+    const codeAttr=String(m.code||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'');
     return `<tr>
       <td class="mono" style="font-size:12px">${m.code}</td>
       <td style="font-size:12px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.jobName}</td>
@@ -19357,33 +19469,176 @@ function renderMolds(){
       </td>
       <td class="mono" style="font-size:12px">${m.lastPm}</td>
       <td><span class="badge ${badge}">${m.status}</span></td>
-      <td><button class="btn btn-secondary btn-sm" onclick="updateMoldShot('${m.code}')">+Shot</button></td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn btn-secondary btn-sm" data-code="${codeAttr}" onclick="updateMoldShot(this.getAttribute('data-code'))">+Shot</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-code="${codeAttr}" onclick="moldLedgerOpenTab(this.getAttribute('data-code'))" title="เบิก–รับ / ซ่อม">📋</button>
+      </td>
     </tr>`;
-  }).join('');
+  }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">ยังไม่มีแม่พิมพ์ — บันทึกที่ <b>ทะเบียนแม่พิมพ์</b> จะแสดงที่นี่อัตโนมัติ</td></tr>';
+}
+function _moldDbRowByCode(code){
+  return (MOLD_DB||[]).find(function(x){ return x.code===code; })||null;
+}
+function _moldApplyShotStatus(dbRow, shot, pmShot){
+  if(!dbRow) return;
+  dbRow.totalShot=shot;
+  if(shot>=pmShot){ dbRow.status='ต้องทำ PM'; }
+  else if(pmShot>0&&shot/pmShot>=0.7) dbRow.status='เฝ้าระวัง';
+  else if(dbRow.status!=='ซ่อม') dbRow.status='ปกติ';
+  dbRow.updatedAt=new Date().toISOString().split('T')[0];
 }
 function updateMoldShot(code){
+  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
   const m=moldData.find(x=>x.code===code);
   if(!m) return;
-  const add=parseInt(prompt(`เพิ่ม Shot สำหรับ ${code}\nShot ปัจจุบัน: ${m.shot.toLocaleString()}\nเพิ่มกี่ shot:`));
+  const add=parseInt(prompt(`เพิ่ม Shot สำหรับ ${code}\nShot ปัจจุบัน: ${m.shot.toLocaleString()}\nเพิ่มกี่ shot:`),10);
   if(isNaN(add)) return;
   m.shot+=add;
   if(m.shot>=m.pmShot){ m.status='ต้องทำ PM'; if(typeof _infoToast==="function") _infoToast(`⚠ แม่พิมพ์ ${code} ถึงกำหนด PM แล้ว (${m.shot.toLocaleString()} shot)`); else console.warn(`⚠ แม่พิมพ์ ${code} ถึงกำหนด PM แล้ว (${m.shot.toLocaleString()} shot)`); }
-  else if(m.shot/m.pmShot>=0.7) m.status='เฝ้าระวัง';
+  else if(m.pmShot>0&&m.shot/m.pmShot>=0.7) m.status='เฝ้าระวัง';
+  else m.status='ปกติ';
+  var db=_moldDbRowByCode(code);
+  if(db){ _moldApplyShotStatus(db,m.shot,m.pmShot); saveMoldDB(); }
   renderMolds();
 }
 function saveMold(){
-  const pmShot=parseInt(document.getElementById('mold-pm-shot').value)||500000;
-  const shot=parseInt(document.getElementById('mold-current-shot').value)||0;
-  moldData.push({
-    code:document.getElementById('mold-code').value,
-    jobName:document.getElementById('mold-job').value,
-    cav:parseInt(document.getElementById('mold-cav').value)||1,
-    shot, pmShot,
-    lastPm:new Date().toISOString().split('T')[0],
-    pmList:document.getElementById('mold-pm-list').value||'1. ทำความสะอาด\n2. ตรวจ ejector',
-    status:shot/pmShot>=0.9?'ต้องทำ PM':shot/pmShot>=0.7?'เฝ้าระวัง':'ปกติ'
+  const code=(document.getElementById('mold-code').value||'').trim();
+  if(!code){ if(typeof _infoToast==='function') _infoToast('กรุณากรอกรหัสแม่พิมพ์'); return; }
+  const pmShot=parseInt(document.getElementById('mold-pm-shot').value,10)||500000;
+  const shot=parseInt(document.getElementById('mold-current-shot').value,10)||0;
+  const jobName=document.getElementById('mold-job').value||code;
+  const cav=parseInt(document.getElementById('mold-cav').value,10)||1;
+  const pmList=document.getElementById('mold-pm-list').value||'';
+  var st=shot/pmShot>=0.9?'ต้องทำ PM':shot/pmShot>=0.7?'เฝ้าระวัง':'ปกติ';
+  var existing=MOLD_DB.find(function(x){ return x.code===code; });
+  if(existing){
+    existing.jobName=jobName; existing.name=jobName; existing.cavity=cav;
+    existing.pmInterval=pmShot; existing.totalShot=shot; existing.remark=pmList;
+    existing.status=st; existing.updatedAt=new Date().toISOString().split('T')[0];
+  } else {
+    MOLD_DB.push({
+      id:'M'+String(Date.now()).slice(-8), code:code, name:jobName, jobName:jobName,
+      cavity:cav, pmInterval:pmShot, totalShot:shot, remark:pmList, status:st,
+      customer:'', material:'S45C', assignMachine:'', location:'',
+      updatedAt:new Date().toISOString().split('T')[0]
+    });
+  }
+  saveMoldDB();
+  if(typeof initMoldDB==='function') initMoldDB();
+  closeModal('modal-add-mold');
+  renderMolds();
+}
+function _moldLedgerFmtMin(a,b){
+  if(!a||!b) return '—';
+  var t1=Date.parse(a), t2=Date.parse(b);
+  if(isNaN(t1)||isNaN(t2)||t2<t1) return '—';
+  return Math.round((t2-t1)/60000)+' นาที';
+}
+function moldLedgerOpenTab(code){
+  if(typeof showPage==='function') showPage('molds');
+  var btn=document.getElementById('tab-btn-mold-ledger');
+  if(btn&&typeof switchTab==='function') switchTab(btn,'tab-mold-ledger');
+  if(typeof moldLedgerInitForm==='function') moldLedgerInitForm(code||'');
+  if(typeof renderMoldLedger==='function') renderMoldLedger();
+}
+function moldLedgerInitForm(preCode){
+  var sel=document.getElementById('moldld-mold');
+  if(sel){
+    sel.innerHTML='<option value="">— เลือกแม่พิมพ์ —</option>'+(MOLD_DB||[]).map(function(m){
+      return '<option value="'+String(m.code).replace(/"/g,'&quot;')+'" data-id="'+String(m.id||'').replace(/"/g,'&quot;')+'">'+String(m.code).replace(/</g,'')+' — '+(String(m.name||m.jobName||'').replace(/</g,'').substring(0,40))+'</option>';
+    }).join('');
+    if(preCode) sel.value=preCode;
+  }
+  var ms=document.getElementById('moldld-machine');
+  if(ms&&ms.options.length<=1) ms.innerHTML='<option value="">— ไม่ระบุ —</option>'+(typeof MACHINES!=='undefined'?MACHINES.map(function(mc){ return '<option value="'+mc.id+'">'+mc.id+'</option>'; }).join(''):'');
+}
+function moldLedgerSave(){
+  var code=(document.getElementById('moldld-mold')&&document.getElementById('moldld-mold').value)||'';
+  if(!code){ if(typeof _infoToast==='function') _infoToast('เลือกแม่พิมพ์'); return; }
+  var opt=document.getElementById('moldld-mold').selectedOptions[0];
+  var moldId=opt?opt.getAttribute('data-id')||'':'';
+  var gv=function(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; };
+  var rec={
+    id:'ML-'+Date.now(),
+    moldCode:code,
+    moldId:moldId,
+    actionType:gv('moldld-action'),
+    shotAt:parseInt(gv('moldld-shot'),10)||0,
+    piecesQty:parseInt(gv('moldld-pcs'),10)||0,
+    issuedBy:gv('moldld-issue-by'),
+    receivedBy:gv('moldld-recv-by'),
+    machine:gv('moldld-machine'),
+    symptom:gv('moldld-symptom'),
+    repairAction:gv('moldld-repair'),
+    toolingChange:gv('moldld-tooling'),
+    intervalType:gv('moldld-interval'),
+    timeOut:gv('moldld-t-out'),
+    timeIn:gv('moldld-t-in'),
+    timeRepairStart:gv('moldld-t-rs'),
+    timeRepairEnd:gv('moldld-t-re'),
+    repairResult:gv('moldld-repair-result'),
+    prepOnTime:gv('moldld-prep-ontime'),
+    note:gv('moldld-note'),
+    createdAt:new Date().toISOString()
+  };
+  moldLedger.unshift(rec);
+  saveMoldLedger();
+  if(typeof _toast==='function') _toast('✅ บันทึกประวัติแม่พิมพ์แล้ว');
+  ['moldld-symptom','moldld-repair','moldld-tooling','moldld-note','moldld-issue-by','moldld-recv-by','moldld-shot','moldld-pcs'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  renderMoldLedger();
+}
+function moldLedgerDelete(id){
+  if(!id) return;
+  if(typeof _confirmDel==='function'){
+    _confirmDel('ลบรายการประวัตินี้?', function(){
+      moldLedger=moldLedger.filter(function(r){ return r.id!==id; });
+      saveMoldLedger(); renderMoldLedger();
+    });
+  } else if(confirm('ลบรายการนี้?')){
+    moldLedger=moldLedger.filter(function(r){ return r.id!==id; });
+    saveMoldLedger(); renderMoldLedger();
+  }
+}
+function _moldLedgerEsc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+function renderMoldLedger(){
+  var tbody=document.getElementById('mold-ledger-tbody');
+  if(!tbody) return;
+  var moldF=(document.getElementById('moldld-filter-mold')&&document.getElementById('moldld-filter-mold').value)||'';
+  var monthF=(document.getElementById('moldld-filter-month')&&document.getElementById('moldld-filter-month').value)||'';
+  var list=(moldLedger||[]).filter(function(r){
+    if(moldF&&r.moldCode!==moldF) return false;
+    if(monthF&&r.createdAt&&r.createdAt.substring(0,7)!==monthF) return false;
+    return true;
   });
-  closeModal('modal-add-mold'); renderMolds();
+  var actLabel={ issue_to_prod:'เบิกไปผลิต', return_from_prod:'รับคืนจากผลิต', send_repair:'ส่งซ่อม/PM', return_from_repair:'รับคืนหลังซ่อม', in_use_repair:'ซ่อมระหว่างใช้งาน' };
+  var intLabel={ pm_plan:'PM ตามแผน', emergency:'ฉุกเฉิน', tooling:'เปลี่ยน tooling', other:'อื่นๆ' };
+  tbody.innerHTML=list.map(function(r){
+    var prep=_moldLedgerFmtMin(r.timeOut,r.timeIn);
+    var rep=_moldLedgerFmtMin(r.timeRepairStart,r.timeRepairEnd);
+    var rr={ pass:'ซ่อมผ่าน', fail:'ซ่อมไม่ผ่าน', na:'—' }[r.repairResult]||r.repairResult||'—';
+    var po={ yes:'เตรียมทัน', no:'เตรียมไม่ทัน', na:'—' }[r.prepOnTime]||r.prepOnTime||'—';
+    var tip=[r.symptom,r.repairAction,r.toolingChange,r.note].filter(Boolean).join(' | ');
+    var tipEsc=_moldLedgerEsc(tip);
+    var symDisp=_moldLedgerEsc((r.symptom||'—').substring(0,80))+(r.symptom&&r.symptom.length>80?'…':'');
+    var mach=r.machine?(' · '+_moldLedgerEsc(r.machine)):'';
+    var interval=(intLabel[r.intervalType]||r.intervalType||'');
+    return '<tr><td class="mono" style="font-size:10px">'+_moldLedgerEsc((r.createdAt||'').replace('T',' ').substring(0,16))+'</td>'+
+      '<td class="mono" style="font-size:11px;font-weight:700">'+_moldLedgerEsc(r.moldCode)+'</td>'+
+      '<td style="font-size:11px">'+_moldLedgerEsc(actLabel[r.actionType]||r.actionType)+'</td>'+
+      '<td class="mono" style="font-size:11px">'+(r.shotAt!=null?r.shotAt.toLocaleString():'—')+'</td>'+
+      '<td class="mono" style="font-size:11px">'+(r.piecesQty?r.piecesQty.toLocaleString():'—')+'</td>'+
+      '<td style="font-size:11px">'+_moldLedgerEsc(r.issuedBy||'—')+'</td><td style="font-size:11px">'+_moldLedgerEsc(r.receivedBy||'—')+'</td>'+
+      '<td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="'+tipEsc+'">'+symDisp+mach+(interval?'<div style="font-size:9px;color:var(--text3);margin-top:2px">'+_moldLedgerEsc(interval)+'</div>':'')+'</td>'+
+      '<td style="font-size:10px;color:var(--text3)">รับส่ง '+prep+'<br>ซ่อม '+rep+'</td>'+
+      '<td style="font-size:11px">'+_moldLedgerEsc(rr)+' / '+_moldLedgerEsc(po)+'</td>'+
+      '<td><button type="button" class="btn btn-secondary btn-sm" onclick="moldLedgerDelete(\''+String(r.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">🗑</button></td></tr>';
+  }).join('')||'<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:20px">ยังไม่มีประวัติ</td></tr>';
+  var fm=document.getElementById('moldld-filter-mold');
+  if(fm&&fm.options.length<=1){
+    fm.innerHTML='<option value="">ทุกแม่พิมพ์</option>'+(MOLD_DB||[]).map(function(m){ return '<option value="'+String(m.code).replace(/"/g,'&quot;')+'">'+String(m.code).replace(/</g,'')+'</option>'; }).join('');
+  }
 }
 
 // ===================== HISTORY =====================
@@ -25576,7 +25831,8 @@ function renderPage(id){
   else if(id==='approvallog') renderApprovalLog();
   else if(id==='history') renderAlertCenter();
   else if(id==='actionplan'){
-    if(!actionPlans.length) initActionPlans();
+    if(typeof initActionPlans==='function') initActionPlans();
+    if(typeof apMaybeRunAutoActionPlans==='function') apMaybeRunAutoActionPlans();
     renderActionPlan();
     // Populate machine filter
     const apMachSel=document.getElementById('ap-machine-filter');
@@ -25610,6 +25866,8 @@ function renderPage(id){
   else if(id==='limitsample'){ lsRenderPage(); }
   else if(id==='molds'){
     renderMolds();
+    if(typeof moldLedgerInitForm==='function') moldLedgerInitForm('');
+    if(typeof renderMoldLedger==='function') renderMoldLedger();
     const mpMon=document.getElementById('mold-prep-month');
     if(mpMon&&!mpMon.value) mpMon.value=new Date().toISOString().substring(0,7);
     const maMon=document.getElementById('maint-month');
@@ -28167,13 +28425,207 @@ function openApprovalForRpt(){
 
 // ===================== ACTION PLAN DATA =====================
 let actionPlans = [];
+var AP_STORAGE_KEY='_actionPlans';
+var AP_AUTORUN_KEY='_apAutoGenDate';
 const AP_CATEGORIES = ['ของเสีย/NG', 'ประสิทธิภาพต่ำ', 'เครื่องขัดข้อง', 'วัตถุดิบ', 'คุณภาพ', 'ความปลอดภัย', 'อื่นๆ'];
 const AP_PRIORITY   = ['สูงมาก','สูง','ปานกลาง','ต่ำ'];
 const AP_STATUS     = ['เปิด','กำลังดำเนินการ','รอตรวจสอบ','ปิด'];
 
+function loadAPData(){
+  try{
+    var d=localStorage.getItem(AP_STORAGE_KEY);
+    if(d){ var a=JSON.parse(d); if(Array.isArray(a)) actionPlans=a; }
+  }catch(e){}
+}
+function saveAPData(){
+  try{ localStorage.setItem(AP_STORAGE_KEY, JSON.stringify(actionPlans)); }catch(e){}
+}
+loadAPData();
+
+/** รวมยอดจาก dailyReports ย้อนหลัง days วัน ต่อเครื่อง */
+function apAggMachineMetrics(days){
+  days=days||5;
+  var today=new Date().toISOString().split('T')[0];
+  var cut=new Date(today+'T12:00:00'); cut.setDate(cut.getDate()-days);
+  var cutStr=cut.toISOString().split('T')[0];
+  var byM={};
+  Object.values(dailyReports||{}).forEach(function(rpt){
+    if(!rpt||!rpt.date||rpt.date<cutStr||!rpt.rows)return;
+    var m=String(rpt.machine||'').trim(); if(!m)return;
+    if(!byM[m]) byM[m]={ok:0,target:0,prod:0,ng:0,ngBy:{},jobs:{}};
+    (rpt.rows||[]).forEach(function(r){
+      var p=r.produced||0, ng=r.ng||0, tgt=r.target||0;
+      byM[m].prod+=p; byM[m].ng+=ng; byM[m].target+=tgt;
+      byM[m].ok+=Math.max(0,p-ng);
+      if(rpt.jobName) byM[m].jobs[rpt.jobName]=1;
+      (r.ngItems||[]).forEach(function(n){
+        var q=parseInt(n.qty,10)||0; if(q<=0)return;
+        var def=(n.defect&&String(n.defect).trim())||'อื่นๆ';
+        byM[m].ngBy[def]=(byM[m].ngBy[def]||0)+q;
+      });
+    });
+  });
+  return byM;
+}
+
+function apHasOpenAutoKey(key){
+  return (actionPlans||[]).some(function(ap){
+    return ap&&ap.autoKey===key&&ap.status!=='ปิด'&&ap.status!=='เสร็จสิ้น';
+  });
+}
+
+/** สร้างรายการ Action Plan อัตโนมัติจากข้อมูลระบบ (EFF, NG, OTD, แม่พิมพ์, วัตถุดิบ, วิกฤติ) */
+function apGenerateAutoPlansForDate(today){
+  today=today||new Date().toISOString().split('T')[0];
+  var dueD=new Date(today+'T12:00:00'); dueD.setDate(dueD.getDate()+7);
+  var duePlus7=dueD.toISOString().split('T')[0];
+  var n=0;
+  function nid(){ return 'AP-AUTO-'+Date.now().toString(36)+'-'+String(++n).padStart(2,'0'); }
+  function add(rec){
+    if(!rec.autoKey||apHasOpenAutoKey(rec.autoKey)) return;
+    actionPlans.unshift(rec);
+  }
+  var byM=apAggMachineMetrics(5);
+  Object.keys(byM).forEach(function(m){
+    var x=byM[m];
+    if(x.target<200)return;
+    var eff=Math.min(100,(x.ok/Math.max(1,x.target))*100);
+    if(eff<72){
+      var jobs=Object.keys(x.jobs).slice(0,4).join(', ')||'—';
+      add({id:nid(),date:today,machine:m,category:'ประสิทธิภาพต่ำ',priority:'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ] EFF ต่ำ — เครื่อง '+m+' ย้อนหลัง 5 วัน เฉลี่ย '+eff.toFixed(1)+'% (OK÷เป้าชม.) | งาน: '+jobs,
+        rootCause:'',action:'',responsible:'',verifyBy:'',approver:'',dueDate:duePlus7,
+        kpiTopic:'EFF% เครื่อง '+m,actualPct:String(eff.toFixed(1)),targetPct:'85',
+        autoKey:'eff5d_'+m,autoSource:'eff_low',orderNo:'',attachedLot:''});
+    }
+  });
+  Object.keys(byM).forEach(function(m){
+    var x=byM[m];
+    if(x.prod<300)return;
+    var ngp=(x.ng/Math.max(1,x.prod))*100;
+    if(ngp>=5){
+      var top=Object.keys(x.ngBy).sort(function(a,b){return (x.ngBy[b]||0)-(x.ngBy[a]||0);}).slice(0,6);
+      var sym=top.map(function(d){return d+' '+(x.ngBy[d]||0)+' ชิ้น';}).join(' · ')||('NG รวม '+x.ng+' ชิ้น');
+      var jobs=Object.keys(x.jobs).slice(0,3).join(', ')||'—';
+      add({id:nid(),date:today,machine:m,category:'ของเสีย/NG',priority:ngp>=8?'สูงมาก':'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ] ของเสียสูง — '+m+' NG% '+ngp.toFixed(1)+'% (5 วัน) | งาน: '+jobs+' | อาการ/ประเภท: '+sym,
+        rootCause:'',action:'',dueDate:duePlus7,actualPct:String(ngp.toFixed(1)),targetPct:'3',
+        kpiTopic:'NG%',autoKey:'ng5d_'+m,autoSource:'ng_high',orderNo:'',attachedLot:''});
+    }
+  });
+  var d0=new Date(today+'T12:00:00');
+  (orders||[]).forEach(function(o){
+    if(!o||!o.dueDate)return;
+    var st=String(o.status||'');
+    if(st==='พร้อมส่ง'||st==='ส่งแล้ว')return;
+    var ds=String(o.dueDate).slice(0,10);
+    var dd=new Date(ds+'T12:00:00'); if(isNaN(dd.getTime()))return;
+    var late=Math.floor((d0-dd)/86400000);
+    if(late>=1){
+      add({id:nid(),date:today,machine:o.machine||'',category:'อื่นๆ',priority:late>=7?'สูงมาก':'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ] งานส่งไม่ทัน — Order '+(o.orderNo||'—')+' | งาน '+(o.jobName||'—')+' | เลยกำหนดส่ง '+late+' วัน (Due '+ds+')',
+        rootCause:'',action:'',dueDate:duePlus7,orderNo:o.orderNo||'',attachedLot:o.lotNo||'',
+        kpiTopic:'OTD',autoKey:'otd_'+(o.orderNo||'')+'_'+ds,autoSource:'otd_late'});
+    }
+  });
+  if(typeof moldLedger!=='undefined'&&Array.isArray(moldLedger)){
+    var c30=new Date(today+'T12:00:00'); c30.setDate(c30.getDate()-30);
+    var c30s=c30.toISOString().split('T')[0];
+    var cnt={};
+    moldLedger.forEach(function(r){
+      if(!r||!r.createdAt||r.createdAt<c30s)return;
+      var t=r.actionType||'';
+      if(t!=='send_repair'&&t!=='return_from_repair'&&t!=='in_use_repair')return;
+      var c=String(r.moldCode||'').trim(); if(!c)return;
+      cnt[c]=(cnt[c]||0)+1;
+    });
+    Object.keys(cnt).forEach(function(c){
+      if(cnt[c]<3)return;
+      add({id:nid(),date:today,machine:'',category:'คุณภาพ',priority:'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ] แม่พิมพ์ซ่อม/PM บ่อย — รหัส '+c+' จำนวน '+cnt[c]+' รายการใน 30 วัน',
+        rootCause:'',action:'',dueDate:duePlus7,kpiTopic:'แม่พิมพ์ '+c,
+        autoKey:'mold30d_'+c,autoSource:'mold_repair',orderNo:'',attachedLot:''});
+    });
+  }
+  Object.keys(rawMatStock||{}).forEach(function(mat){
+    var s=rawMatStock[mat]; if(!s)return;
+    var q=parseFloat(s.qty)||0, mn=parseFloat(s.min)||0;
+    if(mn>0&&q<=mn*1.2){
+      add({id:nid(),date:today,machine:'',category:'วัตถุดิบ',priority:q<mn?'สูงมาก':'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ] วัตถุดิบ '+mat+' ใกล้หมด — คงเหลือ '+q+' kg (min '+mn+' kg) เกรด '+(s.grade||'—'),
+        rootCause:'',action:'',dueDate:duePlus7,kpiTopic:'Stock '+mat,
+        autoKey:'rmlow_'+mat,autoSource:'rawmat_low',orderNo:'',attachedLot:''});
+    }
+  });
+  if(typeof rawMatLedger!=='undefined'&&Array.isArray(rawMatLedger)){
+    var c14=new Date(today+'T12:00:00'); c14.setDate(c14.getDate()-14);
+    var c14s=c14.toISOString().split('T')[0];
+    var outC={};
+    rawMatLedger.forEach(function(r){
+      if(!r||r.type!=='out'||!r.date||r.date<c14s)return;
+      var mat=String(r.material||'').trim(); if(!mat)return;
+      outC[mat]=(outC[mat]||0)+1;
+    });
+    Object.keys(outC).forEach(function(mat){
+      if(outC[mat]<12)return;
+      add({id:nid(),date:today,machine:'',category:'วัตถุดิบ',priority:'ปานกลาง',status:'เปิด',
+        issue:'[อัตโนมัติ] วัตถุดิบ '+mat+' เบิกถี่ — '+outC[mat]+' ครั้ง/14 วัน (ตรวจแผนสั่งซื้อ/คงคลัง)',
+        rootCause:'',action:'',dueDate:duePlus7,kpiTopic:'เบิกถี่ '+mat,
+        autoKey:'rmfreq_'+mat,autoSource:'rawmat_freq',orderNo:'',attachedLot:''});
+    });
+  }
+  Object.values(dailyReports||{}).forEach(function(r){
+    if(!r||r.date!==today||!r.rows)return;
+    var prod=(r.rows||[]).reduce(function(s,x){return s+(x.produced||0);},0);
+    var ng=(r.rows||[]).reduce(function(s,x){return s+(x.ng||0);},0);
+    var pct=prod>0?ng/prod*100:0;
+    if(pct>=8){
+      add({id:nid(),date:today,machine:r.machine||'',category:'ของเสีย/NG',priority:'สูงมาก',status:'เปิด',
+        issue:'[อัตโนมัติ·วิกฤติ] NG วันนี้ '+pct.toFixed(1)+'% — '+(r.machine||'')+' งาน '+(r.jobName||'—')+' (ต้องหยุดตรวจ)',
+        rootCause:'',action:'',dueDate:duePlus7,actualPct:String(pct.toFixed(1)),targetPct:'3',
+        kpiTopic:'NG วิกฤติ',autoKey:'ngcrit_'+today+'_'+(r.machine||''),autoSource:'critical_alert',orderNo:r.orderNo||'',attachedLot:r.lotNo||''});
+    }
+    var dt=(r.rows||[]).reduce(function(s,x){return s+(x.ltMins||0);},0);
+    if(dt>=180){
+      var rs=[...new Set((r.rows||[]).filter(function(x){return x.ltReason;}).map(function(x){return x.ltReason;}))].join(', ')||'ไม่ระบุ';
+      add({id:nid(),date:today,machine:r.machine||'',category:'ประสิทธิภาพต่ำ',priority:'สูง',status:'เปิด',
+        issue:'[อัตโนมัติ·วิกฤติ] Downtime สูงวันนี้ '+dt+' นาที — '+(r.machine||'')+' | สาเหตุหยุด: '+rs,
+        rootCause:'',action:'',dueDate:duePlus7,kpiTopic:'DT วันนี้',
+        autoKey:'dtcrit_'+today+'_'+(r.machine||''),autoSource:'critical_alert',orderNo:r.orderNo||'',attachedLot:r.lotNo||''});
+    }
+  });
+  var runIds=(MACHINES||[]).filter(function(m){return m.status==='running'||m.status==='alarm';}).map(function(m){return m.id;});
+  var rep=new Set();
+  Object.values(dailyReports||{}).forEach(function(r){ if(r&&r.date===today&&r.machine)rep.add(r.machine); });
+  runIds.forEach(function(mid){
+    if(rep.has(mid))return;
+    add({id:nid(),date:today,machine:mid,category:'คุณภาพ',priority:'สูง',status:'เปิด',
+      issue:'[อัตโนมัติ·วิกฤติ] เครื่อง '+mid+' รันแต่ยังไม่บันทึกรายงานการผลิตวันนี้',
+      rootCause:'',action:'',dueDate:duePlus7,kpiTopic:'รายงานผลิต',
+      autoKey:'norpt_'+today+'_'+mid,autoSource:'critical_alert',orderNo:'',attachedLot:''});
+  });
+}
+
+function apMaybeRunAutoActionPlans(){
+  var today=new Date().toISOString().split('T')[0];
+  var last='';
+  try{ last=localStorage.getItem(AP_AUTORUN_KEY)||''; }catch(e){}
+  if(last===today) return;
+  loadAPData();
+  apGenerateAutoPlansForDate(today);
+  saveAPData();
+  try{ localStorage.setItem(AP_AUTORUN_KEY,today); }catch(e){}
+}
+
+function apForceAutoGenerate(){
+  apGenerateAutoPlansForDate(new Date().toISOString().split('T')[0]);
+  saveAPData();
+  renderActionPlan();
+  if(typeof _toast==='function') _toast('✅ สร้าง/อัปเดต Action Plan จากระบบแล้ว (ไม่ซ้ำรายการที่เปิดอยู่)');
+}
+
 function initActionPlans(){
-  // actionPlans โหลดจาก localStorage ผ่าน saveAP/loadAP
-  // ไม่ inject ข้อมูลจำลอง
+  loadAPData();
 }
 
 function renderActionPlan(){
@@ -28837,6 +29289,7 @@ function saveAP(){
     actionPlans.unshift(data);
   }
   closeModal('modal-add-ap');
+  if(typeof saveAPData==='function') saveAPData();
   renderActionPlan();
   addToApprovalLog('ap-'+data.id,'บันทึก Action Plan: '+data.issue.substring(0,40),data.responsible,'รออนุมัติ');
 }
@@ -28849,6 +29302,7 @@ function closeAP(id){
   ap.status='ปิด';
   ap.result=result;
   ap.closedDate=new Date().toISOString().split('T')[0];
+  if(typeof saveAPData==='function') saveAPData();
   renderActionPlan();
   if(typeof _infoToast==="function") _infoToast('✅ ปิด Action Plan '+id+' เรียบร้อย');
 }
@@ -34395,6 +34849,9 @@ function masterInit(){
   if(typeof loadFgStock==='function') loadFgStock();
   if(typeof loadRawMatStock==='function') loadRawMatStock();
   if(typeof loadFgLedger==='function') loadFgLedger();
+  if(typeof loadMoldLedger==='function') loadMoldLedger();
+  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
+  if(typeof apMaybeRunAutoActionPlans==='function') apMaybeRunAutoActionPlans();
 
   // ── Sync mold prep plans จาก orders ──────────────────────────
   if(typeof autoCreateMoldPrep==='function')
@@ -44120,6 +44577,13 @@ function moldregDelete(id){
   _confirmDel('🗑 ลบแม่พิมพ์: <b>'+m.code+'</b><br>'+(m.name||m.jobName||''), function(){
     const idx=MOLD_DB.findIndex(x=>x.id===id); if(idx>=0) MOLD_DB.splice(idx,1);
     saveMoldDB(); renderMoldRegistry();
+    if(typeof moldLedger!=='undefined'&&Array.isArray(moldLedger)){
+      moldLedger=moldLedger.filter(function(r){ return r.moldId!==id&&r.moldCode!==m.code; });
+      if(typeof saveMoldLedger==='function') saveMoldLedger();
+    }
+    if(typeof initMoldDB==='function') initMoldDB();
+    if(typeof renderMolds==='function') renderMolds();
+    if(typeof renderMoldLedger==='function') renderMoldLedger();
     if(typeof _toast==='function') _toast('🗑 ลบแม่พิมพ์ '+m.code+' แล้ว');
   });
 }
@@ -45707,7 +46171,7 @@ var XL_CONFIG={
     headers:['รหัสแม่พิมพ์*','ชื่องาน/Job','ลูกค้า','Cavity','วัสดุ','เครื่องที่ใช้','PM ทุก(shot)','Total Shot','สถานะ','Location','ปีผลิต','ผู้ผลิต','หมายเหตุ'],
     required:[0],
     example:[['M-001','PART-001','ลูกค้า A','4','S45C','MC-01','500000','0','ปกติ','Rack A','2020','ญี่ปุ่น','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var code=(r[0]||'').trim();if(!code)return;var obj={id:'M'+String(Date.now()+a).slice(-6),code:code,name:r[1]||code,jobName:r[1]||code,customer:r[2]||'',cavity:parseInt(r[3])||1,material:r[4]||'S45C',assignMachine:r[5]||'',pmInterval:parseInt(r[6])||500000,totalShot:parseInt(r[7])||0,status:r[8]||'ปกติ',location:r[9]||'',mfgYear:r[10]||'',mfgBy:r[11]||'',remark:r[12]||'',updatedAt:new Date().toISOString().split('T')[0]};var idx=MOLD_DB.findIndex(function(m){return m.code===code;});if(idx>=0){if(ow){MOLD_DB[idx]=Object.assign(MOLD_DB[idx],obj);u++;}else if(skip){s++;}else{MOLD_DB.push(obj);a++;}}else{MOLD_DB.push(obj);a++;}});saveMoldDB();if(typeof initMoldDB==='function')initMoldDB();if(typeof renderMoldRegistry==='function')renderMoldRegistry();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var code=(r[0]||'').trim();if(!code)return;var obj={id:'M'+String(Date.now()+a).slice(-6),code:code,name:r[1]||code,jobName:r[1]||code,customer:r[2]||'',cavity:parseInt(r[3])||1,material:r[4]||'S45C',assignMachine:r[5]||'',pmInterval:parseInt(r[6])||500000,totalShot:parseInt(r[7])||0,status:r[8]||'ปกติ',location:r[9]||'',mfgYear:r[10]||'',mfgBy:r[11]||'',remark:r[12]||'',updatedAt:new Date().toISOString().split('T')[0]};var idx=MOLD_DB.findIndex(function(m){return m.code===code;});if(idx>=0){if(ow){MOLD_DB[idx]=Object.assign(MOLD_DB[idx],obj);u++;}else if(skip){s++;}else{MOLD_DB.push(obj);a++;}}else{MOLD_DB.push(obj);a++;}});saveMoldDB();if(typeof initMoldDB==='function')initMoldDB();if(typeof renderMoldRegistry==='function')renderMoldRegistry();if(typeof renderMolds==='function')renderMolds();if(typeof renderMoldLedger==='function')renderMoldLedger();return{added:a,skipped:s,updated:u};}},
   custreg:{title:'ทะเบียนลูกค้า',sub:'นำเข้าข้อมูลลูกค้า',
     headers:['รหัส*','ชื่อลูกค้า*','ผู้ติดต่อ','โทร','Email','ที่อยู่','เครดิต(วัน)','Tax ID','สถานะ','หมายเหตุ'],
     required:[0,1],
