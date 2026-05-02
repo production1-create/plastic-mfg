@@ -2,6 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบวางแผนการผลิตงานฉีดพลาสติก</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1291,7 +1292,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="nav-label">🏭 เตรียมการผลิต</div>
     <!-- 17 --> <div class="nav-item" onclick="showPage('rawmat',this)"><span class="nav-icon">📦</span><span class="nav-seq">19</span> วัตถุดิบ Batch</div>
     <!-- 18 --> <div class="nav-item" onclick="showPage('molds',this)"><span class="nav-icon">🔧</span><span class="nav-seq">20</span> แม่พิมพ์ & PM</div>
-    <!-- 19 --> <div class="nav-item" onclick="showPage('approvalproc',this)"><span class="nav-icon">✅</span><span class="nav-seq">21</span> ใบอนุมัติกระบวนการ</div>
+    <!-- 21A --><div class="nav-item" onclick="showPage('approvalproc',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">21A</span> ใบอนุมัติ (เครื่องฉีด)</div>
+    <!-- 21B --><div class="nav-item" onclick="showPage('approvalproc',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">21B</span> ใบอนุมัติ (ประกอบ·สกรีน·พ่น)</div>
     <!-- 18  --> <div class="nav-item" onclick="showPage('mixing',this)"><span class="nav-icon">🧪</span><span class="nav-seq">18</span> แผนผสมเม็ด</div>
   </div>
 
@@ -3070,6 +3072,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I009 &nbsp;|&nbsp; 🔗 Order → Mix Plan → Stock Check</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button onclick="mixRebuildFromTT({merge:true});renderMixing();if(typeof _toast==='function')_toast('📅 ซิงค์แผนผสมจาก Time Table แล้ว')" style="padding:7px 14px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="อ่านแผนรายวันจาก Time Table การผลิต — ผสมล่วงหน้า 2 วันต่อวันผลิต">📅 ซิงค์จาก TT</button>
         <button onclick="mixAutoGenerate()" style="padding:7px 14px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">⚡ สร้างแผนจาก Order</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-mix')">+ เพิ่มแผนเอง</button>
         <button class="page-print-btn btn-sm" onclick="openPrintPanel('page-mixing')">🖨 พิมพ์</button>
@@ -3090,6 +3093,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="tab" onclick="mixTab('auto',this)">⚡ จาก Order (อัตโนมัติ)</div>
     <div class="tab" onclick="mixTab('stock',this)">📦 ตรวจสต็อก & จอง</div>
     <div class="tab" onclick="mixTab('tt',this)">📅 Time Table ผสม</div>
+    <div class="tab" onclick="mixTab('dispatch',this)">📤 เบิกส่งฝ่ายผลิต & ประวัติ</div>
   </div>
 
   <!-- ══════════ TAB: PLAN ══════════ -->
@@ -3114,6 +3118,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <thead><tr style="background:var(--bg3)">
           <th style="padding:9px 12px;text-align:left;color:var(--text3)">วันผสม</th>
           <th style="padding:9px 8px;text-align:left;color:var(--text3)">Order / งาน</th>
+          <th style="padding:9px 8px;text-align:center;color:var(--text3)">เครื่อง</th>
           <th style="padding:9px 8px;text-align:center;color:var(--text3)">เม็ดพลาสติก</th>
           <th style="padding:9px 8px;text-align:center;color:var(--text3)">MB / สัดส่วน</th>
           <th style="padding:9px 8px;text-align:center;color:var(--text3)">ปริมาณ (kg)</th>
@@ -3200,8 +3205,23 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
 
   <!-- ══════════ TAB: TIME TABLE ══════════ -->
   <div id="mix-tab-tt" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px">📅 Time Table แผนผสม 7 วัน</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:13px;font-weight:700">📅 Time Table ผสม (อ้างอิง TT การผลิต)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">วันที่ในกริด = <b>วันผสม</b> (ล่วงหน้า 2 วันจากวันผลิตใน Time Table) · กด &quot;ซิงค์จาก TT&quot; ที่หัวหน้าเมนูถ้าแผนไม่อัปเดต</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="mixTtShiftDays(-7)">« −7 วัน</button>
+        <input type="date" id="mix-tt-date" style="padding:6px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px" onchange="renderMixingTT()">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="mixTtShiftDays(7)">+7 วัน »</button>
+      </div>
+    </div>
     <div class="card" id="mix-tt-grid" style="background:var(--bg);border:1px solid var(--border)"></div>
+  </div>
+
+  <!-- ══════════ TAB: DISPATCH / HISTORY ══════════ -->
+  <div id="mix-tab-dispatch" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
+    <div id="mix-dispatch-body"></div>
   </div>
 </div>
 
@@ -6916,6 +6936,7 @@ function saveOrderModal(withTT){
   o.createdAt=new Date().toISOString().split('T')[0];
   orders.unshift(o);
   saveOrders();
+  if(typeof apAutoEnsureForOrder==='function') apAutoEnsureForOrder(o);
   var navEl=document.getElementById('order-after-save-nav');
   var goAppr=navEl && navEl.value==='approvalproc';
   if(navEl) navEl.value='';
@@ -6925,9 +6946,10 @@ function saveOrderModal(withTT){
   if(withTT) importToTT(no);
   if(typeof _toast==='function') _toast('✅ เพิ่ม Order '+no+(withTT?' และนำเข้า TT':''));
   if(goAppr){
-    showPage('approvalproc', null);
+    var apWg = typeof _orderWorkGroup==='function' ? _orderWorkGroup(o) : '';
+    showPage('approvalproc', null, apWg==='assembly'||apWg==='secondary' ? 'postprocess' : 'injection');
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
-    if(typeof _toast==='function') _toast('📋 ไปหน้าใบอนุมัติกระบวนการ — Order รออนุมัติสั่งผลิต');
+    if(typeof _toast==='function') _toast('📋 ไปหน้าใบอนุมัติกระบวนการ — สร้างใบอัตโนมัติจาก BOM (รอผลิต)');
   }
 }
 function addOrder(){ saveOrderModal(true); }
@@ -6967,6 +6989,47 @@ function renderShipmentHistoryPage(){
   }).join('')||'<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีประวัติการจัดส่ง</td></tr>';
 }
 let mixPlans = [];
+let mixDispatchHistory = [];
+function saveMixPlans(){ try{ localStorage.setItem('_mixPlans', JSON.stringify(mixPlans)); }catch(e){} }
+function loadMixPlans(){
+  try{
+    var d = localStorage.getItem('_mixPlans');
+    if(d){
+      var arr = JSON.parse(d);
+      if(Array.isArray(arr)) mixPlans = arr;
+    }
+  }catch(e){}
+}
+function saveMixDispatchHistory(){ try{ localStorage.setItem('_mixDispatchHistory', JSON.stringify(mixDispatchHistory)); }catch(e){} }
+function loadMixDispatchHistory(){
+  try{
+    var d = localStorage.getItem('_mixDispatchHistory');
+    if(d){
+      var arr = JSON.parse(d);
+      if(Array.isArray(arr)) mixDispatchHistory = arr;
+    }
+  }catch(e){}
+}
+loadMixPlans();
+loadMixDispatchHistory();
+var MIX_LEAD_DAYS = 2;
+function mixPlanTTKey(orderNo, ttProdDate, machine){
+  return String(orderNo||'')+'|'+String(ttProdDate||'')+'|'+String(machine||'');
+}
+function mixCountTTSlotsForOrder(orderNo){
+  var n = 0;
+  try{
+    Object.keys(ttData||{}).forEach(function(d){
+      (ttData[d]||[]).forEach(function(e){
+        if(e && e.orderNo===orderNo) n++;
+      });
+    });
+  }catch(e){}
+  return n;
+}
+function mixCountTTPlansForOrder(orderNo){
+  return mixPlans.filter(function(p){ return p.orderNo===orderNo && p.ttSource; }).length;
+}
 
 // ─── RAW MATERIAL RESERVATIONS ──────────────────────────────────
 // { mixId: { material, qty, status:'pending'|'confirmed'|'cancelled', reservedAt } }
@@ -7071,7 +7134,8 @@ var _navMenuList = [
   {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
   {id:'jobreg',       label:'ทะเบียนงาน (ไลน์ประกอบ)', icon:'🧩', group:'🏭 การผลิต',     keywords:'งาน job ประกอบ assembly', workGroup:'assembly'},
   {id:'jobreg',       label:'ทะเบียนงาน (ไลน์รอง/กระบวนการหลัง)', icon:'🔧', group:'🏭 การผลิต', keywords:'งาน job กระบวนการหลัง secondary', workGroup:'secondary'},
-  {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',       icon:'✅', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval process กระบวนการ'},
+  {id:'approvalproc', label:'ใบอนุมัติ (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ฉีด injection', workGroup:'injection'},
+  {id:'approvalproc', label:'ใบอนุมัติ (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ประกอบ assembly', workGroup:'postprocess'},
   {id:'timetable',    label:'Time Table',              icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', group:'🏭 การผลิต',     keywords:'bom bill of materials สูตร'},
   // วัตถุดิบ
@@ -7410,6 +7474,8 @@ function showPage(id, el, workGroup){
     window._jobregWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
   } else if(id==='orders'){
     window._ordersWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+  } else if(id==='approvalproc'){
+    window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
   }
   if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== id) {
     _pageNavStack.push(window._currentPage);
@@ -7429,11 +7495,12 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = (id==='jobreg'||id==='orders') ? (typeof workGroup==='string'?workGroup:'') : '';
+    var wg = (id==='jobreg'||id==='orders'||id==='approvalproc') ? (typeof workGroup==='string'?workGroup:'') : '';
     var entry = allItems.find(function(i){return i.id===id && (i.workGroup===wg || (!wg && !i.workGroup));});
     if(!entry && wg) entry = allItems.find(function(i){return i.id===id && i.workGroup===wg;});
     if(!entry && id==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
     if(!entry && id==='orders') entry = {icon:'📋', label:'Order & แผนผลิต'};
+    if(!entry && id==='approvalproc') entry = {icon:'✅', label:'ใบอนุมัติกระบวนการ'};
     if(!entry) entry = allItems.find(function(i){return i.id===id;});
     titleEl.textContent = entry ? entry.icon+' '+entry.label : id;
   }
@@ -13970,34 +14037,91 @@ function autoCreateMoldPrep(order){
     });
   }
 }
+function mixUpsertPlanFromTTEntry(en, ttProdDate, order){
+  var j = jobs.find(function(jj){ return jj.name === (en.jobName||order.jobName); });
+  if(!j) return;
+  if(j.mixMethod==='feeder') return;
+  var hasMB = j.mb && j.mb!=='-' && (j.mbRatio||0)>0;
+  if(!hasMB && j.mixMethod!=='tank') return;
+  var wg = (typeof ttJobPlanningGroup==='function') ? ttJobPlanningGroup(en) : 'injection';
+  if(wg!=='injection') return;
+  var dayPcs = (typeof ttDailyTargetPcsForJob==='function') ? ttDailyTargetPcsForJob(j.name) : 0;
+  if(!dayPcs || dayPcs<=0){
+    var hp = (typeof ttGetHoursPerDay==='function') ? ttGetHoursPerDay() : 20;
+    dayPcs = Math.round((j.target||0)*hp);
+  }
+  if(!dayPcs || dayPcs<=0) return;
+  var wt = j.wt || (typeof estimateWt==='function' ? estimateWt(j) : 5);
+  var kgTotal = dayPcs * wt / 1000;
+  var mbKg = hasMB ? +(kgTotal * (j.mbRatio||0) / 1000).toFixed(4) : 0;
+  var plasticKg = Math.max(0.05, +(kgTotal - mbKg).toFixed(4));
+  var mixD = new Date(ttProdDate+'T12:00:00');
+  mixD.setDate(mixD.getDate() - (MIX_LEAD_DAYS||2));
+  var mixDateStr = mixD.toISOString().split('T')[0];
+  var mach = en.machine || order.machine || j.machine || '';
+  var key = mixPlanTTKey(order.orderNo, ttProdDate, mach);
+  var id = 'MIX-TT-' + key.replace(/[^a-zA-Z0-9\-_.]/g,'_');
+  var idx = mixPlans.findIndex(function(p){ return p.ttSourceKey===key; });
+  var row = {
+    id:id, ttSource:true, ttSourceKey:key,
+    date:mixDateStr, time:'08:00',
+    ttProdDate:ttProdDate, prodDate:ttProdDate,
+    machine:mach,
+    jobName:j.name, orderNo:order.orderNo, lotNo:order.lotNo||en.lot||'',
+    plastic:j.plastic, grade:j.grade||'',
+    mb:hasMB?j.mb:'', mbRatio:j.mbRatio||0,
+    plasticKg:plasticKg, mbKg:mbKg, weight:+(plasticKg+mbKg).toFixed(3),
+    dayPcs:dayPcs,
+    mixer:'', mixMethod:j.mixMethod||'tank', tankSize:j.tankSize||50, tankMixTime:j.tankMixTime||30,
+    status:'รอผสม', autoCreated:true, stockChecked:false, reserved:false
+  };
+  if(idx>=0){
+    var keep = mixPlans[idx];
+    row.status = keep.status||row.status;
+    row.reserved = keep.reserved;
+    row.stockChecked = keep.stockChecked;
+    row.mixer = keep.mixer||'';
+    mixPlans[idx]=row;
+  }else{
+    mixPlans.unshift(row);
+  }
+}
+function mixRebuildFromTT(opts){
+  opts = opts || {};
+  if(!opts.merge){
+    mixPlans = mixPlans.filter(function(p){ return !p.ttSource; });
+  }
+  Object.keys(ttData||{}).forEach(function(dateStr){
+    (ttData[dateStr]||[]).forEach(function(en){
+      if(!en || !en.orderNo || en.orderNo==='MANUAL') return;
+      var o = orders.find(function(x){ return x.orderNo===en.orderNo; });
+      if(!o || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
+      mixUpsertPlanFromTTEntry(en, dateStr, o);
+    });
+  });
+  saveMixPlans();
+}
+function mixRebuildFromTTForOrder(orderNo){
+  Object.keys(ttData||{}).forEach(function(dateStr){
+    (ttData[dateStr]||[]).forEach(function(en){
+      if(!en || en.orderNo!==orderNo) return;
+      var o = orders.find(function(x){ return x.orderNo===orderNo; });
+      if(!o) return;
+      mixUpsertPlanFromTTEntry(en, dateStr, o);
+    });
+  });
+  saveMixPlans();
+}
 function autoCreateMixPlan(order, prodDate){
   const j=jobs.find(jj=>jj.name===order.jobName);
   if(!j) return;
-  // ── เครื่องป้อนสี: ไม่ต้องสร้างแผนผสมถัง ──
   if(j.mixMethod==='feeder'){
-    // Just log a feeder note — no tank mixing plan needed
     if(typeof _infoToast==='function') _infoToast('⚙️ '+j.name+' ใช้เครื่องป้อนสี — ไม่ต้องผสมถัง');
     return;
   }
-  // ── ถังผสม / ไม่มีสี: สร้างแผนผสมตามปกติ ──
   const hasMB = j.mb && j.mb!=='-' && (j.mbRatio||0)>0;
-  // ถ้าไม่มี MB และไม่ใช่ tank method ก็ไม่ต้องสร้าง
   if(!hasMB && j.mixMethod!=='tank') return;
-  const mixDate=new Date(prodDate); mixDate.setDate(mixDate.getDate()-1);
-  const mixDateStr=mixDate.toISOString().split('T')[0];
-  if(!mixPlans.find(p=>p.orderNo===order.orderNo&&p.date===mixDateStr)){
-    const totalKg=Math.round(order.qty*(j.ct||30)*0.8/j.cav/1000)+10;
-    const mbKg = hasMB ? +(totalKg*(j.mbRatio||0)/1000).toFixed(3) : 0;
-    mixPlans.unshift({
-      id:'MIX-'+Date.now(), date:mixDateStr, time:'08:00',
-      jobName:j.name, orderNo:order.orderNo, lotNo:order.lotNo,
-      plastic:j.plastic, grade:j.grade||'',
-      mb:hasMB?j.mb:'', mbRatio:j.mbRatio||0,
-      plasticKg:Math.max(totalKg,20), mbKg, weight:Math.max(totalKg,20),
-      mixer:'', mixMethod:'tank', tankSize:j.tankSize||50, tankMixTime:j.tankMixTime||30,
-      status:'รอผสม', autoCreated:true
-    });
-  }
+  mixRebuildFromTTForOrder(order.orderNo);
 }
 function fillJobInfo(){
   const name=document.getElementById('order-job').value;
@@ -15906,7 +16030,7 @@ function bomMixMethodChange(){
 var _mixCurrentTab = 'plan';
 
 function mixTab(tab, el){
-  ['plan','feeder','auto','stock','tt'].forEach(function(t){
+  ['plan','feeder','auto','stock','tt','dispatch'].forEach(function(t){
     var p = document.getElementById('mix-tab-'+t);
     if(p) p.style.display = t===tab ? 'block' : 'none';
   });
@@ -15918,6 +16042,7 @@ function mixTab(tab, el){
   if(tab==='auto')   renderMixAutoList();
   if(tab==='stock')  renderMixStockGrid();
   if(tab==='tt')     renderMixingTT();
+  if(tab==='dispatch') renderMixDispatchTab();
 }
 
 function renderMixing(){
@@ -15928,6 +16053,7 @@ function renderMixing(){
   else if(_mixCurrentTab==='auto')   renderMixAutoList();
   else if(_mixCurrentTab==='stock')  renderMixStockGrid();
   else if(_mixCurrentTab==='tt')     renderMixingTT();
+  else if(_mixCurrentTab==='dispatch') renderMixDispatchTab();
 }
 
 // ── Render Feeder Tab ─────────────────────────────────────────
@@ -16113,28 +16239,30 @@ function mixRenderAlerts(){
 // ── Get orders that need mix plans ───────────────────────────────
 function _getOrdersNeedingMix(){
   return orders.filter(function(o){
-    if(o.status==='ยกเลิก'||o.status==='ส่งมอบแล้ว') return false;
+    if(!o || o.status==='ยกเลิก'||o.status==='ส่งมอบแล้ว'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง') return false;
     var j = jobs.find(function(jj){ return jj.name===o.jobName; });
     if(!j) return false;
-    // Has MB or additive → needs mixing
+    if(j.mixMethod==='feeder') return false;
     if(!j.mb || j.mb==='-' || !j.mb.trim()) return false;
-    // Already has a mix plan
-    var hasPlan = mixPlans.find(function(p){ return p.orderNo===o.orderNo; });
-    return !hasPlan;
+    var slots = mixCountTTSlotsForOrder(o.orderNo);
+    if(slots>0) return mixCountTTPlansForOrder(o.orderNo) < slots;
+    return !mixPlans.some(function(p){ return p.orderNo===o.orderNo && !p.ttSource; });
   });
 }
 
 // ── Auto generate mix plans from orders ─────────────────────────
 function mixAutoGenerate(){
+  mixRebuildFromTT({ merge:true });
   var toGen = _getOrdersNeedingMix();
-  if(!toGen.length){ if(typeof _toast==='function') _toast('✅ ทุก Order มีแผนผสมแล้ว'); return; }
+  if(!toGen.length){ mixRenderKPI(); mixRenderAlerts(); renderMixTable(); renderMixAutoList(); if(typeof _toast==='function') _toast('✅ แผนผสมตรงกับ Time Table แล้ว'); return; }
   var count = 0;
   toGen.forEach(function(o){
     _autoCreateMixFromOrder(o);
     count++;
   });
+  saveMixPlans();
   mixRenderKPI(); mixRenderAlerts(); renderMixTable(); renderMixAutoList();
-  if(typeof _toast==='function') _toast('⚡ สร้างแผนผสมอัตโนมัติ '+count+' รายการ');
+  if(typeof _toast==='function') _toast('⚡ สร้าง/อัปเดตแผนผสม '+count+' รายการ (รวมซิงค์จาก TT)');
 }
 
 function _autoCreateMixFromOrder(o){
@@ -16165,8 +16293,9 @@ function _autoCreateMixFromOrder(o){
     machine: o.machine||j.machine||'',
     prodDate: prodDate, mixer:'',
     status: 'รอผสม', autoCreated: true,
-    stockChecked: false, reserved: false
+    stockChecked: false, reserved: false, ttSource: false
   });
+  saveMixPlans();
 }
 
 // ── Render Mix Table (Plan tab) ──────────────────────────────────
@@ -16180,7 +16309,7 @@ function renderMixTable(){
     return true;
   });
   if(!list.length){
-    tbody.innerHTML='<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบแผนผสม — กด "⚡ สร้างแผนจาก Order" เพื่อสร้างอัตโนมัติ</td></tr>';
+    tbody.innerHTML='<tr><td colspan="10" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบแผนผสม — กด "📅 ซิงค์จาก TT" หรือ "⚡ สร้างแผนจาก Order"</td></tr>';
     return;
   }
   tbody.innerHTML = list.map(function(p){
@@ -16217,7 +16346,12 @@ function renderMixTable(){
       +'<td style="padding:8px 12px"><span class="mono" style="font-size:11px;font-weight:700">'+p.date+'</span>'+(urgency?'<br>'+urgency:'')+'</td>'
       +'<td style="padding:8px"><div style="font-size:11px;font-weight:600;color:var(--text)">'+(p.jobName||'—')+'</div>'
         +'<div style="font-size:10px;color:var(--text3)">'+(p.orderNo||'')+(p.lotNo?' | Lot: '+p.lotNo:'')+'</div>'
-        +(p.prodDate?'<div style="font-size:9px;color:var(--text3)">ผลิต: '+p.prodDate+'</div>':'')
+        +(p.dayPcs?'<div style="font-size:9px;color:#79c0ff;font-weight:700">เป้า/วัน (TT): '+Number(p.dayPcs).toLocaleString()+' ชิ้น</div>':'')
+        +(p.ttProdDate?'<div style="font-size:9px;color:var(--text3)">ผลิต (TT): '+p.ttProdDate+'</div>':'')
+        +(p.prodDate&&!p.ttProdDate?'<div style="font-size:9px;color:var(--text3)">ผลิต: '+p.prodDate+'</div>':'')
+      +'</td>'
+      +'<td style="padding:8px;text-align:center;font-size:11px;font-family:monospace">'
+        +(p.machine||'—')+(p.ttSource?'<div style="font-size:9px;color:#79c0ff;margin-top:2px">จาก TT</div>':'')
       +'</td>'
       +'<td style="padding:8px;text-align:center"><span class="badge mat-'+mat+'">'+mat+'</span>'
         +(p.grade?'<div style="font-size:9px;color:var(--text3)">'+p.grade+'</div>':'')
@@ -16297,9 +16431,10 @@ function renderMixAutoList(){
 
 function mixAutoOneOrder(orderNo){
   var o = orders.find(function(x){ return x.orderNo===orderNo; }); if(!o) return;
-  _autoCreateMixFromOrder(o);
-  mixRenderKPI(); mixRenderAlerts(); renderMixAutoList();
-  if(typeof _toast==='function') _toast('✅ สร้างแผนผสมสำหรับ '+orderNo+' แล้ว');
+  if(mixCountTTSlotsForOrder(orderNo)>0) mixRebuildFromTTForOrder(orderNo);
+  else _autoCreateMixFromOrder(o);
+  mixRenderKPI(); mixRenderAlerts(); renderMixAutoList(); renderMixTable();
+  if(typeof _toast==='function') _toast('✅ อัปเดตแผนผสมสำหรับ '+orderNo+' แล้ว');
 }
 
 // ── Render Stock Grid (reservation tab) ─────────────────────────
@@ -16416,6 +16551,7 @@ function mixConfirmReserve(mixId){
   if(rawMatReservations[key]) rawMatReservations[key].status='confirmed';
   p.status = 'จองวัตถุดิบแล้ว'; p.reserved = true;
   saveReservations();
+  saveMixPlans();
   if(typeof _toast==='function') _toast('✅ ยืนยันจอง '+p.plastic+' สำหรับ '+p.jobName+' แล้ว');
   renderMixTable(); mixRenderKPI(); mixRenderAlerts();
 }
@@ -16427,6 +16563,7 @@ function mixCancelReserve(mixId){
   if(p.status==='จองวัตถุดิบแล้ว') p.status='รอผสม';
   p.reserved = false;
   saveReservations();
+  saveMixPlans();
   if(typeof _toast==='function') _toast('✕ ยกเลิกการจอง '+p.plastic+' สำหรับ '+p.jobName);
   renderMixTable(); mixRenderKPI(); mixRenderAlerts();
 }
@@ -16440,7 +16577,7 @@ function mixConfirmSingle(mixId, mat){
   } else rawMatReservations[key].status='confirmed';
   var p2=mixPlans.find(function(x){return x.id===mixId;});
   if(p2&&p2.plastic===mat){p2.status='จองวัตถุดิบแล้ว';p2.reserved=true;}
-  saveReservations(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('✅ ยืนยันจอง '+mat+' แล้ว');
 }
 function mixCancelSingle(mixId, mat){
@@ -16448,7 +16585,7 @@ function mixCancelSingle(mixId, mat){
   if(rawMatReservations[key]) rawMatReservations[key].status='cancelled';
   var p=mixPlans.find(function(x){return x.id===mixId;});
   if(p&&p.status==='จองวัตถุดิบแล้ว'){p.status='รอผสม';p.reserved=false;}
-  saveReservations(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('✕ ยกเลิกการจอง '+mat);
 }
 
@@ -16460,7 +16597,7 @@ function mixReserveAll(){
       rawMatReservations[key]={material:p.plastic,qty:(p.plasticKg||p.weight||0),status:'pending',reservedAt:new Date().toISOString(),mixId:p.id};
     }
   });
-  saveReservations(); renderMixTable(); mixRenderAlerts();
+  saveReservations(); saveMixPlans(); renderMixTable(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('⏳ จอง '+pending.length+' รายการ — รอยืนยัน');
 }
 function mixConfirmAllReserve(){
@@ -16469,14 +16606,14 @@ function mixConfirmAllReserve(){
     var key=p.id+'_'+(p.plastic||'');
     if(rawMatReservations[key]&&rawMatReservations[key].status==='confirmed') p.status='จองวัตถุดิบแล้ว';
   });
-  saveReservations(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('✅ ยืนยันจองวัตถุดิบทั้งหมดแล้ว');
 }
 function mixCancelAllReserve(){
   _confirmDel('🗑 ยกเลิกการจองวัตถุดิบ<b>ทั้งหมด</b>?<br><span style="font-size:11px;color:#8b949e">สถานะจองทุกรายการจะถูกยกเลิก</span>', function(){
     Object.values(rawMatReservations).forEach(function(r){ r.status='cancelled'; });
     mixPlans.forEach(function(p){ if(p.status==='จองวัตถุดิบแล้ว'){ p.status='รอผสม'; p.reserved=false; } });
-    saveReservations(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+    saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
     if(typeof _toast==='function') _toast('✕ ยกเลิกการจองทั้งหมดแล้ว');
   });
 }
@@ -16489,7 +16626,7 @@ function mixReserveMat(matCode){
       p.status='จองวัตถุดิบแล้ว'; p.reserved=true;
     }
   });
-  saveReservations(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('🔒 จอง '+matCode+' ทั้งหมด '+plans.length+' แผนแล้ว');
 }
 function mixCheckAllStock(){
@@ -16499,6 +16636,7 @@ function mixCheckAllStock(){
     if(avail<need) p.status='ขาดวัตถุดิบ';
     p.stockChecked=true;
   });
+  saveMixPlans();
   renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('🔍 ตรวจสต็อกเสร็จแล้ว');
 }
@@ -16526,27 +16664,47 @@ function mixMarkMixed(id){
       supplierName:'',price:0});
     if(typeof saveRawMatLedger==='function') saveRawMatLedger();
   }
+  saveMixPlans();
   renderMixing();
   if(typeof _toast==='function') _toast('✅ บันทึกผสมเสร็จ: '+p.jobName+' | เบิก '+qty.toFixed(1)+' kg จากสต็อก');
 }
 // Legacy alias
 function markMixed(id){ mixMarkMixed(id); }
 
-// ── Render Time Table ─────────────────────────────────────────────
+function mixTtShiftDays(delta){
+  var el=document.getElementById('mix-tt-date'); if(!el) return;
+  var b=el.value?new Date(el.value+'T12:00:00'):new Date();
+  if(isNaN(b.getTime())) b=new Date();
+  b.setDate(b.getDate()+(delta||0));
+  el.value=b.toISOString().split('T')[0];
+  renderMixingTT();
+}
+
+// ── Render Time Table (mix) — วันที่คอลัมน์ = วันผสม, เลื่อนดูย้อนหลัง/ข้างหน้าได้ ─────────────
 function renderMixingTT(){
   var el=document.getElementById('mix-tt-grid'); if(!el) return;
-  var today=new Date();
-  var days=Array.from({length:7},function(_,i){ var d=new Date(today); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; });
-  var html='<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:700px;width:100%">'
+  var dateEl=document.getElementById('mix-tt-date');
+  if(dateEl && !dateEl.value) dateEl.value=new Date().toISOString().split('T')[0];
+  var anchor=(dateEl&&dateEl.value)?dateEl.value:new Date().toISOString().split('T')[0];
+  var today=new Date().toISOString().split('T')[0];
+  var days=[];
+  for(var i=-5;i<=8;i++){
+    var d=new Date(anchor+'T12:00:00'); d.setDate(d.getDate()+i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  var DOW=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  var html='<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:900px;width:100%">'
     +'<thead><tr>'
-    +'<th style="background:var(--bg3);padding:8px 10px;font-size:11px;color:var(--text3);white-space:nowrap;min-width:80px">เวลา</th>'
+    +'<th style="background:var(--bg3);padding:8px 10px;font-size:11px;color:var(--text3);white-space:nowrap;min-width:72px">เวลา</th>'
     +days.map(function(d){
-      var dt=new Date(d+'T00:00:00'); var isToday=d===today.toISOString().split('T')[0];
-      var label=dt.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+      var dt=new Date(d+'T12:00:00');
+      var isToday=d===today;
+      var label=DOW[dt.getDay()]+' '+dt.getDate()+'/'+(dt.getMonth()+1);
       var plans=mixPlans.filter(function(p){ return p.date===d; });
-      return '<th style="background:'+(isToday?'rgba(56,139,253,0.08)':'var(--bg3)')+';padding:8px;text-align:center;font-size:11px;min-width:140px;border-left:1px solid var(--border);'+(isToday?'border-top:2px solid #388bfd;':'')+'">'
-        +'<div style="color:'+(isToday?'var(--accent2)':'var(--text3)')+';font-weight:'+(isToday?'700':'400')+'">'+label+'</div>'
-        +(plans.length?'<span style="font-size:9px;padding:1px 5px;background:rgba(247,129,102,0.15);border-radius:6px;color:var(--accent);margin-top:2px;display:inline-block">'+plans.length+' แผน</span>':'')
+      return '<th style="background:'+(isToday?'rgba(56,139,253,0.1)':'var(--bg3)')+';padding:8px 6px;text-align:center;font-size:10px;min-width:118px;border-left:1px solid var(--border);'+(isToday?'border-top:2px solid #388bfd;':'')+'">'
+        +'<div style="color:'+(isToday?'var(--accent2)':'var(--text3)')+';font-weight:'+(isToday?'800':'600')+'">'+label+'</div>'
+        +'<div style="font-size:9px;color:var(--text3);margin-top:2px">ผสม '+d+'</div>'
+        +(plans.length?'<span style="font-size:9px;padding:1px 5px;background:rgba(247,129,102,0.15);border-radius:6px;color:var(--accent);margin-top:3px;display:inline-block">'+plans.length+' แผน</span>':'')
       +'</th>';
     }).join('')
     +'</tr></thead><tbody>';
@@ -16554,19 +16712,21 @@ function renderMixingTT(){
     html+='<tr><td style="background:var(--bg3);padding:6px 10px;font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;border-top:1px solid var(--border)">'+t+'</td>';
     days.forEach(function(d){
       var plans=mixPlans.filter(function(p){ return p.date===d&&(p.time||'08:00')===t; });
-      var isToday=d===today.toISOString().split('T')[0];
-      html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:60px;background:'+(isToday?'rgba(56,139,253,0.02)':'transparent')+'">';
+      var isToday=d===today;
+      html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:56px;background:'+(isToday?'rgba(56,139,253,0.04)':'transparent')+'">';
       if(plans.length){
         plans.forEach(function(p){
           var col=p.status==='ผสมแล้ว'?'#3fb950':p.status==='จองวัตถุดิบแล้ว'?'#e3b341':p.status==='ขาดวัตถุดิบ'?'#f85149':'#ffa657';
           html+='<div style="background:rgba(0,0,0,0.15);border-left:3px solid '+col+';padding:4px 6px;border-radius:4px;margin-bottom:3px;font-size:10px">'
-            +'<div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">'+p.jobName+'</div>'
-            +'<div style="color:var(--text3)">'+p.plastic+' '+(p.plasticKg||p.weight||0).toFixed(0)+'kg</div>'
+            +'<div style="font-weight:800;color:var(--accent2);font-family:monospace;font-size:9px">'+(p.machine||'—')+'</div>'
+            +'<div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">'+p.jobName+'</div>'
+            +'<div style="color:var(--text3)">'+p.plastic+' · '+(p.plasticKg||p.weight||0).toFixed(1)+' kg</div>'
+            +(p.ttProdDate?'<div style="font-size:9px;color:#79c0ff">ผลิต TT: '+p.ttProdDate+'</div>':'')
             +'<span class="badge '+(p.status==='ผสมแล้ว'?'badge-green':p.status==='จองวัตถุดิบแล้ว'?'badge-yellow':'badge-orange')+'" style="font-size:9px">'+p.status+'</span>'
           +'</div>';
         });
       } else {
-        html+='<div style="height:50px;display:flex;align-items:center;justify-content:center"><span style="color:rgba(139,148,158,0.2);font-size:18px">+</span></div>';
+        html+='<div style="height:44px;display:flex;align-items:center;justify-content:center"><span style="color:rgba(139,148,158,0.15);font-size:16px">·</span></div>';
       }
       html+='</td>';
     });
@@ -16574,6 +16734,113 @@ function renderMixingTT(){
   });
   html+='</tbody></table></div>';
   el.innerHTML=html;
+}
+
+function renderMixDispatchTab(){
+  var root=document.getElementById('mix-dispatch-body'); if(!root) return;
+  var modeEl=document.getElementById('mix-dispatch-view');
+  var mode=modeEl?modeEl.value:'day';
+  var yEl=document.getElementById('mix-dispatch-year');
+  var mEl=document.getElementById('mix-dispatch-month');
+  var y=yEl?parseInt(yEl.value,10):new Date().getFullYear();
+  var m=mEl?parseInt(mEl.value,10):new Date().getMonth()+1;
+  if(!isFinite(y)) y=new Date().getFullYear();
+  if(!isFinite(m)||m<1||m>12) m=new Date().getMonth()+1;
+  var rows=mixDispatchHistory.slice();
+  rows.sort(function(a,b){ return (b.dispatchDate||'').localeCompare(a.dispatchDate||''); });
+  if(mode==='month'){
+    rows=rows.filter(function(r){ var d=r.dispatchDate||''; return d.slice(0,7)===(''+y+'-'+String(m).padStart(2,'0')); });
+  } else if(mode==='year'){
+    rows=rows.filter(function(r){ var d=r.dispatchDate||''; return d.slice(0,4)===String(y); });
+  }
+  var opts=mixPlans.filter(function(p){ return p.status==='ผสมแล้ว'; }).map(function(p){
+    var vid=String(p.id).replace(/&/g,'').replace(/"/g,'').replace(/'/g,'');
+    return '<option value="'+vid+'">'+(p.date||'')+' | '+(p.machine||'—')+' | '+(p.jobName||'')+' | '+(p.orderNo||'')+' | '+(+(p.plasticKg||0)+(p.mbKg||0)).toFixed(1)+' kg</option>';
+  }).join('');
+  root.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">'
+    +'<span style="font-size:12px;font-weight:700">ประวัติการจัดส่ง</span>'
+    +'<select id="mix-dispatch-view" onchange="renderMixDispatchTab()" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px">'
+      +'<option value="day"'+(mode==='day'?' selected':'')+'>ทั้งหมด (ล่าสุด)</option>'
+      +'<option value="month"'+(mode==='month'?' selected':'')+'>รายเดือน</option>'
+      +'<option value="year"'+(mode==='year'?' selected':'')+'>รายปี</option>'
+    +'</select>'
+    +'<input type="number" id="mix-dispatch-year" value="'+y+'" min="2020" max="2100" style="width:76px;padding:5px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px" onchange="renderMixDispatchTab()">'
+    +'<input type="number" id="mix-dispatch-month" value="'+m+'" min="1" max="12" style="width:52px;padding:5px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px" onchange="renderMixDispatchTab()">'
+    +'<span style="font-size:10px;color:var(--text3)">ปี·เดือน ใช้กับโหมดรายเดือน/รายปี</span>'
+  +'</div>'
+  +'<div class="card" style="padding:14px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border)">'
+    +'<div style="font-size:13px;font-weight:800;margin-bottom:10px">📤 บันทึกเบิกจัดส่งเม็ดผสมแล้ว → ฝ่ายผลิต</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;font-size:12px">'
+      +'<label>แผนผสม (ผสมแล้ว)<br><select id="mix-dispatch-plan" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)">'+opts+'</select></label>'
+      +'<label>วันที่ส่ง<br><input type="date" id="mix-dispatch-date" value="'+new Date().toISOString().split('T')[0]+'" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+      +'<label>ผู้รับ / แผนก<br><input id="mix-dispatch-receiver" placeholder="ชื่อผู้รับ" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+      +'<label>จำนวน (kg)<br><input type="number" step="0.1" id="mix-dispatch-kg" placeholder="ว่าง = ตามยอดแผน" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+      +'<label>จำนวนถุง<br><input type="number" step="1" id="mix-dispatch-bags" placeholder="เช่น 4" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+      +'<label>Batch เม็ด / สี<br><input id="mix-dispatch-batch" placeholder="Batch No." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+      +'<label style="grid-column:1/-1">หมายเหตุ<br><input id="mix-dispatch-note" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+    +'</div>'
+    +'<button type="button" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="mixSaveDispatchRecord()">💾 บันทึกส่งฝ่ายผลิต + ประวัติ</button>'
+  +'</div>'
+  +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg3)">'
+      +'<th style="padding:8px;text-align:left">วันที่ส่ง</th>'
+      +'<th style="padding:8px;text-align:left">เครื่อง</th>'
+      +'<th style="padding:8px;text-align:left">งาน / Order / Lot</th>'
+      +'<th style="padding:8px;text-align:right">kg</th>'
+      +'<th style="padding:8px;text-align:right">ถุง</th>'
+      +'<th style="padding:8px;text-align:left">ผู้รับ</th>'
+      +'<th style="padding:8px;text-align:left">Batch</th>'
+      +'<th style="padding:8px;text-align:left">หมายเหตุ</th>'
+    +'</tr></thead><tbody>'
+    +(rows.length?rows.map(function(r){
+      return '<tr style="border-bottom:1px solid var(--border)">'
+        +'<td style="padding:8px" class="mono">'+(r.dispatchDate||'')+'</td>'
+        +'<td style="padding:8px;font-weight:700;color:var(--accent2)" class="mono">'+(r.machine||'—')+'</td>'
+        +'<td style="padding:8px">'+(r.jobName||'—')+'<div style="font-size:10px;color:var(--text3)">'+(r.orderNo||'')+' · Lot '+(r.lotNo||'—')+'</div></td>'
+        +'<td style="padding:8px;text-align:right;font-weight:700">'+(r.kg!=null?Number(r.kg).toFixed(2):'')+'</td>'
+        +'<td style="padding:8px;text-align:right">'+(r.bags!==''&&r.bags!=null?r.bags:'')+'</td>'
+        +'<td style="padding:8px">'+(r.receiver||'')+'</td>'
+        +'<td style="padding:8px" class="mono">'+(r.plasticBatch||'')+'</td>'
+        +'<td style="padding:8px;color:var(--text3)">'+(r.note||'')+'</td>'
+      +'</tr>';
+    }).join(''):'<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีประวัติการจัดส่ง</td></tr>')
+  +'</tbody></table></div>';
+}
+
+function mixSaveDispatchRecord(){
+  var pid=(document.getElementById('mix-dispatch-plan')||{}).value;
+  var p=mixPlans.find(function(x){ return String(x.id)===String(pid); });
+  if(!p){ if(typeof _toast==='function') _toast('⚠️ เลือกแผนผสมก่อน'); return; }
+  if(p.status!=='ผสมแล้ว'){ if(typeof _toast==='function') _toast('⚠️ ต้องทำสถานะ "ผสมแล้ว" ก่อนจัดส่ง'); return; }
+  var d=(document.getElementById('mix-dispatch-date')||{}).value||'';
+  var receiver=(document.getElementById('mix-dispatch-receiver')||{}).value||'';
+  var kg=parseFloat((document.getElementById('mix-dispatch-kg')||{}).value);
+  var bagsRaw=(document.getElementById('mix-dispatch-bags')||{}).value;
+  var bags=parseInt(bagsRaw,10);
+  var batch=(document.getElementById('mix-dispatch-batch')||{}).value||'';
+  var note=(document.getElementById('mix-dispatch-note')||{}).value||'';
+  if(!d){ if(typeof _toast==='function') _toast('⚠️ ระบุวันที่ส่ง'); return; }
+  if(!isFinite(kg)||kg<=0) kg=+(+(p.plasticKg||0)+(p.mbKg||0)).toFixed(2);
+  var bagsOut = (bagsRaw===''||bagsRaw==null) ? '' : (isFinite(bags)&&bags>=0 ? bags : '');
+  mixDispatchHistory.unshift({
+    id:'MD-'+Date.now(),
+    dispatchDate:d,
+    mixPlanId:p.id,
+    machine:p.machine||'',
+    jobName:p.jobName||'',
+    orderNo:p.orderNo||'',
+    lotNo:p.lotNo||'',
+    kg:kg,
+    bags:bagsOut,
+    receiver:receiver,
+    plasticBatch:batch,
+    note:note,
+    ttProdDate:p.ttProdDate||p.prodDate||'',
+    at:new Date().toISOString()
+  });
+  saveMixDispatchHistory();
+  if(typeof _toast==='function') _toast('✅ บันทึกประวัติจัดส่งแล้ว');
+  renderMixDispatchTab();
 }
 
 // ── Save Mix (add modal) ──────────────────────────────────────────
@@ -16590,6 +16857,7 @@ function saveMix(){
     mbRatio:ratio, plasticKg:ppKg, mbKg:mbKg, weight:ppKg+mbKg,
     mixer:'', status:'รอผสม', stockChecked:false, reserved:false
   });
+  saveMixPlans();
   closeModal('modal-add-mix'); renderMixing();
   if(typeof _toast==='function') _toast('➕ เพิ่มแผนผสมแล้ว');
 }
@@ -27621,6 +27889,7 @@ function doApproval(action){
     const mixId=key.replace('mixing-','');
     const mx=mixPlans.find(x=>x.id===mixId||x.id===parseInt(mixId));
     if(mx) mx.approvalStatus=action;
+    saveMixPlans();
     renderMixing();
   } else if(key.startsWith('pm-')){
     const pmId=key.replace('pm-','');
@@ -28757,12 +29026,79 @@ document.addEventListener('click',function(e){
 });
 
 // ===================== F-PD-I008: ใบอนุมัติกระบวนการฉีดพลาสติก =====================
-let approvalProcDocs = []; // [{id,docNo,date,orderNo,jobName,machine,moldNo,status,approvedBy,data:{}}]
+const APPROVAL_PROC_LS_KEY = '_approvalProcDocs';
+let approvalProcDocs = []; // [{id,docNo,date,orderNo,jobName,machine,moldNo,status,approvedBy,data:{},apWorkGroup,apCalcSnapshot}]
 let _apCurrentId = null;
 
+function saveApprovalProcDocs(){
+  try{ localStorage.setItem(APPROVAL_PROC_LS_KEY, JSON.stringify(approvalProcDocs)); }catch(e){}
+}
+function loadApprovalProcDocs(){
+  try{
+    var raw = localStorage.getItem(APPROVAL_PROC_LS_KEY);
+    if(!raw) return;
+    var arr = JSON.parse(raw);
+    if(Array.isArray(arr)) approvalProcDocs = arr;
+  }catch(e){}
+}
+function apNextDocSuffix(){
+  var n = 0;
+  approvalProcDocs.forEach(function(d){
+    var m = (d.docNo||'').match(/(\d+)$/);
+    if(m) n = Math.max(n, parseInt(m[1], 10));
+  });
+  return String(n + 1).padStart(3, '0');
+}
+function apOrderLotCompleted(o){
+  if(!o) return false;
+  if(o.status==='พร้อมส่ง' || o.status==='ส่งแล้ว') return true;
+  var q = parseInt(o.qty, 10) || 0, p = parseInt(o.produced, 10) || 0;
+  return q > 0 && p >= q;
+}
+function apDocLineGroup(d){
+  if(!d) return 'injection';
+  if(d.apWorkGroup==='injection' || d.apWorkGroup==='assembly' || d.apWorkGroup==='secondary') return d.apWorkGroup;
+  var o = orders.find(function(x){ return x.orderNo === d.orderNo; });
+  if(o) return _orderWorkGroup(o);
+  var j = jobs.find(function(jj){ return jj.name === d.jobName; });
+  return j ? _jobWorkGroup(j) : 'injection';
+}
+function apDocMatchesWorkGroupFilter(d){
+  var wg = window._apWorkGroup || '';
+  if(!wg) return true;
+  var g = apDocLineGroup(d);
+  if(wg === 'injection') return g === 'injection';
+  if(wg === 'postprocess') return g === 'assembly' || g === 'secondary';
+  return true;
+}
+function apDocMatchesListTab(d){
+  var tab = window._apListTab || 'active';
+  var o = orders.find(function(x){ return x.orderNo === d.orderNo; });
+  var done = apOrderLotCompleted(o);
+  if(tab === 'done') return done;
+  return !done;
+}
+function approvalProcOnWorkGroupChange(v){
+  window._apWorkGroup = v || '';
+  renderApprovalProcList();
+}
+function approvalProcOnListTabChange(v){
+  window._apListTab = v || 'active';
+  renderApprovalProcList();
+}
+
 function initApprovalProcDocs(){
-  // approvalProcDocs โหลดจาก localStorage
-  // ไม่ inject ข้อมูลจำลอง
+  loadApprovalProcDocs();
+  var needSave = false;
+  approvalProcDocs.forEach(function(d){
+    if(d.apWorkGroup) return;
+    needSave = true;
+    var ox = orders.find(function(x){ return x.orderNo===d.orderNo; });
+    if(ox){ d.apWorkGroup = _orderWorkGroup(ox); return; }
+    var jj = jobs.find(function(j){ return j.name===d.jobName; });
+    d.apWorkGroup = jj ? _jobWorkGroup(jj) : 'injection';
+  });
+  if(needSave) saveApprovalProcDocs();
 }
 
 // ── alias: loadApprovalProc → renderApprovalProcList (called from HTML selects)
@@ -28785,17 +29121,32 @@ function addToApprovalLog(key, label, by, action){
 }
 
 function renderApprovalProcList(){
+  if(typeof window._apListTab !== 'string') window._apListTab = 'active';
   const tbody = document.getElementById('approvalproc-tbody');
   if(!tbody) return;
-  // Populate selects
   const oSel = document.getElementById('ap-order-sel');
-  if(oSel && oSel.options.length<=1){
-    orders.forEach(o=>{ const opt=document.createElement('option'); opt.value=o.orderNo; opt.textContent=o.orderNo+' – '+o.jobName.substring(0,20); oSel.appendChild(opt); });
+  if(oSel){
+    var prevO = oSel.value;
+    oSel.innerHTML = '<option value="">-- เลือก Order --</option>';
+    orders.forEach(function(o){
+      var opt = document.createElement('option');
+      opt.value = o.orderNo;
+      opt.textContent = o.orderNo+' – '+(o.jobName||'').substring(0,20);
+      oSel.appendChild(opt);
+    });
+    if(prevO && [...oSel.options].some(function(op){ return op.value===prevO; })) oSel.value = prevO;
   }
   const mSel = document.getElementById('approc-machine-sel');
   if(mSel && mSel.options.length<=1){
     MACHINES.forEach(m=>{ const opt=document.createElement('option'); opt.value=m.id; opt.textContent=m.id; mSel.appendChild(opt); });
   }
+  const wgSel = document.getElementById('ap-wg-sel');
+  if(wgSel){
+    var wgv = window._apWorkGroup || '';
+    wgSel.value = wgv==='injection'||wgv==='postprocess' ? wgv : '';
+  }
+  const tabSel = document.getElementById('ap-list-tab-sel');
+  if(tabSel) tabSel.value = window._apListTab==='done' ? 'done' : 'active';
   // ── Populate datalists for Order & Job autocomplete ─────────────
   const dlOrder = document.getElementById('ap-order-datalist');
   if(dlOrder){ dlOrder.innerHTML='';
@@ -28809,9 +29160,11 @@ function renderApprovalProcList(){
   const filterMachine = document.getElementById('approc-machine-sel')?.value||'';
   const list = approvalProcDocs.filter(d=>
     (!filterOrder   || d.orderNo===filterOrder) &&
-    (!filterMachine || d.machine===filterMachine)
+    (!filterMachine || d.machine===filterMachine) &&
+    apDocMatchesWorkGroupFilter(d) &&
+    apDocMatchesListTab(d)
   );
-  const statusColor = {รออนุมัติ:'badge-yellow', อนุมัติแล้ว:'badge-green', ไม่อนุมัติ:'badge-red'};
+  const statusColor = {รออนุมัติ:'badge-yellow',รอผลิต:'badge-yellow',อนุมัติแล้ว:'badge-green',ไม่อนุมัติ:'badge-red',ปฏิเสธ:'badge-red',แก้ไข:'badge-yellow'};
   tbody.innerHTML = list.length ? list.map(d=>`<tr>
     <td class="mono" style="font-size:11px">${d.docNo}</td>
     <td class="mono" style="font-size:12px">${d.date}</td>
@@ -28831,12 +29184,13 @@ function renderApprovalProcList(){
 }
 
 function openNewApprovalProc(){
-  const id = 'AP-'+String(approvalProcDocs.length+1).padStart(3,'0');
-  const docNo = 'F-PD-I008-'+String(approvalProcDocs.length+1).padStart(3,'0');
+  const id = 'AP-'+Date.now();
+  const docNo = 'F-PD-I008-'+apNextDocSuffix();
   const newDoc = {id, docNo, date:new Date().toISOString().split('T')[0],
     orderNo:'', jobName:'', machine:'', moldNo:'', customer:'', cavity:'', weight:'',
-    status:'รออนุมัติ', approvedBy:'-', data:{}};
+    status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:''};
   approvalProcDocs.unshift(newDoc);
+  saveApprovalProcDocs();
   openApprovalProcDetail(id);
   renderApprovalProcList();
 }
@@ -28916,35 +29270,30 @@ function apAutoFill(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  apOnOrderChange — ดึงข้อมูลทุกอย่างจาก BOM + Order + Time Table
-//  แล้วกรอกลงทุก field ในใบอนุมัติกระบวนการอัตโนมัติ
+//  apBuildApOrderBomMap — สร้าง map ฟิลด์ใบอนุมัติจาก BOM + Order + TT (ใช้ทั้ง DOM และบันทึกอัตโนมัติ)
 // ═══════════════════════════════════════════════════════════════════════════
-function apOnOrderChange(){
-  const orderNo  = (document.getElementById('ap-orderno')?.value||'').trim();
-  const jobInput = (document.getElementById('ap-jobname')?.value||'').trim();
-  if(!orderNo && !jobInput) return;  // ไม่มีข้อมูล ออกก่อน
+function apBuildApOrderBomMap(orderNo, jobInput){
+  const on = (orderNo||'').trim();
+  const ji = (jobInput||'').trim();
+  if(!on && !ji) return null;
 
-  // ── หา Order ─────────────────────────────────────────────────────────────
   let o = null;
-  if(orderNo){
-    o = orders.find(x=>x.orderNo===orderNo)
-      || orders.find(x=>(x.lotNo||'')=== orderNo);
+  if(on){
+    o = orders.find(x=>x.orderNo===on)
+      || orders.find(x=>(x.lotNo||'')===on);
   }
-  if(!o && jobInput){
-    o = orders.find(x=>x.jobName===jobInput);
-  }
+  if(!o && ji) o = orders.find(x=>x.jobName===ji);
   if(!o) o = {};
 
-  const jobName = o.jobName || jobInput;
+  const jobName = o.jobName || ji;
   const j  = (jobName ? jobs.find(jj=>jj.name===jobName) : null) || {};
   const pk = j.packingStd || {};
 
-  // safe setter helpers
-  const sf   = (id,v) => { const e=document.getElementById(id); if(e && v!==undefined && v!==null && String(v).trim()!=='') e.value=String(v); };
-  const sfv  = (id,v) => { const e=document.getElementById(id); if(e) e.value=String(v==null?'':v); };
+  const fields = {};
+  const sf   = (id,v)=>{ if(v!==undefined && v!==null && String(v).trim()!=='') fields[id]=String(v); };
+  const sfv  = (id,v)=>{ fields[id]=String(v==null?'':v); };
   const today = new Date().toISOString().split('T')[0];
 
-  // ── ส่วนหัว ───────────────────────────────────────────────────────────────
   if(o.jobName)  sf('ap-jobname',  o.jobName);
   if(o.orderNo)  sf('ap-orderno',  o.orderNo);
   sf('ap-lotno',    o.lotNo    || '');
@@ -28954,7 +29303,6 @@ function apOnOrderChange(){
   if(j.wt)       sf('ap-weight',   j.wt);
   if(j.moldCode) sf('ap-moldno',   j.moldCode);
 
-  // ── Section 1: วัตถุดิบ ───────────────────────────────────────────────────
   const mixParts = [];
   if(j.plastic)  mixParts.push(j.plastic + (j.grade?' ('+j.grade+')':''));
   if(j.mb && j.mb!=='-') mixParts.push('MB: '+j.mb+(j.mbRatio?' @'+j.mbRatio+'g/kg':''));
@@ -28977,7 +29325,6 @@ function apOnOrderChange(){
   sf('ap-1-4-date', today);
   sf('ap-1-5-date', today);
 
-  // ── Section 2: แม่พิมพ์ ──────────────────────────────────────────────────
   if(j.moldCode) sf('ap-2-1-code',   j.moldCode);
   if(j.moldCode || j.cav || j.ton)
     sf('ap-2-1-detail', [j.moldCode,'Cav: '+(j.cav||'-'),'Ton: '+(j.ton||'-')+'T'].filter(Boolean).join(' | '));
@@ -28985,14 +29332,12 @@ function apOnOrderChange(){
   sf('ap-2-2-date', today);
   sf('ap-2-3-date', today);
 
-  // ── Section 3: hidden CT/EFF/TON ─────────────────────────────────────────
   sfv('ap-3-ct',     j.ct    || '');
   sfv('ap-3-eff',    j.eff   || '85');
   sfv('ap-3-target', j.target|| '');
   sfv('ap-3-ton',    j.ton   || '');
   sfv('ap-1-2-mat',  j.plastic|| '');
 
-  // ── Section 4: เครื่องจักร — หาวันจาก Time Table ────────────────────────
   sf('ap-4-1-date', today);
   sf('ap-4-2-date', today);
   sf('ap-4-5-date', today);
@@ -29003,7 +29348,7 @@ function apOnOrderChange(){
   if(typeof ttData !== 'undefined'){
     const lot     = o.lotNo     || '';
     const machine = o.machine   || '';
-    const ordNo   = o.orderNo   || orderNo;
+    const ordNo   = o.orderNo   || on;
     const allDates = Object.keys(ttData).sort();
     for(const d of allDates){
       const entries = ttData[d] || [];
@@ -29020,12 +29365,11 @@ function apOnOrderChange(){
   if(o.machine || j.ton)
     sf('ap-4-10-detail', 'เครื่อง '+(o.machine||'-')+' | '+(j.ton||'-')+' T | Cav '+(j.cav||'-'));
 
-  // ── Section 5: เอกสาร WI + Packing ──────────────────────────────────────
   if(typeof wiDocs!=='undefined'){
     const wi = wiDocs.find(w=>w.job===jobName);
     if(wi) sf('ap-5-1-code', wi.wiNo||'');
   }
-  const condCode = j.condStdCode || (o.machine ? 'F-PD-I006-'+o.machine.replace(/[^0-9]/g,'').padStart(3,'0') : 'F-PD-I006');
+  const condCode = j.condStdCode || (o.machine ? 'F-PD-I006-'+String(o.machine).replace(/[^0-9]/g,'').padStart(3,'0') : 'F-PD-I006');
   sf('ap-5-2-code', condCode);
 
   const packDesc = [
@@ -29036,7 +29380,6 @@ function apOnOrderChange(){
   ].filter(Boolean).join(' · ');
   if(packDesc) sf('ap-5-5-status', packDesc);
 
-  // ── Section 7: Start Lot ─────────────────────────────────────────────────
   sf('ap-7-1-date', plannedStartDate || today);
   sf('ap-7-2-date', plannedStartDate || today);
   sf('ap-7-3-date', plannedStartDate || today);
@@ -29045,8 +29388,30 @@ function apOnOrderChange(){
     sf('ap-7-4-detail', 'กำหนดส่ง: '+o.dueDate);
   }
 
-  // ── คำนวณแผนผลิต ─────────────────────────────────────────────────────────
-  apCalcProduction(o, j);
+  return { fields, o, j, jobName };
+}
+
+function apApplyBomMapToDom(bom){
+  if(!bom||!bom.fields) return;
+  Object.keys(bom.fields).forEach(function(id){
+    var e=document.getElementById(id);
+    if(e) e.value=bom.fields[id];
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  apOnOrderChange — ดึงข้อมูลทุกอย่างจาก BOM + Order + Time Table
+//  แล้วกรอกลงทุก field ในใบอนุมัติกระบวนการอัตโนมัติ
+// ═══════════════════════════════════════════════════════════════════════════
+function apOnOrderChange(){
+  const orderNo  = (document.getElementById('ap-orderno')?.value||'').trim();
+  const jobInput = (document.getElementById('ap-jobname')?.value||'').trim();
+  const bom = apBuildApOrderBomMap(orderNo, jobInput);
+  if(!bom) return;
+
+  apApplyBomMapToDom(bom);
+
+  apCalcProduction(bom.o, bom.j);
   const panel = document.getElementById('ap-calc-panel');
   if(panel) panel.style.display = '';
   const badge = document.getElementById('ap-bom-calc-badge');
@@ -29055,8 +29420,39 @@ function apOnOrderChange(){
     badge.textContent='✅ ดึงข้อมูล BOM + แผนผลิตอัตโนมัติแล้ว';
     setTimeout(()=>{ badge.style.display='none'; },5000);
   }
-  // Auto-load Limit Samples for this job
-  setTimeout(function(){ apRefreshLS(jobName); }, 200);
+  setTimeout(function(){ apRefreshLS(bom.jobName); }, 200);
+}
+
+function apAutoEnsureForOrder(o){
+  if(!o || !o.orderNo) return;
+  if(approvalProcDocs.some(function(x){ return x.orderNo===o.orderNo; })) return;
+  var j = jobs.find(function(jj){ return jj.name===o.jobName; }) || {};
+  var wg = _orderWorkGroup(o);
+  var bom = apBuildApOrderBomMap(o.orderNo, o.jobName||'');
+  if(!bom) return;
+  var fields = bom.fields||{};
+  var id = 'AP-'+Date.now();
+  var newDoc = {
+    id: id,
+    docNo: 'F-PD-I008-'+apNextDocSuffix(),
+    date: new Date().toISOString().split('T')[0],
+    orderNo: o.orderNo||'',
+    jobName: o.jobName||fields['ap-jobname']||'',
+    machine: (o.machine||j.machine||fields['ap-machine']||'').toString(),
+    moldNo: j.moldCode||fields['ap-moldno']||'',
+    customer: o.customer||j.customer||fields['ap-customer']||'',
+    cavity: fields['ap-cavity']||(j.cav?j.cav+' Cavity':''),
+    weight: String((j.wt!=null?j.wt:'')||fields['ap-weight']||''),
+    lotNo: o.lotNo||fields['ap-lotno']||'',
+    status: 'รอผลิต',
+    approvedBy: '-',
+    data: Object.assign({}, fields),
+    apWorkGroup: wg,
+    apCalcSnapshot: null
+  };
+  newDoc.apCalcSnapshot = _apCalcMetrics(o,j,{overrideQty:0}).calcDisplay;
+  approvalProcDocs.unshift(newDoc);
+  saveApprovalProcDocs();
 }
 
 function apRefreshLS(jobNameOverride){
@@ -29200,23 +29596,24 @@ function apAddMatRow(){
   tbody.appendChild(tr);
 }
 
-function apCalcProduction(o, j){
-  if(!o && !j) return;
+function _apCalcMetrics(o, j, opts){
+  opts = opts || {};
   o = o || {}; j = j || {};
-  const overrideQty = parseInt(document.getElementById('ap-qty-override')?.value||0);
-  const qty       = overrideQty > 0 ? overrideQty : parseInt(o.qty||0);
-  const produced  = parseInt(o.produced||0);
-  const remaining = Math.max(0, qty - produced);          // ยอดคงเหลือ
-  const cav       = parseInt(j.cav)   || 1;
-  const ct        = parseFloat(j.ct)  || 0;               // วิ/shot
-  const eff       = Math.max(1, parseFloat(j.eff) || 85); // %
-  const wt        = parseFloat(j.wt)  || 0;               // g/ชิ้น
-  const shotWt    = parseFloat(j._shotWt) || (wt * cav);  // g/shot
+  const overrideQty = opts.overrideQty != null
+    ? opts.overrideQty
+    : parseInt(document.getElementById('ap-qty-override')?.value||0, 10);
+  const qty       = overrideQty > 0 ? overrideQty : parseInt(o.qty||0, 10);
+  const produced  = parseInt(o.produced||0, 10);
+  const remaining = Math.max(0, qty - produced);
+  const cav       = parseInt(j.cav, 10)   || 1;
+  const ct        = parseFloat(j.ct)  || 0;
+  const eff       = Math.max(1, parseFloat(j.eff) || 85);
+  const wt        = parseFloat(j.wt)  || 0;
+  const shotWt    = parseFloat(j._shotWt) || (wt * cav);
   const mbRatio   = parseFloat(j.mbRatio) || 0;
-  const daysInPlan= parseInt(document.getElementById('ap-plan-days')?.value)||1;
-  const hrsPerDay = parseInt(document.getElementById('ap-hrs-day')?.value)||20;
+  const daysInPlan= opts.daysInPlan != null ? opts.daysInPlan : (parseInt(document.getElementById('ap-plan-days')?.value, 10)||1);
+  const hrsPerDay = opts.hrsPerDay != null ? opts.hrsPerDay : (parseInt(document.getElementById('ap-hrs-day')?.value, 10)||20);
 
-  // ── คำนวณ ────────────────────────────────────────────────────────────────
   const shotsNeeded  = remaining / cav;
   const hrsNeeded    = ct>0 ? (shotsNeeded * ct / 3600) / (eff/100) : 0;
   const daysNeeded   = hrsPerDay>0 ? hrsNeeded / hrsPerDay : 0;
@@ -29226,50 +29623,80 @@ function apCalcProduction(o, j){
   const possibleQty  = ct>0 ? Math.floor(actualHrs * 3600 / ct * cav * (eff/100)) : 0;
   const targetPerHr  = ct>0 ? Math.floor(3600 / ct * cav * (eff/100)) : (j.target||0);
 
-  // Packing
   const pk       = j.packingStd || {};
   const pcsCtn   = pk.pcsCtn || ((pk.pcsBox||0)*(pk.boxCtn||1)) || 0;
   const ctnNeeded= pcsCtn>0  ? Math.ceil(remaining/pcsCtn) : 0;
   const boxNeeded= (pk.pcsBox||0)>0 ? Math.ceil(remaining/pk.pcsBox) : 0;
   const bagNeeded= (pk.pcsBag||0)>0 ? Math.ceil(remaining/pk.pcsBag) : 0;
 
-  // ── กรอก UI ──────────────────────────────────────────────────────────────
-  const sf2 = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
-  const sfv = (id,v) => { const e=document.getElementById(id); if(e) e.value=String(v||''); };
+  const calcDisplay = {
+    'apc-order-qty':  qty.toLocaleString()+' ชิ้น',
+    'apc-produced':   produced.toLocaleString()+' ชิ้น',
+    'apc-remaining':  remaining.toLocaleString()+' ชิ้น',
+    'apc-qty':        remaining.toLocaleString()+' ชิ้น',
+    'apc-shots':      Math.ceil(shotsNeeded).toLocaleString()+' shots',
+    'apc-hrs':        hrsNeeded.toFixed(1)+' ชม. ('+daysNeeded.toFixed(1)+' วัน)',
+    'apc-possible':   possibleQty.toLocaleString()+' ชิ้น / '+daysInPlan+' วัน',
+    'apc-target-hr':  targetPerHr.toLocaleString()+' ชิ้น/ชม.',
+    'apc-plastic':    plasticKg.toFixed(1)+' kg',
+    'apc-mb':         mbKg>0 ? mbKg.toFixed(2)+' kg ('+j.mb+')' : '-',
+    'apc-shot-wt':    shotWt.toFixed(1)+' g/shot',
+    'apc-ctn':        ctnNeeded>0 ? ctnNeeded.toLocaleString()+' ลัง' : '-',
+    'apc-box':        boxNeeded>0 ? boxNeeded.toLocaleString()+' กล่อง' : '-',
+    'apc-bag':        bagNeeded>0 ? bagNeeded.toLocaleString()+' ถุง'  : '-',
+  };
 
-  sf2('apc-order-qty',  qty.toLocaleString()+' ชิ้น');
-  sf2('apc-produced',   produced.toLocaleString()+' ชิ้น');
-  sf2('apc-remaining',  remaining.toLocaleString()+' ชิ้น');
-  sf2('apc-qty',        remaining.toLocaleString()+' ชิ้น');
-  sf2('apc-shots',      Math.ceil(shotsNeeded).toLocaleString()+' shots');
-  sf2('apc-hrs',        hrsNeeded.toFixed(1)+' ชม. ('+daysNeeded.toFixed(1)+' วัน)');
-  sf2('apc-possible',   possibleQty.toLocaleString()+' ชิ้น / '+daysInPlan+' วัน');
-  sf2('apc-target-hr',  targetPerHr.toLocaleString()+' ชิ้น/ชม.');
-  sf2('apc-plastic',    plasticKg.toFixed(1)+' kg');
-  sf2('apc-mb',         mbKg>0 ? mbKg.toFixed(2)+' kg ('+j.mb+')' : '-');
-  sf2('apc-shot-wt',    shotWt.toFixed(1)+' g/shot');
-  sf2('apc-ctn',        ctnNeeded>0 ? ctnNeeded.toLocaleString()+' ลัง' : '-');
-  sf2('apc-box',        boxNeeded>0 ? boxNeeded.toLocaleString()+' กล่อง' : '-');
-  sf2('apc-bag',        bagNeeded>0 ? bagNeeded.toLocaleString()+' ถุง'  : '-');
-
-  // CT / EFF / TON → hidden fields
-  sfv('ap-3-ct',     j.ct   || '');
-  sfv('ap-3-eff',    j.eff  || '85');
-  sfv('ap-3-target', targetPerHr||j.target||'');
-  sfv('ap-3-ton',    j.ton  || '');
-
-  // กำหนดส่ง + วันเริ่ม
   const dueDate = o.dueDate;
   if(dueDate){
     const due  = new Date(dueDate);
     const now  = new Date();
     const diff = Math.ceil((due-now)/(86400000));
-    sf2('apc-due',   dueDate+' (อีก '+diff+' วัน)');
+    calcDisplay['apc-due'] = dueDate+' (อีก '+diff+' วัน)';
     const startDate = new Date(due);
     startDate.setDate(startDate.getDate() - Math.ceil(daysNeeded) - 1);
     const startStr = startDate.toISOString().split('T')[0];
-    sf2('apc-start',  startStr+' (แนะนำ)');
-    // ใส่วันลง form
+    calcDisplay['apc-start'] = startStr+' (แนะนำ)';
+  } else {
+    calcDisplay['apc-due'] = '-';
+    calcDisplay['apc-start'] = '-';
+  }
+
+  const pct = qty>0 ? Math.min(100,Math.round(produced/qty*100)) : 0;
+  const progressTxt = pct+'% ('+produced.toLocaleString()+'/'+qty.toLocaleString()+')';
+
+  return {
+    calcDisplay,
+    targetPerHr,
+    hrsNeeded,
+    daysNeeded,
+    dueDate,
+    progressPct: pct,
+    progressTxt,
+    qty, produced, remaining
+  };
+}
+
+function apCalcProduction(o, j){
+  if(!o && !j) return;
+  o = o || {}; j = j || {};
+  const M = _apCalcMetrics(o, j, {});
+  const sf2 = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+  const sfv = (id,v) => { const e=document.getElementById(id); if(e) e.value=String(v||''); };
+
+  Object.keys(M.calcDisplay).forEach(function(k){ sf2(k, M.calcDisplay[k]); });
+
+  sfv('ap-3-ct',     j.ct   || '');
+  sfv('ap-3-eff',    j.eff  || '85');
+  sfv('ap-3-target', M.targetPerHr||j.target||'');
+  sfv('ap-3-ton',    j.ton  || '');
+
+  if(M.dueDate){
+    const dueDate = M.dueDate;
+    const hrsNeeded = M.hrsNeeded;
+    const daysNeeded = M.daysNeeded;
+    const startDate = new Date(dueDate);
+    startDate.setDate(startDate.getDate() - Math.ceil(daysNeeded) - 1);
+    const startStr = startDate.toISOString().split('T')[0];
     const sfOnly = (id,v) => { const e=document.getElementById(id); if(e&&!e.value) e.value=v; };
     sfOnly('ap-7-4-date',  dueDate);
     sfOnly('ap-4-14-date', startStr);
@@ -29277,20 +29704,34 @@ function apCalcProduction(o, j){
     sfOnly('ap-7-1-date',  startStr);
     sfOnly('ap-7-2-date',  startStr);
     sfOnly('ap-7-3-date',  startStr);
-    // detail 7.4
     const d74 = document.getElementById('ap-7-4-detail');
     if(d74&&!d74.value) d74.value = 'กำหนดส่ง: '+dueDate+' | ผลิต '+Math.ceil(hrsNeeded)+' ชม. ('+Math.ceil(daysNeeded)+' วัน)';
-  } else {
-    sf2('apc-due',   '-');
-    sf2('apc-start', '-');
   }
 
-  // Progress bar (ผลิตแล้ว vs ยอดทั้งหมด)
-  const pct = qty>0 ? Math.min(100,Math.round(produced/qty*100)) : 0;
   const progEl = document.getElementById('apc-progress-bar');
   const progTxt= document.getElementById('apc-progress-txt');
-  if(progEl)  progEl.style.width = pct+'%';
-  if(progTxt) progTxt.textContent = pct+'% ('+produced.toLocaleString()+'/'+qty.toLocaleString()+')';
+  if(progEl)  progEl.style.width = M.progressPct+'%';
+  if(progTxt) progTxt.textContent = M.progressTxt;
+}
+
+function apCaptureApCalcSnapshot(){
+  var ids = ['apc-order-qty','apc-produced','apc-remaining','apc-qty','apc-shots','apc-hrs','apc-possible','apc-target-hr','apc-plastic','apc-mb','apc-shot-wt','apc-ctn','apc-box','apc-bag','apc-due','apc-start'];
+  var snap = {};
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) snap[id] = el.textContent || '';
+  });
+  return snap;
+}
+
+function apPrintCalcText(id, d){
+  var el = document.getElementById(id);
+  if(el && (el.textContent||'').trim()) return el.textContent;
+  if(d && d.apCalcSnapshot && d.apCalcSnapshot[id]) return d.apCalcSnapshot[id];
+  var o = orders.find(function(x){ return x.orderNo===d.orderNo; }) || {};
+  var j = jobs.find(function(jj){ return jj.name===(d.jobName||o.jobName); }) || {};
+  var M = _apCalcMetrics(o, j, { overrideQty: 0 });
+  return (M.calcDisplay && M.calcDisplay[id]) ? M.calcDisplay[id] : '-';
 }
 
 function apCalcUpdate(){
@@ -29340,6 +29781,10 @@ function saveApprovalProc(){
     const sel = document.querySelector(`input[type="radio"][name="${name}"]:checked`);
     d.data['__radio__'+name] = sel ? sel.value : '';
   });
+  var ox = orders.find(function(x){ return x.orderNo===d.orderNo; });
+  if(ox) d.apWorkGroup = _orderWorkGroup(ox);
+  d.apCalcSnapshot = apCaptureApCalcSnapshot();
+  saveApprovalProcDocs();
   renderApprovalProcList();
   if(typeof _infoToast==="function") _infoToast('✅ บันทึกใบอนุมัติเรียบร้อย');
 }
@@ -33556,15 +34001,22 @@ function apPrintWithCalc(){
   const id = document.getElementById('ap-doc-id')?.value;
   const d  = approvalProcDocs.find(x=>x.id===id);
   if(!d){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก/เปิดใบอนุมัติก่อน'); return; }
-  const fv = id2 => document.getElementById(id2)?.value||'-';
-  const ft = id2 => document.getElementById(id2)?.textContent||'-';
+  const apFv = (fid) => {
+    const el = document.getElementById(fid);
+    if(el && 'value' in el){
+      const cur = el.value;
+      if(String(cur||'').trim()!=='') return cur;
+      return (d.data && d.data[fid]) ? d.data[fid] : (cur||'');
+    }
+    return (d.data && d.data[fid]) ? d.data[fid] : '';
+  };
   const today = new Date().toLocaleDateString('th-TH');
-  const o = orders.find(x=>x.orderNo===d.orderNo) || {};
-  const j = jobs.find(jj=>jj.name===d.jobName) || {};
-  const pk = j.packingStd||{};
+  const stCls = d.status==='อนุมัติแล้ว' ? 'badge-green' : 'badge-blue';
+  const rowMat = (rows) => rows.map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(fid=>'<td>'+(apFv(fid)||'')+'</td>').join('')+'</tr>').join('');
+  const rowS24 = (rows) => rows.map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(fid=>'<td>'+(fid?apFv(fid):'')+'</td>').join('')+'</tr>').join('');
+  const row5 = (rows) => rows.map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(fid=>'<td>'+(fid?apFv(fid):'')+'</td>').join('')+'</tr>').join('');
 
-  const win = window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>${d.docNo}</title>
   <style>
     @page{size:A4;margin:10mm}
@@ -33585,7 +34037,6 @@ function apPrintWithCalc(){
     .calc-box{background:#fff;border:1px solid #bcd;border-radius:4px;padding:6px;text-align:center}
     .calc-box .val{font-size:14px;font-weight:900;color:#1d4ed8}
     .calc-box .lbl{font-size:9px;color:#555;margin-top:1px}
-    .packing-panel{background:#f0fdf4;border:2px solid #059669;border-radius:6px;padding:10px;margin-bottom:10px}
     .section-title{font-weight:700;color:#1d4ed8;font-size:12px;background:#e8f0fe;padding:4px 8px;border-left:3px solid #1d4ed8;margin-bottom:6px}
     table.checklist{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:10px}
     table.checklist th{background:#1d4ed8;color:#fff;padding:4px 6px;text-align:left}
@@ -33606,11 +34057,10 @@ function apPrintWithCalc(){
     <div class="doc-info">
       <div class="no">${d.docNo}</div>
       <div style="font-size:10px;color:#555">วันที่: ${d.date}</div>
-      <span class="badge ${d.status==='อนุมัติแล้ว'?'badge-green':'badge-blue'}">${d.status}</span>
+      <span class="badge ${stCls}">${d.status}</span>
     </div>
   </div>
 
-  <!-- Job Info -->
   <div class="info-grid">
     <div class="info-box"><div class="lbl">ชื่องาน</div><div class="val">${d.jobName||'-'}</div></div>
     <div class="info-box"><div class="lbl">เครื่องจักร</div><div class="val">${d.machine||'-'}</div></div>
@@ -33622,63 +34072,59 @@ function apPrintWithCalc(){
     <div class="info-box"><div class="lbl">น้ำหนักชิ้น</div><div class="val">${d.weight||'-'} g</div></div>
   </div>
 
-  <!-- Production Calc -->
   <div class="calc-panel">
     <div class="calc-title">📊 การคำนวณแผนผลิต (จาก BOM + Order)</div>
     <div class="calc-grid">
-      <div class="calc-box"><div class="val">${document.getElementById('apc-qty')?.textContent||'-'}</div><div class="lbl">ยอดที่ต้องการ</div></div>
-      <div class="calc-box"><div class="val">${document.getElementById('apc-shots')?.textContent||'-'}</div><div class="lbl">จำนวน Shot</div></div>
-      <div class="calc-box"><div class="val">${document.getElementById('apc-hrs')?.textContent||'-'}</div><div class="lbl">เวลาที่ใช้</div></div>
-      <div class="calc-box"><div class="val">${document.getElementById('apc-plastic')?.textContent||'-'}</div><div class="lbl">วัตถุดิบ (เม็ด)</div></div>
-      <div class="calc-box"><div class="val">${document.getElementById('apc-mb')?.textContent||'-'}</div><div class="lbl">Masterbatch</div></div>
+      <div class="calc-box"><div class="val">${apPrintCalcText('apc-qty',d)}</div><div class="lbl">ยอดที่ต้องการ</div></div>
+      <div class="calc-box"><div class="val">${apPrintCalcText('apc-shots',d)}</div><div class="lbl">จำนวน Shot</div></div>
+      <div class="calc-box"><div class="val">${apPrintCalcText('apc-hrs',d)}</div><div class="lbl">เวลาที่ใช้</div></div>
+      <div class="calc-box"><div class="val">${apPrintCalcText('apc-plastic',d)}</div><div class="lbl">วัตถุดิบ (เม็ด)</div></div>
+      <div class="calc-box"><div class="val">${apPrintCalcText('apc-mb',d)}</div><div class="lbl">Masterbatch</div></div>
     </div>
-    <div style="display:flex;gap:16px;margin-top:8px;font-size:11px">
-      <span>🚀 เริ่มผลิต: <strong>${document.getElementById('apc-start')?.textContent||'-'}</strong></span>
-      <span>📅 กำหนดส่ง: <strong>${document.getElementById('apc-due')?.textContent||'-'}</strong></span>
-      <span>📦 ลัง: <strong>${document.getElementById('apc-ctn')?.textContent||'-'}</strong></span>
-      <span>กล่อง: <strong>${document.getElementById('apc-box')?.textContent||'-'}</strong></span>
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;flex-wrap:wrap">
+      <span>🚀 เริ่มผลิต: <strong>${apPrintCalcText('apc-start',d)}</strong></span>
+      <span>📅 กำหนดส่ง: <strong>${apPrintCalcText('apc-due',d)}</strong></span>
+      <span>📦 ลัง: <strong>${apPrintCalcText('apc-ctn',d)}</strong></span>
+      <span>กล่อง: <strong>${apPrintCalcText('apc-box',d)}</strong></span>
     </div>
   </div>
 
-  <!-- Section 1 Raw Materials -->
   <div class="section-title">1. วัตถุดิบ</div>
-  <table class="checklist"><thead><tr><th>ขั้นตอน</th><th>รหัส/Batch</th><th>สถานะ</th><th>วันที่</th></tr></thead><tbody>
-    ${[['1.1 สูตรผสม','ap-1-1-code','ap-1-1-status','ap-1-1-date','ap-1-1-by','ap-1-1-check','ap-1-1-apv'],
+  <table class="checklist"><thead><tr><th>ขั้นตอน</th><th>รหัส/Batch</th><th>สถานะ</th><th>วันที่</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th><th>อนุมัติ</th></tr></thead><tbody>`+
+  rowMat([['1.1 สูตรผสม','ap-1-1-code','ap-1-1-status','ap-1-1-date','ap-1-1-by','ap-1-1-check','ap-1-1-apv'],
        ['1.2 เม็ดพลาสติก 1','ap-1-2-code','ap-1-2-status','ap-1-2-date','ap-1-2-by','ap-1-2-check','ap-1-2-apv'],
        ['1.3 เม็ดพลาสติก 2','ap-1-3-code','ap-1-3-status','ap-1-3-date','ap-1-3-by','ap-1-3-check','ap-1-3-apv'],
        ['1.4 สี/MB','ap-1-4-code','ap-1-4-status','ap-1-4-date','ap-1-4-by','ap-1-4-check','ap-1-4-apv'],
-       ['1.5 สารผสม','ap-1-5-code','ap-1-5-status','ap-1-5-date','ap-1-5-by','ap-1-5-check','ap-1-5-apv']
-      ].map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(id=>'<td>'+(document.getElementById(id)?.value||'')+'</td>').join('')+'</tr>').join('')}
-  </tbody></table>
+       ['1.5 สารผสม','ap-1-5-code','ap-1-5-status','ap-1-5-date','ap-1-5-by','ap-1-5-check','ap-1-5-apv']])+
+  `</tbody></table>
 
-  <!-- Section 2+4 -->
   <div class="section-title">2. แม่พิมพ์ & 4. เครื่องจักร</div>
-  <table class="checklist"><thead><tr><th>ขั้นตอน</th><th>สถานะ</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th></tr></thead><tbody>
-    ${[['2.1 เช็คแม่พิมพ์','ap-2-1-status','ap-2-1-date','ap-2-1-detail','ap-2-1-by','ap-2-1-check'],
+  <table class="checklist"><thead><tr><th>ขั้นตอน</th><th>สถานะ</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th></tr></thead><tbody>`+
+  rowS24([['2.1 เช็คแม่พิมพ์','ap-2-1-status','ap-2-1-date','ap-2-1-detail','ap-2-1-by','ap-2-1-check'],
        ['2.2 สภาพแม่พิมพ์','ap-2-2-status','ap-2-2-date','ap-2-2-detail','ap-2-2-by','ap-2-2-check'],
        ['4.1 สถานะเครื่องฉีด','ap-4-1-status','ap-4-1-date','ap-4-1-detail','ap-4-1-by','ap-4-1-check'],
        ['4.9 อบเม็ด','ap-4-9-status','ap-4-9-date','ap-4-9-detail','ap-4-9-by','ap-4-9-check'],
-       ['4.14 Start Lot','','ap-4-14-date','','ap-4-14-by','ap-4-14-check']
-      ].map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(id=>'<td>'+(id?document.getElementById(id)?.value||'':'')+'</td>').join('')+'</tr>').join('')}
-  </tbody></table>
+       ['4.14 Start Lot','','ap-4-14-date','','ap-4-14-by','ap-4-14-check']])+
+  `</tbody></table>
 
-  <!-- Section 5 Documents -->
   <div class="section-title">5. เอกสาร & WI</div>
-  <table class="checklist"><thead><tr><th>รายการ</th><th>รหัสเอกสาร</th><th>สถานะ</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th></tr></thead><tbody>
-    ${[['5.1 WI การผลิต','ap-5-1-code','','ap-5-1-by','ap-5-1-check'],
+  <table class="checklist"><thead><tr><th>รายการ</th><th>รหัสเอกสาร</th><th>สถานะ</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th></tr></thead><tbody>`+
+  row5([['5.1 WI การผลิต','ap-5-1-code','','ap-5-1-by','ap-5-1-check'],
        ['5.2 Condition','ap-5-2-code','','ap-5-2-by','ap-5-2-check'],
-       ['5.5 การบรรจุ','','ap-5-5-status','ap-5-5-by','ap-5-5-check']
-      ].map(r=>'<tr><td>'+r[0]+'</td>'+r.slice(1).map(id=>'<td>'+(id?document.getElementById(id)?.value||'':'')+'</td>').join('')+'</tr>').join('')}
-  </tbody></table>
+       ['5.5 การบรรจุ','','ap-5-5-status','ap-5-5-by','ap-5-5-check']])+
+  `</tbody></table>
 
-  <!-- Sign row -->
   <div class="sign-row">
     <div class="sign-box"><div class="sign-line"></div>ผู้เตรียม / Operator</div>
     <div class="sign-box"><div class="sign-line"></div>หัวหน้างาน / Leader</div>
     <div class="sign-box"><div class="sign-line"></div>วิศวกร / Engineer</div>
     <div class="sign-box"><div class="sign-line"></div>ผู้อนุมัติ / Approved by<br>${d.approvedBy||'.....................'}</div>
   </div>
-  <scr'+'ipt>window.print();<\/scr'+'ipt></body></html>`);
+  <p class="no-print" style="margin-top:12px;font-size:10px;color:#666">ใช้ปุ่มพิมพ์ในกล่อง Preview ของระบบ — F-PD-I008</p>
+  </body></html>`;
+
+  if(typeof safePrint==='function') safePrint(html, 'F-PD-I008 พิมพ์พร้อมคำนวณ');
+  else { var w=window.open('','_blank'); w.document.write(html); w.document.close(); }
 }
 
 
@@ -33696,6 +34142,7 @@ function masterInit(){
 
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
   loadOrders();             // orders
+  if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
   if(typeof loadFgStock==='function') loadFgStock();
   if(typeof loadRawMatStock==='function') loadRawMatStock();
   if(typeof loadFgLedger==='function') loadFgLedger();
@@ -33832,20 +34279,6 @@ function _readUsersRaw(){
   }catch(e){ return []; }
 }
 
-function _mergeUsersByUsername(baseArr, incomingArr){
-  const map = {};
-  (baseArr||[]).forEach(function(u){ if(u&&u.username) map[u.username]=u; });
-  (incomingArr||[]).forEach(function(u){
-    if(!u||!u.username) return;
-    const prev = map[u.username];
-    if(!prev){ map[u.username]=u; return; }
-    const pTs = new Date(prev.updatedAt||prev.createdAt||0).getTime()||0;
-    const nTs = new Date(u.updatedAt||u.createdAt||0).getTime()||0;
-    map[u.username] = nTs>=pTs ? {...prev,...u} : {...u,...prev};
-  });
-  return Object.values(map);
-}
-
 function loadUsers(){
   try {
     const raw = localStorage.getItem(USER_STORE_KEY);
@@ -33865,14 +34298,42 @@ function loadUsers(){
   } catch(e){}
   return defaultUsers();
 }
-function saveUsers(u){
+function saveUsers(u, opts){
+  opts = opts || {};
   try{
-    const now = new Date().toISOString();
-    const incoming = (u||[]).map(function(x){
-      return {...x, createdAt:x.createdAt||now, updatedAt:now};
+    var now = new Date().toISOString();
+    var incoming = (u||[]).map(function(x){
+      if(!x||!x.username) return null;
+      return {
+        ...x,
+        createdAt: x.createdAt || now,
+        updatedAt: x.updatedAt || x.createdAt || now
+      };
+    }).filter(Boolean);
+
+    if(opts.replaceAll){
+      localStorage.setItem(USER_STORE_KEY, JSON.stringify(incoming));
+      return;
+    }
+
+    var prev = _readUsersRaw();
+    var by = {};
+    prev.forEach(function(p){ if(p&&p.username) by[p.username]=p; });
+    incoming.forEach(function(n){
+      var o = by[n.username];
+      if(!o){ by[n.username]=n; return; }
+      var ot = new Date(o.updatedAt||o.createdAt||0).getTime()||0;
+      var nt = new Date(n.updatedAt||n.createdAt||0).getTime()||0;
+      by[n.username] = nt>=ot ? Object.assign({}, o, n) : Object.assign({}, n, o);
     });
-    const merged = _mergeUsersByUsername(_readUsersRaw(), incoming);
-    localStorage.setItem(USER_STORE_KEY,JSON.stringify(merged));
+
+    if(opts.pruneToIncoming){
+      var allow = {};
+      incoming.forEach(function(n){ if(n&&n.username) allow[n.username]=true; });
+      Object.keys(by).forEach(function(k){ if(!allow[k]) delete by[k]; });
+    }
+
+    localStorage.setItem(USER_STORE_KEY, JSON.stringify(Object.values(by)));
   }catch(e){}
 }
 
@@ -33885,7 +34346,7 @@ function defaultUsers(){
     {username:'arunee',     password:'qc1234',    name:'อรุณี สวัสดี',      role:'qc',         dept:'แผนก QC',      avatar:'🔵', pages:ROLES.qc.pages},
     {username:'prasit',     password:'wh1234',    name:'ประสิทธิ์ มั่นคง',  role:'warehouse',  dept:'คลังสินค้า',   avatar:'🟣', pages:ROLES.warehouse.pages},
   ];
-  saveUsers(list);
+  saveUsers(list, {replaceAll:true});
   return list;
 }
 
@@ -34081,7 +34542,7 @@ var SECTION_COLORS = {
   master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0','#d4edfd','#fff8e1','#e8eaf6'],
   standard: ['#e3f2fd','#fff8e1','#e8f5e9','#e3f2fd','#ede7f6'],
   order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6'],
-  prep:     ['#fff3cd','#e8f5e9','#ffebee','#e8f5e9'],
+  prep:     ['#fff3cd','#e8f5e9','#ffebee','#0e1f18','#1a2518'],
   daily:    ['#e3f2fd','#ffebee','#e0e0e0','#e3f2fd'],
   dash:     ['#e8f5e9','#ffebee','#e3f2fd','#ede7f6'],
   alert:    ['#ffebee','#fff3cd','#e8f5e9','#e3f2fd'],
@@ -34327,6 +34788,7 @@ function saveUser(){
   saveUsers(users);
   closeModal('modal-add-user');
   renderAdminPage();
+  if(typeof buildLoginUserList==='function') buildLoginUserList();
   if(typeof _toast==='function') _toast(isEdit?'✅ แก้ไขเรียบร้อย':'✅ เพิ่มผู้ใช้ใหม่เรียบร้อย');
 }
 
@@ -34336,8 +34798,9 @@ function deleteUser(username){
   const u = users.find(x=>x.username===username);
   if(!u) return;
   _confirmDel('🗑 ลบผู้ใช้: <b>'+u.name+'</b><br>Username: '+username, function(){
-    saveUsers(users.filter(x=>x.username!==username));
+    saveUsers(users.filter(x=>x.username!==username), {pruneToIncoming:true});
     renderAdminPage();
+    if(typeof buildLoginUserList==='function') buildLoginUserList();
     if(typeof _toast==='function') _toast('🗑 ลบผู้ใช้ '+u.name+' แล้ว');
   });
 }
@@ -38760,6 +39223,19 @@ function _clRenderChart(){
         <input type="text" id="ap-search-input" placeholder="ค้นหา Order/ชื่องาน/Lot..."
           oninput="apSearchFilter(this.value)">
       </div>
+      <div class="form-group"><div class="form-label">สายงาน</div>
+        <select id="ap-wg-sel" onchange="approvalProcOnWorkGroupChange(this.value)" style="min-width:200px">
+          <option value="">ทั้งหมด (ฉีด + ประกอบ/ไลน์รอง)</option>
+          <option value="injection">🏭 เครื่องฉีด</option>
+          <option value="postprocess">🎨 ประกอบ · สกรีน · พ่น · ไลน์รอง</option>
+        </select>
+      </div>
+      <div class="form-group"><div class="form-label">มุมมองรายการ</div>
+        <select id="ap-list-tab-sel" onchange="approvalProcOnListTabChange(this.value)" style="min-width:220px">
+          <option value="active">📋 กำลังผลิต / ยังไม่ครบ Lot</option>
+          <option value="done">✅ ผลิตจบ Lot แล้ว (ครบจำนวน)</option>
+        </select>
+      </div>
       <div class="form-group"><div class="form-label">Order No.</div>
         <select id="ap-order-sel" onchange="loadApprovalProc()" style="min-width:180px">
           <option value="">-- เลือก Order --</option>
@@ -38859,6 +39335,10 @@ function _clRenderChart(){
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
           <input type="radio" name="ap-status-radio" value="รออนุมัติ" checked
             onchange="document.getElementById('ap-status').value=this.value"> ⏳ รออนุมัติ
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+          <input type="radio" name="ap-status-radio" value="รอผลิต"
+            onchange="document.getElementById('ap-status').value=this.value"> 🏭 รอผลิต
         </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
           <input type="radio" name="ap-status-radio" value="อนุมัติแล้ว"
@@ -43477,6 +43957,7 @@ function mixDelete(id){
     // ลบ reservation ที่เกี่ยวข้องด้วย
     Object.keys(rawMatReservations).forEach(function(k){ if(k.startsWith(String(id)+'_')) delete rawMatReservations[k]; });
     saveReservations();
+    saveMixPlans();
     renderMixTable(); if(typeof renderMixAutoList==='function') renderMixAutoList();
     if(typeof _toast==='function') _toast('🗑 ลบแผนผสม '+String(id)+' แล้ว');
   });
@@ -43531,7 +44012,7 @@ function approvalProcDelete(id){
   const d=approvalProcDocs.find(x=>x.id===id); if(!d) return;
   _confirmDel('🗑 ลบใบอนุมัติ: <b>'+d.docNo+'</b><br>Order: '+(d.orderNo||'—'), function(){
     const idx=approvalProcDocs.findIndex(x=>x.id===id); if(idx>=0) approvalProcDocs.splice(idx,1);
-    if(typeof saveApprovalProc==='function') saveApprovalProc();
+    if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
     if(typeof _toast==='function') _toast('🗑 ลบใบอนุมัติ '+d.docNo+' แล้ว');
   });
@@ -45354,7 +45835,8 @@ window.HOME_PAGES = [
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
     {id:'mixing',       icon:'🧪', label:'แผนผสมเม็ด',            color:'#0f2010', seq:19},
     {id:'molds',        icon:'🔧', label:'แม่พิมพ์ & PM',         color:'#201010', seq:20},
-    {id:'approvalproc', icon:'✅', label:'ใบอนุมัติกระบวนการ',     color:'#0e1f18', seq:21},
+    {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#0e1f18', seq:'21A', workGroup:'injection'},
+    {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#1a2518', seq:'21B', workGroup:'postprocess'},
   ]},
   { id:'daily', icon:'⚙️', label:'ผลิต & ตรวจสอบรายวัน', items:[
     {id:'dailyrpt',     icon:'📝', label:'ใบรายงานการผลิต',       color:'#101a20', seq:22},
