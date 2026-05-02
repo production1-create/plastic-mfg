@@ -3547,6 +3547,10 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         </select>
       </div>
     </div>
+    <div class="card mb-3" style="padding:12px 14px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;font-weight:700">📊 สต็อกตามงาน (การ์ด — เหมือนหน้าวัตถุดิบ)</div>
+      <div id="fg-stock-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px"></div>
+    </div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr><th>ชื่องาน</th><th>Lot ล่าสุด</th><th>Stock (ชิ้น)</th><th>Min</th><th>Max</th><th>สถานะ Stock</th><th>รับเข้าล่าสุด</th><th>จ่ายออกล่าสุด</th><th>กำหนดส่ง</th><th>จัดการ</th></tr></thead>
       <tbody id="stock-tbody"></tbody>
@@ -6811,6 +6815,7 @@ function orderConfirmShip(orderNo){
   if(typeof _toast==='function') _toast('✅ บันทึกส่งงาน '+orderNo+' แล้ว');
 }
 function openNewOrderModal(){
+  var asn=document.getElementById('order-after-save-nav'); if(asn) asn.value='';
   var ed=document.getElementById('order-edit-original'); if(ed) ed.value='';
   var t=document.getElementById('order-modal-title'); if(t) t.textContent='+ เพิ่ม Order ใหม่';
   var b1=document.getElementById('order-btn-save-only'); if(b1) b1.style.display='none';
@@ -6823,6 +6828,7 @@ function openNewOrderModal(){
 function openEditOrder(orderNo){
   var o=orders.find(function(x){ return x.orderNo===orderNo; });
   if(!o){ if(typeof _infoToast==='function') _infoToast('ไม่พบ Order'); return; }
+  var asn=document.getElementById('order-after-save-nav'); if(asn) asn.value='';
   openModal('modal-add-order');
   var ed=document.getElementById('order-edit-original'); if(ed) ed.value=orderNo;
   var t=document.getElementById('order-modal-title'); if(t) t.textContent='✏ แก้ไข Order '+orderNo;
@@ -6888,11 +6894,19 @@ function saveOrderModal(withTT){
   o.createdAt=new Date().toISOString().split('T')[0];
   orders.unshift(o);
   saveOrders();
+  var navEl=document.getElementById('order-after-save-nav');
+  var goAppr=navEl && navEl.value==='approvalproc';
+  if(navEl) navEl.value='';
   closeModal('modal-add-order');
   renderOrdersTable();
   renderOrders();
   if(withTT) importToTT(no);
   if(typeof _toast==='function') _toast('✅ เพิ่ม Order '+no+(withTT?' และนำเข้า TT':''));
+  if(goAppr){
+    showPage('approvalproc', null);
+    if(typeof renderApprovalProcList==='function') renderApprovalProcList();
+    if(typeof _toast==='function') _toast('📋 ไปหน้าใบอนุมัติกระบวนการ — Order รออนุมัติสั่งผลิต');
+  }
 }
 function addOrder(){ saveOrderModal(true); }
 function renderOrderAwaitPage(){
@@ -18314,32 +18328,152 @@ function _renderRawmatLedgerLegacy(){
 function exportRawmatLedger(){ if(typeof _infoToast==="function") _infoToast('Export บัญชีคุมวัตถุดิบ (ระบบจริงจะ export เป็น Excel)'); else console.warn('Export บัญชีคุมวัตถุดิบ (ระบบจริงจะ export เป็น Excel)'); }
 
 // ===================== STOCK FG =====================
+function _fgJobB64(name){
+  try{ return btoa(unescape(encodeURIComponent(String(name||'')))); }catch(e){ return ''; }
+}
+function _fgJobFromB64(b){
+  try{ return decodeURIComponent(escape(atob(String(b||'')))); }catch(e){ return ''; }
+}
+function _fgEscHtml(t){
+  return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function openFgMinMaxModal(jobName){
+  var j=String(jobName||'').trim();
+  if(!j || !fgStock[j]){
+    if(typeof _infoToast==='function') _infoToast('ไม่พบข้อมูลสต็อกงานนี้');
+    return;
+  }
+  var s=fgStock[j];
+  var minV=parseInt(s.min,10); if(!isFinite(minV)||minV<0) minV=0;
+  var maxV=parseInt(s.max,10); if(!isFinite(maxV)||maxV<1) maxV=8000;
+  var hid=document.getElementById('fg-mm-job'); var lb=document.getElementById('fg-mm-job-label');
+  var imin=document.getElementById('fg-mm-min'); var imax=document.getElementById('fg-mm-max');
+  if(hid) hid.value=j;
+  if(lb) lb.textContent=j;
+  if(imin) imin.value=String(minV);
+  if(imax) imax.value=String(Math.max(maxV, minV+1));
+  openModal('modal-fg-minmax');
+}
+function saveFgMinMaxModal(){
+  var j=(document.getElementById('fg-mm-job')||{}).value||'';
+  if(!j || !fgStock[j]){ if(typeof _infoToast==='function') _infoToast('ไม่พบงาน'); return; }
+  var minV=parseInt((document.getElementById('fg-mm-min')||{}).value,10);
+  var maxV=parseInt((document.getElementById('fg-mm-max')||{}).value,10);
+  if(!isFinite(minV) || minV<0){ if(typeof _infoToast==='function') _infoToast('Min ไม่ถูกต้อง'); return; }
+  if(!isFinite(maxV) || maxV<1){ if(typeof _infoToast==='function') _infoToast('Max ไม่ถูกต้อง'); return; }
+  if(minV>=maxV){ if(typeof _infoToast==='function') _infoToast('Max ต้องมากกว่า Min'); return; }
+  fgStock[j].min=minV;
+  fgStock[j].max=maxV;
+  saveFgStock();
+  closeModal('modal-fg-minmax');
+  renderStock();
+  if(typeof _toast==='function') _toast('✅ บันทึก Min/Max สำหรับ '+j.substring(0,28));
+}
+/** จาก FG ต่ำกว่า Min — เปิดหน้า Order + โมดัลเติมจำนวน แล้วหลังบันทึกไปหน้าใบอนุมัติ (รออนุมัติสั่งผลิต) */
+function fgOpenOrderForLowStock(jobName){
+  var jn=String(jobName||'').trim();
+  if(!jn){ return; }
+  var s=fgStock[jn]||{qty:0,min:500,max:8000};
+  var jr=typeof getJobByName==='function'?getJobByName(jn):null;
+  if(!jr){
+    if(typeof _infoToast==='function') _infoToast('ยังไม่มีงาน "'+jn.substring(0,40)+'" ในทะเบียนงาน — กรุณาลงทะเบียนงานก่อน');
+    return;
+  }
+  var wg=typeof _jobWorkGroup==='function'?_jobWorkGroup(jr):'injection';
+  window._ordersWorkGroup=wg;
+  var wgSel=document.getElementById('orders-workgroup');
+  if(wgSel){
+    if(wg==='assembly') wgSel.value='assembly';
+    else if(wg==='secondary') wgSel.value='secondary';
+    else wgSel.value='injection';
+  }
+  showPage('orders', null);
+  if(typeof renderOrders==='function') renderOrders();
+  else if(typeof renderOrdersTable==='function') renderOrdersTable();
+  var gap=Math.max(0,(parseInt(s.min,10)||0)-(parseInt(s.qty,10)||0));
+  var sug=Math.max(100, Math.ceil(gap*1.15));
+  if(!gap) sug=Math.max(100, Math.round((parseInt(s.min,10)||500)*0.25));
+  var due=new Date(); due.setDate(due.getDate()+21);
+  var dueStr=due.toISOString().split('T')[0];
+  openNewOrderModal();
+  var nav=document.getElementById('order-after-save-nav'); if(nav) nav.value='approvalproc';
+  var oj=document.getElementById('order-job');
+  if(oj){
+    oj.value=jn;
+    if(oj.value!==jn){
+      var opt=document.createElement('option');
+      opt.value=jn; opt.textContent=jn;
+      oj.appendChild(opt);
+      oj.value=jn;
+    }
+  }
+  var oq=document.getElementById('order-qty'); if(oq) oq.value=String(sug);
+  var od=document.getElementById('order-due'); if(od) od.value=dueStr;
+  if(typeof fillJobInfo==='function') fillJobInfo();
+  if(typeof _toast==='function') _toast('📋 กรอก Order แล้วกดบันทึก — จะไปหน้าใบอนุมัติกระบวนการ (รออนุมัติ)');
+}
 function renderStock(filter='',statusFilter=''){
   let list=Object.entries(fgStock);
   if(filter) list=list.filter(([name])=>name.toLowerCase().includes(filter.toLowerCase()));
-  if(statusFilter==='ต่ำกว่า Min') list=list.filter(([,s])=>s.qty<s.min);
-  else if(statusFilter==='เกิน Max') list=list.filter(([,s])=>s.qty>s.max);
-  else if(statusFilter==='ปกติ') list=list.filter(([,s])=>s.qty>=s.min&&s.qty<=s.max);
+  if(statusFilter==='ต่ำกว่า Min') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)<(parseInt(s.min,10)||0));
+  else if(statusFilter==='เกิน Max') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)>(parseInt(s.max,10)||0));
+  else if(statusFilter==='ปกติ') list=list.filter(([,s])=>{
+    var q=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0, mx=parseInt(s.max,10)||0;
+    return q>=mn&&q<=mx;
+  });
   const tbody=document.getElementById('stock-tbody');
-  tbody.innerHTML=list.map(([name,s])=>{
-    const status=s.qty<s.min?'badge-red':s.qty>s.max?'badge-yellow':'badge-green';
-    const statusText=s.qty<s.min?'ต่ำกว่า Min':s.qty>s.max?'เกิน Max':'ปกติ';
-    const due=new Date(); due.setDate(due.getDate()+7); // default 7 days
-    const pct=Math.min(100,Math.round(s.qty/s.max*100));
-    return `<tr>
-      <td style="font-size:12px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</td>
-      <td class="mono" style="font-size:12px">${s.lastLot||'-'}</td>
-      <td><div class="flex items-center gap-2"><span class="mono">${s.qty.toLocaleString()}</span><div class="progress" style="width:60px"><div class="progress-fill" style="width:${pct}%;background:${s.qty<s.min?'var(--red)':'var(--green)'}"></div></div></div></td>
-      <td class="mono">${s.min.toLocaleString()}</td>
-      <td class="mono">${s.max.toLocaleString()}</td>
-      <td><span class="badge ${status}">${statusText}</span></td>
-      <td class="mono" style="font-size:12px">+${s.lastIn?.toLocaleString()||0}</td>
-      <td class="mono" style="font-size:12px">-${s.lastOut?.toLocaleString()||0}</td>
-      <td class="mono" style="font-size:12px">${due.toLocaleDateString('th-TH')}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick="setStockMinMax('${name}')">⚙ Min/Max</button>
-      <button onclick="openFgAdj('${name.replace(/'/g,"\\'")}')" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button></td>
-    </tr>`;
-  }).join('');
+  const cardsEl=document.getElementById('fg-stock-cards');
+  function rowHtml(name,s){
+    var qty=parseInt(s.qty,10)||0;
+    var mn=parseInt(s.min,10); if(!isFinite(mn)||mn<0) mn=0;
+    var mx=parseInt(s.max,10); if(!isFinite(mx)||mx<1) mx=8000;
+    var low=qty<mn;
+    var over=qty>mx;
+    var status=low?'badge-red':over?'badge-yellow':'badge-green';
+    var statusText=low?'ต่ำกว่า Min':over?'เกิน Max':'ปกติ';
+    var due=new Date(); due.setDate(due.getDate()+7);
+    var pct=mx>0?Math.min(100,Math.round(qty/mx*100)):0;
+    var b64=_fgJobB64(name);
+    return '<tr>'
+      +'<td style="font-size:12px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_fgEscHtml(name)+'">'+_fgEscHtml(name)+'</td>'
+      +'<td class="mono" style="font-size:12px">'+(s.lastLot||'-')+'</td>'
+      +'<td><div class="flex items-center gap-2"><span class="mono">'+qty.toLocaleString()+'</span><div class="progress" style="width:60px"><div class="progress-fill" style="width:'+pct+'%;background:'+(low?'var(--red)':'var(--green)')+'"></div></div></div></td>'
+      +'<td class="mono">'+mn.toLocaleString()+'</td>'
+      +'<td class="mono">'+mx.toLocaleString()+'</td>'
+      +'<td><span class="badge '+status+'">'+statusText+'</span></td>'
+      +'<td class="mono" style="font-size:12px">+'+(s.lastIn!=null?s.lastIn.toLocaleString():0)+'</td>'
+      +'<td class="mono" style="font-size:12px">-'+(s.lastOut!=null?s.lastOut.toLocaleString():0)+'</td>'
+      +'<td class="mono" style="font-size:12px">'+due.toLocaleDateString('th-TH')+'</td>'
+      +'<td><button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">⚙ Min/Max</button>'
+      +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button></td>'
+    +'</tr>';
+  }
+  function cardHtml(name,s){
+    var qty=parseInt(s.qty,10)||0;
+    var mn=parseInt(s.min,10); if(!isFinite(mn)||mn<0) mn=0;
+    var mx=parseInt(s.max,10); if(!isFinite(mx)||mx<1) mx=8000;
+    var low=qty<mn;
+    var over=qty>mx;
+    var col=low?'var(--red)':over?'var(--orange)':'var(--green)';
+    var st=low?'ต่ำกว่า Min':over?'เกิน Max':'ปกติ';
+    var pct=mx>0?Math.round(qty/mx*100):0;
+    var b64=_fgJobB64(name);
+    var short=name.length>42?name.substring(0,40)+'…':name;
+    return '<div class="card" style="'+(low?'border:1px solid var(--red)':'')+'">'
+      +'<div class="flex justify-between items-center mb-2">'
+        +'<span style="font-size:11px;font-weight:700;color:var(--accent2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_fgEscHtml(name)+'">'+_fgEscHtml(short)+'</span>'
+        +'<span class="badge '+(low?'badge-red':over?'badge-yellow':'badge-green')+'" style="font-size:10px">'+st+'</span>'
+      +'</div>'
+      +'<div class="kpi-value mono" style="font-size:20px;color:'+col+'">'+qty.toLocaleString()+'<span style="font-size:11px;color:var(--text3)"> ชิ้น</span></div>'
+      +'<div class="progress mt-2"><div class="progress-fill" style="width:'+Math.min(pct,100)+'%;background:'+col+'"></div></div>'
+      +'<div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: '+mn.toLocaleString()+' | Max: '+mx.toLocaleString()+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Lot ล่าสุด: <span class="mono">'+(s.lastLot||'—')+'</span></div>'
+      +(low?'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;font-weight:700" data-fgjb="'+b64+'" onclick="fgOpenOrderForLowStock(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">📋 เพิ่ม Order (รออนุมัติสั่งผลิต)</button>'
+        :'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">⚙ ตั้ง Min/Max</button>')
+    +'</div>';
+  }
+  if(cardsEl) cardsEl.innerHTML=list.map(function(e){ return cardHtml(e[0],e[1]); }).join('')||'<div style="font-size:12px;color:var(--text3);grid-column:1/-1">ยังไม่มีข้อมูล FG Stock</div>';
+  if(tbody) tbody.innerHTML=list.map(function(e){ return rowHtml(e[0],e[1]); }).join('')||'<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">ไม่มีรายการ</td></tr>';
 }
 function filterStock(v){ renderStock(v); }
 function filterStockStatus(v){ renderStock('',v); }
@@ -18384,14 +18518,6 @@ function renderFgLedger(){
   }).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:20px">ยังไม่มีรายการ</td></tr>';
 }
 function exportFgLedger(){ if(typeof _infoToast==="function") _infoToast('Export บัญชีคุม FG (ระบบจริงจะ export เป็น Excel)'); else console.warn('Export บัญชีคุม FG (ระบบจริงจะ export เป็น Excel)'); }
-function setStockMinMax(name){
-  const s=fgStock[name];
-  const min=parseInt(prompt(`Min Stock สำหรับ ${name}:`,s.min));
-  const max=parseInt(prompt('Max Stock:',s.max));
-  if(!isNaN(min)) s.min=min;
-  if(!isNaN(max)) s.max=max;
-  renderStock();
-}
 function doStockIn(){
   const name=document.getElementById('si-job').value;
   const qty=parseInt(document.getElementById('si-qty').value)||0;
@@ -18773,6 +18899,10 @@ function closeModal(id){
   m.classList.remove('open');
   // Also support modal-backdrop (display:none style)
   if(m.classList.contains('modal-backdrop')) m.style.display='none';
+  if(id==='modal-add-order'){
+    var asn=document.getElementById('order-after-save-nav');
+    if(asn) asn.value='';
+  }
 }
 // Initialize modal click-outside handlers after DOM is ready
 function initModalClickOutside(){
@@ -18785,7 +18915,9 @@ function initModalClickOutside(){
     }
   });
   document.querySelectorAll('.modal-overlay').forEach(m=>{
-    m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
+    m.addEventListener('click',function(e){
+      if(e.target===m && m.id) closeModal(m.id);
+    });
   });
 }
 // Will be called from masterInit after all HTML is parsed
@@ -23175,7 +23307,13 @@ renderDash = function(){
     // Rawmat low stock
     Object.entries(rawMatStock).forEach(([p,s])=>{ if(s.qty<s.min) alerts.push({type:'danger',msg:`⚠ ${p} stock ต่ำกว่า Min: ${s.qty.toLocaleString()} / ${s.min.toLocaleString()} kg`,action:`openRawmatPRFor('${p}')`}); });
     // FG low stock
-    Object.entries(fgStock).forEach(([name,s])=>{ if(s.qty<s.min) alerts.push({type:'warning',msg:`⚠ FG ต่ำกว่า Min: ${name.substring(0,30)} (${s.qty}/${s.min})`,action:''}); });
+    Object.entries(fgStock).forEach(function([name,s]){
+      var q=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0;
+      if(q<mn){
+        var b64=_fgJobB64(name);
+        alerts.push({type:'warning',msg:`⚠ FG ต่ำกว่า Min: ${name.substring(0,30)} (${q}/${mn}) — แตะเพื่อสร้าง Order`,action:`fgOpenOrderForLowStock(_fgJobFromB64('${b64}'))`});
+      }
+    });
     // Mold PM due
     moldData.forEach(m=>{ const pct=m.shot/m.pmShot*100; if(pct>=85) alerts.push({type:pct>=100?'danger':'warning',msg:`${pct>=100?'⛔':'⚠'} แม่พิมพ์ ${m.code} ถึงกำหนด PM ${pct.toFixed(0)}%`}); });
     // Pending maintenance
@@ -31472,11 +31610,14 @@ function renderAlertCenter(){
   // ════════════════════════════════════════════════════════
   Object.entries(fgStock||{}).forEach(([name,s])=>{
     if(!s||s.min===undefined) return;
-    if((s.qty||0) < (s.min||0)){
+    var q=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0;
+    if(q < mn){
+      var b64=_fgJobB64(name);
       push({id:'fg-low-'+name, cat:'delivery', level:'info',
         icon:'🏪', title:`FG Stock "${name.substring(0,30)}" ต่ำกว่า Min`,
-        detail:`Stock: ${(s.qty||0).toLocaleString()} ชิ้น | Min: ${(s.min||0).toLocaleString()} ชิ้น | อาจส่งมอบไม่ทัน`,
-        action:'ดู FG Stock', page:'stock',
+        detail:`Stock: ${q.toLocaleString()} ชิ้น | Min: ${mn.toLocaleString()} ชิ้น | แนะนำสั่งผลิตเติม (Order รออนุมัติ)`,
+        action:'เพิ่ม Order (รออนุมัติ)', page:'stock',
+        onclick:`fgOpenOrderForLowStock(_fgJobFromB64('${b64}'))`,
         badge:'Stock ต่ำ', badgeColor:'#79c0ff'});
     }
   });
@@ -31579,7 +31720,7 @@ function _renderAlertCards(){
           <span style="background:${item.badgeColor}22;border:1px solid ${item.badgeColor}66;color:${item.badgeColor};border-radius:12px;padding:1px 9px;font-size:10px;font-weight:700;flex-shrink:0">${item.badge}</span>
         </div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.5">${item.detail}</div>
-        <button onclick="showPage('${item.page}')" style="padding:5px 14px;background:${cfg.bar}22;border:1px solid ${cfg.bar}55;color:${cfg.bar};border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">
+        <button onclick="${item.onclick?item.onclick:`showPage('${item.page}')`}" style="padding:5px 14px;background:${cfg.bar}22;border:1px solid ${cfg.bar}55;color:${cfg.bar};border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">
           → ${item.action}
         </button>
       </div>
@@ -36731,6 +36872,7 @@ function _clRenderChart(){
     <button class="modal-close" onclick="closeModal('modal-add-order')">✕</button>
   </div>
   <input type="hidden" id="order-edit-original" value="">
+  <input type="hidden" id="order-after-save-nav" value="">
   <div class="form-row">
     <div class="form-group"><div class="form-label">Order No.</div><input type="text" id="order-no" placeholder="ORD-2565-001"></div>
     <div class="form-group"><div class="form-label">Lot No.</div><input type="text" id="lot-no" placeholder="LOT-001"></div>
@@ -37194,6 +37336,30 @@ function _clRenderChart(){
   <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
     <button class="btn btn-secondary" onclick="closeModal('modal-stock-out')">ยกเลิก</button>
     <button class="btn btn-red" onclick="doStockOut()">✓ บันทึกจ่ายออก</button>
+  </div>
+</div>
+</div>
+
+<!-- FG Min/Max (แก้ไขได้ + บันทึกลง localStorage) -->
+<div class="modal-overlay" id="modal-fg-minmax">
+<div class="modal" style="max-width:420px">
+  <div class="modal-header">
+    <div class="modal-title">⚙️ ตั้งค่า Min / Max — FG Stock</div>
+    <button class="modal-close" onclick="closeModal('modal-fg-minmax')">✕</button>
+  </div>
+  <input type="hidden" id="fg-mm-job" value="">
+  <div class="form-group">
+    <div class="form-label">ชื่องาน</div>
+    <div id="fg-mm-job-label" style="font-size:13px;font-weight:700;color:var(--text);word-break:break-word"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><div class="form-label">Min (ชิ้น)</div><input type="number" id="fg-mm-min" min="0" step="1"></div>
+    <div class="form-group"><div class="form-label">Max (ชิ้น)</div><input type="number" id="fg-mm-max" min="1" step="1"></div>
+  </div>
+  <div style="font-size:11px;color:var(--text3);margin-top:4px">บันทึกแล้วจะซิงค์กับ Supabase (ถ้าเปิด sync) ผ่านคีย์ <span class="mono">_fgStock</span></div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-fg-minmax')">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveFgMinMaxModal()">✓ บันทึก Min/Max</button>
   </div>
 </div>
 </div>
