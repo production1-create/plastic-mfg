@@ -39879,7 +39879,7 @@ function _clRenderChart(){
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
         <div class="page-title">♻️ Close Loop & เศษบด (Regrind)</div>
-        <div class="page-sub">ติดตาม Runner/เศษบดแยก Lot · ทะเบียนเครื่องบด-เครื่องป้อนสี · Layout โรงงาน</div>
+        <div class="page-sub">ติดตาม Runner/เศษบดแยก Lot · Stock เศษบด: รับเข้า-จ่ายออก-ปรับยอด · รายการเม็ดจากทะเบียนวัตถุดิบและงาน (+เพิ่มเม็ดเองได้)</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button onclick="clShowTab('entry')" id="cl-tab-entry" class="btn btn-primary btn-sm">📝 บันทึก</button>
@@ -40075,9 +40075,12 @@ function _clRenderChart(){
           <option value="empty">❌ หมด</option>
         </select>
       </div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="rgOpenTx('in')" style="padding:6px 14px;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.45);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">📥 รับเข้า</button>
+        <button onclick="rgOpenTx('out')" style="padding:6px 14px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.35);color:#f85149;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">📤 จ่ายออก</button>
         <button onclick="rgOpenAdj('')" style="padding:6px 14px;background:rgba(227,179,65,0.15);border:1px solid rgba(227,179,65,0.4);color:#e3b341;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">⚖️ ปรับยอด</button>
         <button onclick="rgOpenTag()" style="padding:6px 14px;background:rgba(57,197,207,0.15);border:1px solid rgba(57,197,207,0.4);color:#39c5cf;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">🏷 ออก TAG</button>
+        <button onclick="rgAddExtraPlastic()" type="button" title="เพิ่มรหัสเม็ดที่ยังไม่มีในทะเบียน" style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">➕ เพิ่มเม็ดในรายการ</button>
       </div>
     </div>
 
@@ -40132,8 +40135,8 @@ function _clRenderChart(){
         <input type="month" id="rg-led-month" onchange="rgRenderLedger()" style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
         <select id="rg-led-type" onchange="rgRenderLedger()" style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกประเภท</option>
-          <option value="in">📥 เข้า</option>
-          <option value="out">📤 ออก</option>
+          <option value="in">📥 รับเข้า</option>
+          <option value="out">📤 จ่ายออก</option>
           <option value="adj">⚖️ ปรับยอด</option>
         </select>
       </div>
@@ -40366,6 +40369,66 @@ function _clRenderChart(){
 </div>
 </div>
 
+<!-- ═══ REGRIND รับเข้า / จ่ายออก MODAL ═══ -->
+<div id="modal-rg-tx" class="modal-overlay">
+<div class="modal" style="min-width:520px;max-width:600px">
+  <div class="modal-header">
+    <div class="modal-title" id="rgtx-title">📥 รับเข้า Stock เศษบด</div>
+    <button class="modal-close" onclick="closeModal('modal-rg-tx')">✕</button>
+  </div>
+  <input type="hidden" id="rgtx-dir" value="in">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="form-group"><div class="form-label">ประเภทเม็ด *</div>
+      <select id="rgtx-plastic" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px"></select>
+    </div>
+    <div class="form-group"><div class="form-label">วันที่ *</div>
+      <input type="date" id="rgtx-date" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="form-group"><div class="form-label">จำนวน (kg) *</div>
+      <input type="number" id="rgtx-qty" min="0.001" step="0.001" placeholder="0.000" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>
+    <div class="form-group"><div class="form-label">Lot / Batch</div>
+      <input id="rgtx-lot" placeholder="RG-LOT-..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="form-group"><div class="form-label">งาน (อ้างอิง)</div>
+      <select id="rgtx-job" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+        <option value="">— ไม่ระบุ —</option>
+      </select>
+    </div>
+    <div class="form-group"><div class="form-label">เครื่อง / แหล่งที่มา</div>
+      <input id="rgtx-machine" placeholder="เครื่องบด / คลัง / ผู้ส่ง" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="form-group"><div class="form-label">ผู้บันทึก *</div>
+      <input id="rgtx-by" placeholder="ชื่อ-นามสกุล" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+    </div>
+    <div class="form-group"><div class="form-label">เหตุผล</div>
+      <select id="rgtx-reason" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+        <option value="รับเข้าคลังเศษบด">รับเข้าคลังเศษบด</option>
+        <option value="รับจากการบด Lot">รับจากการบด Lot</option>
+        <option value="นำเข้าจากนอก">นำเข้าจากนอก</option>
+        <option value="โอนย้ายระหว่างคลัง">โอนย้ายระหว่างคลัง</option>
+        <option value="คืนจากงานผลิต">คืนจากงานผลิต</option>
+        <option value="อื่นๆ">อื่นๆ</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-group"><div class="form-label">หมายเหตุ</div>
+    <input id="rgtx-note" placeholder="รายละเอียดเพิ่มเติม..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+  </div>
+  <div id="rgtx-err" style="display:none;color:#f85149;font-size:12px;font-weight:600;padding:8px 10px;background:rgba(248,81,73,0.1);border-radius:6px;margin-top:8px"></div>
+  <div class="modal-footer" style="margin-top:14px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-rg-tx')">ยกเลิก</button>
+    <button onclick="rgSaveTx()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 บันทึก</button>
+  </div>
+</div>
+</div>
+
 <!-- ═══ REGRIND TAG MODAL ═══ -->
 <div id="modal-rg-tag" class="modal-overlay">
 <div class="modal" style="min-width:560px;max-width:640px">
@@ -40384,8 +40447,11 @@ function _clRenderChart(){
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div class="form-group"><div class="form-label">ประเภทเม็ด</div>
-      <input id="rgtag-plastic" placeholder="PP, ABS..." style="width:100%">
+    <div class="form-group"><div class="form-label">ประเภทเม็ด *</div>
+      <select id="rgtag-plastic" onchange="rgUpdateTagPreview()" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
+        <option value="">— เลือกเม็ด —</option>
+      </select>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">จากทะเบียนวัตถุดิบ + งาน + เม็ดที่เพิ่มเอง (ปุ่ม ➕ ในแท็บ Stock)</div>
     </div>
     <div class="form-group"><div class="form-label">น้ำหนักเศษบด (kg) *</div>
       <input type="number" id="rgtag-weight" min="0" step="0.01" placeholder="0.00" style="width:100%" oninput="rgUpdateTagPreview()">
@@ -41879,6 +41945,206 @@ var rgLedger = JSON.parse(localStorage.getItem('_rgLedger')||'null') || [];
 function saveRgStock(){ try{localStorage.setItem('_rgStock',JSON.stringify(rgStock));}catch(e){} }
 function saveRgLedger(){ try{localStorage.setItem('_rgLedger',JSON.stringify(rgLedger));}catch(e){} }
 
+var RG_EXTRA_PLASTICS = [];
+try{ RG_EXTRA_PLASTICS = JSON.parse(localStorage.getItem('_rgExtraPlastics')||'[]'); }catch(e){}
+if(!Array.isArray(RG_EXTRA_PLASTICS)) RG_EXTRA_PLASTICS = [];
+function saveRgExtraPlastics(){ try{ localStorage.setItem('_rgExtraPlastics', JSON.stringify(RG_EXTRA_PLASTICS)); }catch(e){} }
+
+function rgAllPlasticCodes(){
+  var seen = {};
+  var list = [];
+  function add(x){
+    if(x === undefined || x === null) return;
+    var k = String(x).trim();
+    if(!k) return;
+    var u = k.toUpperCase();
+    if(seen[u]) return;
+    seen[u] = true;
+    list.push(k);
+  }
+  (typeof PLASTICS!=='undefined' ? PLASTICS : []).forEach(add);
+  if(Array.isArray(RAWMAT_REGISTRY)){
+    RAWMAT_REGISTRY.forEach(function(r){
+      if(!r || !r.code) return;
+      if(r.category === 'packaging') return;
+      add(r.code);
+    });
+  }
+  if(Array.isArray(JOB_REGISTRY)) JOB_REGISTRY.forEach(function(j){ add(j && j.plastic); });
+  if(Array.isArray(jobs)) jobs.forEach(function(j){ add(j && j.plastic); });
+  if(rgStock && typeof rgStock === 'object') Object.keys(rgStock).forEach(add);
+  RG_EXTRA_PLASTICS.forEach(add);
+  list.sort(function(a,b){ return a.localeCompare(b, 'th', { numeric: true }); });
+  return list;
+}
+
+function rgPlasticSelectHtml(selected){
+  var sel = selected || '';
+  return rgAllPlasticCodes().map(function(p){
+    var esc = String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    return '<option value="'+esc+'"'+(p === sel ? ' selected' : '')+'>'+String(p).replace(/</g,'')+'</option>';
+  }).join('');
+}
+
+function rgAllJobNamesForRg(){
+  var seen = {};
+  var out = [];
+  function add(n){
+    if(!n || typeof n !== 'string') return;
+    var t = n.trim();
+    if(!t || seen[t]) return;
+    seen[t] = true;
+    out.push(t);
+  }
+  if(Array.isArray(jobs)) jobs.forEach(function(j){ add(j && j.name); });
+  if(Array.isArray(JOB_REGISTRY)) JOB_REGISTRY.forEach(function(j){ add(j && j.name); });
+  out.sort(function(a,b){ return a.localeCompare(b, 'th'); });
+  return out;
+}
+
+function rgAddExtraPlastic(){
+  var v = window.prompt('รหัส / ชนิดเม็ดพลาสติกที่ต้องการเพิ่มในรายการเศษบด (เช่น TPE-GF30):', '');
+  if(v === null) return;
+  v = String(v).trim();
+  if(!v) return;
+  var u = v.toUpperCase();
+  if(RG_EXTRA_PLASTICS.some(function(x){ return String(x).trim().toUpperCase() === u; })){
+    if(typeof _toast === 'function') _toast('ℹ️ มีรายการนี้ในเม็ดเพิ่มเติมแล้ว');
+    return;
+  }
+  var merged = rgAllPlasticCodes();
+  if(merged.some(function(x){ return String(x).toUpperCase() === u; })){
+    if(typeof _toast === 'function') _toast('ℹ️ มีในรายการจากทะเบียนอยู่แล้ว: ' + v);
+    return;
+  }
+  RG_EXTRA_PLASTICS.push(v);
+  saveRgExtraPlastics();
+  rgRenderStock();
+  rgRenderLedger();
+  if(typeof _toast === 'function') _toast('✅ เพิ่ม "' + v + '" ในรายการเม็ดเศษบดแล้ว');
+}
+
+var RG_TX_IN_REASONS = ['รับเข้าคลังเศษบด','รับจากการบด Lot','นำเข้าจากนอก','โอนย้ายระหว่างคลัง','คืนจากงานผลิต','อื่นๆ'];
+var RG_TX_OUT_REASONS = ['เบิกใช้ในไลน์ผลิต','ส่งออก / จำหน่าย','ทำลาย / ทิ้ง','โอนย้ายออก','ใช้ผสมเม็ด / Blend','อื่นๆ'];
+
+function rgFillTxReasons(dir){
+  var sel = document.getElementById('rgtx-reason');
+  if(!sel) return;
+  var arr = (dir === 'out') ? RG_TX_OUT_REASONS : RG_TX_IN_REASONS;
+  sel.innerHTML = arr.map(function(t){
+    return '<option value="'+String(t).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+t+'</option>';
+  }).join('');
+}
+
+function rgOpenTx(dir){
+  dir = (dir === 'out') ? 'out' : 'in';
+  var dEl = document.getElementById('rgtx-dir');
+  if(dEl) dEl.value = dir;
+  var ttl = document.getElementById('rgtx-title');
+  if(ttl) ttl.textContent = dir === 'in' ? '📥 รับเข้า Stock เศษบด' : '📤 จ่ายออก Stock เศษบด';
+  rgFillTxReasons(dir);
+  var pSel = document.getElementById('rgtx-plastic');
+  if(pSel){
+    var prev = pSel.value;
+    pSel.innerHTML = '<option value="">— เลือกประเภทเม็ด —</option>' + rgPlasticSelectHtml('');
+    if(prev) pSel.value = prev;
+  }
+  var jSel = document.getElementById('rgtx-job');
+  if(jSel){
+    var jv = jSel.value;
+    jSel.innerHTML = '<option value="">— ไม่ระบุ —</option>' + rgAllJobNamesForRg().map(function(n){
+      var e = String(n).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<option value="'+e+'">'+n.replace(/</g,'')+'</option>';
+    }).join('');
+    if(jv) jSel.value = jv;
+  }
+  var de = document.getElementById('rgtx-date');
+  if(de && !de.value) de.value = new Date().toISOString().split('T')[0];
+  var qe = document.getElementById('rgtx-qty'); if(qe) qe.value = '';
+  var le = document.getElementById('rgtx-lot'); if(le) le.value = '';
+  var me = document.getElementById('rgtx-machine'); if(me) me.value = '';
+  var be = document.getElementById('rgtx-by'); if(be) be.value = '';
+  var ne = document.getElementById('rgtx-note'); if(ne) ne.value = '';
+  var er = document.getElementById('rgtx-err'); if(er){ er.style.display = 'none'; er.textContent = ''; }
+  openModal('modal-rg-tx');
+}
+
+function rgSaveTx(){
+  var dir = (document.getElementById('rgtx-dir') && document.getElementById('rgtx-dir').value === 'out') ? 'out' : 'in';
+  var plastic = (document.getElementById('rgtx-plastic') && document.getElementById('rgtx-plastic').value || '').trim();
+  var qty = parseFloat(document.getElementById('rgtx-qty') && document.getElementById('rgtx-qty').value);
+  var date = (document.getElementById('rgtx-date') && document.getElementById('rgtx-date').value) || new Date().toISOString().split('T')[0];
+  var lot = (document.getElementById('rgtx-lot') && document.getElementById('rgtx-lot').value || '').trim();
+  var job = (document.getElementById('rgtx-job') && document.getElementById('rgtx-job').value || '').trim();
+  var machine = (document.getElementById('rgtx-machine') && document.getElementById('rgtx-machine').value || '').trim();
+  var by = (document.getElementById('rgtx-by') && document.getElementById('rgtx-by').value || '').trim();
+  var reason = (document.getElementById('rgtx-reason') && document.getElementById('rgtx-reason').value) || '';
+  var note = (document.getElementById('rgtx-note') && document.getElementById('rgtx-note').value || '').trim();
+  var err = document.getElementById('rgtx-err');
+  function showErr(m){
+    if(err){ err.textContent = m; err.style.display = 'block'; }
+    else if(typeof _infoToast === 'function') _infoToast(m);
+  }
+  if(err) err.style.display = 'none';
+  if(!plastic){ showErr('⚠️ กรุณาเลือกประเภทเม็ด'); return; }
+  if(!by){ showErr('⚠️ กรุณาระบุผู้บันทึก'); return; }
+  if(!qty || isNaN(qty) || qty <= 0){ showErr('⚠️ กรุณาระบุจำนวน (kg) ที่ถูกต้อง'); return; }
+  if(!rgStock[plastic]) rgStock[plastic] = { qty: 0, min: 10, lastLot: '', lastJob: '', lastIn: 0, price: 45 };
+  var cur = +(rgStock[plastic].qty || 0);
+  if(dir === 'out'){
+    if(qty - cur > 0.0001){
+      showErr('⚠️ สต็อกไม่พอ (มี ' + cur.toFixed(3) + ' kg) — ลดจำนวนหรือรับเข้าก่อน');
+      return;
+    }
+    rgStock[plastic].qty = +(cur - qty).toFixed(3);
+    rgLedger.unshift({
+      _id: 'RGX-' + Date.now(),
+      date: date,
+      time: new Date().toTimeString().slice(0, 5),
+      type: 'out',
+      plastic: plastic,
+      job: job,
+      lot: lot,
+      machine: machine,
+      qty: qty,
+      by: by,
+      reason: reason || 'จ่ายออก',
+      balance: +rgStock[plastic].qty.toFixed(3),
+      note: note,
+      tagId: ''
+    });
+  } else {
+    rgStock[plastic].qty = +(cur + qty).toFixed(3);
+    rgStock[plastic].lastIn = qty;
+    if(lot) rgStock[plastic].lastLot = lot;
+    if(job) rgStock[plastic].lastJob = job;
+    rgLedger.unshift({
+      _id: 'RGX-' + Date.now(),
+      date: date,
+      time: new Date().toTimeString().slice(0, 5),
+      type: 'in',
+      plastic: plastic,
+      job: job,
+      lot: lot,
+      machine: machine,
+      qty: qty,
+      by: by,
+      reason: reason || 'รับเข้า',
+      balance: +rgStock[plastic].qty.toFixed(3),
+      note: note,
+      tagId: ''
+    });
+  }
+  saveRgStock();
+  saveRgLedger();
+  closeModal('modal-rg-tx');
+  rgRenderStock();
+  rgRenderLedger();
+  if(typeof _toast === 'function'){
+    _toast(dir === 'in' ? ('📥 รับเข้า ' + plastic + ' +' + qty.toFixed(3) + ' kg') : ('📤 จ่ายออก ' + plastic + ' -' + qty.toFixed(3) + ' kg'));
+  }
+}
+
 function rgAddFromCLEntry(entry){
   if(!entry||!entry.stock||entry.stock<=0) return;
   var j=jobs.find(function(x){return x.name===entry.job;});
@@ -41895,11 +42161,11 @@ function rgRenderStock(){
   var search=(document.getElementById('rg-stock-search')?.value||'').toLowerCase();
   var plasticF=document.getElementById('rg-stock-plastic')?.value||'';
   var statusF=document.getElementById('rg-stock-status')?.value||'';
-  var allP=[...new Set([...Object.keys(rgStock),...PLASTICS])].sort();
+  var allP=rgAllPlasticCodes();
   var sel=document.getElementById('rg-stock-plastic');
-  if(sel){var cv=sel.value;sel.innerHTML='<option value="">ทุกเม็ด</option>'+allP.map(function(p){return '<option value="'+p+'"'+(p===cv?' selected':'')+'>'+p+'</option>';}).join('');}
+  if(sel){var cv=sel.value;sel.innerHTML='<option value="">ทุกเม็ด</option>'+allP.map(function(p){var esc=String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;');return '<option value="'+esc+'"'+(p===cv?' selected':'')+'>'+String(p).replace(/</g,'')+'</option>';}).join('');}
   var sel2=document.getElementById('rg-led-plastic');
-  if(sel2){var cv2=sel2.value;sel2.innerHTML='<option value="">ทุกประเภท</option>'+allP.map(function(p){return '<option value="'+p+'"'+(p===cv2?' selected':'')+'>'+p+'</option>';}).join('');}
+  if(sel2){var cv2=sel2.value;sel2.innerHTML='<option value="">ทุกประเภท</option>'+allP.map(function(p){var esc=String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;');return '<option value="'+esc+'"'+(p===cv2?' selected':'')+'>'+String(p).replace(/</g,'')+'</option>';}).join('');}
   var list=allP.filter(function(p){
     var s=rgStock[p]||{qty:0,min:10};
     if(plasticF&&p!==plasticF)return false;
@@ -41967,9 +42233,9 @@ function rgRenderLedger(){
 }
 
 function rgOpenAdj(plastic){
-  var allP=[...new Set([...Object.keys(rgStock),...PLASTICS])].sort();
+  var allP=rgAllPlasticCodes();
   var sel=document.getElementById('rgadj-plastic');
-  if(sel)sel.innerHTML=allP.map(function(p){return '<option value="'+p+'"'+(p===plastic?' selected':'')+'>'+p+'</option>';}).join('');
+  if(sel)sel.innerHTML=allP.map(function(p){return '<option value="'+String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'"'+(p===plastic?' selected':'')+'>'+String(p).replace(/</g,'')+'</option>';}).join('');
   document.getElementById('rgadj-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('rgadj-actual').value='';
   document.getElementById('rgadj-by').value='';
@@ -42023,9 +42289,16 @@ function rgSaveAdj(){
 
 function rgOpenTag(){
   var jobSel=document.getElementById('rgtag-job');
-  if(jobSel)jobSel.innerHTML='<option value="">-- เลือกงาน --</option>'+jobs.map(function(j){return '<option value="'+j.name+'">'+j.name+'</option>';}).join('');
+  if(jobSel){
+    var jn = rgAllJobNamesForRg();
+    jobSel.innerHTML='<option value="">-- เลือกงาน --</option>'+jn.map(function(n){
+      return '<option value="'+String(n).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+n.replace(/</g,'')+'</option>';
+    }).join('');
+  }
+  var plSel=document.getElementById('rgtag-plastic');
+  if(plSel) plSel.innerHTML='<option value="">— เลือกเม็ด —</option>'+rgPlasticSelectHtml('');
   document.getElementById('rgtag-lot').value='RGLOT-'+Date.now().toString().slice(-5);
-  document.getElementById('rgtag-plastic').value='';
+  if(plSel) plSel.value='';
   document.getElementById('rgtag-weight').value='';
   document.getElementById('rgtag-machine').value='';
   document.getElementById('rgtag-date').value=new Date().toISOString().split('T')[0];
@@ -42034,22 +42307,38 @@ function rgOpenTag(){
   rgUpdateTagPreview(); openModal('modal-rg-tag');
 }
 function rgOpenTagForPlastic(plastic){
-  rgOpenTag(); document.getElementById('rgtag-plastic').value=plastic; rgUpdateTagPreview();
+  rgOpenTag();
+  var plSel=document.getElementById('rgtag-plastic');
+  if(plSel && plastic){
+    if([...plSel.options].some(function(o){ return o.value === plastic; })) plSel.value=plastic;
+    else{
+      var o=document.createElement('option');
+      o.value=plastic; o.textContent=plastic; o.selected=true;
+      plSel.appendChild(o);
+    }
+  }
+  rgUpdateTagPreview();
 }
 function rgTagOnJobChange(){
   var jn=document.getElementById('rgtag-job')?.value||'';
-  var j=jobs.find(function(x){return x.name===jn;});
-  if(j){
-    document.getElementById('rgtag-plastic').value=j.plastic||'';
-    var lo=orders.find(function(o){return o.jobName===jn;});
-    if(lo)document.getElementById('rgtag-machine').value=lo.machine||'';
+  var j=jobs.find(function(x){return x.name===jn;})||(typeof getJobByName==='function'?getJobByName(jn):null);
+  var plEl=document.getElementById('rgtag-plastic');
+  if(j && plEl && j.plastic){
+    if([...plEl.options].some(function(o){ return o.value === j.plastic; })) plEl.value=j.plastic;
+    else{
+      var o=document.createElement('option');
+      o.value=j.plastic; o.textContent=j.plastic; o.selected=true;
+      plEl.appendChild(o);
+    }
   }
+  var lo=orders.find(function(o){return o.jobName===jn;});
+  if(lo)document.getElementById('rgtag-machine').value=lo.machine||'';
   rgUpdateTagPreview();
 }
 function rgUpdateTagPreview(){
   var job=document.getElementById('rgtag-job')?.value||'—';
   var lot=document.getElementById('rgtag-lot')?.value||'—';
-  var plastic=document.getElementById('rgtag-plastic')?.value||'—';
+  var plastic=(document.getElementById('rgtag-plastic')&&document.getElementById('rgtag-plastic').value)||'—';
   var weight=document.getElementById('rgtag-weight')?.value||'—';
   var machine=document.getElementById('rgtag-machine')?.value||'—';
   var date=document.getElementById('rgtag-date')?.value||'—';
