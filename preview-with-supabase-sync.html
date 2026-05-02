@@ -108,6 +108,7 @@
     .grid-3 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr 1fr; }
     .footer-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
     .help { font-size: 12px; color: #94a3b8; line-height: 1.35; }
+    .help code, .help .mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; background: rgba(30, 41, 59, 0.9); padding: 1px 6px; border-radius: 4px; }
 
     /* Small loading spinner (top-right) */
     .loading-indicator {
@@ -196,7 +197,7 @@
 
       <div class="footer-line">
         <span id="status" class="pill">status: waiting</span>
-        <div class="help">Tip: แตะไอคอนเฟืองเพื่อซ่อน/แสดงแถบ Sync — ในแอปด้านล่าง เมนูทะเบียนงานและ Order แยกเป็นกลุ่มฉีด / ประกอบ / ไลน์รองเพื่อเปิดหน้าตรงกลุ่มงาน</div>
+        <div class="help">Tip: แตะไอคอนเฟืองเพื่อซ่อน/แสดงแถบ Sync — ในแอป FG Stock มีการ์ดตามงาน (เหมือนวัตถุดิบ) แก้ Min/Max ผ่านโมดัล บันทึกลง <code>_fgStock</code> — ถ้า Stock ต่ำกว่า Min ปุ่มจะพาไปสร้าง Order แล้วไปหน้าใบอนุมัติกระบวนการ</div>
       </div>
     </div>
   </dialog>
