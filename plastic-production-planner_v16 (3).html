@@ -1294,6 +1294,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 18 --> <div class="nav-item" onclick="showPage('molds',this)"><span class="nav-icon">🔧</span><span class="nav-seq">20</span> แม่พิมพ์ & PM</div>
     <!-- 21A --><div class="nav-item" onclick="showPage('approvalproc',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">21A</span> ใบอนุมัติ (เครื่องฉีด)</div>
     <!-- 21B --><div class="nav-item" onclick="showPage('approvalproc',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">21B</span> ใบอนุมัติ (ประกอบ·สกรีน·พ่น)</div>
+    <!-- 21C --><div class="nav-item" onclick="showPage('approvalproc-done',this,'injection')"><span class="nav-icon">✅</span><span class="nav-seq">21C</span> ใบอนุมัติ — จบ Lot (ฉีด)</div>
+    <!-- 21D --><div class="nav-item" onclick="showPage('approvalproc-done',this,'postprocess')"><span class="nav-icon">✅</span><span class="nav-seq">21D</span> ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)</div>
     <!-- 18  --> <div class="nav-item" onclick="showPage('mixing',this)"><span class="nav-icon">🧪</span><span class="nav-seq">18</span> แผนผสมเม็ด</div>
   </div>
 
@@ -7136,6 +7138,8 @@ var _navMenuList = [
   {id:'jobreg',       label:'ทะเบียนงาน (ไลน์รอง/กระบวนการหลัง)', icon:'🔧', group:'🏭 การผลิต', keywords:'งาน job กระบวนการหลัง secondary', workGroup:'secondary'},
   {id:'approvalproc', label:'ใบอนุมัติ (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ฉีด injection', workGroup:'injection'},
   {id:'approvalproc', label:'ใบอนุมัติ (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ประกอบ assembly', workGroup:'postprocess'},
+  {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ฉีด)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ครบจำนวน archive', workGroup:'injection'},
+  {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ประกอบ', workGroup:'postprocess'},
   {id:'timetable',    label:'Time Table',              icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', group:'🏭 การผลิต',     keywords:'bom bill of materials สูตร'},
   // วัตถุดิบ
@@ -7466,25 +7470,33 @@ var _pageNavStack = [];
 var _navFromBack = false;
 
 function showPage(id, el, workGroup){
+  var domPageId = (id==='approvalproc-done') ? 'approvalproc' : id;
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
-    _navFromBack = false;
-    return;
+    var okApArchive = (id==='approvalproc-done' && AUTH.pages.includes('approvalproc'));
+    if(!okApArchive){
+      _navFromBack = false;
+      return;
+    }
   }
   if(id==='jobreg'){
     window._jobregWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
   } else if(id==='orders'){
     window._ordersWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+  } else if(id==='approvalproc-done'){
+    window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+    window._apListTab = 'done';
   } else if(id==='approvalproc'){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+    window._apListTab = 'active';
   }
   if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== id) {
     _pageNavStack.push(window._currentPage);
   }
   _navFromBack = false;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  var pg = document.getElementById('page-'+id);
+  var pg = document.getElementById('page-'+domPageId);
   if(pg) pg.classList.add('active');
-  renderPage(id);
+  renderPage(domPageId);
   window._currentPage = id;
   // Switch to page-view
   var hs = document.getElementById('home-screen');
@@ -7495,12 +7507,17 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = (id==='jobreg'||id==='orders'||id==='approvalproc') ? (typeof workGroup==='string'?workGroup:'') : '';
+    var wg = (id==='jobreg'||id==='orders'||id==='approvalproc'||id==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:'') : '';
     var entry = allItems.find(function(i){return i.id===id && (i.workGroup===wg || (!wg && !i.workGroup));});
     if(!entry && wg) entry = allItems.find(function(i){return i.id===id && i.workGroup===wg;});
     if(!entry && id==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
     if(!entry && id==='orders') entry = {icon:'📋', label:'Order & แผนผลิต'};
     if(!entry && id==='approvalproc') entry = {icon:'✅', label:'ใบอนุมัติกระบวนการ'};
+    if(!entry && id==='approvalproc-done'){
+      entry = wg==='postprocess'
+        ? {icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน·พ่น)'}
+        : {icon:'✅', label:'ใบอนุมัติ — จบ Lot (เครื่องฉีด)'};
+    }
     if(!entry) entry = allItems.find(function(i){return i.id===id;});
     titleEl.textContent = entry ? entry.icon+' '+entry.label : id;
   }
@@ -7514,7 +7531,7 @@ function showPage(id, el, workGroup){
   function _resetScrollTop(){
     // Primary scroll container (page-view)
     var pc = document.getElementById('pv-content');
-    var activePg = document.getElementById('page-' + id);
+    var activePg = document.getElementById('page-' + domPageId);
     if(pc){
       var targetTop = activePg ? Math.max(0, activePg.offsetTop - 2) : 0;
       try {
@@ -29147,6 +29164,17 @@ function renderApprovalProcList(){
   }
   const tabSel = document.getElementById('ap-list-tab-sel');
   if(tabSel) tabSel.value = window._apListTab==='done' ? 'done' : 'active';
+  var tit = document.getElementById('ap-main-title');
+  var sub = document.getElementById('ap-main-sub');
+  if(tit && sub){
+    if(window._apListTab==='done'){
+      tit.textContent = '✅ ใบอนุมัติกระบวนการ — ผลิตจบ Lot แล้ว';
+      sub.textContent = 'แสดงเฉพาะใบที่ Order ครบจำนวน / พร้อมส่ง / ส่งแล้ว — แยกจากงานที่กำลังผลิต (เมนู 21C / 21D เปิดหน้านี้โดยตรง)';
+    } else {
+      tit.textContent = '✅ ใบอนุมัติกระบวนการฉีดพลาสติก';
+      sub.textContent = 'บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot';
+    }
+  }
   // ── Populate datalists for Order & Job autocomplete ─────────────
   const dlOrder = document.getElementById('ap-order-datalist');
   if(dlOrder){ dlOrder.innerHTML='';
@@ -29421,6 +29449,13 @@ function apOnOrderChange(){
     setTimeout(()=>{ badge.style.display='none'; },5000);
   }
   setTimeout(function(){ apRefreshLS(bom.jobName); }, 200);
+}
+
+/** สร้างใบอนุมัติให้ทุก Order ที่ยังไม่มีใบ (นำเข้า Excel / ข้อมูลเก่า / หลังโหลดระบบ) */
+function apBackfillApprovalDocsFromOrders(){
+  if(typeof orders==='undefined' || !Array.isArray(orders) || !orders.length) return;
+  if(typeof apAutoEnsureForOrder!=='function') return;
+  orders.forEach(function(o){ apAutoEnsureForOrder(o); });
 }
 
 function apAutoEnsureForOrder(o){
@@ -34143,6 +34178,7 @@ function masterInit(){
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
   loadOrders();             // orders
   if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
+  if(typeof apBackfillApprovalDocsFromOrders==='function') apBackfillApprovalDocsFromOrders();
   if(typeof loadFgStock==='function') loadFgStock();
   if(typeof loadRawMatStock==='function') loadRawMatStock();
   if(typeof loadFgLedger==='function') loadFgLedger();
@@ -34175,6 +34211,7 @@ const ALL_PAGES = [
   {id:'customers',    label:'ทะเบียนลูกค้า',            icon:'🏢', section:'การผลิต'},
   {id:'jobreg',      label:'ทะเบียนงาน / Job',          icon:'📦', section:'การผลิต'},
   {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',      icon:'✅', section:'การผลิต'},
+  {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot แล้ว', icon:'✅', section:'การผลิต'},
   {id:'timetable',    label:'Time Table',              icon:'📅', section:'การผลิต'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
@@ -34240,7 +34277,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','machines','machregistry','orders','order-await','approvalproc','timetable','bom','mixing','rawmat',
+    pages:['dashboard','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','bom','mixing','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -34291,6 +34328,8 @@ function loadUsers(){
           const rp = rolePages(user.role);
           // Add any role pages not yet in user's list (new features)
           rp.forEach(p => { if(!user.pages.includes(p)) user.pages.push(p); });
+          if(user.pages.includes('approvalproc') && !user.pages.includes('approvalproc-done'))
+            user.pages.push('approvalproc-done');
         });
         return u;
       }
@@ -34410,6 +34449,7 @@ function doLogin(){
   // Merge role default pages so existing users get new pages automatically
   const roleDefaults2 = (ROLES[user.role]||{}).pages||[];
   AUTH.pages = [...new Set([...(user.pages||[]), ...roleDefaults2])];
+  if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify({username:user.username, ts:Date.now()})); }catch(e){}
 
   document.getElementById('login-screen').style.display = 'none';
@@ -34453,6 +34493,7 @@ function tryAutoLogin(){
     const roleDefaults = (ROLES[user.role]||{}).pages||[];
     const merged = [...new Set([...(user.pages||[]), ...roleDefaults])];
     AUTH.pages = merged;
+    if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = '';
     applyPermissions();
@@ -34494,6 +34535,7 @@ function applyPermissions(){
   allowed.add('mixing');       // แผนผสมเม็ด
   allowed.add('qrtrack');      // QR Scan Tracker
   allowed.add('hourlyboard');  // บอร์ดผลิตรายชั่วโมง
+  if(allowed.has('approvalproc')) allowed.add('approvalproc-done');
 
   document.querySelectorAll('.nav-item[onclick]').forEach(el=>{
     const m = el.getAttribute('onclick').match(/showPage\('([^']+)'/);
@@ -34542,7 +34584,7 @@ var SECTION_COLORS = {
   master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0','#d4edfd','#fff8e1','#e8eaf6'],
   standard: ['#e3f2fd','#fff8e1','#e8f5e9','#e3f2fd','#ede7f6'],
   order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6'],
-  prep:     ['#fff3cd','#e8f5e9','#ffebee','#0e1f18','#1a2518'],
+  prep:     ['#fff3cd','#e8f5e9','#ffebee','#e3f2fd','#fce4ec','#e8eaf6','#f3e5f5'],
   daily:    ['#e3f2fd','#ffebee','#e0e0e0','#e3f2fd'],
   dash:     ['#e8f5e9','#ffebee','#e3f2fd','#ede7f6'],
   alert:    ['#ffebee','#fff3cd','#e8f5e9','#e3f2fd'],
@@ -34578,6 +34620,7 @@ function renderHomeScreen(){
    'supplierreg','pmchecklist','kpitargets','specregistry','limitsample','dailyrpt',
    'nganalysis','dashboard','wi','wi-rework','wi-deviation','barcode','globalsearch',
    'machgroup','mixing','qrtrack','hourlyboard'].forEach(function(p){ allowed.add(p); });
+  if(AUTH && AUTH.pages && AUTH.pages.includes('approvalproc')) allowed.add('approvalproc-done');
   if(AUTH && AUTH.role==='admin') allowed.add('admin');
 
   var isLt = document.body.classList.contains('light-mode');
@@ -39203,8 +39246,8 @@ function _clRenderChart(){
   <div class="page-header">
     <div class="flex items-center justify-between">
       <div>
-        <div class="page-title">✅ ใบอนุมัติกระบวนการฉีดพลาสติก</div>
-        <div class="page-sub">บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot</div>
+        <div class="page-title" id="ap-main-title">✅ ใบอนุมัติกระบวนการฉีดพลาสติก</div>
+        <div class="page-sub" id="ap-main-sub">บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot</div>
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I008 REV.21</div>
       </div>
       <div class="flex gap-2">
@@ -45516,6 +45559,7 @@ var XL_CONFIG={
         }
       });
       if(typeof saveOrders==='function') saveOrders();
+      if(typeof apBackfillApprovalDocsFromOrders==='function') apBackfillApprovalDocsFromOrders();
       if(typeof renderOrders==='function') renderOrders();
       if(typeof renderOrdersTable==='function') renderOrdersTable();
       if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage();
@@ -45835,8 +45879,10 @@ window.HOME_PAGES = [
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
     {id:'mixing',       icon:'🧪', label:'แผนผสมเม็ด',            color:'#0f2010', seq:19},
     {id:'molds',        icon:'🔧', label:'แม่พิมพ์ & PM',         color:'#201010', seq:20},
-    {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#0e1f18', seq:'21A', workGroup:'injection'},
-    {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#1a2518', seq:'21B', workGroup:'postprocess'},
+    {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#e3f2fd', seq:'21A', workGroup:'injection'},
+    {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#fff3e0', seq:'21B', workGroup:'postprocess'},
+    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ฉีด)', color:'#e8eaf6', seq:'21C', workGroup:'injection'},
+    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)', color:'#fce4ec', seq:'21D', workGroup:'postprocess'},
   ]},
   { id:'daily', icon:'⚙️', label:'ผลิต & ตรวจสอบรายวัน', items:[
     {id:'dailyrpt',     icon:'📝', label:'ใบรายงานการผลิต',       color:'#101a20', seq:22},
