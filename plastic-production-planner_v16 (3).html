@@ -1250,7 +1250,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 1 --> <div class="nav-item" onclick="showPage('supplierreg',this)"><span class="nav-icon">🏭</span><span class="nav-seq">1</span> ทะเบียน Supplier</div>
     <!-- 2 --> <div class="nav-item" onclick="showPage('rawmatreg',this)"><span class="nav-icon">🧪</span><span class="nav-seq">2</span> ทะเบียนวัตถุดิบ</div>
     <!-- 3 --> <div class="nav-item" onclick="showPage('customers',this)"><span class="nav-icon">🏢</span><span class="nav-seq">3</span> ทะเบียนลูกค้า</div>
-    <!-- 4 --> <div class="nav-item" onclick="showPage('jobreg',this)"><span class="nav-icon">📦</span><span class="nav-seq">4</span> ทะเบียนงาน / Job</div>
+    <!-- 4 --> <div class="nav-item" onclick="showPage('jobreg',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">4A</span> ทะเบียนงาน (ฉีด)</div>
+    <!-- 4B --><div class="nav-item" onclick="showPage('jobreg',this,'assembly')"><span class="nav-icon">🧩</span><span class="nav-seq">4B</span> ทะเบียนงาน (ประกอบ)</div>
+    <!-- 4C --><div class="nav-item" onclick="showPage('jobreg',this,'secondary')"><span class="nav-icon">🔧</span><span class="nav-seq">4C</span> ทะเบียนงาน (ไลน์รอง)</div>
     <!-- 5 --> <div class="nav-item" onclick="showPage('moldregistry',this)"><span class="nav-icon">📚</span><span class="nav-seq">5</span> ทะเบียนแม่พิมพ์</div>
     <!-- 6 --> <div class="nav-item" onclick="showPage('empreg',this)"><span class="nav-icon">👤</span><span class="nav-seq">6</span> ทะเบียนพนักงาน</div>
     <!-- 7 --> <div class="nav-item" onclick="showPage('machregistry',this)"><span class="nav-icon">⚙️</span><span class="nav-seq">7</span> ทะเบียนเครื่องจักร</div>
@@ -1275,7 +1277,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <!-- ══════════════════════════════════════════ -->
   <div class="nav-section">
     <div class="nav-label">📋 รับ Order & วางแผน</div>
-    <!-- 14 --> <div class="nav-item" onclick="showPage('orders',this)"><span class="nav-icon">📋</span><span class="nav-seq">15</span> Order & แผนผลิต</div>
+    <!-- 15A --><div class="nav-item" onclick="showPage('orders',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">15A</span> Order (ฉีด)</div>
+    <!-- 15B --><div class="nav-item" onclick="showPage('orders',this,'assembly')"><span class="nav-icon">🧩</span><span class="nav-seq">15B</span> Order (ประกอบ)</div>
+    <!-- 15C --><div class="nav-item" onclick="showPage('orders',this,'secondary')"><span class="nav-icon">🔧</span><span class="nav-seq">15C</span> Order (ไลน์รอง)</div>
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
     <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this)"><span class="nav-icon">📅</span><span class="nav-seq">17</span> แผนการผลิต (Time Table)</div>
   </div>
@@ -1601,7 +1605,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div class="flex gap-2" style="flex-wrap:wrap;align-items:center">
         <div class="form-group search-box" style="max-width:250px;margin:0">
           <span class="search-icon">🔍</span>
-          <input type="text" id="order-search-input" placeholder="ค้นหา Order/ชื่องาน/Lot..." oninput="filterOrders(this.value)">
+          <input type="text" id="order-search-input" placeholder="ค้นหา Order/ชื่องาน/Lot..." oninput="filterOrders(this.value)" autocomplete="off">
         </div>
         <button class="page-print-btn" onclick="openPrintPanel('page-orders')">🖨 สอบกลับ & พิมพ์</button>
         <button onclick="xlImport('orders')" style="padding:6px 14px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:#79c0ff;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit">📥 Import Excel</button>
@@ -1618,9 +1622,16 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div class="form-row" style="align-items:center;flex-wrap:wrap;gap:8px">
         <div class="form-group search-box" style="max-width:300px;margin:0">
           <span class="search-icon">🔍</span>
-          <input type="text" placeholder="ค้นหา Order / ชื่องาน..." oninput="filterOrders(this.value)">
+          <input type="text" id="order-search-input-2" placeholder="ค้นหา Order / ชื่องาน..." oninput="filterOrders(this.value)" autocomplete="off">
         </div>
-        <select style="max-width:160px" onchange="filterOrderStatus(this.value)">
+        <select id="orders-workgroup" title="แยกตามกลุ่มประเภทงาน" onchange="ordersOnWorkGroupChange(this.value)"
+          style="max-width:200px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px">
+          <option value="">🏭 ทุกกลุ่มงาน</option>
+          <option value="injection">🏭 งานฉีดพลาสติก</option>
+          <option value="assembly">🧩 งานประกอบ</option>
+          <option value="secondary">🔧 ไลน์รอง / กระบวนการหลัง</option>
+        </select>
+        <select id="orders-status-filter" style="max-width:160px" onchange="filterOrderStatus(this.value)">
           <option value="">ทุกสถานะ</option>
           <option>รอผลิต</option><option>กำลังผลิต</option><option>เสร็จแล้ว</option><option>Delay</option>
         </select>
@@ -3968,6 +3979,13 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <option value="">📋 ทุกสถานะ</option>
           <option value="active">🟢 Active</option>
           <option value="inactive">🔴 Inactive</option>
+        </select>
+        <select id="jobreg-workgroup" title="แยกตามกลุ่มประเภทงาน / เครื่อง" onchange="jobregOnWorkGroupChange(this.value)"
+          style="padding:6px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;max-width:200px">
+          <option value="">🏭 ทุกกลุ่มงาน</option>
+          <option value="injection">🏭 งานฉีดพลาสติก</option>
+          <option value="assembly">🧩 งานประกอบ</option>
+          <option value="secondary">🔧 ไลน์รอง / กระบวนการหลัง</option>
         </select>
         <button onclick="jobregAdd()" style="padding:6px 16px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">+ เพิ่มงาน</button>
         <button onclick="xlImport('jobreg')" style="padding:6px 14px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:#79c0ff;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600">📥 Import Excel</button>
@@ -6808,9 +6826,13 @@ var _navMenuList = [
   {id:'kpitargets',   label:'เป้าหมาย KPI',            icon:'🎯', group:'📊 ภาพรวม',      keywords:'kpi target เป้าหมาย'},
   {id:'kpipresent',   label:'KPI Presentation',        icon:'🎯', group:'📊 ภาพรวม',      keywords:'kpi presentation'},
   // การผลิต
-  {id:'orders',       label:'Order & แผนผลิต',         icon:'📋', group:'🏭 การผลิต',     keywords:'order แผน production plan ผลิต'},
+  {id:'orders',       label:'Order (ฉีดพลาสติก)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'order แผน ฉีด injection ผลิต', workGroup:'injection'},
+  {id:'orders',       label:'Order (ไลน์ประกอบ)',     icon:'🧩', group:'🏭 การผลิต',     keywords:'order แผน ประกอบ assembly', workGroup:'assembly'},
+  {id:'orders',       label:'Order (ไลน์รอง/กระบวนการหลัง)', icon:'🔧', group:'🏭 การผลิต', keywords:'order แผน กระบวนการหลัง secondary', workGroup:'secondary'},
   {id:'customers',    label:'ทะเบียนลูกค้า',           icon:'🏢', group:'🏭 การผลิต',     keywords:'ลูกค้า customer'},
-  {id:'jobreg',       label:'ทะเบียนงาน / Job',        icon:'📦', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน'},
+  {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
+  {id:'jobreg',       label:'ทะเบียนงาน (ไลน์ประกอบ)', icon:'🧩', group:'🏭 การผลิต',     keywords:'งาน job ประกอบ assembly', workGroup:'assembly'},
+  {id:'jobreg',       label:'ทะเบียนงาน (ไลน์รอง/กระบวนการหลัง)', icon:'🔧', group:'🏭 การผลิต', keywords:'งาน job กระบวนการหลัง secondary', workGroup:'secondary'},
   {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',       icon:'✅', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval process กระบวนการ'},
   {id:'timetable',    label:'Time Table',              icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', group:'🏭 การผลิต',     keywords:'bom bill of materials สูตร'},
@@ -6894,7 +6916,7 @@ function _navShowRecent(){
   if(recents.length){
     html += recents.map(function(m,i){
       return '<div class="nav-search-item" data-idx="'+i+'" data-page="'+m.id+'" '
-        +'onmousedown="event.preventDefault();navSearchGo(\''+m.id+'\',\''+_escAttr(m.label)+'\')" '
+        +'onmousedown="event.preventDefault();navSearchGo(\''+m.id+'\',\''+_escAttr(m.label)+'\''+(m.workGroup?',\''+_escAttr(m.workGroup)+'\'':'')+')" '
         +'style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;border-bottom:1px solid rgba(48,54,61,0.35);transition:background 0.1s"'
         +'onmouseover="navSearchHover(this)" onmouseout="navSearchUnhover(this)">'
         +'<span style="font-size:15px;flex-shrink:0">'+m.icon+'</span>'
@@ -6964,7 +6986,7 @@ function navSearch(val){
     // Highlight matched text
     var labelHtml = _navHighlight(m.label, q);
     return '<div class="nav-search-item" data-idx="'+i+'" data-page="'+m.id+'" '
-      +'onmousedown="event.preventDefault();navSearchGo(\''+m.id+'\',\''+_escAttr(m.label)+'\')" '
+      +'onmousedown="event.preventDefault();navSearchGo(\''+m.id+'\',\''+_escAttr(m.label)+'\''+(m.workGroup?',\''+_escAttr(m.workGroup)+'\'':'')+')" '
       +'style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid rgba(48,54,61,0.4);transition:background 0.1s"'
       +'onmouseover="navSearchHover(this)" onmouseout="navSearchUnhover(this)">'
       +'<span style="font-size:16px;flex-shrink:0">'+m.icon+'</span>'
@@ -7029,7 +7051,7 @@ function _navSearchUpdateHighlight(items){
   });
 }
 
-function navSearchGo(pageId, label){
+function navSearchGo(pageId, label, workGroup){
   navSearchReset();
   // Track recent pages
   _navRecentPages = [pageId].concat(_navRecentPages.filter(function(p){ return p!==pageId; })).slice(0,8);
@@ -7040,7 +7062,7 @@ function navSearchGo(pageId, label){
     AUTH.pages = AUTH.pages.concat([pageId]);
   }
 
-  showPage(pageId, null);
+  showPage(pageId, null, workGroup);
 
   // Flash + scroll the nav item (show it even if hidden)
   setTimeout(function(){
@@ -7140,10 +7162,15 @@ document.addEventListener('DOMContentLoaded', function(){
 var _pageNavStack = [];
 var _navFromBack = false;
 
-function showPage(id, el){
+function showPage(id, el, workGroup){
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
     _navFromBack = false;
     return;
+  }
+  if(id==='jobreg'){
+    window._jobregWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+  } else if(id==='orders'){
+    window._ordersWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
   }
   if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== id) {
     _pageNavStack.push(window._currentPage);
@@ -7163,7 +7190,12 @@ function showPage(id, el){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var entry = allItems.find(function(i){return i.id===id;});
+    var wg = (id==='jobreg'||id==='orders') ? (typeof workGroup==='string'?workGroup:'') : '';
+    var entry = allItems.find(function(i){return i.id===id && (i.workGroup===wg || (!wg && !i.workGroup));});
+    if(!entry && wg) entry = allItems.find(function(i){return i.id===id && i.workGroup===wg;});
+    if(!entry && id==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
+    if(!entry && id==='orders') entry = {icon:'📋', label:'Order & แผนผลิต'};
+    if(!entry) entry = allItems.find(function(i){return i.id===id;});
     titleEl.textContent = entry ? entry.icon+' '+entry.label : id;
   }
   // Sync user info
@@ -9033,6 +9065,59 @@ function clExportAll(){
 
 
 // ════════════════════════════════════════════════════════════════
+// กลุ่มประเภทงาน (ฉีด / ประกอบ / ไลน์รอง) — ใช้ machineType + กระบวนการหลัง
+// ════════════════════════════════════════════════════════════════
+window._jobregWorkGroup = window._jobregWorkGroup || '';
+window._ordersWorkGroup = window._ordersWorkGroup || '';
+
+function _jobWorkGroup(j){
+  if(!j || typeof j!=='object') return 'injection';
+  var mid=String(j.machine||'').trim();
+  var m=(typeof MACHINES!=='undefined')?MACHINES.find(function(mm){return String(mm.id)===mid;}):null;
+  var mt=m&&m.machineType?String(m.machineType):'';
+  if(mt==='assembly') return 'assembly';
+  if(mt&&mt!=='injection') return 'secondary';
+  var p=String(j.process||'').trim();
+  if(/ประกอบ/.test(p)) return 'assembly';
+  if(/พ่นสี|ชุบ|Hot\s*Stamp|หยอดกาว|โซนิค|พิมพ์สกรีน|ตัด\+แต่ง/.test(p)) return 'secondary';
+  return 'injection';
+}
+
+function _orderWorkGroup(o){
+  if(!o) return 'injection';
+  if(typeof getJobByName==='function'){
+    var jr=getJobByName(o.jobName||'');
+    if(jr) return _jobWorkGroup(jr);
+  }
+  var mid=String(o.machine||'').trim();
+  var m=(typeof MACHINES!=='undefined')?MACHINES.find(function(mm){
+    if(!mid) return false;
+    if(mid.indexOf(mm.id)===0) return true;
+    return mid.split(/\s+/)[0]===String(mm.id);
+  }):null;
+  var mt=m&&m.machineType?String(m.machineType):'';
+  if(mt==='assembly') return 'assembly';
+  if(mt&&mt!=='injection') return 'secondary';
+  return 'injection';
+}
+
+function jobregOnWorkGroupChange(v){
+  window._jobregWorkGroup = v||'';
+  renderJobRegistry();
+}
+
+function ordersOnWorkGroupChange(v){
+  window._ordersWorkGroup = v||'';
+  renderOrdersTable();
+}
+
+function _ordersCombinedSearch(){
+  var a=(document.getElementById('order-search-input')||{}).value||'';
+  var b=(document.getElementById('order-search-input-2')||{}).value||'';
+  return (a.trim()||b.trim()||'');
+}
+
+// ════════════════════════════════════════════════════════════════
 // JOB REGISTRY JS
 // ════════════════════════════════════════════════════════════════
 function renderJobRegistry(){
@@ -9043,6 +9128,9 @@ function renderJobRegistry(){
   var custF=document.getElementById('jobreg-customer')?.value||'';
   var machF=document.getElementById('jobreg-machine')?.value||'';
   var statF=document.getElementById('jobreg-status')?.value||'';
+  var wgF=window._jobregWorkGroup||'';
+  var wgSel=document.getElementById('jobreg-workgroup');
+  if(wgSel && wgSel.value !== (wgF||'')) wgSel.value = wgF||'';
 
   // Populate filter dropdowns
   var custSel=document.getElementById('jobreg-customer');
@@ -9064,6 +9152,7 @@ function renderJobRegistry(){
     if(custF && (j.customer||'')!==custF) return false;
     if(machF && (j.machine||'')!==machF) return false;
     if(statF && (j.status||'')!==statF) return false;
+    if(wgF && _jobWorkGroup(j)!==wgF) return false;
     return true;
   });
 
@@ -13317,11 +13406,20 @@ function renderOrders(){
     </table></div>`;
   }
 }
-function renderOrdersTable(filter='',statusFilter=''){
+function renderOrdersTable(filter, statusFilter){
   const tbody=document.getElementById('orders-tbody');
+  if(!tbody) return;
   let list=orders;
-  if(filter) list=list.filter(o=>o.jobName.includes(filter)||o.orderNo.includes(filter));
-  if(statusFilter) list=list.filter(o=>o.status===statusFilter);
+  var textQ=(arguments.length>=1 && filter!==undefined)?String(filter||'').trim():_ordersCombinedSearch();
+  if(textQ) list=list.filter(function(o){
+    return (o.jobName&&o.jobName.includes(textQ))||(o.orderNo&&o.orderNo.includes(textQ))||(o.lotNo&&String(o.lotNo).includes(textQ));
+  });
+  var statF=(arguments.length>=2 && statusFilter!==undefined)?String(statusFilter||''):((document.getElementById('orders-status-filter')||{}).value||'');
+  if(statF) list=list.filter(function(o){return o.status===statF;});
+  var wg=window._ordersWorkGroup||'';
+  var wgEl=document.getElementById('orders-workgroup');
+  if(wgEl) wgEl.value=wg;
+  if(wg) list=list.filter(function(o){return _orderWorkGroup(o)===wg;});
 
   // Update table header to include checkbox column
   const thead = document.querySelector('#orders-table thead tr');
@@ -13357,11 +13455,11 @@ function renderOrdersTable(filter='',statusFilter=''){
         <button onclick="deleteOrder('${o.orderNo}')" title="ลบ Order นี้" style="padding:3px 8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:2px">🗑</button>
       </td>
     </tr>`;
-  }).join('');
+  }).join('')||'<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบ Order ตามตัวกรอง</td></tr>';
   updateOrderSelectionUI();
 }
-function filterOrders(v){ renderOrdersTable(v); }
-function filterOrderStatus(v){ renderOrdersTable('',v); }
+function filterOrders(v){ renderOrdersTable(v, undefined); }
+function filterOrderStatus(v){ renderOrdersTable(undefined, v); }
 function deleteOrder(orderNo){
   const o = orders.find(x=>x.orderNo===orderNo);
   if(!o) return;
@@ -33290,9 +33388,9 @@ function updateSidebarUser(){
 
 // ── Icon accent colors per section (light-mode friendly) ──
 var SECTION_COLORS = {
-  master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0'],
+  master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0','#d4edfd','#fff8e1','#e8eaf6'],
   standard: ['#e3f2fd','#fff8e1','#e8f5e9','#e3f2fd','#ede7f6'],
-  order:    ['#e3f2fd','#e8f5e9','#ede7f6'],
+  order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6'],
   prep:     ['#fff3cd','#e8f5e9','#ffebee','#e8f5e9'],
   daily:    ['#e3f2fd','#ffebee','#e0e0e0','#e3f2fd'],
   dash:     ['#e8f5e9','#ffebee','#e3f2fd','#ede7f6'],
@@ -33343,7 +33441,8 @@ function renderHomeScreen(){
       var origIdx = sec.items.indexOf(item);
       var bgArr = isLt ? (SECTION_COLORS[sec.id]||[]) : null;
       var bgColor = bgArr ? (bgArr[origIdx % (bgArr.length||1)] || '#f0f4ff') : item.color;
-      html += '<div class="hs-app" data-page="' + item.id + '" data-sec="' + sec.id + '" data-idx="' + origIdx + '" data-label="' + item.label + '">';
+      html += '<div class="hs-app" data-page="' + item.id + '" data-sec="' + sec.id + '" data-idx="' + origIdx + '" data-label="' + item.label + '"'
+        + (item.workGroup ? ' data-workgroup="' + item.workGroup + '"' : '') + '>';
       html += '<div class="hs-app-img" style="background:' + bgColor + '">' + item.icon + '</div>';
       html += '<span class="hs-app-label">' + item.label + '</span>';
       html += '<span class="hs-app-seq">' + item.seq + '</span>';
@@ -33356,7 +33455,10 @@ function renderHomeScreen(){
   // Wire up click via event delegation (avoids inline onclick quote issues)
   area.onclick = function(e){
     var tile = e.target.closest('.hs-app');
-    if(tile && tile.dataset.page) showPage(tile.dataset.page, null);
+    if(tile && tile.dataset.page){
+      var wgx = tile.dataset.workgroup;
+      showPage(tile.dataset.page, null, wgx ? wgx : undefined);
+    }
   };
 }
 
@@ -44129,7 +44231,9 @@ window.HOME_PAGES = [
     {id:'supplierreg',  icon:'🏭', label:'ทะเบียน Supplier',    color:'#1a2a3a', seq:1},
     {id:'rawmatreg',    icon:'🧪', label:'ทะเบียนวัตถุดิบ',      color:'#1a2a1a', seq:2},
     {id:'customers',    icon:'🏢', label:'ทะเบียนลูกค้า',        color:'#1a1a2a', seq:3},
-    {id:'jobreg',       icon:'📦', label:'ทะเบียนงาน / Job',    color:'#2a1f10', seq:4},
+    {id:'jobreg',       icon:'🏭', label:'ทะเบียนงาน (ฉีดพลาสติก)', color:'#2a1f10', seq:'4A', workGroup:'injection'},
+    {id:'jobreg',       icon:'🧩', label:'ทะเบียนงาน (ไลน์ประกอบ)', color:'#2a2510', seq:'4B', workGroup:'assembly'},
+    {id:'jobreg',       icon:'🔧', label:'ทะเบียนงาน (ไลน์รอง/กระบวนการหลัง)', color:'#1f252a', seq:'4C', workGroup:'secondary'},
     {id:'moldregistry', icon:'📚', label:'ทะเบียนแม่พิมพ์',      color:'#2a1525', seq:5},
     {id:'empreg',       icon:'👤', label:'ทะเบียนพนักงาน',       color:'#151a2a', seq:6},
     {id:'machregistry', icon:'⚙️', label:'ทะเบียนเครื่องจักร',   color:'#1f1f1f', seq:7},
@@ -44144,7 +44248,9 @@ window.HOME_PAGES = [
     {id:'wi',           icon:'📋', label:'WI Packing Std',       color:'#1e1225', seq:14},
   ]},
   { id:'order', icon:'📋', label:'รับ Order & วางแผน', items:[
-    {id:'orders',       icon:'📋', label:'Order & แผนผลิต',     color:'#1a1a2e', seq:15},
+    {id:'orders',       icon:'🏭', label:'Order (ฉีดพลาสติก)',     color:'#1a1a2e', seq:'15A', workGroup:'injection'},
+    {id:'orders',       icon:'🧩', label:'Order (ไลน์ประกอบ)',   color:'#25201a', seq:'15B', workGroup:'assembly'},
+    {id:'orders',       icon:'🔧', label:'Order (ไลน์รอง/กระบวนการหลัง)', color:'#151f2a', seq:'15C', workGroup:'secondary'},
     {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', seq:16},
     {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', seq:17},
   ]},
