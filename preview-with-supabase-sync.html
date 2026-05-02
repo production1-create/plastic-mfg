@@ -197,12 +197,15 @@
 
       <div class="footer-line">
         <span id="status" class="pill">status: waiting</span>
-        <div class="help">Tip: แตะไอคอนเฟืองเพื่อซ่อน/แสดงแถบ Sync — <strong>Time Table:</strong> ชีตเครื่องฉีด / ประกอบ·ไลน์รอง, เลื่อน ±7 วัน, Zone, เลือกเครื่อง, เป้าต่อวัน+ผลิตจริงจากรายงาน, สรุปกำลังคนจาก BOM — FG Stock: การ์ดตามงาน, Min/Max โมดัล <code>_fgStock</code>, ปุ่มสร้าง Order → ใบอนุมัติ</div>
+        <div class="help"><strong>ข้ามเครื่อง:</strong> เปิดแอปผ่านไฟล์ preview นี้เท่านั้น แล้วตั้ง URL + anon key ของ Supabase (ตาราง <code>app_storage</code>) — อย่าเปิดแค่ <code>.html</code> แอปโดยตรงถ้าต้องการซิงก์<br>
+        <strong>ผู้ใช้หลายคน:</strong> คีย์ <code>pmf_users_v5</code> รวมตาม <code>username</code> ใช้เวลา <code>updatedAt</code> ล่าสุดเป็นหลัก (หลายคนเพิ่มคนละ user พร้อมกันได้) — ถ้าแก้ <em>คนเดียวกัน</em> พร้อมกัน ให้กด Pull ก่อนแก้ หรือลดช่วง auto-sync<br>
+        Tip: แตะไอคอนเฟืองเพื่อตั้งค่า — Time Table / FG / Order / ใบอนุมัติ ฯลฯ ซิงก์ตามรายการ SYNC_KEYS</div>
       </div>
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html"></iframe>
+  <!-- ใช้ไฟล์ (3) ตามชุดงานล่าสุด — ต้องอยู่โฟลเดอร์เดียวกับ preview นี้ -->
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260502c"></iframe>
 
   <!-- Supabase client (Realtime uses WebSocket; REST-only fetch stays as-is) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -216,7 +219,8 @@
       "_manualCostEntries","_dailyReports","_robotRegistry","_ttData","_jobs","_kpiTableData",
       "_dashWidgets","_dashCharts","_dashChartPeriod","_condStdList","_rawMatLedger","_rawMatPRList",
       "_limitSamples","_machGroups","_qrt_scans","_qrt_scans2","_sigStore","_sigLog","_mbColors","_mbStock","_mbLedger",
-      "_rgStock","_rgLedger","_rgExtraPlastics","pmf_users_v5"
+      "_rgStock","_rgLedger","_rgExtraPlastics","pmf_users_v5",
+      "_mixPlans","_mixDispatchHistory","_approvalProcDocs","_shipmentHistory"
     ];
     const COLLAB_MERGE_KEYS = ["_dailyReports", "pmf_users_v5"];
 
@@ -228,7 +232,7 @@
     let loadingCount = 0;
     let autoSyncTimer = null;
     let autoSyncRunning = false;
-    const AUTO_SYNC_MS = 30000;
+    const AUTO_SYNC_MS = 12000;
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
@@ -265,7 +269,15 @@
       [...b, ...a].forEach((u) => {
         if (!u || !u.username) return;
         const prev = byUser[u.username];
-        if (!prev || toTs(u.updatedAt || u.createdAt) >= toTs(prev.updatedAt || prev.createdAt)) byUser[u.username] = u;
+        if (!prev) {
+          byUser[u.username] = u;
+          return;
+        }
+        const tu = toTs(u.updatedAt || u.createdAt);
+        const tp = toTs(prev.updatedAt || prev.createdAt);
+        if (tu > tp) byUser[u.username] = u;
+        else if (tu < tp) byUser[u.username] = prev;
+        else byUser[u.username] = Object.assign({}, prev, u);
       });
       return JSON.stringify(Object.values(byUser));
     }
