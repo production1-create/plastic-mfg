@@ -3181,7 +3181,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
             <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;white-space:nowrap">ชื่องาน / Order</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ดพลาสติก</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สี MB</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">อัตราส่วน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB ต่อ 1 shot</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องป้อนสี</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องฉีด</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">วันผลิต</th>
@@ -15200,7 +15200,7 @@ function renderBom(filter='',matFilter=''){
   const tbody=document.getElementById('bom-tbody');
   tbody.innerHTML=list.map((j,i)=>{
     const pk=j.packingStd||{};
-    const shotWt  = j._shotWt || (j.wt&&j.cav ? +(j.wt*j.cav).toFixed(1) : 0);
+    const shotWt  = j._shotWt || (typeof jobPlasticShotGrams==='function'?jobPlasticShotGrams(j):(j.wt&&j.cav ? +(j.wt*j.cav).toFixed(1) : 0));
     const pieceWt = j.wt;
     const shotWtDisplay = shotWt>0 ? shotWt+' g' : '-';
     const pieceWtDisplay= pieceWt>0 ? pieceWt+' g' : '-';
@@ -15330,9 +15330,8 @@ function editBom(i){
   // Restore mixing method
   var mmVal = j.mixMethod||'none';
   var mmEl = document.querySelector('input[name="bom-mix-method"][value="'+mmVal+'"]');
-  if(mmEl){ mmEl.checked=true; setTimeout(function(){ bomMixMethodChange(); },100); }
+  if(mmEl){ mmEl.checked=true; setTimeout(function(){ bomMixMethodChange(); if(typeof bomUpdateFeederShotDisplay==='function') bomUpdateFeederShotDisplay(); },100); }
   sv('bom-feeder-id',  j.feederCode||'');
-  sv('bom-feeder-rate',j.feederRate||'');
   sv('bom-tank-size',  j.tankSize||'');
   sv('bom-tank-time',  j.tankMixTime||'');
   sv('bom-cost-alert',j.costAlertPct||10);
@@ -15425,7 +15424,17 @@ function saveBom(){
     // Mixing method
     mixMethod: (document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none',
     feederCode: document.getElementById('bom-feeder-id')?.value||'',
-    feederRate: parseFloat(document.getElementById('bom-feeder-rate')?.value)||0,
+    feederRate: 0,
+    feederGPerShot: (function(){
+      var mm=(document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none';
+      if(mm!=='feeder') return 0;
+      return jobMbGramsPerShot({
+        cav:parseInt(document.getElementById('bom-cav')?.value,10)||1,
+        wt:parseFloat(document.getElementById('bom-wt')?.value)||0,
+        runnerWt:parseFloat(document.getElementById('bom-runner-wt')?.value)||0,
+        mbRatio:parseFloat(document.getElementById('bom-mb-ratio')?.value)||0
+      });
+    })(),
     tankSize:   parseFloat(document.getElementById('bom-tank-size')?.value)||0,
     tankMixTime:parseFloat(document.getElementById('bom-tank-time')?.value)||0,
     customer:document.getElementById('bom-customer')?.value||'',
@@ -15931,6 +15940,9 @@ function bomClearForm(){
     wgel.value=d;
   }
   bomUpdateTonFieldVisibility();
+  var bfs=document.getElementById('bom-feeder-shot-line');
+  if(bfs) bfs.innerHTML='<span style="color:var(--text3)">—</span>';
+  var bfr=document.getElementById('bom-feeder-rate'); if(bfr) bfr.value='';
   // Process steps will be inited by openAddBomModal after modal opens
 }
 
@@ -16038,6 +16050,7 @@ function bomSelectJob(name){
     // Init mix ingredient rows with existing data
     bomInitMixRows(j.mixIngredients||null);
     bomEstimateCost();
+    if(typeof bomUpdateFeederShotDisplay==='function') bomUpdateFeederShotDisplay();
   }, 80);
   if(typeof _toast==='function') _toast('📥 โหลดข้อมูล "'+name+'" แล้ว');
 }
@@ -16131,7 +16144,64 @@ function openAddBomModal(){
     bomInitProcessSteps();
     bomInitMixRows(null);
     bomUpdateTonFieldVisibility();
+    if(typeof bomUpdateFeederShotDisplay==='function') bomUpdateFeederShotDisplay();
   }, 50);
+}
+
+// ── MB / Feeder: คำนวณจาก น้ำหนักพลาสติก 1 shot (ชิ้น×Cav+Runner) × g/kg ──
+function jobPlasticShotGrams(j){
+  if(!j) return 0;
+  var cav=parseInt(j.cav!=null&&j.cav!==''?j.cav:j.cavity,10);
+  if(!isFinite(cav)||cav<1) cav=1;
+  var wt=parseFloat(j.wt)||0;
+  var rw=parseFloat(j.runnerWt)||0;
+  return Math.max(0, wt*cav+rw);
+}
+function jobMbGramsPerShot(j){
+  var pg=jobPlasticShotGrams(j);
+  var r=parseFloat(j.mbRatio)||0;
+  if(r<=0||pg<=0) return 0;
+  return +(pg*r/1000).toFixed(6);
+}
+function jobFeederShotsForOrderQty(qty,j){
+  var cav=parseInt(j.cav!=null&&j.cav!==''?j.cav:j.cavity,10);
+  if(!isFinite(cav)||cav<1) cav=1;
+  var q=parseInt(qty,10)||0;
+  if(q<=0) return 0;
+  return Math.max(1, Math.ceil(q/cav));
+}
+function jobMbKgForFeederOrder(o,j){
+  var gShot=jobMbGramsPerShot(j);
+  if(gShot<=0||!o) return 0;
+  var shots=jobFeederShotsForOrderQty(o.qty,j);
+  return +(shots*gShot/1000).toFixed(4);
+}
+function bomReadJobSnapshotFromForm(){
+  return {
+    cav:parseInt(document.getElementById('bom-cav')?.value,10)||1,
+    cavity:parseInt(document.getElementById('bom-cav')?.value,10)||1,
+    wt:parseFloat(document.getElementById('bom-wt')?.value)||0,
+    runnerWt:parseFloat(document.getElementById('bom-runner-wt')?.value)||0,
+    mbRatio:parseFloat(document.getElementById('bom-mb-ratio')?.value)||0
+  };
+}
+function bomUpdateFeederShotDisplay(){
+  var line=document.getElementById('bom-feeder-shot-line');
+  var mm=document.querySelector('input[name="bom-mix-method"]:checked')?.value||'none';
+  if(!line) return;
+  if(mm!=='feeder'){
+    line.innerHTML='<span style="color:var(--text3)">—</span>';
+    return;
+  }
+  var j=bomReadJobSnapshotFromForm();
+  var pg=jobPlasticShotGrams(j);
+  var mbG=jobMbGramsPerShot(j);
+  var r=j.mbRatio||0;
+  if(pg<=0){
+    line.innerHTML='<span style="color:#e3b341">กรอกน้ำหนักชิ้น (g) · Cavity · Runner/Shot (g) และอัตราสี g/kg เพื่อคำนวณ MB ต่อ 1 shot</span>';
+    return;
+  }
+  line.innerHTML='พลาสติก 1 shot: <b>'+pg.toFixed(3)+' g</b> <span style="color:var(--text3)">(ชิ้น×Cav+Runner)</span> · MB: <b>'+mbG.toFixed(4)+' g/shot</b> <span style="color:var(--text3)">(= '+pg.toFixed(3)+'×'+r+'÷1000)</span>';
 }
 
 // ── Mixing method toggle ──────────────────────────────────────
@@ -16168,6 +16238,7 @@ function bomMixMethodChange(){
       });
     }
   }
+  if(typeof bomUpdateFeederShotDisplay==='function') bomUpdateFeederShotDisplay();
 }
 
 
@@ -16238,9 +16309,8 @@ function renderMixFeeder(){
     var feeder = FEEDER_REGISTRY.find(function(f){return (f.code||f.id)===j.feederCode;}) || null;
     if(activeOrders.length){
       activeOrders.forEach(function(o){
-        // Calculate MB needed: qty * wt/1000 * mbRatio/1000
+        var mbKg = +(jobMbKgForFeederOrder(o,j)||0).toFixed(4);
         var totalKg = (o.qty||0)*(j.wt||5)/1000;
-        var mbKg = +(totalKg * (j.mbRatio||0)/1000).toFixed(3);
         // Check MB stock
         var mbStock = batchMbStock.filter(function(b){return b.colorName===j.mb||b.batchNo===j.mb;});
         var mbAvail = mbStock.reduce(function(s,b){return s+(b.weightLeft||0);},0);
@@ -16304,7 +16374,10 @@ function renderMixFeeder(){
       +'</td>'
       // Ratio + rate
       +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:var(--text2)">'
-        +(j.feederRate?'<div style="font-weight:700;color:#79c0ff">'+j.feederRate+' g/min</div>':'—')
+        +(jobMbGramsPerShot(j)>0
+          ?'<div style="font-weight:700;color:#79c0ff">'+jobMbGramsPerShot(j).toFixed(4)+' g/shot</div>'
+            +'<div style="font-size:9px;color:var(--text3)">พลาสติก 1 shot '+jobPlasticShotGrams(j).toFixed(2)+' g</div>'
+          :'—')
       +'</td>'
       // Feeder machine
       +'<td style="padding:9px 8px;text-align:center">'
@@ -38355,7 +38428,7 @@ function _clRenderChart(){
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-    <div class="form-group" style="margin:0"><div class="form-label">Cavity</div><input type="number" id="bom-cav" oninput="bomCalcTarget();bomEstimateCost()"></div>
+    <div class="form-group" style="margin:0"><div class="form-label">Cavity</div><input type="number" id="bom-cav" oninput="bomCalcTarget();bomEstimateCost();bomUpdateFeederShotDisplay()"></div>
     <div class="form-group" style="margin:0"><div class="form-label">CT (วินาที)</div><input type="number" id="bom-ct" step="0.01" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0"><div class="form-label">EFF (%)</div><input type="number" id="bom-eff" value="100" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0" id="bom-ton-wrap"><div class="form-label">Ton เครื่อง</div><input type="number" id="bom-ton" placeholder="เช่น 80"></div>
@@ -38383,7 +38456,7 @@ function _clRenderChart(){
         </div>
       </div>
       <div class="form-group" style="margin:0"><div class="form-label">สี Masterbatch</div><input type="text" id="bom-mb" placeholder="ชื่อ/รหัสสี" oninput="bomEstimateCost()"></div>
-      <div class="form-group" style="margin:0"><div class="form-label">อัตราส่วนสี (g/kg)</div><input type="number" id="bom-mb-ratio" placeholder="20" oninput="bomEstimateCost()"></div>
+      <div class="form-group" style="margin:0"><div class="form-label">อัตราส่วนสี (g/kg)</div><input type="number" id="bom-mb-ratio" placeholder="20" oninput="bomEstimateCost();bomUpdateFeederShotDisplay()"></div>
       <!-- วิธีผสมสี -->
       <div class="form-group" style="margin:0;grid-column:span 2">
         <div class="form-label" style="display:flex;align-items:center;gap:6px">🎨 วิธีผสมสี MB
@@ -38410,12 +38483,13 @@ function _clRenderChart(){
                 <option value="">— เลือกเครื่องป้อนสี —</option>
               </select>
             </div>
-            <div class="form-group" style="margin:0">
-              <div class="form-label" style="font-size:10px">อัตราป้อน (g/min)</div>
-              <input type="number" id="bom-feeder-rate" placeholder="e.g. 50" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+            <div class="form-group" style="margin:0;grid-column:1/-1">
+              <div class="form-label" style="font-size:10px">MB ต่อ 1 shot (คำนวณอัตโนมัติ)</div>
+              <div id="bom-feeder-shot-line" style="font-size:11px;line-height:1.45;color:var(--text2);padding:6px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px">—</div>
             </div>
           </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:5px">💡 เครื่องป้อนสีจะป้อน MB ลงโดยตรงที่คอเครื่อง — ไม่ต้องผสมในถังล่วงหน้า</div>
+          <input type="hidden" id="bom-feeder-rate" value="">
+          <div style="font-size:10px;color:var(--text3);margin-top:5px">💡 ใช้สูตร: <b>กรัม MB/shot = (น้ำหนักชิ้น×Cavity + Runner/shot) × (g/kg) ÷ 1000</b> — แผนผสมเม็ดจะดึงยอด MB รวมจากจำนวน shot ของ Order</div>
         </div>
         <!-- Extra tank info -->
         <div id="bom-mix-tank-info" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(227,179,65,0.08);border:1px solid rgba(227,179,65,0.25);border-radius:7px">
@@ -38463,11 +38537,11 @@ function _clRenderChart(){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
       <div class="form-group" style="margin:0">
         <div class="form-label" style="display:flex;align-items:center;gap:4px">น้ำหนักชิ้น (g) <span style="color:#39c5cf">*</span></div>
-        <input type="number" id="bom-wt" step="0.001" placeholder="15.5" oninput="bomEstimateCost();bomCalcRegrind()">
+        <input type="number" id="bom-wt" step="0.001" placeholder="15.5" oninput="bomEstimateCost();bomCalcRegrind();bomUpdateFeederShotDisplay()">
       </div>
       <div class="form-group" style="margin:0">
         <div class="form-label" style="color:#39c5cf">♻️ Runner/Shot (g)</div>
-        <input type="number" id="bom-runner-wt" step="0.01" placeholder="8.5" oninput="bomCalcRegrind();bomEstimateCost()">
+        <input type="number" id="bom-runner-wt" step="0.01" placeholder="8.5" oninput="bomCalcRegrind();bomEstimateCost();bomUpdateFeederShotDisplay()">
       </div>
       <div class="form-group" style="margin:0">
         <div class="form-label" style="color:#39c5cf">♻️ % เศษบดที่ใช้กลับ</div>
