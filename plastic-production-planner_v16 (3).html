@@ -20694,6 +20694,99 @@ function _condScanClearPreview(mode){
   if(p){ p.style.display='none'; p.innerHTML=''; }
   _condScanPending[mode]=null;
 }
+function _condScanGetApiKey(){
+  try{
+    return (localStorage.getItem('_anthropicApiKey')
+      || localStorage.getItem('anthropic_api_key')
+      || window.ANTHROPIC_API_KEY
+      || '').trim();
+  }catch(e){
+    return '';
+  }
+}
+function _condScanExtractJsonText(text){
+  var clean=String(text||'').replace(/```json|```/gi,'').trim();
+  if(!clean) return null;
+  try{ return JSON.parse(clean); }catch(e){}
+  var s=clean.indexOf('{');
+  var e=clean.lastIndexOf('}');
+  if(s>=0 && e>s){
+    try{ return JSON.parse(clean.slice(s,e+1)); }catch(err){}
+  }
+  return null;
+}
+function _condScanEnsureTesseract(){
+  if(window.Tesseract) return Promise.resolve(window.Tesseract);
+  if(window._condTesseractLoadingPromise) return window._condTesseractLoadingPromise;
+  window._condTesseractLoadingPromise=new Promise(function(resolve,reject){
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload=function(){ resolve(window.Tesseract); };
+    s.onerror=function(){ reject(new Error('load tesseract failed')); };
+    document.head.appendChild(s);
+  });
+  return window._condTesseractLoadingPromise;
+}
+function _condScanGetParamsByMode(mode){
+  var params,prefix;
+  if(mode==='std'){
+    var s1=_condGetStdParamDefAndPrefix();
+    params=s1.params; prefix=s1.prefix;
+  }else{
+    var std=_condGetDailyStdRef();
+    if(!std) return {params:[], prefix:''};
+    if((std.brand||'general')==='toshiba'){ params=COND_PARAMS_TOSHIBA; prefix='tb_'; }
+    else if((std.brand||'general')==='nissei'){ params=COND_PARAMS_NISSEI; prefix='ns_'; }
+    else { params=COND_PARAMS; prefix=''; }
+  }
+  return {params:params, prefix:prefix};
+}
+function _condScanExtractRowsFromOcrText(text, mode){
+  var cfg=_condScanGetParamsByMode(mode);
+  var params=cfg.params||[];
+  var lines=String(text||'').split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+  var out=[];
+  params.forEach(function(p){
+    var id=p[0], label=p[1];
+    var aliases=[label,id];
+    if(id==='ip') aliases=aliases.concat(['v-p cngp','inj pressure','inject pressure','v-p']);
+    if(id==='is') aliases=aliases.concat(['veloc','velocity','inj speed','inject speed']);
+    if(id==='hp') aliases=aliases.concat(['hold p','hold pressure']);
+    if(id==='ht') aliases=aliases.concat(['hold tm','hold time']);
+    if(id==='bp') aliases=aliases.concat(['back pressure','bp1','bp2','bp3']);
+    if(id==='srpm') aliases=aliases.concat(['screw','rpm']);
+    if(id==='cyc') aliases=aliases.concat(['cycle','cyc']);
+    var hit=lines.find(function(line){
+      var n=_condNormLabel(line);
+      return aliases.some(function(a){ return n.indexOf(_condNormLabel(a))>=0; });
+    });
+    if(!hit) return;
+    var nums=(hit.match(/[-+]?\d*\.?\d+/g)||[]).map(function(n){ return parseFloat(n); }).filter(function(v){ return !isNaN(v); });
+    if(!nums.length) return;
+    var tolMatch=hit.match(/±\s*([-+]?\d*\.?\d+)/);
+    var tol=tolMatch ? parseFloat(tolMatch[1]) : null;
+    out.push({label:label, value:nums[0], tol:(isNaN(tol)?null:tol)});
+  });
+  return out;
+}
+function _condScanAnalyzePhotoLocal(dataUrl, mode){
+  _condScanSetStatus(mode,'⏳ กำลังสแกนด้วย Local OCR...', '#e3b341');
+  return _condScanEnsureTesseract()
+    .then(function(Tesseract){
+      return Tesseract.recognize(dataUrl,'eng',{ logger:function(){} });
+    })
+    .then(function(result){
+      var text=result?.data?.text||'';
+      var rows=_condScanExtractRowsFromOcrText(text, mode);
+      _condScanShowPreview(rows,mode);
+      if(rows.length===0){
+        _condScanSetStatus(mode,'⚠️ อ่านข้อความได้ แต่ยังจับคู่พารามิเตอร์ไม่สำเร็จ ลองครอปเฉพาะส่วนค่าที่ต้องการ', '#e3b341');
+      }
+    })
+    .catch(function(){
+      _condScanSetStatus(mode,'⚠️ สแกนไม่สำเร็จ: ทั้ง API และ Local OCR ใช้งานไม่ได้', '#f85149');
+    });
+}
 function _condNormLabel(s){
   return String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9ก-๙]/g,'');
 }
@@ -20772,9 +20865,15 @@ function _condScanAnalyzePhoto(dataUrl, mode){
   _condScanSetStatus(mode,'⏳ กำลังสแกนรูปและแปลงเป็นตัวเลข...');
   var base64=dataUrl.split(',')[1];
   var mediaType=dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
+  var apiKey=_condScanGetApiKey();
+  if(!apiKey) return _condScanAnalyzePhotoLocal(dataUrl,mode);
   fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01'
+    },
     body:JSON.stringify({
       model:'claude-sonnet-4-20250514',
       max_tokens:1200,
@@ -20787,30 +20886,28 @@ function _condScanAnalyzePhoto(dataUrl, mode){
       }]
     })
   })
-  .then(function(r){ return r.json(); })
+  .then(function(r){
+    return r.json().then(function(j){
+      if(!r.ok) throw new Error(j?.error?.message || ('HTTP '+r.status));
+      return j;
+    });
+  })
   .then(function(resp){
     var text=(resp.content||[]).map(function(c){return c.text||'';}).join('');
-    var clean=text.replace(/```json|```/g,'').trim();
-    var parsed=JSON.parse(clean);
+    var parsed=_condScanExtractJsonText(text);
+    if(!parsed) throw new Error('invalid ai json');
     var rows=Array.isArray(parsed?.rows)?parsed.rows:[];
+    if(!rows.length) throw new Error('empty ai rows');
     _condScanShowPreview(rows,mode);
   })
   .catch(function(){
-    _condScanSetStatus(mode,'⚠️ สแกนไม่สำเร็จ (เชื่อมต่อ AI ไม่ได้ หรือรูปไม่ชัด)', '#f85149');
+    _condScanSetStatus(mode,'⚠️ AI สแกนไม่สำเร็จ กำลังลอง Local OCR แทน...', '#e3b341');
+    _condScanAnalyzePhotoLocal(dataUrl,mode);
   });
 }
 function _condScanResolveRows(rows, mode){
-  var params,prefix;
-  if(mode==='std'){
-    var s1=_condGetStdParamDefAndPrefix();
-    params=s1.params; prefix=s1.prefix;
-  }else{
-    var std=_condGetDailyStdRef();
-    if(!std) return [];
-    if((std.brand||'general')==='toshiba'){ params=COND_PARAMS_TOSHIBA; prefix='tb_'; }
-    else if((std.brand||'general')==='nissei'){ params=COND_PARAMS_NISSEI; prefix='ns_'; }
-    else { params=COND_PARAMS; prefix=''; }
-  }
+  var conf=_condScanGetParamsByMode(mode);
+  var params=conf.params, prefix=conf.prefix;
   var aliasMap=_condBuildAliasMap(params,prefix);
   return (rows||[]).map(function(r){
     var rawLabel=String(r?.label||r?.name||r?.param||'').trim();
