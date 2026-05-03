@@ -6001,13 +6001,16 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="emp-filter-status" onchange="renderEmpList()">
           <option value="">ทุกสถานะ</option><option>ปกติ</option><option>ลา</option><option>ออก</option>
         </select>
+        <select id="emp-filter-zone" onchange="renderEmpList()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);max-width:200px" title="แยกตามโซนเครื่อง (จากฟิลด์ Zone หรือเครื่องหลักในทะเบียน)">
+          <option value="">ทุกโซน</option>
+        </select>
       </div>
       <div id="emp-summary" style="font-size:13px;color:var(--text2)"></div>
     </div>
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr>
         <th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>แผนก</th>
-        <th>ทักษะ</th><th>เครื่องหลัก</th><th>วันนี้</th><th>สถานะ</th><th>จัดการ</th>
+        <th>ทักษะ</th><th>โซน</th><th>เครื่องหลัก</th><th>วันนี้</th><th>สถานะ</th><th>จัดการ</th>
       </tr></thead>
       <tbody id="emp-tbody"></tbody>
     </table></div></div>
@@ -6032,19 +6035,23 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="card"><div class="tbl-wrap"><table>
       <thead><tr>
         <th>รหัส</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>กะ</th>
-        <th>สถานะ</th><th>เครื่องที่รับผิดชอบ</th><th>เวลาเข้า</th><th>เวลาออก</th><th>หมายเหตุ</th>
+        <th>สถานะ</th><th>เครื่องที่รับผิดชอบ</th><th>เวลาเข้า</th><th>หมายเหตุ</th>
       </tr></thead>
       <tbody id="att-tbody"></tbody>
     </table></div></div>
   </div>
   <!-- Tab: Machine Assignment -->
   <div id="tab-emp-machine" style="display:none">
-    <div class="card mb-3 flex justify-between items-center" style="padding:12px 16px">
+    <div class="card mb-3 flex justify-between items-center" style="padding:12px 16px;flex-wrap:wrap;gap:8px">
       <div>
         <span style="font-size:13px;font-weight:600">มอบหมายพนักงานประจำเครื่อง</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:6px">เลือกโซน → แสดงเครื่องในโซนนั้นทั้งหมด แล้วเลือกพนักงานกับเครื่องได้ทันที</span>
         <span id="mach-assign-date" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap items-center">
+        <select id="mach-assign-zone" onchange="renderMachineAssign()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text);max-width:200px" title="กรองเครื่องและรายชื่อพนักงานตามโซน">
+          <option value="">ทุกโซน</option>
+        </select>
         <input type="date" id="mach-assign-dt" onchange="renderMachineAssign()">
         <select id="mach-assign-shift" onchange="renderMachineAssign()">
           <option value="day">กะเช้า 08:00-20:00</option><option value="night">กะดึก 20:00-08:00</option>
@@ -6055,18 +6062,22 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <!-- Tab: Skill Matrix -->
   <div id="tab-emp-skills" style="display:none">
-    <div class="card mb-3 flex gap-2 items-center" style="padding:12px 16px">
+    <div class="card mb-3 flex gap-2 items-center flex-wrap" style="padding:12px 16px">
       <span style="font-size:13px;font-weight:600">📊 Skill Matrix ทักษะพนักงาน</span>
       <select id="skill-filter-dept" onchange="renderSkillMatrix()">
         <option value="">ทุกแผนก</option>
         <option>ฉีดพลาสติก</option><option>QC</option><option>ซ่อมบำรุง</option>
       </select>
+      <span style="font-size:11px;color:var(--text3);margin-left:4px">คะแนน 1–4 ต่อหัวข้อ (— = ยังไม่ประเมิน) แก้ไขได้ทุกช่อง บันทึกลงทะเบียนพนักงานอัตโนมัติ</span>
     </div>
     <div class="card" style="overflow-x:auto"><div id="skill-matrix-wrap"></div></div>
   </div>
 
   <!-- Tab: Org Chart -->
   <div id="tab-org-chart" style="display:none">
+    <div class="card mb-2" style="padding:10px 14px;font-size:12px;line-height:1.55;color:var(--text2);border-left:4px solid var(--accent2)">
+      <b>วิธีอ่านแผนผัง:</b> แต่ละกล่องใหญ่คือ <b>แผนก</b> หรือ <b>กลุ่มดูแลเครื่อง</b> (ตามตัวเลือกด้านบน) — ภายในแบ่งตาม <b>ระดับตำแหน่ง</b> (1–7) เพื่ออ่านง่าย <b>ไม่มีเส้นเชื่อมสายบังคับบัญชา</b> ระหว่างบุคคล
+    </div>
     <div class="card mb-3" style="padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:700">🏢 แผนผังองค์กร</span>
       <select id="org-dept-source" onchange="renderOrgChart()" style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;max-width:280px" title="เลือกว่าจะจัดคอลัมน์ตามแผนกในทะเบียนพนักงาน หรือตามกลุ่มเครื่องที่ตั้งในหน้าจัดกลุ่มแผนกดูแลเครื่อง">
@@ -6769,6 +6780,7 @@ function initEmployeeRegistry(){
         machine:e.machine||'',shift:e.shift||1,
         phone:'',startDate:'',
         skills:(e.skills||[]).join(','),
+        skillScores:'{}',
         zone:'',status:'active',remark:''
       };
     });
@@ -10235,6 +10247,9 @@ function empregSave(){
   };
   var idToFind=origId||newId;
   var idx2=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===idToFind;});
+  var prevEmp=idx2>=0?EMPLOYEE_REGISTRY[idx2]:null;
+  if(prevEmp&&prevEmp.skillScores) obj.skillScores=prevEmp.skillScores;
+  else obj.skillScores='{}';
   if(idx2>=0) EMPLOYEE_REGISTRY[idx2]=obj; else EMPLOYEE_REGISTRY.push(obj);
   saveEmployeeRegistry();
   if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
@@ -17846,38 +17861,102 @@ function kpiTableAddRow(){
 }
 
 function kpiTableFillFromData(){
-  var year=parseInt(document.getElementById('kpi-year')?.value||new Date().getFullYear());
+  var year=parseInt(document.getElementById('kpi-year')?.value||new Date().getFullYear(),10);
   if(!_kpiTableData[year]) _kpiTableData[year]={};
-  // Fill from daily reports
-  var months={};
+  var yStr=String(year);
+
+  function ensureKey(k){ if(!_kpiTableData[year][k]) _kpiTableData[year][k]={}; }
+  function setVal(key,m,v){
+    ensureKey(key);
+    if(v==null||v===''||isNaN(v)) return;
+    _kpiTableData[year][key][m]=v;
+  }
+  function setAliases(keys,m,v){
+    keys.forEach(function(k){ setVal(String(k||'').toLowerCase(),m,v); setVal(String(k||'').toUpperCase(),m,v); });
+  }
+
+  var mAgg={};
+  for(var mm=1; mm<=12; mm++) mAgg[mm]={ok:0,target:0,produced:0,ng:0,lt:0,effRows:0,effSum:0,ngCost:0};
+
   Object.values(dailyReports||{}).forEach(function(r){
-    if(!r.date||!r.date.startsWith(year)) return;
-    var m=parseInt(r.date.split('-')[1]);
-    if(!months[m]) months[m]={eff:[],ng:[],output:0};
-    if(r.eff) months[m].eff.push(r.eff);
-    if(r.ng!=null&&r.produced) months[m].ng.push(r.produced>0?(r.ng/r.produced*100):0);
-    months[m].output+=(r.produced||0);
+    if(!r||!r.date||r.date.slice(0,4)!==yStr) return;
+    var m=parseInt(r.date.slice(5,7),10); if(!mAgg[m]) return;
+    var t=typeof _dashRptRowTotals==='function'?_dashRptRowTotals(r):{ok:0,target:0,produced:(r.produced||0),ng:(r.ng||0),ltMins:(r.lt||0)};
+    mAgg[m].ok+=t.ok||0;
+    mAgg[m].target+=t.target||0;
+    mAgg[m].produced+=t.produced||0;
+    mAgg[m].ng+=t.ng||0;
+    mAgg[m].lt+=t.ltMins||0;
+    mAgg[m].ngCost+=(t.ng||0)*50;
+    if(r.eff){ mAgg[m].effRows++; mAgg[m].effSum+=parseFloat(r.eff)||0; }
   });
-  Object.keys(months).forEach(function(m){
-    var mo=months[m];
-    if(!_kpiTableData[year].eff) _kpiTableData[year].eff={};
-    if(!_kpiTableData[year].ng) _kpiTableData[year].ng={};
-    if(!_kpiTableData[year].output) _kpiTableData[year].output={};
-    if(mo.eff.length) _kpiTableData[year].eff[m]=(mo.eff.reduce(function(a,b){return a+b;},0)/mo.eff.length).toFixed(1);
-    if(mo.ng.length) _kpiTableData[year].ng[m]=(mo.ng.reduce(function(a,b){return a+b;},0)/mo.ng.length).toFixed(2);
-    if(mo.output) _kpiTableData[year].output[m]=mo.output;
+
+  for(var m2=1; m2<=12; m2++){
+    var a=mAgg[m2];
+    var eff=a.target>0?(a.ok/a.target*100):(a.effRows>0?a.effSum/a.effRows:0);
+    var ngPct=a.produced>0?(a.ng/a.produced*100):0;
+    var ppm=a.produced>0?Math.round(a.ng/a.produced*1000000):0;
+    var dtHr=a.lt/60;
+    setAliases(['eff','oee'],m2,+eff.toFixed(1));
+    setAliases(['ng'],m2,+ngPct.toFixed(2));
+    setAliases(['ppm'],m2,ppm);
+    setAliases(['output','qty','prod'],m2,Math.round(a.produced));
+    setAliases(['downtime','loss','loss_time'],m2,+dtHr.toFixed(2));
+    setAliases(['ngcost','cost_ng','ng_cost'],m2,Math.round(a.ngCost));
+  }
+
+  var otdByMonth={};
+  (orders||[]).forEach(function(o){
+    if(!o||!o.dueDate||String(o.dueDate).slice(0,4)!==yStr) return;
+    var m=parseInt(String(o.dueDate).slice(5,7),10); if(!m) return;
+    if(!otdByMonth[m]) otdByMonth[m]={on:0,total:0};
+    var done=(o.status==='พร้อมส่ง'||o.status==='ส่งแล้ว'||o.status==='เสร็จแล้ว'||((o.produced||0)>=(o.qty||0)&&o.qty>0));
+    var onTime=done && (!o.endDate || String(o.endDate)<=String(o.dueDate));
+    otdByMonth[m].total++;
+    if(onTime) otdByMonth[m].on++;
   });
-  // Fill stock from current
-  var now=new Date().getMonth()+1;
-  var totalRaw=Object.values(rawMatStock||{}).reduce(function(s,v){return s+(v.qty||0);},0);
-  var totalFG=Object.values(fgStock||{}).reduce(function(s,v){return s+(v.qty||0);},0);
-  if(!_kpiTableData[year].rawmatStock) _kpiTableData[year].rawmatStock={};
-  if(!_kpiTableData[year].fgStock) _kpiTableData[year].fgStock={};
-  _kpiTableData[year].rawmatStock[now]=Math.round(totalRaw);
-  _kpiTableData[year].fgStock[now]=Math.round(totalFG);
+  Object.keys(otdByMonth).forEach(function(m){
+    var x=otdByMonth[m];
+    var otd=x.total>0?(x.on/x.total*100):0;
+    setAliases(['otd','delivery','ontime'],parseInt(m,10),+otd.toFixed(1));
+  });
+
+  var rgByMonth={};
+  Object.entries(rgStock||{}).forEach(function(e){ rgByMonth[e[0]]=e[1]; });
+  Object.values(rgLedger||[]).forEach(function(tx){
+    if(!tx||!tx.date||String(tx.date).slice(0,4)!==yStr) return;
+    var m=parseInt(String(tx.date).slice(5,7),10);
+    if(!m) return;
+    if(!_kpiTableData[year].regrind) _kpiTableData[year].regrind={};
+    _kpiTableData[year].regrind[m]=(_kpiTableData[year].regrind[m]||0)+Math.abs(parseFloat(tx.qty)||0);
+  });
+
+  var actionByMonth={};
+  (actionPlans||[]).forEach(function(ap){
+    var d=ap.createdAt||ap.createdDate||ap.date||ap.openDate||'';
+    if(String(d).slice(0,4)!==yStr) return;
+    var m=parseInt(String(d).slice(5,7),10); if(!m) return;
+    actionByMonth[m]=(actionByMonth[m]||0)+1;
+  });
+  Object.keys(actionByMonth).forEach(function(m){ setAliases(['action','actionplan','ap'],parseInt(m,10),actionByMonth[m]); });
+
+  var now=new Date();
+  if(now.getFullYear()===year){
+    var curM=now.getMonth()+1;
+    var totalRaw=Object.values(rawMatStock||{}).reduce(function(s,v){return s+(v.qty||0);},0);
+    var totalFG=Object.values(fgStock||{}).reduce(function(s,v){return s+(v.qty||0);},0);
+    var headcount=(EMPLOYEE_REGISTRY||[]).filter(function(e){
+      var st=String(e.status||'active').toLowerCase();
+      return st!=='inactive'&&st!=='resigned'&&st!=='ออก';
+    }).length;
+    setAliases(['rawmatstock','rawmat','rm_stock'],curM,Math.round(totalRaw));
+    setAliases(['fgstock','fg','fg_stock'],curM,Math.round(totalFG));
+    setAliases(['manpower','employee','headcount'],curM,headcount);
+  }
+
   localStorage.setItem('_kpiTableData',JSON.stringify(_kpiTableData));
   kpiTableRender();
-  if(typeof _toast==='function') _toast('🔄 ดึงข้อมูลจากระบบแล้ว — ตรวจสอบและแก้ไขได้');
+  if(typeof _toast==='function') _toast('🔄 ดึง KPI อัตโนมัติจากข้อมูลเมนูต่างๆ และบันทึกแล้ว');
 }
 
 function kpiTablePrint(){
@@ -17994,6 +18073,8 @@ var _DASH_CHARTS = [
   {id:'chart-fg',      label:'🏪 FG Stock (ชิ้น)',        color:'#39c5cf'},
   {id:'chart-regrind', label:'♻️ Stock เศษบด (kg)',        color:'#39c5cf'},
   {id:'chart-orders',  label:'📋 จำนวน Orders',           color:'#388bfd'},
+  {id:'chart-manpower',label:'👷 กำลังคนตามทะเบียน',      color:'#56d364'},
+  {id:'chart-compare', label:'🆚 เปรียบเทียบย้อนหลัง',     color:'#a371f7'},
 ];
 
 var _dashActiveCharts = JSON.parse(localStorage.getItem('_dashCharts')||'null');
@@ -18130,6 +18211,9 @@ function _dashAggData(key, range){
     if(jobF&&(r.jobName||'')!==jobF) return false;
     return true;
   });
+  if(key==='manpower'){
+    return _dashManpowerSeries(range);
+  }
   if(!reports.length) return {labels:[], values:[]};
 
   function bucketInit(){
@@ -18157,6 +18241,20 @@ function _dashAggData(key, range){
         g.sumLt+=row.ltMins||0;
       });
     });
+  } else if(range.groupBy==='day'){
+    var fromD=new Date(range.from+'T00:00:00');
+    var toD=new Date(range.to+'T00:00:00');
+    for(var d=new Date(fromD); d<=toD; d.setDate(d.getDate()+1)){
+      var gk=d.toISOString().slice(0,10);
+      groups[gk]=bucketInit();
+    }
+    reports.forEach(function(rpt){
+      var gk=rpt.date;
+      if(!groups[gk]) groups[gk]=bucketInit();
+      var t=_dashRptRowTotals(rpt);
+      var g=groups[gk];
+      g.sumP+=t.produced; g.sumN+=t.ng; g.sumT+=t.target; g.sumOk+=t.ok; g.sumLt+=t.ltMins;
+    });
   } else {
     reports.forEach(function(rpt){
       var gk=range.groupBy==='month'?rpt.date.substring(0,7):rpt.date;
@@ -18170,7 +18268,10 @@ function _dashAggData(key, range){
   var sorted=Object.keys(groups).sort();
   var labels=sorted.map(function(k){
     if(k.length===7&&k.indexOf(':')<0){ var p=k.split('-'); return thM[+p[1]]+' '+p[0]; }
-    if(k.length===10){ return k.substring(5).replace('-','/'); }
+    if(k.length===10){
+      if(range.groupBy==='day' && _dashChartPeriod==='month') return String(parseInt(k.slice(8,10),10));
+      return k.substring(5).replace('-','/');
+    }
     return k;
   });
   var values=sorted.map(function(k){
@@ -18205,6 +18306,103 @@ function _dashStockData(key, range){
   return {labels:[], values:[]};
 }
 
+function _dashFindKpiTarget(code, fallback){
+  var def=(typeof _KPI_COLS!=='undefined'?_KPI_COLS:[]).find(function(k){ return String(k.key||'').toLowerCase()===String(code||'').toLowerCase(); });
+  var byCode=(KPI_TARGETS||[]).find(function(k){ return String(k.code||'').toLowerCase()===String(code||'').toLowerCase() && k.status!=='inactive'; });
+  var t=byCode&&byCode.target!=null?parseFloat(byCode.target):(def&&def.target!=null?parseFloat(def.target):fallback);
+  return isNaN(t)?fallback:t;
+}
+
+function _dashGetCurrentHeadcount(){
+  var src=(EMPLOYEE_REGISTRY&&EMPLOYEE_REGISTRY.length)?EMPLOYEE_REGISTRY:(employees||[]);
+  return src.filter(function(e){
+    var s=String(e.status||'active').toLowerCase();
+    return s!=='inactive'&&s!=='resigned'&&s!=='ออก';
+  }).length;
+}
+
+function _dashHeadcountAt(dateStr){
+  var src=(EMPLOYEE_REGISTRY&&EMPLOYEE_REGISTRY.length)?EMPLOYEE_REGISTRY:(employees||[]);
+  var d=new Date((dateStr||'')+'T23:59:59');
+  return src.filter(function(e){
+    var st=String(e.status||'active').toLowerCase();
+    if(st==='inactive'||st==='resigned'||st==='ออก') return false;
+    if(e.startDate){
+      var sd=new Date(e.startDate+'T00:00:00');
+      if(!isNaN(sd)&&sd>d) return false;
+    }
+    return true;
+  }).length;
+}
+
+function _dashManpowerSeries(range){
+  var labels=[], values=[];
+  if(_dashChartPeriod==='month'){
+    var y=parseInt(range.from.slice(0,4),10), m=parseInt(range.from.slice(5,7),10);
+    var last=new Date(y,m,0).getDate();
+    for(var d=1; d<=last; d++){
+      var ds=range.from.slice(0,7)+'-'+String(d).padStart(2,'0');
+      labels.push(String(d));
+      values.push(_dashHeadcountAt(ds));
+    }
+  } else if(_dashChartPeriod==='year'){
+    var yr=parseInt(range.from.slice(0,4),10);
+    var th=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    for(var mo=1; mo<=12; mo++){
+      var d2=yr+'-'+String(mo).padStart(2,'0')+'-'+String(new Date(yr,mo,0).getDate()).padStart(2,'0');
+      labels.push(th[mo-1]);
+      values.push(_dashHeadcountAt(d2));
+    }
+  } else if(range.groupBy==='day'){
+    var fr=new Date(range.from+'T00:00:00'), to=new Date(range.to+'T00:00:00');
+    for(var cur=new Date(fr); cur<=to; cur.setDate(cur.getDate()+1)){
+      var ds=cur.toISOString().slice(0,10);
+      labels.push(ds.slice(5).replace('-','/'));
+      values.push(_dashHeadcountAt(ds));
+    }
+  } else if(range.groupBy==='hour'){
+    labels=[range.from.slice(5).replace('-','/')];
+    values=[_dashHeadcountAt(range.from)];
+  }
+  return {labels:labels, values:values};
+}
+
+function _dashCompareSeries(range){
+  var p=_dashChartPeriod;
+  var labels=[], current=[], previous=[];
+  if(p==='month'){
+    var ym=(document.getElementById('dcp-month-val')||{}).value||new Date().toISOString().slice(0,7);
+    var y=parseInt(ym.slice(0,4),10), m=parseInt(ym.slice(5,7),10);
+    var py=y, pm=m-1; if(pm<1){ pm=12; py--; }
+    var last=Math.max(new Date(y,m,0).getDate(), new Date(py,pm,0).getDate());
+    for(var d=1; d<=last; d++){
+      labels.push(String(d));
+      var dCur=ym+'-'+String(d).padStart(2,'0');
+      var dPrev=py+'-'+String(pm).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var cAgg=_dashAggData('output',{from:dCur,to:dCur,label:dCur,groupBy:'day'});
+      var pAgg=_dashAggData('output',{from:dPrev,to:dPrev,label:dPrev,groupBy:'day'});
+      current.push((cAgg.values&&cAgg.values[0])||0);
+      previous.push((pAgg.values&&pAgg.values[0])||0);
+    }
+    return {labels:labels, current:current, previous:previous, currentLabel:ym, previousLabel:(py+'-'+String(pm).padStart(2,'0'))};
+  }
+  var yr=(document.getElementById('dcp-year-val')||{}).value||String(new Date().getFullYear());
+  var py2=String(parseInt(yr,10)-1);
+  var th=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  for(var mo=1; mo<=12; mo++){
+    labels.push(th[mo-1]);
+    var fr1=yr+'-'+String(mo).padStart(2,'0')+'-01';
+    var to1=yr+'-'+String(mo).padStart(2,'0')+'-'+String(new Date(parseInt(yr,10),mo,0).getDate()).padStart(2,'0');
+    var fr2=py2+'-'+String(mo).padStart(2,'0')+'-01';
+    var to2=py2+'-'+String(mo).padStart(2,'0')+'-'+String(new Date(parseInt(py2,10),mo,0).getDate()).padStart(2,'0');
+    var a1=_dashAggData('output',{from:fr1,to:to1,label:'',groupBy:'day'});
+    var a2=_dashAggData('output',{from:fr2,to:to2,label:'',groupBy:'day'});
+    current.push((a1.values||[]).reduce(function(s,v){return s+(v||0);},0));
+    previous.push((a2.values||[]).reduce(function(s,v){return s+(v||0);},0));
+  }
+  return {labels:labels, current:current, previous:previous, currentLabel:yr, previousLabel:py2};
+}
+
 // Render all selected charts as bar charts using canvas
 function renderDashCharts(){
   var chartsGrid=document.getElementById('dash-charts-grid');
@@ -18222,6 +18420,8 @@ function renderDashCharts(){
     'chart-fg':     {key:'fg',      label:'FG Stock',         color:'#39c5cf', unit:'ชิ้น', isStock:true},
     'chart-regrind':{key:'regrind', label:'Stock เศษบด',      color:'#39c5cf', unit:'kg', isStock:true},
     'chart-orders': {key:'orders',  label:'Orders',           color:'#388bfd', unit:'', isStock:true},
+    'chart-manpower': {key:'manpower', label:'กำลังคนตามทะเบียน', color:'#56d364', unit:'คน', isStock:false},
+    'chart-compare': {key:'compare', label:'เปรียบเทียบย้อนหลัง', color:'#79c0ff', unit:'ชิ้น', isStock:false, compare:true},
   };
 
   if(!_dashActiveCharts.length){
@@ -18236,7 +18436,7 @@ function renderDashCharts(){
         +'<span style="font-size:13px;font-weight:700;color:'+def.color+'">'+def.label+(def.unit?' ('+def.unit+')':'')+'</span>'
         +'<span style="font-size:10px;color:var(--text3)">'+range.label+'</span>'
       +'</div>'
-      +'<canvas id="dchart-'+cid+'" height="160" style="width:100%;display:block"></canvas>'
+      +'<canvas id="dchart-'+cid+'" height="168" style="width:100%;display:block"></canvas>'
       +'<div id="dchart-nodata-'+cid+'" style="display:none;text-align:center;padding:30px;color:var(--text3);font-size:11px">ไม่มีข้อมูลในช่วงที่เลือก</div>'
     +'</div>';
   }).join('');
@@ -18244,32 +18444,45 @@ function renderDashCharts(){
   function _dashDrawAllCharts(){
     _dashActiveCharts.forEach(function(cid){
       var def=chartDefs[cid]; if(!def) return;
-      var data=def.isStock?_dashStockData(def.key, range):_dashAggData(def.key, range);
+      var data=def.compare?_dashCompareSeries(range):(def.isStock?_dashStockData(def.key, range):_dashAggData(def.key, range));
       var canvas=document.getElementById('dchart-'+cid);
       var nodata=document.getElementById('dchart-nodata-'+cid);
       if(!canvas) return;
-      if(!data.values.length){
+      var noData=def.compare?(!data.current||!data.current.length):(!data.values||!data.values.length);
+      if(noData){
         canvas.style.display='none';
         if(nodata) nodata.style.display='block';
         return;
       }
       canvas.style.display='block';
       if(nodata) nodata.style.display='none';
-      _drawBarChart(canvas, data.labels, data.values, def.color, def.unit);
+      if(def.compare){
+        _drawCompareBarChart(canvas, data.labels, data.current, data.previous, data.currentLabel, data.previousLabel);
+      }else{
+        var targetVal=_dashFindKpiTarget(def.key, null);
+        if(targetVal==null){
+          var targetMap={eff:85,ng:0.5,ppm:5000,downtime:0};
+          targetVal=targetMap[def.key];
+        }
+        _drawBarChart(canvas, data.labels, data.values, def.color, def.unit, targetVal);
+      }
     });
   }
   setTimeout(_dashDrawAllCharts, 40);
   requestAnimationFrame(function(){ requestAnimationFrame(_dashDrawAllCharts); });
   setTimeout(_dashDrawAllCharts, 220);
   setTimeout(_dashDrawAllCharts, 600);
+  setTimeout(function(){
+    if(typeof dashRefreshWidgetsFromPeriod==='function') dashRefreshWidgetsFromPeriod();
+  }, 20);
 }
 
 // Draw bar chart on canvas without external library
-function _drawBarChart(canvas, labels, values, color, unit){
+function _drawBarChart(canvas, labels, values, color, unit, targetVal){
   var par=canvas.parentElement;
   var rectW=par?par.getBoundingClientRect().width:0;
   var W=Math.max(280, Math.floor(rectW>40?rectW-28:(canvas.offsetWidth||400)));
-  var H=160;
+  var H=168;
   canvas.width=W; canvas.height=H;
   var ctx=canvas.getContext('2d');
   if(!ctx) return;
@@ -18278,9 +18491,9 @@ function _drawBarChart(canvas, labels, values, color, unit){
   var gridColor=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
   var bgColor=isDark?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.02)';
   ctx.clearRect(0,0,W,H);
-  var padL=38, padR=8, padT=8, padB=32;
+  var padL=38, padR=8, padT=10, padB=34;
   var cW=W-padL-padR, cH=H-padT-padB;
-  var maxV=Math.max(...values,1);
+  var maxV=Math.max(...values,1,(typeof targetVal==='number'&&!isNaN(targetVal)?targetVal:1));
   var minV=Math.min(0,...values);
   var range=maxV-minV||1;
   // Grid lines
@@ -18318,12 +18531,60 @@ function _drawBarChart(canvas, labels, values, color, unit){
     // X label
     ctx.fillStyle=textColor; ctx.font='9px sans-serif'; ctx.textAlign='center';
     var lbl=labels[i]||'';
-    if(lbl.length>5) lbl=lbl.substring(0,5);
+    if(lbl.length>6) lbl=lbl.substring(0,6);
     ctx.fillText(lbl, x+barW/2, H-padB+12);
   });
+  if(typeof targetVal==='number' && !isNaN(targetVal)){
+    var ty=padT+cH-((targetVal-minV)/range)*cH;
+    if(ty>=padT && ty<=padT+cH){
+      ctx.setLineDash([5,3]);
+      ctx.strokeStyle='#e3b341';
+      ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(padL,ty); ctx.lineTo(padL+cW,ty); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#e3b341';
+      ctx.font='9px sans-serif';
+      ctx.textAlign='left';
+      ctx.fillText('เป้า '+targetVal, padL+2, ty-3);
+    }
+  }
   // Y axis line
   ctx.strokeStyle=gridColor; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,padT+cH); ctx.stroke();
+}
+
+function _drawCompareBarChart(canvas, labels, valsA, valsB, labelA, labelB){
+  var par=canvas.parentElement;
+  var rectW=par?par.getBoundingClientRect().width:0;
+  var W=Math.max(300, Math.floor(rectW>40?rectW-28:(canvas.offsetWidth||420)));
+  var H=170;
+  canvas.width=W; canvas.height=H;
+  var ctx=canvas.getContext('2d'); if(!ctx) return;
+  var textColor='#8b949e', gridColor='rgba(255,255,255,0.08)';
+  ctx.clearRect(0,0,W,H);
+  var padL=38,padR=8,padT=14,padB=34;
+  var cW=W-padL-padR,cH=H-padT-padB;
+  var maxV=Math.max(1, ...(valsA||[]), ...(valsB||[]));
+  for(var i=0;i<=4;i++){
+    var y=padT+cH*(1-i/4), v=maxV*i/4;
+    ctx.strokeStyle=gridColor; ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+cW,y); ctx.stroke();
+    ctx.fillStyle=textColor; ctx.font='9px sans-serif'; ctx.textAlign='right'; ctx.fillText(v>=1000?Math.round(v/1000)+'k':Math.round(v), padL-3, y+3);
+  }
+  var n=labels.length||1, slot=cW/n, bw=Math.max(3,Math.min(16,slot*0.35));
+  for(var j=0;j<n;j++){
+    var x=padL+j*slot+slot*0.15;
+    var a=(valsA[j]||0), b=(valsB[j]||0);
+    var ah=(a/maxV)*cH, bh=(b/maxV)*cH;
+    ctx.fillStyle='#79c0ff'; ctx.fillRect(x, padT+cH-ah, bw, ah);
+    ctx.fillStyle='#a371f7'; ctx.fillRect(x+bw+2, padT+cH-bh, bw, bh);
+    ctx.fillStyle=textColor; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    var lb=labels[j]||''; if(lb.length>6) lb=lb.slice(0,6);
+    ctx.fillText(lb, x+bw, H-20);
+  }
+  ctx.fillStyle='#79c0ff'; ctx.fillRect(padL, 2, 8, 8);
+  ctx.fillStyle=textColor; ctx.font='9px sans-serif'; ctx.textAlign='left'; ctx.fillText(labelA||'Current', padL+11, 9);
+  ctx.fillStyle='#a371f7'; ctx.fillRect(padL+86, 2, 8, 8);
+  ctx.fillStyle=textColor; ctx.fillText(labelB||'Previous', padL+99, 9);
 }
 
 
@@ -18355,14 +18616,16 @@ function renderDashboard(){
   if(sec) sec.style.display=_dashActiveCharts.length>0?'block':'none';
   if(_dashActiveCharts.length>0) renderDashCharts();
 
+  dashRefreshWidgetsFromPeriod();
+}
+
+function dashRefreshWidgetsFromPeriod(){
   var area=document.getElementById('dash-widget-area');
   if(!area) return;
-
   if(_dashActiveWidgets.length===0){
     area.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text3)"><div style="font-size:40px;margin-bottom:12px">📊</div><div style="font-size:14px">ยังไม่มี Widget ที่เลือก</div><button onclick="dashEditWidgets()" style="margin-top:12px;padding:8px 20px;background:var(--accent);border:none;color:#fff;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">⚙️ เลือก Widget</button></div>';
     return;
   }
-
   area.innerHTML=_dashActiveWidgets.map(function(id){
     var w=_DASH_WIDGETS.find(function(x){return x.id===id;});
     if(!w) return '';
@@ -18511,10 +18774,22 @@ function dashWidgetMachines(){
   return _dashWidgetCard('⚙️ สถานะเครื่องจักร (จากรายงานผลิต)',html);
 }
 
+function _dashWidgetRange(){
+  var p=_dashChartPeriod||'month';
+  var r=_dashGetDateRange();
+  if(p==='day') return {from:r.from,to:r.to,label:r.label};
+  if(p==='month') return {from:r.from,to:r.to,label:(document.getElementById('dcp-month-val')?.value||r.from.slice(0,7))};
+  if(p==='year') return {from:r.from,to:r.to,label:String(document.getElementById('dcp-year-val')?.value||r.from.slice(0,4))};
+  return {from:r.from,to:r.to,label:r.label};
+}
+
+function _dashIsInRange(dateStr, range){
+  return !!dateStr && dateStr>=range.from && dateStr<=range.to;
+}
+
 function dashWidgetKPI(){
-  var today=new Date().toISOString().split('T')[0];
-  var month=today.substring(0,7);
-  var rpts=Object.values(dailyReports||{}).filter(function(r){return r.date&&r.date.startsWith(month);});
+  var wr=_dashWidgetRange();
+  var rpts=Object.values(dailyReports||{}).filter(function(r){return _dashIsInRange(r.date,wr);});
   var tw={sumOk:0,sumT:0,sumP:0,sumN:0};
   rpts.forEach(function(r){
     var t=typeof _dashRptRowTotals==='function'?_dashRptRowTotals(r):{ok:0,target:0,produced:0,ng:0};
@@ -18524,13 +18799,14 @@ function dashWidgetKPI(){
   var totalNG=tw.sumN;
   var totalProd=tw.sumP;
   var ppm=totalProd>0?Math.round(totalNG/totalProd*1000000):0;
+  var effNum=(isFinite(avgEff)?avgEff:0).toFixed(1);
   var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +'<div style="background:rgba(63,185,80,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#3fb950">'+avgEff.toFixed(1)+'%</div><div style="font-size:10px;color:var(--text3)">EFF เฉลี่ย</div></div>'
+    +'<div style="background:rgba(63,185,80,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#3fb950">'+effNum+'%</div><div style="font-size:10px;color:var(--text3)">EFF เฉลี่ย</div></div>'
     +'<div style="background:rgba(248,81,73,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f85149">'+ppm.toLocaleString()+'</div><div style="font-size:10px;color:var(--text3)">PPM</div></div>'
     +'<div style="background:rgba(56,139,253,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:800;color:#388bfd">'+totalProd.toLocaleString()+'</div><div style="font-size:10px;color:var(--text3)">ผลผลิต (ชิ้น)</div></div>'
     +'<div style="background:rgba(227,179,65,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:800;color:#e3b341">'+totalNG.toLocaleString()+'</div><div style="font-size:10px;color:var(--text3)">NG (ชิ้น)</div></div>'
     +'</div>';
-  return _dashWidgetCard('🎯 KPI เดือนนี้ ('+month+')',html);
+  return _dashWidgetCard('🎯 KPI ('+wr.label+')',html);
 }
 
 function dashWidgetRegrind(){
@@ -18630,8 +18906,8 @@ function dashWidgetDelivery(){
 }
 
 function dashWidgetNG(){
-  var month=new Date().toISOString().substring(0,7);
-  var rpts=Object.values(dailyReports||{}).filter(function(r){return r.date&&r.date.startsWith(month);});
+  var wr=_dashWidgetRange();
+  var rpts=Object.values(dailyReports||{}).filter(function(r){return _dashIsInRange(r.date,wr);});
   var totalNG=0,totalProd=0;
   rpts.forEach(function(r){
     var t=typeof _dashRptRowTotals==='function'?_dashRptRowTotals(r):{produced:0,ng:0};
@@ -18643,16 +18919,16 @@ function dashWidgetNG(){
     +'<div style="background:rgba(248,81,73,0.08);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:#f85149">'+ngPct.toFixed(2)+'%</div><div style="font-size:10px;color:var(--text3)">%NG</div></div>'
     +'<div style="background:rgba(248,81,73,0.08);border-radius:8px;padding:10px"><div style="font-size:22px;font-weight:800;color:#f85149">'+ppm.toLocaleString()+'</div><div style="font-size:10px;color:var(--text3)">PPM</div></div>'
     +'</div>';
-  return _dashWidgetCard('🔴 NG & PPM เดือนนี้ ('+month+')',html);
+  return _dashWidgetCard('🔴 NG & PPM ('+wr.label+')',html);
 }
 
 // ── ⏱ Loss Time วันนี้ ─────────────────────────────────────────
 function dashWidgetLossTime(){
-  var today=new Date().toISOString().split('T')[0];
+  var wr=_dashWidgetRange();
   // Collect all loss time from today's reports
   var ltByReason={}, ltByMachine={}, totalLT=0;
   Object.values(dailyReports||{}).forEach(function(rpt){
-    if(!rpt.date||!rpt.date.startsWith(today)) return;
+    if(!_dashIsInRange(rpt.date,wr)) return;
     var mach=rpt.machine||'—';
     (rpt.rows||[]).forEach(function(row){
       var lt=row.ltMins||0; if(!lt) return;
@@ -18698,19 +18974,18 @@ function dashWidgetLossTime(){
     }).join('')+'</div>';
   }
   if(!topReasons.length&&!topMachines.length){
-    html+='<div style="color:#3fb950;font-size:12px;text-align:center;padding:10px">✅ ไม่มี Loss Time บันทึกวันนี้</div>';
+    html+='<div style="color:#3fb950;font-size:12px;text-align:center;padding:10px">✅ ไม่มี Loss Time ในช่วงที่เลือก</div>';
   }
-  return _dashWidgetCard('⏱ Loss Time วันนี้',html,
+  return _dashWidgetCard('⏱ Loss Time ('+wr.label+')',html,
     totalLT>0?'<span style="background:rgba(163,113,247,0.2);color:#a371f7;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+totalHr+' ชม.</span>':'');
 }
 
 // ── 🔬 อาการเสีย NG Defects ────────────────────────────────────
 function dashWidgetNGDefect(){
-  var today=new Date().toISOString().split('T')[0];
-  var month=today.substring(0,7);
+  var wr=_dashWidgetRange();
   var defectMap={};
   Object.values(dailyReports||{}).forEach(function(rpt){
-    if(!rpt.date||!rpt.date.startsWith(month)) return;
+    if(!_dashIsInRange(rpt.date,wr)) return;
     (rpt.rows||[]).forEach(function(row){
       // ngItems array (detailed)
       (row.ngItems||[]).forEach(function(n){
@@ -18739,9 +19014,9 @@ function dashWidgetNGDefect(){
       +'<span style="font-size:10px;font-weight:700;color:'+col+';min-width:40px;text-align:right">'+e[1].toLocaleString()+' ชิ้น</span>'
     +'</div>';
   }).join('')
-  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:12px">✅ ไม่มี NG บันทึกเดือนนี้</div>';
+  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:12px">✅ ไม่มี NG ในช่วงที่เลือก</div>';
 
-  return _dashWidgetCard('🔬 อาการเสีย ('+month+')',html,
+  return _dashWidgetCard('🔬 อาการเสีย ('+wr.label+')',html,
     total>0?'<span style="background:rgba(248,81,73,0.15);color:#f85149;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+total.toLocaleString()+' ชิ้น</span>':'');
 }
 
@@ -18893,11 +19168,11 @@ function dashWidgetActionPlan(){
 
 // ── 🏆 Top 10 PPM สูงสุด (งานเสียเยอะที่สุด) ──────────────────
 function dashWidgetTop10NG(){
-  var month=new Date().toISOString().substring(0,7);
+  var wr=_dashWidgetRange();
   // Aggregate PPM by job (jobName) from daily reports this month
   var jobMap={}; // {jobName: {produced, ng}}
   Object.values(dailyReports||{}).forEach(function(rpt){
-    if(!rpt.date||!rpt.date.startsWith(month)) return;
+    if(!_dashIsInRange(rpt.date,wr)) return;
     var job=rpt.jobName||rpt.job||'';
     if(!job) return;
     if(!jobMap[job]) jobMap[job]={produced:0,ng:0,machine:rpt.machine||'—'};
@@ -18952,21 +19227,21 @@ function dashWidgetTop10NG(){
         +'</td>'
       +'</tr>';
     }).join('')+'</tbody></table>'
-  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:20px">✅ ไม่มีข้อมูล NG เดือนนี้</div>';
+  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:20px">✅ ไม่มีข้อมูล NG ในช่วงที่เลือก</div>';
 
   return _dashWidgetCard(
-    '🏆 Top 10 PPM สูงสุด ('+month+')', html,
+    '🏆 Top 10 PPM สูงสุด ('+wr.label+')', html,
     ranked.length?'<span style="background:rgba(248,81,73,0.15);color:#f85149;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Worst: '+ranked[0]?.ppm?.toLocaleString()+' ppm</span>':''
   );
 }
 
 // ── 📉 Top 10 OEE ต่ำสุด ──────────────────────────────────────
 function dashWidgetTop10OEE(){
-  var month=new Date().toISOString().substring(0,7);
+  var wr=_dashWidgetRange();
   // Aggregate EFF/OEE by job from daily reports this month
   var jobMap={}; // {jobName: {effSum, count, machine, produced, downtime}}
   Object.values(dailyReports||{}).forEach(function(rpt){
-    if(!rpt.date||!rpt.date.startsWith(month)) return;
+    if(!_dashIsInRange(rpt.date,wr)) return;
     var job=rpt.jobName||rpt.job||'';
     if(!job) return;
     if(!jobMap[job]) jobMap[job]={effSum:0,count:0,machine:rpt.machine||'—',produced:0,ng:0,lt:0};
@@ -19032,10 +19307,10 @@ function dashWidgetTop10OEE(){
       +'</tr>';
     }).join('')+'</tbody></table>'
     +'<div style="font-size:9px;color:var(--text3);margin-top:6px;text-align:right">เส้นเหลือง = เป้า '+target+'% | เรียงจากต่ำสุด</div>'
-  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:20px">✅ ไม่มีข้อมูล OEE เดือนนี้</div>';
+  :'<div style="color:#3fb950;font-size:12px;text-align:center;padding:20px">✅ ไม่มีข้อมูล OEE ในช่วงที่เลือก</div>';
 
   return _dashWidgetCard(
-    '📉 Top 10 OEE ต่ำสุด ('+month+')', html,
+    '📉 Top 10 OEE ต่ำสุด ('+wr.label+')', html,
     ranked.length?'<span style="background:rgba(248,81,73,0.15);color:#f85149;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">Worst: '+ranked[0]?.oee?.toFixed(1)+'%</span>':''
   );
 }
@@ -20300,6 +20575,7 @@ function openModal(id){
     const attDate=document.getElementById('att-modal-date');
     if(attDate&&!attDate.value) attDate.value=today;
     if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
+    if(typeof hrPopulateHrZoneSelects==='function') hrPopulateHrZoneSelects();
     loadAttModalTable();
   }
   if(id==='modal-add-pm'){
@@ -26394,6 +26670,7 @@ function renderPage(id){
   else if(id==='delivery') renderDelivery();
   else if(id==='hr'){
     if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
+    if(typeof hrPopulateHrZoneSelects==='function') hrPopulateHrZoneSelects();
     renderEmpList();
     const attDate=document.getElementById('att-date');
     if(attDate&&!attDate.value) attDate.value=new Date().toISOString().split('T')[0];
@@ -28205,7 +28482,7 @@ const SKILL_LIST = [
 ];
 const TON_LIST = [40,60,80,90,100,110,120,160,180,220];
 let employees = [];
-let attendance = {}; // {'date_shift': [{empId,status,machine,timeIn,timeOut,note}]}
+let attendance = {}; // {'date_shift': [{empId,status,machine,timeIn,note}]}
 const HR_ATTENDANCE_KEY = '_hrAttendance';
 var HR_DEPT_MACH_GROUPS = [];
 function loadHrDeptMachGroups(){
@@ -28218,7 +28495,18 @@ function saveHrDeptMachGroups(){ try{ localStorage.setItem('_hrDeptMachGroups', 
 function loadHrAttendance(){
   try{
     var a = JSON.parse(localStorage.getItem(HR_ATTENDANCE_KEY)||'null');
-    if(a && typeof a === 'object' && !Array.isArray(a)) attendance = a;
+    if(a && typeof a === 'object' && !Array.isArray(a)){
+      attendance = a;
+      var dirty=false;
+      Object.keys(attendance).forEach(function(k){
+        var rows=attendance[k];
+        if(!Array.isArray(rows)) return;
+        rows.forEach(function(r){
+          if(r && 'timeOut' in r){ delete r.timeOut; dirty=true; }
+        });
+      });
+      if(dirty) saveHrAttendance();
+    }
   }catch(e){}
 }
 function saveHrAttendance(){ try{ localStorage.setItem(HR_ATTENDANCE_KEY, JSON.stringify(attendance)); }catch(e){} }
@@ -28230,6 +28518,61 @@ function _hrParseSkills(sk){
 function _hrSkillsArr(e){
   if(!e) return [];
   return _hrParseSkills(e.skills);
+}
+function _hrParseSkillScoresObj(raw){
+  if(!raw) return {};
+  if(typeof raw === 'object' && raw !== null && !Array.isArray(raw)) return raw;
+  try{
+    var o = JSON.parse(raw);
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  }catch(e){ return {}; }
+}
+function _hrSkillMatrixCols(){
+  var tonSkills = TON_LIST.map(function(t){
+    return t + 'T' + (t === 40 ? ' เครื่องเล็ก' : t === 220 ? ' เครื่องใหญ่' : '');
+  });
+  var seen = {};
+  var out = [];
+  tonSkills.forEach(function(s){
+    var k = String(s).trim();
+    if(!k || seen[k]) return;
+    seen[k] = true;
+    out.push(k);
+  });
+  SKILL_LIST.forEach(function(s){
+    var k = String(s).trim();
+    if(!k || seen[k]) return;
+    seen[k] = true;
+    out.push(k);
+  });
+  return out;
+}
+function hrSaveSkillScore(empId, skillLabel, score){
+  var raw = score == null ? '' : String(score).trim();
+  var v = parseInt(raw, 10);
+  if(raw === '' || isNaN(v) || v < 1) v = 0;
+  if(v > 4) v = 4;
+  var reg = (EMPLOYEE_REGISTRY || []).find(function(x){ return x.id === empId; });
+  if(!reg){ if(typeof _infoToast === 'function') _infoToast('ไม่พบพนักงานในระบบ'); return; }
+  var sc = _hrParseSkillScoresObj(reg.skillScores);
+  if(!v) delete sc[skillLabel];
+  else sc[skillLabel] = v;
+  reg.skillScores = JSON.stringify(sc);
+  saveEmployeeRegistry();
+  if(typeof syncHrEmployeesFromRegistry === 'function') syncHrEmployeesFromRegistry();
+  if(typeof renderSkillMatrix === 'function') renderSkillMatrix();
+}
+function hrPopulateHrZoneSelects(){
+  var opts = '<option value="">ทุกโซน</option>' + (typeof ZONES !== 'undefined' ? ZONES.map(function(z){
+    return '<option value="' + z.id + '">' + z.name + ' (' + z.id + ')</option>';
+  }).join('') : '');
+  ['att-modal-zone','mach-assign-zone','emp-filter-zone'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var cur = el.value;
+    el.innerHTML = opts;
+    if(cur) el.value = cur;
+  });
 }
 function _hrNormStatus(st){
   var s = (st == null ? '' : String(st)).toLowerCase();
@@ -28252,10 +28595,12 @@ function syncHrEmployeesFromRegistry(){
       position: r.position || '',
       mainMachine: r.machine || '',
       machine: r.machine || '',
+      zone: r.zone || '',
       shift: parseInt(r.shift, 10) || 1,
       phone: r.phone || '',
       startDate: r.startDate || '',
       skills: _hrParseSkills(r.skills),
+      skillScores: _hrParseSkillScoresObj(r.skillScores),
       status: _hrNormStatus(r.status),
       note: r.remark || ''
     };
@@ -28271,7 +28616,11 @@ function initDayAttendance(date,shift){
   if(typeof syncHrEmployeesFromRegistry === 'function') syncHrEmployeesFromRegistry();
   const key=date+'_'+shift;
   const template=function(e){
-    return {empId:e.id,status:'absent',machine:e.mainMachine||'',timeIn:shift==='day'?'08:00':'20:00',timeOut:'',note:''};
+    return {
+      empId:e.id,status:'absent',machine:e.mainMachine||'',
+      timeIn:shift==='day'?'08:00':'20:00',
+      note:''
+    };
   };
   if(!attendance[key]){
     attendance[key]=employees.map(template);
@@ -28282,7 +28631,12 @@ function initDayAttendance(date,shift){
   var byId={};
   existing.forEach(function(r){ byId[r.empId]=r; });
   attendance[key]=employees.map(function(e){
-    if(byId[e.id]) return byId[e.id];
+    if(byId[e.id]){
+      var row=Object.assign({},byId[e.id]);
+      if(row.timeIn==null||row.timeIn==='') row.timeIn=(shift==='day'?'08:00':'20:00');
+      if('timeOut' in row) delete row.timeOut;
+      return row;
+    }
     return template(e);
   });
   saveHrAttendance();
@@ -28293,11 +28647,22 @@ function renderEmpList(){
   const search=(document.getElementById('emp-search')?.value||'').toLowerCase();
   const dept=document.getElementById('emp-filter-dept')?.value||'';
   const status=document.getElementById('emp-filter-status')?.value||'';
+  const zoneF=document.getElementById('emp-filter-zone')?.value||'';
   let list=employees.filter(e=>
     (!search||e.name.toLowerCase().includes(search)||e.id.includes(search))&&
     (!dept||e.dept===dept)&&
     (!status||(status==='ปกติ'&&e.status==='active')||(status==='ลา'&&e.status==='leave')||(status==='ออก'&&e.status==='resigned'))
   );
+  if(zoneF){
+    list=list.filter(function(e){
+      if((e.zone||'')===zoneF) return true;
+      if(typeof getMachineZone==='function'){
+        var z=getMachineZone((e.mainMachine||e.machine||'').trim());
+        return z&&z.id===zoneF;
+      }
+      return false;
+    });
+  }
   const today=new Date().toISOString().split('T')[0];
   const todayAtt=attendance[today+'_day']||[];
   const tbody=document.getElementById('emp-tbody');
@@ -28306,6 +28671,14 @@ function renderEmpList(){
     const att=todayAtt.find(a=>a.empId===e.id);
     const attBadge=att?(att.status==='present'?'<span class="badge badge-green">มา</span>':att.status==='absent'?'<span class="badge badge-red">ขาด</span>':'<span class="badge badge-yellow">ลา</span>'):'<span class="badge" style="background:var(--bg4)">-</span>';
     const statusBadge=e.status==='active'?'<span class="badge badge-green">ปกติ</span>':e.status==='leave'?'<span class="badge badge-yellow">ลา</span>':'<span class="badge badge-red">ออก</span>';
+    var zLab='-';
+    if(e.zone && typeof ZONES!=='undefined'){
+      var zn=(ZONES.find(function(z){ return z.id===e.zone; })||{}).name;
+      zLab=zn?zn+' ('+e.zone+')':e.zone;
+    } else if(typeof getMachineZone==='function'){
+      var gz=getMachineZone((e.mainMachine||e.machine||'').trim());
+      if(gz) zLab=(gz.name||gz.id)+' ('+gz.id+')';
+    }
     return `<tr>
       <td class="mono" style="font-size:11px">${e.id}</td>
       <td style="font-size:13px;font-weight:600">${e.name}</td>
@@ -28315,6 +28688,7 @@ function renderEmpList(){
         ${_hrSkillsArr(e).slice(0,4).map(s=>`<span class="badge" style="background:var(--bg4);margin:1px;font-size:10px">${s}</span>`).join('')}
         ${_hrSkillsArr(e).length>4?`<span style="font-size:10px;color:var(--text3)">+${_hrSkillsArr(e).length-4}</span>`:''}
       </td>
+      <td style="font-size:11px;color:var(--text2);max-width:140px">${zLab}</td>
       <td class="mono" style="font-size:12px;color:var(--accent)">${e.mainMachine||'-'}</td>
       <td style="font-size:11px;color:var(--text3)">-</td>
       <td>${attBadge}</td>
@@ -28361,7 +28735,6 @@ function renderAttendance(){
       <td><span class="badge ${badge}">${label}</span></td>
       <td class="mono" style="font-size:12px;color:var(--accent)">${r.machine||'-'}</td>
       <td class="mono" style="font-size:12px">${r.timeIn||'-'}</td>
-      <td class="mono" style="font-size:12px">${r.timeOut||'-'}</td>
       <td style="font-size:11px;color:var(--text3)">${r.note||''}</td>
     </tr>`;
   }).join('');
@@ -28374,10 +28747,12 @@ function renderAttendance(){
 
 function renderMachineAssign(){
   if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
+  if(typeof hrPopulateHrZoneSelects==='function') hrPopulateHrZoneSelects();
   const dateEl=document.getElementById('mach-assign-dt');
   if(!dateEl) return;
   const date=dateEl.value||new Date().toISOString().split('T')[0];
   const shift=document.getElementById('mach-assign-shift')?.value||'day';
+  const zoneF=document.getElementById('mach-assign-zone')?.value||'';
   const key=date+'_'+shift;
   initDayAttendance(date,shift);
   const recs=attendance[key]||[];
@@ -28385,13 +28760,27 @@ function renderMachineAssign(){
   if(!grid) return;
   const shiftNames={day:'กะเช้า',night:'กะดึก'};
   const dateLabel=document.getElementById('mach-assign-date');
-  if(dateLabel) dateLabel.textContent=`${date} ${shiftNames[shift]}`;
-  // Show running machines
-  const runMachines=MACHINES.filter(m=>m.status==='running').slice(0,30);
+  if(dateLabel) dateLabel.textContent=`${date} ${shiftNames[shift]}${zoneF?' · โซน '+zoneF:''}`;
+  var runMachines;
+  if(zoneF && typeof filterMachinesByZone==='function'){
+    runMachines=filterMachinesByZone(MACHINES.slice(0),zoneF).slice(0,80);
+  } else {
+    runMachines=MACHINES.filter(m=>m.status==='running').slice(0,80);
+  }
+  let available=employees.filter(e=>e.status==='active');
+  if(zoneF && typeof getMachineZone==='function'){
+    available=available.filter(function(e){
+      var z=getMachineZone((e.mainMachine||'').trim());
+      return z&&z.id===zoneF;
+    });
+  }
+  const empOpts='<option value="">— เลือกพนักงาน —</option>'+available.map(function(e){
+    return '<option value="'+e.id+'">'+e.name+' ('+e.id+')</option>';
+  }).join('');
   grid.innerHTML=runMachines.map(m=>{
     const assigned=recs.filter(r=>r.machine===m.id&&r.status==='present');
     const empNames=assigned.map(r=>employees.find(e=>e.id===r.empId)?.name||r.empId);
-    return `<div class="card" style="padding:12px;cursor:pointer" onclick="assignMachine('${m.id}','${date}','${shift}')">
+    return `<div class="card" style="padding:12px">
       <div class="flex justify-between items-center mb-2">
         <span class="mono" style="font-weight:700;color:var(--accent)">${m.id}</span>
         <span class="badge badge-blue" style="font-size:10px">${m.ton}T</span>
@@ -28399,27 +28788,32 @@ function renderMachineAssign(){
       <div style="font-size:11px;color:var(--text3);margin-bottom:6px">${m.currentJob||'ไม่มีงาน'}</div>
       ${empNames.length?empNames.map(n=>`<div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:var(--green)">👷</span>${n}</div>`).join(''):
         '<div style="font-size:11px;color:var(--red);font-style:italic">⚠ ยังไม่ได้มอบหมาย</div>'}
-      <div style="margin-top:8px">
-        <button class="btn btn-secondary btn-sm" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();assignMachine('${m.id}','${date}','${shift}')">มอบหมาย</button>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+        <select class="hr-mach-pick" data-mid="${m.id}" style="font-size:11px;padding:6px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);width:100%">${empOpts}</select>
+        <button type="button" class="btn btn-primary btn-sm" style="font-size:11px" onclick="hrQuickAssignMachine('${m.id}','${date}','${shift}',this.previousElementSibling.value)">✓ มอบหมาย / มา</button>
       </div>
     </div>`;
   }).join('');
 }
 
-function assignMachine(machineId,date,shift){
-  const available=employees.filter(e=>e.status==='active');
+function hrQuickAssignMachine(machineId,date,shift,empId){
+  if(!empId){ if(typeof _infoToast==='function') _infoToast('เลือกพนักงานก่อน'); return; }
   const key=date+'_'+shift;
-  const recs=attendance[key]||[];
-  const names=available.map(e=>{
-    const rec=recs.find(r=>r.empId===e.id);
-    return `${e.id}: ${e.name} (${rec?.status==='present'?'มา':'ไม่มา'}) - ${rec?.machine||'ยังไม่ได้รับมอบหมาย'}`;
-  }).join('\n');
-  const input=prompt(`มอบหมายพนักงานให้เครื่อง ${machineId}\nพิมพ์รหัสพนักงาน (เช่น EMP-001):\n\n${names}`);
-  if(!input) return;
-  const empId=input.trim().toUpperCase();
-  const rec=recs.find(r=>r.empId===empId);
-  if(rec){ rec.machine=machineId; renderMachineAssign(); }
-  else if(typeof _infoToast==="function") _infoToast('ไม่พบรหัสพนักงาน: '+empId);
+  initDayAttendance(date,shift);
+  const rec=(attendance[key]||[]).find(r=>r.empId===empId);
+  if(rec){
+    rec.machine=machineId;
+    rec.status='present';
+    if(!rec.timeIn) rec.timeIn=shift==='day'?'08:00':'20:00';
+    if('timeOut' in rec) delete rec.timeOut;
+    saveHrAttendance();
+    renderMachineAssign();
+    if(typeof _toast==='function') _toast('✅ '+empId+' → '+machineId+' (มา)');
+  } else if(typeof _infoToast==='function') _infoToast('ไม่พบแถวพนักงาน');
+}
+
+function assignMachine(machineId,date,shift){
+  hrQuickAssignMachine(machineId,date,shift,document.querySelector('.hr-mach-pick[data-mid="'+machineId+'"]')?.value||'');
 }
 
 function renderSkillMatrix(){
@@ -28428,32 +28822,36 @@ function renderSkillMatrix(){
   const list=dept?employees.filter(e=>e.dept===dept):employees;
   const wrap=document.getElementById('skill-matrix-wrap');
   if(!wrap) return;
-  // Tone skills
-  const tonSkills=TON_LIST.map(t=>t+'T'+(t===40?' เครื่องเล็ก':t===220?' เครื่องใหญ่':''));
-  const otherSkills=SKILL_LIST.filter(s=>!tonSkills.some(ts=>s.startsWith(ts.split(' ')[0]+'T')));
-  const allSkills=[...tonSkills,...otherSkills.slice(0,8)];
+  const allSkills=_hrSkillMatrixCols();
   const shortLab=function(s){
-    return s.replace(' เครื่องเล็ก','').replace(' เครื่องใหญ่','');
+    return String(s).replace(' เครื่องเล็ก','').replace(' เครื่องใหญ่','');
   };
-  let html=`<table style="border-collapse:collapse;font-size:11px;min-width:640px">
+  const scoreOpts=function(cur){
+    var c=parseInt(cur,10);
+    var unset=isNaN(c)||c<1||c>4;
+    return '<option value=""'+(unset?' selected':'')+'>—</option>'+[1,2,3,4].map(function(v){
+      return '<option value="'+v+'"'+(!unset&&v===c?' selected':'')+'>'+v+'</option>';
+    }).join('');
+  };
+  let html=`<table style="border-collapse:collapse;font-size:11px;min-width:720px">
     <thead><tr>
       <th style="background:var(--bg3);padding:6px 10px;position:sticky;left:0;z-index:2;white-space:nowrap">ชื่อพนักงาน</th>
       <th style="background:var(--bg3);padding:4px 8px;white-space:nowrap">แผนก</th>
-      ${allSkills.map(s=>`<th style="background:var(--bg3);padding:6px 4px;width:44px;max-width:52px;line-height:1.15;font-size:9px;font-weight:600;color:var(--text2);vertical-align:bottom;word-wrap:break-word;hyphens:auto">${shortLab(s)}</th>`).join('')}
+      ${allSkills.map(s=>`<th style="background:var(--bg3);padding:6px 4px;width:52px;max-width:56px;line-height:1.15;font-size:9px;font-weight:600;color:var(--text2);vertical-align:bottom">${shortLab(s)}</th>`).join('')}
     </tr></thead>
     <tbody>
     ${list.map(e=>{
-      const skArr=_hrSkillsArr(e);
+      const sc=e.skillScores||{};
       return `<tr>
       <td style="background:var(--bg3);position:sticky;left:0;z-index:1;padding:4px 10px;white-space:nowrap;font-weight:600">${e.name}</td>
       <td style="padding:4px 8px;white-space:nowrap"><span class="badge badge-blue" style="font-size:9px">${e.dept}</span></td>
       ${allSkills.map(s=>{
-        const token=s.split(' ')[0];
-        const has=skArr.some(function(sk){
-          var t=String(sk);
-          return t===s || t.indexOf(token)>=0 || s.indexOf(t)>=0;
-        });
-        return `<td style="text-align:center;padding:3px;background:${has?'rgba(63,185,80,0.2)':'var(--bg)'};border:1px solid var(--border)">${has?'✅':''}</td>`;
+        var v=sc[s];
+        if(v==null||v===''||v===0) v='';
+        else v=parseInt(v,10);
+        return `<td style="text-align:center;padding:2px;border:1px solid var(--border);background:var(--bg)">
+          <select onchange="hrSaveSkillScore('${e.id}',${JSON.stringify(s)},this.value)" style="font-size:11px;padding:4px 2px;min-width:44px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text)">${scoreOpts(v)}</select>
+        </td>`;
       }).join('')}
     </tr>`;
     }).join('')}
@@ -28495,10 +28893,13 @@ function saveEmployee(){
 
   // Sync กับ EMPLOYEE_REGISTRY
   const prevReg=EMPLOYEE_REGISTRY.find(function(x){ return x.id===idToFind; })||{};
+  var prevSc=prevReg.skillScores;
+  if(prevSc!=null&&typeof prevSc!=='string') prevSc=JSON.stringify(prevSc||{});
+  if(prevSc==null||prevSc==='') prevSc='{}';
   const regObj={
     id:id, name:name, gender:data.gender, dept:data.dept, position:data.position,
     machine:data.mainMachine, zone:prevReg.zone||'', shift:parseInt(prevReg.shift,10)||1, phone:data.phone,
-    startDate:data.startDate, skills:skills.join(','),
+    startDate:data.startDate, skills:skills.join(','), skillScores:prevSc,
     status:_hrRegStatusFromUi(data.status), remark:data.note||prevReg.remark||''
   };
   const regIdx=EMPLOYEE_REGISTRY.findIndex(e=>e.id===idToFind);
@@ -28541,8 +28942,10 @@ function editEmployee(id){
       // สร้าง employees entry จาก registry
       e={id:reg.id,name:reg.name,gender:reg.gender||'',dept:reg.dept||'',
         position:reg.position||'',mainMachine:reg.machine||'',
+        zone:reg.zone||'',
         phone:reg.phone||'',startDate:reg.startDate||'',
         skills:_hrParseSkills(reg.skills),
+        skillScores:_hrParseSkillScoresObj(reg.skillScores),
         status:reg.status||'active',note:reg.remark||''};
       employees.push(e);
     }
@@ -28586,7 +28989,11 @@ function markAllPresent(){
   const shift=document.getElementById('att-modal-shift')?.value||'day';
   const key=date+'_'+shift;
   initDayAttendance(date,shift);
-  attendance[key].forEach(r=>r.status='present');
+  attendance[key].forEach(function(r){
+    r.status='present';
+    r.timeIn=shift==='day'?'08:00':'20:00';
+    if('timeOut' in r) delete r.timeOut;
+  });
   saveHrAttendance();
   renderAttModalTable(date,shift);
 }
@@ -28603,15 +29010,25 @@ function renderAttModalTable(date,shift){
   const recs=attendance[key];
   const tbody=document.getElementById('att-modal-tbody');
   if(!tbody) return;
-  tbody.innerHTML=recs.map((r,idx)=>{
+  const zoneF=document.getElementById('att-modal-zone')?.value||'';
+  const machPool=(zoneF&&typeof filterMachinesByZone==='function')
+    ?filterMachinesByZone(MACHINES.slice(0),zoneF)
+    :MACHINES.slice(0,80);
+  tbody.innerHTML=recs.map((r)=>{
     const emp=employees.find(e=>e.id===r.empId);
     if(!emp) return '';
+    if(zoneF && typeof getMachineZone==='function'){
+      var z=getMachineZone((emp.mainMachine||r.machine||'').trim());
+      if(!z||z.id!==zoneF) return '';
+    }
+    const ej=JSON.stringify(emp.id);
+    const ti=(r.timeIn||'').replace(/"/g,'&quot;');
     return `<tr>
       <td class="mono" style="font-size:11px">${emp.id}</td>
       <td style="font-size:12px;white-space:nowrap">${emp.name}</td>
       <td><span class="badge badge-blue" style="font-size:10px">${emp.dept}</span></td>
       <td>
-        <select onchange="updateAttRecord('${key}',${idx},'status',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text)">
+        <select onchange="updateAttRecord('${key}',${ej},'status',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text)">
           <option value="present" ${r.status==='present'?'selected':''}>✅ มา</option>
           <option value="absent" ${r.status==='absent'?'selected':''}>❌ ขาด</option>
           <option value="late" ${r.status==='late'?'selected':''}>⏰ สาย</option>
@@ -28619,20 +29036,28 @@ function renderAttModalTable(date,shift){
         </select>
       </td>
       <td>
-        <select onchange="updateAttRecord('${key}',${idx},'machine',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text)">
+        <select onchange="updateAttRecord('${key}',${ej},'machine',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);max-width:140px">
           <option value="">-- เครื่อง --</option>
-          ${MACHINES.slice(0,50).map(m=>`<option value="${m.id}" ${r.machine===m.id?'selected':''}>${m.id}</option>`).join('')}
+          ${machPool.map(m=>`<option value="${m.id}" ${r.machine===m.id?'selected':''}>${m.id}</option>`).join('')}
         </select>
       </td>
-      <td><input type="time" value="${r.timeIn||''}" onchange="updateAttRecord('${key}',${idx},'timeIn',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);width:80px"></td>
-      <td><input type="text" value="${r.note||''}" placeholder="หมายเหตุ" onchange="updateAttRecord('${key}',${idx},'note',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);width:100px"></td>
+      <td><input type="time" value="${ti}" onchange="updateAttRecord('${key}',${ej},'timeIn',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);width:86px"></td>
+      <td><input type="text" value="${(r.note||'').replace(/"/g,'&quot;')}" placeholder="หมายเหตุ" onchange="updateAttRecord('${key}',${ej},'note',this.value)" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border2);border-radius:4px;color:var(--text);width:100px"></td>
     </tr>`;
   }).join('');
+  if(!tbody.innerHTML.replace(/\s/g,'')){
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:22px;color:var(--text3)">ไม่มีรายการในโซนที่เลือก — เปลี่ยนเป็น «ทุกโซน» หรือตรวจสอบเครื่องหลักในทะเบียนพนักงาน</td></tr>';
+  }
 }
 
-function updateAttRecord(key,idx,field,val){
-  if(attendance[key]&&attendance[key][idx]) attendance[key][idx][field]=val;
-  saveHrAttendance();
+function updateAttRecord(key,empId,field,val){
+  var arr=attendance[key];
+  if(!arr) return;
+  var idx=arr.findIndex(function(r){ return r.empId===empId; });
+  if(idx>=0){
+    arr[idx][field]=val;
+    saveHrAttendance();
+  }
 }
 
 function saveAttendance(){
@@ -40716,17 +41141,22 @@ function _clRenderChart(){
 
 <!-- ===== MODAL: Attendance ===== -->
 <div class="modal-overlay" id="modal-attendance">
-<div class="modal" style="min-width:740px;max-width:900px">
+<div class="modal" style="min-width:860px;max-width:96vw">
   <div class="modal-header">
     <div class="modal-title">📅 บันทึกการเข้างาน</div>
     <button class="modal-close" onclick="closeModal('modal-attendance')">✕</button>
   </div>
-  <div class="form-row" style="margin-bottom:12px">
-    <div class="form-group"><div class="form-label">วันที่</div><input type="date" id="att-modal-date"></div>
+  <div class="form-row" style="margin-bottom:12px;flex-wrap:wrap">
+    <div class="form-group"><div class="form-label">วันที่</div><input type="date" id="att-modal-date" onchange="loadAttModalTable()"></div>
     <div class="form-group"><div class="form-label">กะ</div>
-      <select id="att-modal-shift">
+      <select id="att-modal-shift" onchange="loadAttModalTable()">
         <option value="day">กะเช้า 08:00-20:00</option>
         <option value="night">กะดึก 20:00-08:00</option>
+      </select>
+    </div>
+    <div class="form-group"><div class="form-label">โซนเครื่อง</div>
+      <select id="att-modal-zone" onchange="loadAttModalTable()" style="min-width:160px" title="แสดเฉพาะพนักงานที่เครื่องหลักอยู่ในโซนนี้ — เลือกทุกโซนเพื่อดูทั้งหมด">
+        <option value="">ทุกโซน</option>
       </select>
     </div>
     <div class="form-group" style="align-self:flex-end">
@@ -44409,8 +44839,8 @@ function _orgRenderTree(deptMap, orgSource){
     +'.org-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:130px;max-width:165px;text-align:center;cursor:pointer;transition:all .15s;position:relative}'
     +'.org-card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.25);border-color:var(--accent2)}'
     +'.org-card.lv1{border-width:2px}.org-card.lv2{border-style:solid}'
-    +'.org-level-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:var(--bg3);border-radius:6px}'
-    +'.org-chain-spine{border-left:3px solid var(--border2);margin-left:14px;padding-left:14px;padding-top:4px;padding-bottom:4px}'
+    +'.org-level-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:var(--bg3);border-radius:6px;border-left:3px solid var(--border2)}'
+    +'.org-level-block{margin-bottom:14px}'
     +'</style>'
     +'<div style="display:flex;flex-direction:column;gap:20px;padding:4px">';
 
@@ -44437,27 +44867,20 @@ function _orgRenderTree(deptMap, orgSource){
         +'</div>'
         +'<span style="font-size:11px;color:'+col+';font-weight:600">'+(collapsed?'▶ แสดง':'▼ ซ่อน')+'</span>'
       +'</div>'
-      +(!collapsed?'<div style="padding:6px 18px 0;font-size:10px;font-weight:600;color:var(--text3);border-bottom:1px dashed '+col+'33">สายบังคับบัญชา: ระดับบริหารสูงสุด (1) ลงมาถึงพนักงาน (7) — '+(orgSource==='machcare'?'จัดกลุ่มตามเครื่องหลักที่กำหนดในระบบ':'จัดกลุ่มตามแผนกในทะเบียนพนักงาน')+'</div>':'');
+      +(!collapsed?'<div style="padding:6px 18px 0;font-size:10px;font-weight:600;color:var(--text3);border-bottom:1px dashed '+col+'33">จัดตามระดับตำแหน่ง (1–7) เพื่ออ่านง่าย — ไม่แสดงเส้นเชื่อมสายบังคับบัญชา — '+(orgSource==='machcare'?'จัดกลุ่มตามเครื่องหลักที่กำหนดในระบบ':'จัดกลุ่มตามแผนกในทะเบียนพนักงาน')+'</div>':'');
 
     if(!collapsed){
       html+='<div style="padding:16px 18px">';
       lvKeys.forEach(function(lv, ri){
         var lvInfo=ORG_LEVELS.find(function(l){ return l.level===lv; })||ORG_LEVELS[6];
         var group=lvGroups[lv];
-        if(ri>0){
-          html+='<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px 10px;color:var(--text3)">'
-            +'<div style="flex:1;height:2px;background:linear-gradient(90deg,'+lvInfo.color+'66,transparent)"></div>'
-            +'<span style="font-size:11px;font-weight:700;white-space:nowrap;color:'+lvInfo.color+'">รายงานขึ้น ↑</span>'
-            +'<span style="font-size:18px;line-height:1">↓</span>'
-          +'</div>';
-        }
-        html+='<div class="org-chain-spine" style="border-left-color:'+lvInfo.color+'77">';
-        html+='<div class="org-level-bar" style="border-left:3px solid '+lvInfo.color+'">'
+        html+='<div class="org-level-block">';
+        html+='<div class="org-level-bar" style="border-left-color:'+lvInfo.color+'">'
           +'<span style="font-size:16px">'+lvInfo.icon+'</span>'
-          +'<span style="font-size:11px;font-weight:700;color:'+lvInfo.color+'">ระดับ '+lv+' — '+lvInfo.label+'</span>'
+          +'<span style="font-size:11px;font-weight:700;color:'+lvInfo.color+'">ขั้นที่ '+lv+' / 7 — '+lvInfo.label+'</span>'
           +'<span style="margin-left:auto;font-size:10px;color:var(--text3)">'+group.length+' คน</span>'
         +'</div>';
-        html+='<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:'+(group.length===1?'center':'flex-start')+';margin-bottom:'+(ri<lvKeys.length-1?'14px':'4px')+'">';
+        html+='<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:'+(group.length===1?'center':'flex-start')+';margin-top:8px;margin-bottom:'+(ri<lvKeys.length-1?'4px':'0')+'">';
         group.forEach(function(e){
           var lvCol=lvInfo.color;
           var isTop=lv<=2;
@@ -44494,7 +44917,7 @@ function _orgRenderTable(deptMap, orgSource){
         +'<span style="font-size:13px;font-weight:800;color:var(--text)">'+dept+'</span>'
         +'<span style="font-size:10px;background:rgba(56,139,253,0.15);color:var(--accent2);padding:2px 8px;border-radius:10px;font-weight:700">'+emps.length+' คน</span>'
         +'</div>'
-        +'<div style="font-size:10px;color:var(--text3);font-weight:600">สายบังคับบัญชา: เรียงจากระดับตำแหน่งสูง → ต่ำในแต่ละแถว — '+(orgSource==='machcare'?'กลุ่มจากเครื่องหลัก':'ตามแผนกพนักงาน')+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:600">เรียงจากระดับตำแหน่งสูง → ต่ำ (ไม่มีเส้นสายบังคับบัญชา) — '+(orgSource==='machcare'?'กลุ่มจากเครื่องหลัก':'ตามแผนกพนักงาน')+'</div>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
       +'<thead><tr style="background:var(--bg3)">'
@@ -47152,7 +47575,7 @@ var XL_CONFIG={
     headers:['รหัสพนักงาน*','ชื่อ-นามสกุล*','เพศ','แผนก','ตำแหน่ง','เครื่องประจำ','Zone','กะ(1-3)','โทร','วันเริ่มงาน(YYYY-MM-DD)','ทักษะ(คั่นด้วยจุลภาค)','สถานะ','หมายเหตุ'],
     required:[0,1],
     example:[['EMP-001','สมชาย ใจดี','ชาย','ฉีดพลาสติก','พนักงาน','MC-01','A','1','0812345678','2024-01-01','ฉีดพลาสติก,QC','active','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var id=(r[0]||'').trim(),nm=(r[1]||'').trim();if(!id||!nm)return;var obj={id:id,name:nm,gender:r[2]||'ชาย',dept:r[3]||'',position:r[4]||'',machine:r[5]||'',zone:r[6]||'',shift:parseInt(r[7])||1,phone:r[8]||'',startDate:r[9]||'',skills:r[10]||'',status:r[11]||'active',remark:r[12]||''};var idx=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===id;});if(idx>=0){if(ow){EMPLOYEE_REGISTRY[idx]=Object.assign(EMPLOYEE_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{EMPLOYEE_REGISTRY.push(obj);a++;}}else{EMPLOYEE_REGISTRY.push(obj);a++;}});saveEmployeeRegistry();if(typeof syncHrEmployeesFromRegistry==='function')syncHrEmployeesFromRegistry();if(typeof renderEmpRegistry==='function')renderEmpRegistry();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var id=(r[0]||'').trim(),nm=(r[1]||'').trim();if(!id||!nm)return;var obj={id:id,name:nm,gender:r[2]||'ชาย',dept:r[3]||'',position:r[4]||'',machine:r[5]||'',zone:r[6]||'',shift:parseInt(r[7])||1,phone:r[8]||'',startDate:r[9]||'',skills:r[10]||'',skillScores:'{}',status:r[11]||'active',remark:r[12]||''};var idx=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===id;});if(idx>=0){if(ow){EMPLOYEE_REGISTRY[idx]=Object.assign(EMPLOYEE_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{EMPLOYEE_REGISTRY.push(obj);a++;}}else{EMPLOYEE_REGISTRY.push(obj);a++;}});saveEmployeeRegistry();if(typeof syncHrEmployeesFromRegistry==='function')syncHrEmployeesFromRegistry();if(typeof renderEmpRegistry==='function')renderEmpRegistry();return{added:a,skipped:s,updated:u};}},
   rawmatreg:{title:'ทะเบียนวัตถุดิบ',sub:'นำเข้าข้อมูลวัตถุดิบ / เม็ดพลาสติก',
     headers:['รหัส*','ชื่อวัตถุดิบ*','เกรด','ประเภท(plastic/mb_color/additive)','ความหนาแน่น','สต็อกต่ำสุด(kg)','สต็อกสูงสุด(kg)','ราคา/kg','Lead Time(วัน)','Supplier ID','Spec','สถานะ','หมายเหตุ'],
     required:[0,1],
