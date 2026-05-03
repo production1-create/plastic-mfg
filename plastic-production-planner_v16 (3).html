@@ -1259,6 +1259,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 7 --> <div class="nav-item" onclick="showPage('machregistry',this)"><span class="nav-icon">⚙️</span><span class="nav-seq">7</span> ทะเบียนเครื่องจักร</div>
     <!-- 8 --> <div class="nav-item" onclick="showPage('closedloop',this)"><span class="nav-icon">♻️</span><span class="nav-seq">8</span> ทะเบียน Close Loop</div>
     <!-- 9  --> <div class="nav-item" onclick="showPage('machgroup',this)"><span class="nav-icon">🔗</span><span class="nav-seq">9</span> Group เครื่องจักร</div>
+    <!-- 9B --> <div class="nav-item" onclick="showPage('deptmachcare',this)"><span class="nav-icon">🏭</span><span class="nav-seq">9B</span> จัดกลุ่มแผนกดูแลเครื่อง</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -6019,7 +6020,6 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="att-shift" onchange="renderAttendance()">
           <option value="">ทุกกะ</option>
           <option value="day">กะเช้า 08-20</option>
-          <
           <option value="night">กะดึก 20-08</option>
         </select>
         <span id="att-summary" style="font-size:13px;font-weight:600"></span>
@@ -6069,6 +6069,10 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div id="tab-org-chart" style="display:none">
     <div class="card mb-3" style="padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:700">🏢 แผนผังองค์กร</span>
+      <select id="org-dept-source" onchange="renderOrgChart()" style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;max-width:280px" title="เลือกว่าจะจัดคอลัมน์ตามแผนกในทะเบียนพนักงาน หรือตามกลุ่มเครื่องที่ตั้งในหน้าจัดกลุ่มแผนกดูแลเครื่อง">
+        <option value="empdept">📂 จัดตามแผนก (ข้อมูลพนักงาน)</option>
+        <option value="machcare">🏭 จัดตามกลุ่มดูแลเครื่อง</option>
+      </select>
       <select id="org-dept-filter" onchange="renderOrgChart()" style="padding:6px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px">
         <option value="">ทุกแผนก</option>
         <option>ฉีดพลาสติก</option><option>QC</option><option>ซ่อมบำรุง</option><option>คลังสินค้า</option><option>จัดส่ง</option>
@@ -6077,12 +6081,40 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <option value="tree">🌳 แบบต้นไม้</option>
         <option value="table">📋 แบบตาราง</option>
       </select>
-      <button onclick="orgExpandAll(true)" style="padding:5px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">펼 ขยายทั้งหมด</button>
+      <button onclick="orgExpandAll(true)" style="padding:5px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">📂 ขยายทั้งหมด</button>
       <button onclick="orgExpandAll(false)" style="padding:5px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:6px;cursor:pointer;font-size:11px">📁 ย่อทั้งหมด</button>
       <span id="org-summary" style="margin-left:auto;font-size:12px;color:var(--text3)"></span>
     </div>
     <div id="org-chart-wrap" style="overflow-x:auto;padding-bottom:20px"></div>
   </div>
+</div>
+
+<!-- ========== จัดกลุ่มแผนกดูแลเครื่องจักร (กำหนดกลุ่มสำหรับแผนผัง HR) ========== -->
+<div class="page" id="page-deptmachcare">
+  <div class="page-header">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="page-title">🏭 จัดกลุ่มแผนกดูแลเครื่องจักร</div>
+        <div class="page-sub">กำหนดว่าแต่ละกลุ่มหรือแผนกรับผิดชอบเครื่องใดบ้าง — ใช้จัดกลุ่มในแท็บแผนผังองค์กรของเมนูทักษะและการเข้างาน (โหมดตามกลุ่มดูแลเครื่อง)</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="dmcAddGroup()">+ เพิ่มกลุ่ม</button>
+      </div>
+    </div>
+  </div>
+  <div class="card mb-3" style="padding:14px 16px;font-size:12px;color:var(--text2)">
+    ระบุ <b>รหัสเครื่อง</b> คั่นด้วยจุลภาพหรือขึ้นบรรทัดใหม่ (เช่น <span class="mono">IM01, IM02</span>) ให้ตรงกับทะเบียนเครื่องจักร พนักงานจะถูกจัดกลุ่มตาม <b>เครื่องหลัก</b> ในทะเบียนพนักงาน
+  </div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr>
+      <th style="width:120px">รหัสกลุ่ม</th>
+      <th>ชื่อกลุ่ม / แผนกดูแล</th>
+      <th style="min-width:220px">รหัสเครื่องที่รับผิดชอบ</th>
+      <th style="width:90px">จำนวนเครื่อง</th>
+      <th style="width:200px">จัดการ</th>
+    </tr></thead>
+    <tbody id="dmc-tbody"></tbody>
+  </table></div></div>
 </div>
 
 <!-- ========== MACHINE PM ========== -->
@@ -6742,6 +6774,7 @@ function initEmployeeRegistry(){
     });
     saveEmployeeRegistry();
   }
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
 }
 function saveEmployeeRegistry(){ try{localStorage.setItem('_employeeRegistry',JSON.stringify(EMPLOYEE_REGISTRY));}catch(e){} }
 function getEmployeeById(id){ return EMPLOYEE_REGISTRY.find(function(e){return e.id===id;})||null; }
@@ -7387,6 +7420,7 @@ var _navMenuList = [
   // HR
   {id:'hr',           label:'ทักษะ & การเข้างาน',       icon:'👷', group:'👷 HR & บุคลากร', keywords:'hr ทักษะ skill เข้างาน attendance'},
   {id:'empreg',       label:'ทะเบียนพนักงาน',           icon:'👤', group:'👷 HR & บุคลากร', keywords:'พนักงาน employee staff ทะเบียน'},
+  {id:'deptmachcare', label:'จัดกลุ่มแผนกดูแลเครื่อง', icon:'🏭', group:'👷 HR & บุคลากร', keywords:'แผนก เครื่องจักร กลุ่มดูแล org แผนผัง'},
   // ซ่อมบำรุง
   {id:'machinepm',    label:'แผน PM & ตรวจสอบ',         icon:'🔩', group:'🔩 ซ่อมบำรุง',   keywords:'pm maintenance plan แผนซ่อม'},
   {id:'pmchecklist',  label:'ทะเบียนรายการตรวจ PM',     icon:'📋', group:'🔩 ซ่อมบำรุง',   keywords:'checklist รายการตรวจ pm'},
@@ -10203,10 +10237,7 @@ function empregSave(){
   var idx2=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===idToFind;});
   if(idx2>=0) EMPLOYEE_REGISTRY[idx2]=obj; else EMPLOYEE_REGISTRY.push(obj);
   saveEmployeeRegistry();
-  // Sync to employees array
-  var empIdx=employees.findIndex(function(e){return e.id===idToFind;});
-  var empObj={id:newId,name:name,gender:obj.gender,dept:obj.dept,position:obj.position,machine:obj.machine,shift:obj.shift,skills:obj.skills.split(',').map(function(s){return s.trim();}).filter(Boolean)};
-  if(empIdx>=0) employees[empIdx]=Object.assign(employees[empIdx],empObj); else employees.push(empObj);
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   closeModal('modal-emp-edit');
   renderEmpRegistry();
   // อัปเดต org chart อัตโนมัติ
@@ -20247,6 +20278,7 @@ function openModal(id){
     // ถ้าเปิดใหม่ (ไม่ใช่ edit) ให้ reset fields
     const editIdVal=document.getElementById('emp-edit-id').value;
     if(!editIdVal){
+      if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
       document.getElementById('emp-id-input').value='EMP-'+String(employees.length+1).padStart(3,'0');
       document.getElementById('emp-name').value='';
       if(document.getElementById('emp-gender')) document.getElementById('emp-gender').value='ชาย';
@@ -20267,6 +20299,7 @@ function openModal(id){
   if(id==='modal-attendance'){
     const attDate=document.getElementById('att-modal-date');
     if(attDate&&!attDate.value) attDate.value=today;
+    if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
     loadAttModalTable();
   }
   if(id==='modal-add-pm'){
@@ -26360,6 +26393,7 @@ function renderPage(id){
   }
   else if(id==='delivery') renderDelivery();
   else if(id==='hr'){
+    if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
     renderEmpList();
     const attDate=document.getElementById('att-date');
     if(attDate&&!attDate.value) attDate.value=new Date().toISOString().split('T')[0];
@@ -26409,7 +26443,8 @@ function renderPage(id){
   }
   else if(id==='pmchecklist'){ renderPmChecklistRegistry(); }
   else if(id==='kpitargets'){ renderKpiTargets(); }
-  else if(id==='empreg'){ initEmployeeRegistry(); renderEmpRegistry(); }
+  else if(id==='empreg'){ initEmployeeRegistry(); if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry(); renderEmpRegistry(); }
+  else if(id==='deptmachcare'){ loadHrDeptMachGroups(); renderDeptMachCare(); }
   else if(id==='customers') renderCustomerRegistry();
   else if(id==='moldregistry') renderMoldRegistry();
   else if(id==='specregistry') renderSpecRegistry();
@@ -28171,6 +28206,61 @@ const SKILL_LIST = [
 const TON_LIST = [40,60,80,90,100,110,120,160,180,220];
 let employees = [];
 let attendance = {}; // {'date_shift': [{empId,status,machine,timeIn,timeOut,note}]}
+const HR_ATTENDANCE_KEY = '_hrAttendance';
+var HR_DEPT_MACH_GROUPS = [];
+function loadHrDeptMachGroups(){
+  try{
+    var a = JSON.parse(localStorage.getItem('_hrDeptMachGroups')||'null');
+    HR_DEPT_MACH_GROUPS = Array.isArray(a) ? a : [];
+  }catch(e){ HR_DEPT_MACH_GROUPS = []; }
+}
+function saveHrDeptMachGroups(){ try{ localStorage.setItem('_hrDeptMachGroups', JSON.stringify(HR_DEPT_MACH_GROUPS)); }catch(e){} }
+function loadHrAttendance(){
+  try{
+    var a = JSON.parse(localStorage.getItem(HR_ATTENDANCE_KEY)||'null');
+    if(a && typeof a === 'object' && !Array.isArray(a)) attendance = a;
+  }catch(e){}
+}
+function saveHrAttendance(){ try{ localStorage.setItem(HR_ATTENDANCE_KEY, JSON.stringify(attendance)); }catch(e){} }
+function _hrParseSkills(sk){
+  if(Array.isArray(sk)) return sk.map(function(x){ return String(x).trim(); }).filter(Boolean);
+  if(sk == null || sk === '') return [];
+  return String(sk).split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+}
+function _hrSkillsArr(e){
+  if(!e) return [];
+  return _hrParseSkills(e.skills);
+}
+function _hrNormStatus(st){
+  var s = (st == null ? '' : String(st)).toLowerCase();
+  if(s === 'leave' || s === 'ลา') return 'leave';
+  if(s === 'resigned' || s === 'ออก' || s === 'inactive') return 'resigned';
+  return 'active';
+}
+function _hrRegStatusFromUi(ui){
+  if(ui === 'leave') return 'leave';
+  if(ui === 'resigned') return 'inactive';
+  return 'active';
+}
+function syncHrEmployeesFromRegistry(){
+  employees = (EMPLOYEE_REGISTRY || []).map(function(r){
+    return {
+      id: r.id || '',
+      name: r.name || '',
+      gender: r.gender || '',
+      dept: r.dept || '',
+      position: r.position || '',
+      mainMachine: r.machine || '',
+      machine: r.machine || '',
+      shift: parseInt(r.shift, 10) || 1,
+      phone: r.phone || '',
+      startDate: r.startDate || '',
+      skills: _hrParseSkills(r.skills),
+      status: _hrNormStatus(r.status),
+      note: r.remark || ''
+    };
+  });
+}
 
 function initEmployees(){
   // employees โหลดจาก EMPLOYEE_REGISTRY / localStorage
@@ -28178,16 +28268,28 @@ function initEmployees(){
 }
 
 function initDayAttendance(date,shift){
+  if(typeof syncHrEmployeesFromRegistry === 'function') syncHrEmployeesFromRegistry();
   const key=date+'_'+shift;
-  if(attendance[key]) return;
-  attendance[key]=employees.map(e=>({
-    empId:e.id,status:'absent',
-    machine:e.mainMachine||'',timeIn:shift==='day'?'08:00':'20:00',
-    timeOut:'',note:''
-  }));
+  const template=function(e){
+    return {empId:e.id,status:'absent',machine:e.mainMachine||'',timeIn:shift==='day'?'08:00':'20:00',timeOut:'',note:''};
+  };
+  if(!attendance[key]){
+    attendance[key]=employees.map(template);
+    saveHrAttendance();
+    return;
+  }
+  var existing=attendance[key];
+  var byId={};
+  existing.forEach(function(r){ byId[r.empId]=r; });
+  attendance[key]=employees.map(function(e){
+    if(byId[e.id]) return byId[e.id];
+    return template(e);
+  });
+  saveHrAttendance();
 }
 
 function renderEmpList(){
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   const search=(document.getElementById('emp-search')?.value||'').toLowerCase();
   const dept=document.getElementById('emp-filter-dept')?.value||'';
   const status=document.getElementById('emp-filter-status')?.value||'';
@@ -28210,8 +28312,8 @@ function renderEmpList(){
       <td style="font-size:12px;color:var(--text2)">${e.position}</td>
       <td><span class="badge badge-blue" style="font-size:11px">${e.dept}</span></td>
       <td style="font-size:11px;max-width:220px">
-        ${e.skills.slice(0,4).map(s=>`<span class="badge" style="background:var(--bg4);margin:1px;font-size:10px">${s}</span>`).join('')}
-        ${e.skills.length>4?`<span style="font-size:10px;color:var(--text3)">+${e.skills.length-4}</span>`:''}
+        ${_hrSkillsArr(e).slice(0,4).map(s=>`<span class="badge" style="background:var(--bg4);margin:1px;font-size:10px">${s}</span>`).join('')}
+        ${_hrSkillsArr(e).length>4?`<span style="font-size:10px;color:var(--text3)">+${_hrSkillsArr(e).length-4}</span>`:''}
       </td>
       <td class="mono" style="font-size:12px;color:var(--accent)">${e.mainMachine||'-'}</td>
       <td style="font-size:11px;color:var(--text3)">-</td>
@@ -28228,6 +28330,7 @@ function renderEmpList(){
 }
 
 function renderAttendance(){
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   const dateEl=document.getElementById('att-date');
   if(!dateEl) return;
   const date=dateEl.value||new Date().toISOString().split('T')[0];
@@ -28270,6 +28373,7 @@ function renderAttendance(){
 }
 
 function renderMachineAssign(){
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   const dateEl=document.getElementById('mach-assign-dt');
   if(!dateEl) return;
   const date=dateEl.value||new Date().toISOString().split('T')[0];
@@ -28319,6 +28423,7 @@ function assignMachine(machineId,date,shift){
 }
 
 function renderSkillMatrix(){
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   const dept=document.getElementById('skill-filter-dept')?.value||'';
   const list=dept?employees.filter(e=>e.dept===dept):employees;
   const wrap=document.getElementById('skill-matrix-wrap');
@@ -28327,21 +28432,31 @@ function renderSkillMatrix(){
   const tonSkills=TON_LIST.map(t=>t+'T'+(t===40?' เครื่องเล็ก':t===220?' เครื่องใหญ่':''));
   const otherSkills=SKILL_LIST.filter(s=>!tonSkills.some(ts=>s.startsWith(ts.split(' ')[0]+'T')));
   const allSkills=[...tonSkills,...otherSkills.slice(0,8)];
-  let html=`<table style="border-collapse:collapse;font-size:11px">
+  const shortLab=function(s){
+    return s.replace(' เครื่องเล็ก','').replace(' เครื่องใหญ่','');
+  };
+  let html=`<table style="border-collapse:collapse;font-size:11px;min-width:640px">
     <thead><tr>
       <th style="background:var(--bg3);padding:6px 10px;position:sticky;left:0;z-index:2;white-space:nowrap">ชื่อพนักงาน</th>
       <th style="background:var(--bg3);padding:4px 8px;white-space:nowrap">แผนก</th>
-      ${allSkills.map(s=>`<th style="background:var(--bg3);padding:4px 6px;white-space:nowrap;writing-mode:vertical-lr;transform:rotate(180deg);max-height:100px;font-size:10px">${s.replace(' เครื่องเล็ก','').replace(' เครื่องใหญ่','')}</th>`).join('')}
+      ${allSkills.map(s=>`<th style="background:var(--bg3);padding:6px 4px;width:44px;max-width:52px;line-height:1.15;font-size:9px;font-weight:600;color:var(--text2);vertical-align:bottom;word-wrap:break-word;hyphens:auto">${shortLab(s)}</th>`).join('')}
     </tr></thead>
     <tbody>
-    ${list.map(e=>`<tr>
+    ${list.map(e=>{
+      const skArr=_hrSkillsArr(e);
+      return `<tr>
       <td style="background:var(--bg3);position:sticky;left:0;z-index:1;padding:4px 10px;white-space:nowrap;font-weight:600">${e.name}</td>
       <td style="padding:4px 8px;white-space:nowrap"><span class="badge badge-blue" style="font-size:9px">${e.dept}</span></td>
       ${allSkills.map(s=>{
-        const has=e.skills.some(sk=>sk.includes(s.split(' ')[0]));
+        const token=s.split(' ')[0];
+        const has=skArr.some(function(sk){
+          var t=String(sk);
+          return t===s || t.indexOf(token)>=0 || s.indexOf(t)>=0;
+        });
         return `<td style="text-align:center;padding:3px;background:${has?'rgba(63,185,80,0.2)':'var(--bg)'};border:1px solid var(--border)">${has?'✅':''}</td>`;
       }).join('')}
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
     </tbody>
   </table>`;
   wrap.innerHTML=html;
@@ -28379,15 +28494,17 @@ function saveEmployee(){
   }
 
   // Sync กับ EMPLOYEE_REGISTRY
+  const prevReg=EMPLOYEE_REGISTRY.find(function(x){ return x.id===idToFind; })||{};
   const regObj={
-    id, name, gender:data.gender, dept:data.dept, position:data.position,
-    machine:data.mainMachine, zone:'', shift:1, phone:data.phone,
+    id:id, name:name, gender:data.gender, dept:data.dept, position:data.position,
+    machine:data.mainMachine, zone:prevReg.zone||'', shift:parseInt(prevReg.shift,10)||1, phone:data.phone,
     startDate:data.startDate, skills:skills.join(','),
-    status:data.status, remark:data.note||''
+    status:_hrRegStatusFromUi(data.status), remark:data.note||prevReg.remark||''
   };
   const regIdx=EMPLOYEE_REGISTRY.findIndex(e=>e.id===idToFind);
   if(regIdx>=0) EMPLOYEE_REGISTRY[regIdx]=regObj; else EMPLOYEE_REGISTRY.push(regObj);
   saveEmployeeRegistry();
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
 
   closeModal('modal-add-emp');
   renderEmpList();
@@ -28405,6 +28522,7 @@ function deleteEmployee(id){
     const regIdx=EMPLOYEE_REGISTRY.findIndex(r=>r.id===id);
     if(regIdx>=0) EMPLOYEE_REGISTRY.splice(regIdx,1);
     saveEmployeeRegistry();
+    if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
     renderEmpList();
     // อัปเดต org chart ถ้า tab เปิดอยู่
     if(document.getElementById('tab-org-chart')&&document.getElementById('tab-org-chart').style.display!=='none'){
@@ -28424,7 +28542,7 @@ function editEmployee(id){
       e={id:reg.id,name:reg.name,gender:reg.gender||'',dept:reg.dept||'',
         position:reg.position||'',mainMachine:reg.machine||'',
         phone:reg.phone||'',startDate:reg.startDate||'',
-        skills:(reg.skills||'').split(',').filter(Boolean),
+        skills:_hrParseSkills(reg.skills),
         status:reg.status||'active',note:reg.remark||''};
       employees.push(e);
     }
@@ -28445,7 +28563,9 @@ function editEmployee(id){
   document.getElementById('emp-phone').value=e.phone||'';
   document.getElementById('emp-main-machine').value=e.mainMachine||'';
   if(document.getElementById('emp-start-date')) document.getElementById('emp-start-date').value=e.startDate||'';
-  document.getElementById('emp-status').value=e.status||'active';
+  var _st=e.status||'active';
+  if(_st==='inactive') _st='resigned';
+  document.getElementById('emp-status').value=_st;
   if(document.getElementById('emp-note')) document.getElementById('emp-note').value=e.note||'';
   // Check skills
   document.querySelectorAll('#emp-skills-wrap input[type=checkbox]').forEach(cb=>{
@@ -28457,7 +28577,8 @@ function editEmployee(id){
 function viewEmpDetail(id){
   const e=employees.find(emp=>emp.id===id);
   if(!e) return;
-  if(typeof _infoToast==="function") _infoToast(`${e.id}: ${e.name}\nแผนก: ${e.dept}\nตำแหน่ง: ${e.position}\nเครื่องหลัก: ${e.mainMachine||'-'}\nทักษะ: ${e.skills.join(', ')}\nสถานะ: ${e.status}`); else console.warn(`${e.id}: ${e.name}\nแผนก: ${e.dept}\nตำแหน่ง: ${e.position}\nเครื่องหลัก: ${e.mainMachine||'-'}\nทักษะ: ${e.skills.join(', ')}\nสถานะ: ${e.status}`);
+  var sk=_hrSkillsArr(e).join(', ');
+  if(typeof _infoToast==="function") _infoToast(`${e.id}: ${e.name}\nแผนก: ${e.dept}\nตำแหน่ง: ${e.position}\nเครื่องหลัก: ${e.mainMachine||'-'}\nทักษะ: ${sk||'-'}\nสถานะ: ${e.status}`); else console.warn(`${e.id}: ${e.name}\nแผนก: ${e.dept}\nตำแหน่ง: ${e.position}\nเครื่องหลัก: ${e.mainMachine||'-'}\nทักษะ: ${sk||'-'}\nสถานะ: ${e.status}`);
 }
 
 function markAllPresent(){
@@ -28466,6 +28587,7 @@ function markAllPresent(){
   const key=date+'_'+shift;
   initDayAttendance(date,shift);
   attendance[key].forEach(r=>r.status='present');
+  saveHrAttendance();
   renderAttModalTable(date,shift);
 }
 
@@ -28510,18 +28632,72 @@ function renderAttModalTable(date,shift){
 
 function updateAttRecord(key,idx,field,val){
   if(attendance[key]&&attendance[key][idx]) attendance[key][idx][field]=val;
+  saveHrAttendance();
 }
 
 function saveAttendance(){
   const date=document.getElementById('att-modal-date')?.value||new Date().toISOString().split('T')[0];
   const shift=document.getElementById('att-modal-shift')?.value||'day';
-  // Records already saved via updateAttRecord
+  saveHrAttendance();
   closeModal('modal-attendance');
   renderAttendance();
   if(typeof _infoToast==="function") _infoToast(`บันทึกการเข้างานวันที่ ${date} ${shift==='day'?'กะเช้า':'กะดึก'} เรียบร้อย`);
 }
 
 function exportAttendance(){ if(typeof _infoToast==="function") _infoToast('Export ตารางเข้างาน (ระบบจริงจะ export เป็น Excel)'); else console.warn('Export ตารางเข้างาน (ระบบจริงจะ export เป็น Excel)'); }
+
+function renderDeptMachCare(){
+  loadHrDeptMachGroups();
+  var tb=document.getElementById('dmc-tbody');
+  if(!tb) return;
+  if(!HR_DEPT_MACH_GROUPS.length){
+    tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text3)">ยังไม่มีกลุ่ม — คลิก «+ เพิ่มกลุ่ม» แล้วระบุรหัสเครื่องที่แผนกนั้นดูแล (ข้อมูลนี้ใช้ในแผนผังองค์กร โหมด «จัดตามกลุ่มดูแลเครื่อง»)</td></tr>';
+    return;
+  }
+  function escInputVal(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+  function escTa(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  tb.innerHTML=HR_DEPT_MACH_GROUPS.map(function(g,i){
+    var mids=(g.machineIds&&g.machineIds.length)?g.machineIds.join(', '):'';
+    return '<tr><td class="mono" style="font-size:11px">'+escTa(g.id||'')+'</td>'
+      +'<td><input type="text" id="dmc-lbl-'+i+'" value="'+escInputVal(g.label)+'" style="width:100%;max-width:300px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;box-sizing:border-box"></td>'
+      +'<td><textarea id="dmc-m-'+i+'" rows="2" style="width:100%;min-width:200px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:monospace;box-sizing:border-box">'+escTa(mids)+'</textarea></td>'
+      +'<td style="text-align:center">'+(g.machineIds?g.machineIds.length:0)+'</td>'
+      +'<td><button type="button" class="btn btn-primary btn-sm" onclick="dmcSaveGroupRow('+i+')">💾 บันทึก</button> '
+      +'<button type="button" class="btn btn-secondary btn-sm" onclick="dmcRemoveGroup('+i+')">🗑 ลบ</button></td></tr>';
+  }).join('');
+}
+function dmcAddGroup(){
+  loadHrDeptMachGroups();
+  HR_DEPT_MACH_GROUPS.push({id:'DMC-'+(Date.now().toString(36).toUpperCase()),label:'กลุ่มใหม่',machineIds:[]});
+  saveHrDeptMachGroups();
+  renderDeptMachCare();
+}
+function dmcSaveGroupRow(idx){
+  loadHrDeptMachGroups();
+  var g=HR_DEPT_MACH_GROUPS[idx];
+  if(!g) return;
+  var lblEl=document.getElementById('dmc-lbl-'+idx);
+  var mEl=document.getElementById('dmc-m-'+idx);
+  g.label=(lblEl&&lblEl.value||'').trim()||g.label;
+  var raw=(mEl&&mEl.value||'');
+  g.machineIds=raw.split(/[,;\n\r\t]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  saveHrDeptMachGroups();
+  if(typeof _toast==='function') _toast('✅ บันทึกกลุ่ม '+(g.label||g.id)+' แล้ว');
+  renderDeptMachCare();
+  if(document.getElementById('tab-org-chart')&&document.getElementById('tab-org-chart').style.display!=='none'&&typeof renderOrgChart==='function') renderOrgChart();
+}
+function dmcRemoveGroup(idx){
+  loadHrDeptMachGroups();
+  if(!HR_DEPT_MACH_GROUPS[idx]) return;
+  var g=HR_DEPT_MACH_GROUPS[idx];
+  var go=function(){
+    HR_DEPT_MACH_GROUPS.splice(idx,1);
+    saveHrDeptMachGroups();
+    renderDeptMachCare();
+    if(typeof _toast==='function') _toast('🗑 ลบกลุ่มแล้ว');
+  };
+  if(typeof _confirmDel==='function') _confirmDel('ลบกลุ่ม <b>'+(g.label||g.id)+'</b> ?',go); else go();
+}
 
 // ===================== MACHINE PM SYSTEM =====================
 const PM_STD = {
@@ -35410,6 +35586,9 @@ function masterInit(){
   initJobRegistry();        // sync JOB_REGISTRY จาก JOBS_RAW ถ้ายังว่าง
   sanitizeJobRegistry();    // ล้างข้อมูล job ที่เป็น undefined/ไม่ครบ
   initEmployeeRegistry();   // sync EMPLOYEE_REGISTRY จาก employees ถ้ายังว่าง
+  loadHrAttendance();
+  loadHrDeptMachGroups();
+  if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
   if(typeof initCustomerDB==='function') initCustomerDB(); // seed จาก JOBS_RAW ถ้าว่าง
 
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
@@ -35474,6 +35653,7 @@ const ALL_PAGES = [
   {id:'history',      label:'สรุปปัญหา & แจ้งเตือน',    icon:'🚨', section:'แจ้งเตือน'},
   {id:'hr',           label:'HR & พนักงาน',              icon:'👷', section:'HR'},
   {id:'empreg',     label:'ทะเบียนพนักงาน',            icon:'👤', section:'HR'},
+  {id:'deptmachcare', label:'จัดกลุ่มแผนกดูแลเครื่อง', icon:'🏭', section:'HR'},
   {id:'machinepm',    label:'แผน PM เครื่องจักร',        icon:'🔩', section:'ซ่อมบำรุง'},
   {id:'pmchecklist', label:'ทะเบียนรายการตรวจ PM',         icon:'📋', section:'ซ่อมบำรุง'},
   {id:'costanalysis', label:'ต้นทุนการผลิต',              icon:'💰', section:'ต้นทุน'},
@@ -35519,7 +35699,7 @@ const ROLES = {
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
     pages:['dashboard','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','bom','mixing','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','machregistry','condstd','conddaily','condcompare','history',
-           'machinepm','actionplan','approvallog','approvaldocs','machgroup','delivery','shipment-history',
+           'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
   },
   operator: {
@@ -35772,6 +35952,7 @@ function applyPermissions(){
   allowed.add('barcode');      // QR Code & Label
   allowed.add('globalsearch'); // ค้นหาทั่วไป
   allowed.add('machgroup');    // Group เครื่องจักร
+  allowed.add('deptmachcare'); // จัดกลุ่มแผนกดูแลเครื่อง (HR)
   allowed.add('mixing');       // แผนผสมเม็ด
   allowed.add('qrtrack');      // QR Scan Tracker
   allowed.add('hourlyboard');  // บอร์ดผลิตรายชั่วโมง
@@ -35859,7 +36040,7 @@ function renderHomeScreen(){
   ['machregistry','moldregistry','customers','closedloop','jobreg','empreg','rawmatreg',
    'supplierreg','pmchecklist','kpitargets','specregistry','limitsample','dailyrpt',
    'nganalysis','dashboard','wi','wi-rework','wi-deviation','barcode','globalsearch',
-   'machgroup','mixing','qrtrack','hourlyboard'].forEach(function(p){ allowed.add(p); });
+   'machgroup','deptmachcare','mixing','qrtrack','hourlyboard'].forEach(function(p){ allowed.add(p); });
   if(AUTH && AUTH.pages && AUTH.pages.includes('approvalproc')) allowed.add('approvalproc-done');
   if(AUTH && AUTH.role==='admin') allowed.add('admin');
 
@@ -36846,7 +37027,7 @@ const TPP_CONFIG = {
       {id:'tpf-hr-dept',label:'แผนก',type:'select',opts:()=>['ทั้งหมด',...new Set(employees.map(e=>e.dept))]},
       {id:'tpf-hr-search',label:'ค้นหา',type:'text',placeholder:'ชื่อ / รหัส...'},
     ],
-    getRecords: ()=>employees,
+    getRecords: ()=>{ if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry(); return employees; },
     filterRecords: (recs)=>{
       const d=document.getElementById('tpf-hr-dept')?.value||'';
       const q=document.getElementById('tpf-hr-search')?.value?.toLowerCase()||'';
@@ -40545,7 +40726,6 @@ function _clRenderChart(){
     <div class="form-group"><div class="form-label">กะ</div>
       <select id="att-modal-shift">
         <option value="day">กะเช้า 08:00-20:00</option>
-        <
         <option value="night">กะดึก 20:00-08:00</option>
       </select>
     </div>
@@ -44104,8 +44284,29 @@ function _orgGetLevelInfo(pos){
 
 var _orgCollapsed = {};
 
+function _orgEmpsWithBuckets(source){
+  var allEmps=_orgGetEmps();
+  if(source==='machcare'){
+    if(typeof loadHrDeptMachGroups==='function') loadHrDeptMachGroups();
+    return allEmps.map(function(e){
+      var mid=(e.machine||e.mainMachine||'').trim();
+      var g=null;
+      (HR_DEPT_MACH_GROUPS||[]).forEach(function(gr){
+        if(g) return;
+        if((gr.machineIds||[]).indexOf(mid)>=0) g=gr;
+      });
+      var bucket=g?(g.label||g.id||'กลุ่ม'):'ไม่จัดกลุ่ม';
+      return Object.assign({}, e, {_orgBucket:bucket});
+    });
+  }
+  return allEmps.map(function(e){
+    return Object.assign({}, e, {_orgBucket:e.dept||'อื่นๆ'});
+  });
+}
 function orgExpandAll(expand){
-  var depts=[...new Set(_orgGetEmps().map(function(e){ return e.dept||'อื่นๆ'; }))];
+  var source=(document.getElementById('org-dept-source')&&document.getElementById('org-dept-source').value)||'empdept';
+  var mapped=_orgEmpsWithBuckets(source);
+  var depts=[...new Set(mapped.map(function(e){ return e._orgBucket; }))];
   depts.forEach(function(d){ _orgCollapsed[d]=!expand; });
   renderOrgChart();
 }
@@ -44156,52 +44357,60 @@ function renderOrgChart(){
   var deptSel=document.getElementById('org-dept-filter');
   var viewMode=document.getElementById('org-view')?.value||'tree';
   var sumEl=document.getElementById('org-summary');
+  var sourceEl=document.getElementById('org-dept-source');
+  var source=(sourceEl&&sourceEl.value)||'empdept';
 
-  var allEmps=_orgGetEmps();
+  var allEmps=_orgEmpsWithBuckets(source);
 
-  // อัปเดต dept dropdown จากข้อมูลจริง
   if(deptSel){
     var currentVal=deptSel.value;
-    var allDepts=[...new Set(allEmps.map(function(e){ return e.dept; }))].sort();
-    deptSel.innerHTML='<option value="">ทุกแผนก ('+allEmps.length+' คน)</option>'
-      +allDepts.map(function(d){
-        var cnt=allEmps.filter(function(e){ return e.dept===d; }).length;
-        return '<option value="'+d+'"'+(d===currentVal?' selected':'')+'>'+d+' ('+cnt+')</option>';
+    var allBuckets=[...new Set(allEmps.map(function(e){ return e._orgBucket; }))].sort();
+    var topLab=source==='machcare'?'ทุกกลุ่ม':'ทุกแผนก';
+    deptSel.innerHTML='<option value="">'+topLab+' ('+allEmps.length+' คน)</option>'
+      +allBuckets.map(function(d){
+        var cnt=allEmps.filter(function(e){ return e._orgBucket===d; }).length;
+        var dv=String(d).replace(/"/g,'&quot;');
+        return '<option value="'+dv+'"'+(d===currentVal?' selected':'')+'>'+d+' ('+cnt+')</option>';
       }).join('');
   }
 
   var deptFilter=deptSel?.value||'';
-  var filtered=deptFilter?allEmps.filter(function(e){ return e.dept===deptFilter; }):allEmps;
+  var filtered=deptFilter?allEmps.filter(function(e){ return e._orgBucket===deptFilter; }):allEmps;
 
-  // จัดกลุ่มตามแผนก
   var deptMap={};
   filtered.forEach(function(e){
-    if(!deptMap[e.dept]) deptMap[e.dept]=[];
-    deptMap[e.dept].push(e);
+    var b=e._orgBucket||'อื่นๆ';
+    if(!deptMap[b]) deptMap[b]=[];
+    deptMap[b].push(e);
   });
-  // เรียงตาม level
   Object.keys(deptMap).forEach(function(dept){
     deptMap[dept].sort(function(a,b){ return _orgGetLevel(a.position)-_orgGetLevel(b.position); });
   });
 
   var totalDepts=Object.keys(deptMap).length;
-  if(sumEl) sumEl.textContent='พนักงานทั้งหมด: '+allEmps.length+' คน | '+totalDepts+' แผนก';
+  if(sumEl){
+    var unit=source==='machcare'?'กลุ่ม':'แผนก';
+    var hint=source==='machcare'?' — กำหนดกลุ่มเครื่องที่หน้า «จัดกลุ่มแผนกดูแลเครื่อง»':'';
+    sumEl.textContent='พนักงานทั้งหมด: '+allEmps.length+' คน | '+totalDepts+' '+unit+hint;
+  }
 
   if(filtered.length===0){
-    wrap.innerHTML='<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:40px;margin-bottom:12px">👥</div><div>ไม่พบพนักงาน — กด "+ เพิ่มพนักงาน" หรือเลือกแผนกอื่น</div></div>';
+    wrap.innerHTML='<div style="text-align:center;padding:60px;color:var(--text3)"><div style="font-size:40px;margin-bottom:12px">👥</div><div>ไม่พบพนักงาน — กด "+ เพิ่มพนักงาน" หรือเลือก'+(source==='machcare'?'กลุ่ม':'แผนก')+' อื่น</div></div>';
     return;
   }
 
-  wrap.innerHTML = viewMode==='table' ? _orgRenderTable(deptMap) : _orgRenderTree(deptMap);
+  wrap.innerHTML = viewMode==='table' ? _orgRenderTable(deptMap,source) : _orgRenderTree(deptMap,source);
 }
 
-function _orgRenderTree(deptMap){
+function _orgRenderTree(deptMap, orgSource){
+  orgSource=orgSource||'empdept';
   var deptColors={'ฉีดพลาสติก':'#388bfd','QC':'#3fb950','ซ่อมบำรุง':'#e3b341','คลังสินค้า':'#f0883e','จัดส่ง':'#d2a8ff','HR':'#bc8cff','บัญชี':'#39c5cf','อื่นๆ':'#8b949e'};
   var html='<style>'
     +'.org-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:130px;max-width:165px;text-align:center;cursor:pointer;transition:all .15s;position:relative}'
     +'.org-card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,0.25);border-color:var(--accent2)}'
     +'.org-card.lv1{border-width:2px}.org-card.lv2{border-style:solid}'
     +'.org-level-bar{display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:6px 10px;background:var(--bg3);border-radius:6px}'
+    +'.org-chain-spine{border-left:3px solid var(--border2);margin-left:14px;padding-left:14px;padding-top:4px;padding-bottom:4px}'
     +'</style>'
     +'<div style="display:flex;flex-direction:column;gap:20px;padding:4px">';
 
@@ -44227,25 +44436,28 @@ function _orgRenderTree(deptMap){
           +'<span style="font-size:11px;background:'+col+'22;color:'+col+';padding:2px 9px;border-radius:10px;font-weight:700">'+emps.length+' คน</span>'
         +'</div>'
         +'<span style="font-size:11px;color:'+col+';font-weight:600">'+(collapsed?'▶ แสดง':'▼ ซ่อน')+'</span>'
-      +'</div>';
+      +'</div>'
+      +(!collapsed?'<div style="padding:6px 18px 0;font-size:10px;font-weight:600;color:var(--text3);border-bottom:1px dashed '+col+'33">สายบังคับบัญชา: ระดับบริหารสูงสุด (1) ลงมาถึงพนักงาน (7) — '+(orgSource==='machcare'?'จัดกลุ่มตามเครื่องหลักที่กำหนดในระบบ':'จัดกลุ่มตามแผนกในทะเบียนพนักงาน')+'</div>':'');
 
     if(!collapsed){
       html+='<div style="padding:16px 18px">';
       lvKeys.forEach(function(lv, ri){
         var lvInfo=ORG_LEVELS.find(function(l){ return l.level===lv; })||ORG_LEVELS[6];
         var group=lvGroups[lv];
-        // Level header bar
+        if(ri>0){
+          html+='<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px 10px;color:var(--text3)">'
+            +'<div style="flex:1;height:2px;background:linear-gradient(90deg,'+lvInfo.color+'66,transparent)"></div>'
+            +'<span style="font-size:11px;font-weight:700;white-space:nowrap;color:'+lvInfo.color+'">รายงานขึ้น ↑</span>'
+            +'<span style="font-size:18px;line-height:1">↓</span>'
+          +'</div>';
+        }
+        html+='<div class="org-chain-spine" style="border-left-color:'+lvInfo.color+'77">';
         html+='<div class="org-level-bar" style="border-left:3px solid '+lvInfo.color+'">'
           +'<span style="font-size:16px">'+lvInfo.icon+'</span>'
           +'<span style="font-size:11px;font-weight:700;color:'+lvInfo.color+'">ระดับ '+lv+' — '+lvInfo.label+'</span>'
           +'<span style="margin-left:auto;font-size:10px;color:var(--text3)">'+group.length+' คน</span>'
         +'</div>';
-        // Connector arrow (ถ้าไม่ใช่ level แรก)
-        if(ri>0){
-          html+='<div style="text-align:center;margin:-4px 0 4px;font-size:20px;color:var(--text3)">↓</div>';
-        }
-        // Cards row
-        html+='<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:'+(group.length===1?'center':'flex-start')+';margin-bottom:'+(ri<lvKeys.length-1?'12px':'4px')+'">';
+        html+='<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:'+(group.length===1?'center':'flex-start')+';margin-bottom:'+(ri<lvKeys.length-1?'14px':'4px')+'">';
         group.forEach(function(e){
           var lvCol=lvInfo.color;
           var isTop=lv<=2;
@@ -44260,7 +44472,7 @@ function _orgRenderTree(deptMap){
             +(lv<=2?'<div style="position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:'+lvCol+';display:flex;align-items:center;justify-content:center;font-size:8px">'+lv+'</div>':'')
           +'</div>';
         });
-        html+='</div>';
+        html+='</div></div>';
       });
       html+='</div>';
     }
@@ -44270,15 +44482,19 @@ function _orgRenderTree(deptMap){
   return html;
 }
 
-function _orgRenderTable(deptMap){
+function _orgRenderTable(deptMap, orgSource){
+  orgSource=orgSource||'empdept';
   var levelColors={1:'#f85149',2:'#f0883e',3:'#e3b341',4:'#3fb950',5:'#79c0ff',6:'#d2a8ff',7:'#8b949e'};
   var html='<div style="display:flex;flex-direction:column;gap:16px;padding:4px">';
   Object.keys(deptMap).sort().forEach(function(dept){
     var emps=deptMap[dept];
     html+='<div class="card" style="overflow:hidden">'
-      +'<div style="padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'
+      +'<div style="padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
         +'<span style="font-size:13px;font-weight:800;color:var(--text)">'+dept+'</span>'
         +'<span style="font-size:10px;background:rgba(56,139,253,0.15);color:var(--accent2);padding:2px 8px;border-radius:10px;font-weight:700">'+emps.length+' คน</span>'
+        +'</div>'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:600">สายบังคับบัญชา: เรียงจากระดับตำแหน่งสูง → ต่ำในแต่ละแถว — '+(orgSource==='machcare'?'กลุ่มจากเครื่องหลัก':'ตามแผนกพนักงาน')+'</div>'
       +'</div>'
       +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
       +'<thead><tr style="background:var(--bg3)">'
@@ -45411,7 +45627,9 @@ function empregDelete(id){
   const e=EMPLOYEE_REGISTRY.find(x=>x.id===id); if(!e) return;
   _confirmDel('🗑 ลบพนักงาน: <b>'+e.name+'</b><br>รหัส: '+e.id, function(){
     const idx=EMPLOYEE_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) EMPLOYEE_REGISTRY.splice(idx,1);
-    saveEmployeeRegistry(); renderEmpRegistry();
+    saveEmployeeRegistry();
+    if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
+    renderEmpRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบพนักงาน '+e.name+' แล้ว');
   });
 }
@@ -46934,7 +47152,7 @@ var XL_CONFIG={
     headers:['รหัสพนักงาน*','ชื่อ-นามสกุล*','เพศ','แผนก','ตำแหน่ง','เครื่องประจำ','Zone','กะ(1-3)','โทร','วันเริ่มงาน(YYYY-MM-DD)','ทักษะ(คั่นด้วยจุลภาค)','สถานะ','หมายเหตุ'],
     required:[0,1],
     example:[['EMP-001','สมชาย ใจดี','ชาย','ฉีดพลาสติก','พนักงาน','MC-01','A','1','0812345678','2024-01-01','ฉีดพลาสติก,QC','active','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var id=(r[0]||'').trim(),nm=(r[1]||'').trim();if(!id||!nm)return;var obj={id:id,name:nm,gender:r[2]||'ชาย',dept:r[3]||'',position:r[4]||'',machine:r[5]||'',zone:r[6]||'',shift:parseInt(r[7])||1,phone:r[8]||'',startDate:r[9]||'',skills:r[10]||'',status:r[11]||'active',remark:r[12]||''};var idx=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===id;});if(idx>=0){if(ow){EMPLOYEE_REGISTRY[idx]=Object.assign(EMPLOYEE_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{EMPLOYEE_REGISTRY.push(obj);a++;}}else{EMPLOYEE_REGISTRY.push(obj);a++;}});saveEmployeeRegistry();if(typeof renderEmpRegistry==='function')renderEmpRegistry();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var id=(r[0]||'').trim(),nm=(r[1]||'').trim();if(!id||!nm)return;var obj={id:id,name:nm,gender:r[2]||'ชาย',dept:r[3]||'',position:r[4]||'',machine:r[5]||'',zone:r[6]||'',shift:parseInt(r[7])||1,phone:r[8]||'',startDate:r[9]||'',skills:r[10]||'',status:r[11]||'active',remark:r[12]||''};var idx=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===id;});if(idx>=0){if(ow){EMPLOYEE_REGISTRY[idx]=Object.assign(EMPLOYEE_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{EMPLOYEE_REGISTRY.push(obj);a++;}}else{EMPLOYEE_REGISTRY.push(obj);a++;}});saveEmployeeRegistry();if(typeof syncHrEmployeesFromRegistry==='function')syncHrEmployeesFromRegistry();if(typeof renderEmpRegistry==='function')renderEmpRegistry();return{added:a,skipped:s,updated:u};}},
   rawmatreg:{title:'ทะเบียนวัตถุดิบ',sub:'นำเข้าข้อมูลวัตถุดิบ / เม็ดพลาสติก',
     headers:['รหัส*','ชื่อวัตถุดิบ*','เกรด','ประเภท(plastic/mb_color/additive)','ความหนาแน่น','สต็อกต่ำสุด(kg)','สต็อกสูงสุด(kg)','ราคา/kg','Lead Time(วัน)','Supplier ID','Spec','สถานะ','หมายเหตุ'],
     required:[0,1],
@@ -47374,6 +47592,7 @@ window.HOME_PAGES = [
   ]},
   { id:'hr', icon:'👷', label:'HR & ซ่อมบำรุง', items:[
     {id:'hr',           icon:'👷', label:'ทักษะ & การเข้างาน',    color:'#1a1510', seq:43},
+    {id:'deptmachcare', icon:'🏭', label:'จัดกลุ่มแผนกดูแลเครื่อง', color:'#1a1810', seq:'43B'},
     {id:'machinepm',    icon:'🔩', label:'แผน PM & ตรวจสอบ',      color:'#181818', seq:44},
     {id:'pmchecklist',  icon:'📋', label:'รายการตรวจ PM',          color:'#101820', seq:45},
   ]},
