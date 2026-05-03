@@ -5715,11 +5715,15 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div><div style="font-size:9px;color:var(--text3)">ชื่องาน</div><div id="cd-jobname" style="font-size:13px;font-weight:700;color:var(--text)">-</div></div>
       <div><div style="font-size:9px;color:var(--text3)">📐 STD อ้างอิง</div><div id="cd-std-ref" style="font-size:12px"></div></div>
       <div><div style="font-size:9px;color:var(--text3)">กะ</div><div id="cd-shift-show" class="badge badge-blue" style="font-size:12px">-</div></div>
-      <div style="margin-left:auto;display:flex;gap:6px">
+      <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="condDailyScanPhotoPick()">📷 สแกนจากรูป</button>
         <button class="btn btn-secondary btn-sm" onclick="loadStdToForm()">📐 โหลดค่า STD</button>
         <button class="btn btn-secondary btn-sm" onclick="showCondHistory()">🕐 ประวัติ</button>
       </div>
     </div>
+    <div id="conddaily-scan-status" style="margin-top:8px;font-size:11px;color:var(--text3)">สแกนค่าจริงจากรูปหน้าจอเครื่อง/ใบจดค่า แล้วเติมลงช่อง Current โดยไม่บันทึกรูป</div>
+    <input id="conddaily-scan-file" type="file" accept="image/*" capture="environment" style="display:none" onchange="condDailyScanPhotoLoad(event)">
+    <div id="conddaily-scan-preview" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px"></div>
   </div>
 
   <div id="cd-empty" class="card" style="text-align:center;padding:50px;color:var(--text3)">
@@ -20674,6 +20678,220 @@ const COND_PARAMS = [
   ['decomp','Decompression','mm','screw',1],
 ];
 const COND_GROUP_LABELS = { barrel:'🔥 Barrel Temp', mold:'🧊 Mold Temp', inject:'💉 Injection', hold:'❄️ Hold/Cool', screw:'🔩 Screw' };
+
+// ── Image Scan (OCR by AI) for Condition pages ───────────────────────────
+function _condScanSetStatus(mode, msg, color){
+  var id=mode==='std'?'condstd-scan-status':'conddaily-scan-status';
+  var el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=msg;
+  if(color) el.style.color=color;
+}
+var _condScanPending = { std:null, daily:null };
+function _condScanPreviewId(mode){ return mode==='std' ? 'condstd-scan-preview' : 'conddaily-scan-preview'; }
+function _condScanClearPreview(mode){
+  var p=document.getElementById(_condScanPreviewId(mode));
+  if(p){ p.style.display='none'; p.innerHTML=''; }
+  _condScanPending[mode]=null;
+}
+function _condNormLabel(s){
+  return String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9ก-๙]/g,'');
+}
+function _condGetStdParamDefAndPrefix(){
+  var brand=_stdCurrentBrand||'general';
+  if(brand==='toshiba') return {params:COND_PARAMS_TOSHIBA,prefix:'tb_'};
+  if(brand==='nissei') return {params:COND_PARAMS_NISSEI,prefix:'ns_'};
+  return {params:COND_PARAMS,prefix:''};
+}
+function _condGetDailyStdRef(){
+  var job=(document.getElementById('cd-jobname')?.textContent||'').trim();
+  var mach=(document.getElementById('cd-machine')?.value||'').trim();
+  if(!job||job==='-') return null;
+  return condStdList.find(function(s){ return s.jobName===job && (!mach || s.machine===mach); })
+      || condStdList.find(function(s){ return s.jobName===job; })
+      || null;
+}
+function _condBuildAliasMap(params, prefix){
+  var map={};
+  params.forEach(function(p){
+    var id=p[0], label=p[1];
+    var key=(prefix||'')+id;
+    var aliases=[id,label,key];
+    if(id==='t1') aliases=aliases.concat(['zone1','barrel1','หัวฉีด']);
+    if(id==='t2') aliases=aliases.concat(['zone2','barrel2']);
+    if(id==='t3') aliases=aliases.concat(['zone3','barrel3']);
+    if(id==='t4') aliases=aliases.concat(['zone4','barrel4']);
+    if(id==='t5') aliases=aliases.concat(['zone5','nozzle','barrel5']);
+    if(id==='tmold') aliases=aliases.concat(['moldtemp','แม่พิมพ์']);
+    if(id==='ip') aliases=aliases.concat(['injpressure','injectpressure']);
+    if(id==='is') aliases=aliases.concat(['injspeed','injectspeed']);
+    if(id==='hp') aliases=aliases.concat(['holdpressure']);
+    if(id==='ht') aliases=aliases.concat(['holdtime']);
+    if(id==='cyc') aliases=aliases.concat(['cycletime','ct']);
+    if(id==='bp') aliases=aliases.concat(['backpressure']);
+    if(id==='srpm') aliases=aliases.concat(['screwrpm','rpm']);
+    aliases.forEach(function(a){ map[_condNormLabel(a)] = key; });
+  });
+  return map;
+}
+function condStdScanPhotoPick(){
+  var fi=document.getElementById('condstd-scan-file');
+  if(fi) fi.click();
+}
+function condDailyScanPhotoPick(){
+  var fi=document.getElementById('conddaily-scan-file');
+  if(fi) fi.click();
+}
+function condStdScanPhotoLoad(event){
+  var file=event?.target?.files?.[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _condScanAnalyzePhoto(e.target.result,'std');
+    event.target.value='';
+  };
+  reader.readAsDataURL(file);
+}
+function condDailyScanPhotoLoad(event){
+  var file=event?.target?.files?.[0];
+  if(!file) return;
+  var std=_condGetDailyStdRef();
+  if(!std){
+    _condScanSetStatus('daily','⚠️ กรุณาเลือกงาน/โหลด STD ก่อนสแกน', '#f85149');
+    return;
+  }
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _condScanAnalyzePhoto(e.target.result,'daily');
+    event.target.value='';
+  };
+  reader.readAsDataURL(file);
+}
+function _condScanAnalyzePhoto(dataUrl, mode){
+  _condScanClearPreview(mode);
+  _condScanSetStatus(mode,'⏳ กำลังสแกนรูปและแปลงเป็นตัวเลข...');
+  var base64=dataUrl.split(',')[1];
+  var mediaType=dataUrl.split(';')[0].split(':')[1]||'image/jpeg';
+  fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1200,
+      messages:[{
+        role:'user',
+        content:[
+          {type:'image', source:{type:'base64', media_type:mediaType, data:base64}},
+          {type:'text', text:'อ่านข้อความจากภาพนี้และดึงเฉพาะค่าพารามิเตอร์เครื่องฉีดพลาสติกออกมาเป็น JSON เท่านั้น ห้ามมีข้อความอื่น รูปแบบ: {"rows":[{"label":"ชื่อพารามิเตอร์","value":123.4,"tol":5.0}]} โดย tol ใส่เฉพาะเมื่อพบค่า ± จากภาพ ถ้าไม่พบให้เป็น null'}
+        ]
+      }]
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(resp){
+    var text=(resp.content||[]).map(function(c){return c.text||'';}).join('');
+    var clean=text.replace(/```json|```/g,'').trim();
+    var parsed=JSON.parse(clean);
+    var rows=Array.isArray(parsed?.rows)?parsed.rows:[];
+    _condScanShowPreview(rows,mode);
+  })
+  .catch(function(){
+    _condScanSetStatus(mode,'⚠️ สแกนไม่สำเร็จ (เชื่อมต่อ AI ไม่ได้ หรือรูปไม่ชัด)', '#f85149');
+  });
+}
+function _condScanResolveRows(rows, mode){
+  var params,prefix;
+  if(mode==='std'){
+    var s1=_condGetStdParamDefAndPrefix();
+    params=s1.params; prefix=s1.prefix;
+  }else{
+    var std=_condGetDailyStdRef();
+    if(!std) return [];
+    if((std.brand||'general')==='toshiba'){ params=COND_PARAMS_TOSHIBA; prefix='tb_'; }
+    else if((std.brand||'general')==='nissei'){ params=COND_PARAMS_NISSEI; prefix='ns_'; }
+    else { params=COND_PARAMS; prefix=''; }
+  }
+  var aliasMap=_condBuildAliasMap(params,prefix);
+  return (rows||[]).map(function(r){
+    var rawLabel=String(r?.label||r?.name||r?.param||'').trim();
+    var label=_condNormLabel(rawLabel);
+    var key=aliasMap[label]||'';
+    var v=parseFloat(r.value); if(isNaN(v)) v=null;
+    var t=(r.tol!=null&&r.tol!=='')?parseFloat(r.tol):null; if(isNaN(t)) t=null;
+    return { rawLabel:rawLabel||'-', key:key, value:v, tol:t };
+  }).filter(function(x){ return x.rawLabel && x.rawLabel!=='-'; });
+}
+function _condScanShowPreview(rows, mode){
+  var resolved=_condScanResolveRows(rows, mode);
+  _condScanPending[mode]=resolved;
+  var ok=resolved.filter(function(r){ return r.key && r.value!=null; }).length;
+  var p=document.getElementById(_condScanPreviewId(mode));
+  if(!p) return;
+  p.style.display='block';
+  p.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--accent2)">ยืนยันก่อนเติมค่า ('+ok+'/'+resolved.length+' รายการที่แมปได้)</div>'
+      +'<div style="display:flex;gap:6px">'
+        +'<button type="button" class="btn btn-secondary btn-sm" onclick="_condScanCancel(\''+mode+'\')">ยกเลิก</button>'
+        +'<button type="button" class="btn btn-primary btn-sm" onclick="_condScanConfirm(\''+mode+'\')">✅ ยืนยันเติมค่า</button>'
+      +'</div>'
+    +'</div>'
+    +'<div style="max-height:180px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+      +'<thead><tr style="background:var(--bg2)"><th style="padding:5px;text-align:left">จากรูป</th><th style="padding:5px;text-align:left">แมปไป</th><th style="padding:5px;text-align:right">ค่า</th><th style="padding:5px;text-align:right">±Tol</th></tr></thead>'
+      +'<tbody>'
+      +resolved.map(function(r){
+        var bad = (!r.key || r.value==null);
+        return '<tr style="border-top:1px solid var(--border);'+(bad?'background:rgba(248,81,73,0.06)':'')+'">'
+          +'<td style="padding:5px">'+r.rawLabel+'</td>'
+          +'<td style="padding:5px;color:'+(r.key?'var(--accent2)':'#f85149')+'">'+(r.key||'ไม่พบพารามิเตอร์ตรงกัน')+'</td>'
+          +'<td style="padding:5px;text-align:right">'+(r.value!=null?r.value:'-')+'</td>'
+          +'<td style="padding:5px;text-align:right">'+(r.tol!=null?r.tol:'-')+'</td>'
+          +'</tr>';
+      }).join('')
+      +'</tbody></table></div>';
+  if(ok>0) _condScanSetStatus(mode,'📋 ตรวจสอบตารางแล้วกด “ยืนยันเติมค่า” (ยังไม่เขียนลงฟอร์ม)', '#e3b341');
+  else _condScanSetStatus(mode,'⚠️ ยังไม่พบรายการที่เติมได้ กรุณาลองรูปที่ชัดขึ้น', '#f85149');
+}
+function _condScanCancel(mode){
+  _condScanClearPreview(mode);
+  _condScanSetStatus(mode,'ยกเลิกการเติมค่าแล้ว', 'var(--text3)');
+}
+function _condScanConfirm(mode){
+  var rows=_condScanPending[mode]||[];
+  var n=_condScanApplyRows(rows,mode);
+  _condScanClearPreview(mode);
+  if(n>0) _condScanSetStatus(mode,'✅ ยืนยันแล้ว: เติมค่าได้ '+n+' รายการ (ไม่เก็บรูปภาพ)', '#3fb950');
+  else _condScanSetStatus(mode,'⚠️ ไม่มีรายการที่เติมได้', '#f85149');
+}
+function _condScanApplyRows(rows, mode){
+  var resolved=rows||[];
+  if(resolved.length && !('rawLabel' in resolved[0])) resolved=_condScanResolveRows(rows,mode);
+  var changed=0;
+  resolved.forEach(function(r){
+    var key=r.key;
+    if(!key) return;
+    var v=parseFloat(r.value);
+    if(isNaN(v)) return;
+    if(mode==='std'){
+      var e=document.getElementById('std-'+key);
+      if(e){ e.value=v; changed++; }
+      if(r.tol!=null && r.tol!==''){
+        var t=parseFloat(r.tol);
+        var te=document.getElementById('std-'+key+'-tol');
+        if(te && !isNaN(t)) te.value=t;
+      }
+    }else{
+      var de=document.getElementById('cd-'+key);
+      if(de){
+        de.value=v;
+        if(typeof cdUpdateParam==='function') cdUpdateParam(key,v,null,null);
+        changed++;
+      }
+    }
+  });
+  if(mode==='daily' && changed>0 && typeof updateDeviationBar==='function') updateDeviationBar();
+  return changed;
+}
 
 // ════════════════════════════════════════════════════════════
 // CONDITION STD & DAILY — Signature / Approval system
@@ -40221,6 +40439,16 @@ function _clRenderChart(){
   <!-- NISSEI form -->
   <div id="std-form-nissei" style="display:none">
     <div id="std-nissei-fields"></div>
+  </div>
+
+  <div style="margin-top:12px;padding:10px 12px;background:rgba(56,139,253,0.06);border:1px solid rgba(56,139,253,0.2);border-radius:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:700;color:var(--accent2)">📷 สแกนตัวเลข STD จากรูปภาพ</div>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="condStdScanPhotoPick()">📥 เลือกรูปเพื่อสแกน</button>
+    </div>
+    <div id="condstd-scan-status" style="font-size:11px;color:var(--text3);margin-top:6px">ระบบจะอ่านค่าตัวเลขและ tolerance จากภาพ แล้วเติมลงฟอร์มโดยไม่บันทึกรูป</div>
+    <input id="condstd-scan-file" type="file" accept="image/*" capture="environment" style="display:none" onchange="condStdScanPhotoLoad(event)">
+    <div id="condstd-scan-preview" style="display:none;margin-top:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px"></div>
   </div>
 
   <div class="form-group" style="margin-top:12px"><div class="form-label">หมายเหตุ / Revision</div><input type="text" id="std-remark" placeholder="Rev.1 - Initial release"></div>
