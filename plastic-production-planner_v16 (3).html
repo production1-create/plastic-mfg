@@ -1636,8 +1636,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     </div>
   </div>
   <div class="tabs">
-    <div class="tab active" onclick="switchTab(this,'tab-orders')">📋 Order ทั้งหมด</div>
-    <div class="tab" onclick="switchTab(this,'tab-plan')">📅 แผนการผลิต</div>
+    <div class="tab active" onclick="switchTab(this,'tab-orders');">📋 Order ทั้งหมด</div>
+    <div class="tab" onclick="switchTab(this,'tab-plan');">📅 แผนการผลิต</div>
+    <div class="tab" onclick="switchTab(this,'tab-order-ot');if(typeof renderOtRequestsPage==='function')renderOtRequestsPage();">⏰ ขอ OT / ประวัติ</div>
   </div>
   <div id="tab-orders">
     <div class="card mb-3">
@@ -1674,7 +1675,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
     </div>
     <div class="card"><div class="tbl-wrap"><table id="orders-table">
-      <thead><tr><th>Order No.</th><th>Lot No.</th><th>ชื่องาน</th><th>ลูกค้า</th><th>จำนวนสั่ง</th><th>ผลิตแล้ว</th><th>เริ่มผลิต</th><th>กำหนดส่ง</th><th>เครื่อง</th><th>เม็ดพลาสติก</th><th>สถานะ</th><th>จัดการ / อนุมัติ</th></tr></thead>
+      <thead><tr><th>Order No.</th><th>Lot No.</th><th>ชื่องาน</th><th>ลูกค้า</th><th>จำนวนสั่ง</th><th>ผลิตแล้ว</th><th>เริ่มผลิต</th><th>กำหนดส่ง</th><th>แผนเวลา/คาดจบ</th><th>เครื่อง</th><th>เม็ดพลาสติก</th><th>สถานะ</th><th>จัดการ / อนุมัติ</th></tr></thead>
       <tbody id="orders-tbody"></tbody>
     </table></div></div>
   </div>
@@ -1682,6 +1683,46 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="card">
       <div class="card-title">แผนการผลิตสัปดาห์นี้</div>
       <div id="week-plan-table"></div>
+    </div>
+  </div>
+  <div id="tab-order-ot" style="display:none">
+    <div class="card mb-3">
+      <div class="card-title">📋 ขออนุมัติ OT วันอาทิตย์ / วันหยุด</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">เมื่อแผนปัจจุบันคาดว่าไม่ทันกำหนดส่ง ให้ส่งคำขอพร้อมรายชื่อพนักงานที่จะเข้าทำงาน — ประวัติการขออยู่ด้านล่าง</div>
+      <div class="form-row" style="flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div class="form-group" style="margin:0;min-width:200px">
+          <div class="form-label">Order</div>
+          <select id="ot-req-order" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:160px">
+          <div class="form-label">ประเภท</div>
+          <select id="ot-req-type" style="width:100%;padding:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
+            <option value="sunday">OT วันอาทิตย์</option>
+            <option value="holiday">OT วันหยุดบริษัท</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <div class="form-label">วันที่ทำงาน</div>
+          <input type="date" id="ot-req-date" style="padding:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <div class="form-label">รายชื่อพนักงานที่จะมาทำ OT (บรรทัดละ 1 คน หรือคั่นด้วย comma)</div>
+        <textarea id="ot-req-employees" rows="4" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;resize:vertical;box-sizing:border-box" placeholder="เช่น นาย ก.&#10;นาง ข."></textarea>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="submitOtRequestForm()">ส่งคำขอ (รออนุมัติ)</button>
+    </div>
+    <div class="card mb-3">
+      <div class="card-title">📅 วันหยุดบริษัท (ใช้คำนวณแผน — วันเหล่านี้ไม่นับเป็นวันทำงานถ้า Order ไม่เปิด &quot;ทำงานวันหยุดบริษัท&quot;)</div>
+      <textarea id="company-holidays-input" rows="3" style="width:100%;padding:10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:12px;box-sizing:border-box" placeholder="วันละบรรทัด เช่น 2026-01-01"></textarea>
+      <button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="saveCompanyHolidaysFromInput()">บันทึกวันหยุด</button>
+    </div>
+    <div class="card">
+      <div class="card-title">ประวัติการขอ OT</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>วันที่ขอ</th><th>Order</th><th>ประเภท</th><th>วันทำงาน</th><th>พนักงาน</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+        <tbody id="ot-req-tbody"></tbody>
+      </table></div>
     </div>
   </div>
 </div>
@@ -6925,6 +6966,20 @@ try{
 }
 function saveOrders(){ try{ localStorage.setItem('_orders', JSON.stringify(orders)); }catch(e){} }
 function loadOrders(){ try{ var d=localStorage.getItem('_orders'); if(d){ var saved=JSON.parse(d); saved.forEach(function(r){ if(!orders.find(function(o){return o.orderNo===r.orderNo;})) orders.unshift(r); }); } }catch(e){} }
+var otRequests = [];
+try{
+  var _otr = localStorage.getItem('_otRequests');
+  if(_otr){ otRequests = JSON.parse(_otr); }
+  if(!Array.isArray(otRequests)) otRequests = [];
+}catch(e){ otRequests = []; }
+var companyHolidays = [];
+try{
+  var _ch = localStorage.getItem('_companyHolidays');
+  if(_ch){ companyHolidays = JSON.parse(_ch); }
+  if(!Array.isArray(companyHolidays)) companyHolidays = [];
+}catch(e){ companyHolidays = []; }
+function saveOtRequests(){ try{ localStorage.setItem('_otRequests', JSON.stringify(otRequests)); }catch(e){} }
+function saveCompanyHolidays(){ try{ localStorage.setItem('_companyHolidays', JSON.stringify(companyHolidays)); }catch(e){} }
 var shipmentHistory=[];
 try{ var _sh=localStorage.getItem('_shipmentHistory'); if(_sh){ shipmentHistory=JSON.parse(_sh); } if(!Array.isArray(shipmentHistory)) shipmentHistory=[]; }catch(e){ shipmentHistory=[]; }
 function saveShipmentHistory(){ try{ localStorage.setItem('_shipmentHistory', JSON.stringify(shipmentHistory)); }catch(e){} }
@@ -6969,6 +7024,14 @@ function openNewOrderModal(){
   ['order-no','lot-no','order-customer','order-qty','order-due','order-start'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var oj=document.getElementById('order-job'); if(oj) oj.value='';
   var calc=document.getElementById('order-calc'); if(calc) calc.style.display='none';
+  var prevPlan=document.getElementById('order-calc-plan'); if(prevPlan) prevPlan.remove();
+  var hDef = (typeof ttGetHoursPerDay === 'function') ? ttGetHoursPerDay() : (parseInt(document.getElementById('tt-hours-per-day')?.value,10)||20);
+  var ph=document.getElementById('order-plan-hours'); if(ph) ph.value=String(hDef);
+  var ps=document.getElementById('order-plan-shift'); if(ps) ps.value='day';
+  var sc=document.getElementById('order-shift-count'); if(sc) sc.value='1';
+  var o3=document.getElementById('order-ot3'); if(o3) o3.checked=false;
+  var su=document.getElementById('order-sun-ot'); if(su) su.checked=false;
+  var hw=document.getElementById('order-holiday-work'); if(hw) hw.checked=false;
   openModal('modal-add-order');
 }
 function openEditOrder(orderNo){
@@ -6987,6 +7050,17 @@ function openEditOrder(orderNo){
   document.getElementById('order-qty').value=o.qty||0;
   document.getElementById('order-due').value=o.dueDate||'';
   document.getElementById('order-start').value=o.startDate||'';
+  var prevPlan=document.getElementById('order-calc-plan'); if(prevPlan) prevPlan.remove();
+  var ph=document.getElementById('order-plan-hours');
+  if(ph){
+    var vh=parseFloat(String(o.orderPlanHours));
+    ph.value=(isFinite(vh)&&vh>=0.5)?String(vh):String((typeof ttGetHoursPerDay==='function')?ttGetHoursPerDay():20);
+  }
+  var ps=document.getElementById('order-plan-shift'); if(ps) ps.value=o.planShiftMode||'day';
+  var sc=document.getElementById('order-shift-count'); if(sc) sc.value=String(Math.min(2,Math.max(1,parseInt(o.shiftCount,10)||1)));
+  var o3=document.getElementById('order-ot3'); if(o3) o3.checked=!!o.ot3h;
+  var su=document.getElementById('order-sun-ot'); if(su) su.checked=!!o.allowSundayOT;
+  var hw=document.getElementById('order-holiday-work'); if(hw) hw.checked=!!o.allowCompanyHolidayWork;
   var ms=document.getElementById('order-machine');
   if(ms&&o.machine){
     for(var j=0;j<ms.options.length;j++){
@@ -6994,6 +7068,7 @@ function openEditOrder(orderNo){
     }
   }
   fillJobInfo();
+  if(typeof orderUpdateModalCalcPreview==='function') orderUpdateModalCalcPreview();
 }
 function saveOrderModal(withTT){
   var jobName=document.getElementById('order-job').value;
@@ -7016,8 +7091,16 @@ function saveOrderModal(withTT){
     machine:(document.getElementById('order-machine').value||'').split(' ')[0]||job.machine,
     plastic:job.plastic,
     grade:job.grade||'',
-    status:'รอผลิต'
+    status:'รอผลิต',
+    orderPlanHours:parseFloat(String((document.getElementById('order-plan-hours')||{}).value)),
+    planShiftMode:(document.getElementById('order-plan-shift')||{}).value||'day',
+    shiftCount:parseInt((document.getElementById('order-shift-count')||{}).value,10)||1,
+    ot3h:!!(document.getElementById('order-ot3')&&document.getElementById('order-ot3').checked),
+    allowSundayOT:!!(document.getElementById('order-sun-ot')&&document.getElementById('order-sun-ot').checked),
+    allowCompanyHolidayWork:!!(document.getElementById('order-holiday-work')&&document.getElementById('order-holiday-work').checked)
   };
+  if(!isFinite(o.orderPlanHours)||o.orderPlanHours<0.5) o.orderPlanHours=(typeof ttGetHoursPerDay==='function')?ttGetHoursPerDay():20;
+  if(o.shiftCount>2) o.shiftCount=2;
   if(orig){
     var idx=orders.findIndex(function(x){ return x.orderNo===orig; });
     if(idx<0){ if(typeof _infoToast==='function') _infoToast('ไม่พบ Order เดิม'); return; }
@@ -7035,6 +7118,10 @@ function saveOrderModal(withTT){
     renderOrders();
     if(withTT) importToTT(no);
     if(typeof _toast==='function') _toast('✅ บันทึกการแก้ไข Order '+no);
+    var savedO2 = orders[idx];
+    if(typeof orderScheduleBehindDue==='function' && orderScheduleBehindDue(savedO2) && typeof _toast==='function'){
+      _toast('⚠️ แผนนี้คาดว่าไม่ทันกำหนดส่ง — เปิดแท็บ «ขอ OT / ประวัติ»');
+    }
     return;
   }
   o.createdAt=new Date().toISOString().split('T')[0];
@@ -7049,6 +7136,9 @@ function saveOrderModal(withTT){
   renderOrders();
   if(withTT) importToTT(no);
   if(typeof _toast==='function') _toast('✅ เพิ่ม Order '+no+(withTT?' และนำเข้า TT':''));
+  if(typeof orderScheduleBehindDue==='function' && orderScheduleBehindDue(o) && typeof _toast==='function'){
+    _toast('⚠️ แผนนี้คาดว่าไม่ทันกำหนดส่ง — เปิดแท็บ «ขอ OT / ประวัติ»');
+  }
   if(goAppr){
     var apWg = typeof _orderWorkGroup==='function' ? _orderWorkGroup(o) : '';
     showPage('approvalproc', null, apWg==='assembly'||apWg==='secondary' ? 'postprocess' : 'injection');
@@ -8365,7 +8455,8 @@ function costAddAutoCalc(){
   var matPr=(cs.matPricePerKg&&cs.matPricePerKg[j?.plastic||'PP'])||50;
   var mbKg=j?matKg*(j.mbRatio||0)/1000:0;
   var matCost=matKg*matPr+mbKg*(cs.mbPricePerKg||180);
-  var labCost=hrs*((cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20));
+  var exH = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
+  var labCost=hrs*((cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20)+exH);
   var ovhCost=(matCost+labCost)*((cs.overheadPct||15)/100);
   var mEl=document.getElementById('cadd-mat');if(mEl)mEl.value=matCost.toFixed(2);
   var lEl=document.getElementById('cadd-lab');if(lEl)lEl.value=labCost.toFixed(2);
@@ -8417,7 +8508,7 @@ function exportCostXL(){
   if(!window.XLSX){_infoToast('กำลังโหลด Excel library');return;}
   var rows=[['วันที่','เครื่อง','ชื่องาน','Order','Lot','ผลิต','OK','NG','NG%','วัตถุดิบ(฿)','ค่าแรง+ไฟ(฿)','Overhead(฿)','รวม(฿)','฿/ชิ้น','BOM Std','Variance%','แหล่งข้อมูล']];
   var lots=[];
-  Object.entries(dailyReports||{}).forEach(function(entry){var key=entry[0],rpt=entry[1];if(!rpt||!rpt.rows)return;var c=_calcLotCost(rpt);var j=jobs.find(function(jj){return jj.name===rpt.jobName;});lots.push({date:rpt.date,machine:rpt.machine,jobName:rpt.jobName,orderNo:rpt.orderNo||'',lotNo:rpt.lotNo||'',totalProd:c.totalProd,okProd:c.okProd,totalNg:c.totalNg,matCost:+(c.matCost+c.mbCost).toFixed(2),labCost:+(c.elecCost+c.labCost+c.machCost).toFixed(2),ovhCost:+c.ovhCost.toFixed(2),totalCost:+c.totalCost.toFixed(2),unitCost:+c.unitCost.toFixed(4),bomUnit:j?.bomUnitCost||'',variance:c.bomUnit>0?+c.variance.toFixed(2):'',source:'Daily Report'});});
+  Object.entries(dailyReports||{}).forEach(function(entry){var key=entry[0],rpt=entry[1];if(!rpt||!rpt.rows)return;var c=_calcLotCost(rpt);var j=jobs.find(function(jj){return jj.name===rpt.jobName;});var labX=+(c.elecCost+c.labCost+c.machCost+(c.extraHrCost||0)).toFixed(2);lots.push({date:rpt.date,machine:rpt.machine,jobName:rpt.jobName,orderNo:rpt.orderNo||'',lotNo:rpt.lotNo||'',totalProd:c.totalProd,okProd:c.okProd,totalNg:c.totalNg,matCost:+(c.matCost+c.mbCost).toFixed(2),labCost:labX,ovhCost:+c.ovhCost.toFixed(2),totalCost:+c.totalCost.toFixed(2),unitCost:+c.unitCost.toFixed(4),bomUnit:j?.bomUnitCost||'',variance:c.bomUnit>0?+c.variance.toFixed(2):'',source:'Daily Report'});});
   MANUAL_COST_ENTRIES.forEach(function(e){var j=jobs.find(function(jj){return jj.name===e.jobName;});var okProd=Math.max(0,(e.produced||0)-(e.ng||0));var tc=(e.matCost||0)+(e.labCost||0)+(e.ovhCost||0);var bom=j?.bomUnitCost||0;lots.push({date:e.date,machine:e.machine||'',jobName:e.jobName,orderNo:e.orderNo||'',lotNo:e.lotNo||'',totalProd:e.produced||0,okProd,totalNg:e.ng||0,matCost:+(e.matCost||0).toFixed(2),labCost:+(e.labCost||0).toFixed(2),ovhCost:+(e.ovhCost||0).toFixed(2),totalCost:+tc.toFixed(2),unitCost:okProd>0?+(tc/okProd).toFixed(4):0,bomUnit:bom||'',variance:bom>0&&okProd>0?+((tc/okProd-bom)/bom*100).toFixed(2):'',source:'Manual'});});
   lots.sort(function(a,b){return b.date.localeCompare(a.date);});
   lots.forEach(function(l){rows.push([l.date,l.machine,l.jobName,l.orderNo,l.lotNo,l.totalProd,l.okProd,l.totalNg,l.totalProd>0?+((l.totalNg/l.totalProd*100)).toFixed(2):0,l.matCost,l.labCost,l.ovhCost,l.totalCost,l.unitCost,l.bomUnit,l.variance,l.source]);});
@@ -13303,6 +13394,233 @@ function ttBomHeadcount(jobName){
   if(!isFinite(w) || w < 0) w = parseInt(j.numWorkers, 10);
   return (isFinite(w) && w > 0) ? w : 0;
 }
+/** ป้ายกะสำหรับแผน Order / TT */
+function orderPlanShiftLabel(mode){
+  if(mode === 'night') return 'กะดึก';
+  if(mode === 'full24') return '24 ชม.';
+  return 'กะเช้า';
+}
+/** ชม.เครื่องต่อวันที่ใช้คำนวณความจุ (ตาม Order: ชม./กะ × จำนวนกะ + OT3 + โหมด 24ชม.) */
+function orderEffectiveHoursPerDay(o){
+  if(!o) return ttGetHoursPerDay();
+  var mode = o.planShiftMode || 'day';
+  if(mode === 'full24'){
+    var h24 = 24 + (o.ot3h ? 3 : 0);
+    return Math.min(27, Math.max(1, h24));
+  }
+  var base = parseFloat(String(o.orderPlanHours));
+  if(!isFinite(base) || base < 0.5) base = ttGetHoursPerDay();
+  base = Math.min(24, Math.max(0.5, base));
+  var shifts = parseInt(o.shiftCount, 10);
+  if(!isFinite(shifts) || shifts < 1) shifts = 1;
+  if(shifts > 2) shifts = 2;
+  var h = base * shifts + (o.ot3h ? 3 : 0);
+  return Math.min(27, Math.max(0.5, h));
+}
+function orderIsNonWorkingDay(dateObj, o){
+  var iso = dateObj.toISOString().split('T')[0];
+  if(dateObj.getDay() === 0 && !o.allowSundayOT) return true;
+  if((companyHolidays || []).indexOf(iso) >= 0 && !o.allowCompanyHolidayWork) return true;
+  return false;
+}
+function orderFirstWorkingDate(startIso, o){
+  var d = new Date((startIso || new Date().toISOString().split('T')[0]) + 'T12:00:00');
+  if(isNaN(d.getTime())) d = new Date();
+  var guard = 0;
+  while(orderIsNonWorkingDay(d, o) && guard++ < 800){ d.setDate(d.getDate() + 1); }
+  return d.toISOString().split('T')[0];
+}
+function orderFinishAfterWorkDays(firstWorkIso, nWorkDays, o){
+  if(nWorkDays <= 0) return firstWorkIso;
+  var d = new Date(firstWorkIso + 'T12:00:00');
+  var left = nWorkDays - 1;
+  var guard = 0;
+  while(left > 0 && guard++ < 800){
+    d.setDate(d.getDate() + 1);
+    if(orderIsNonWorkingDay(d, o)) continue;
+    left--;
+  }
+  return d.toISOString().split('T')[0];
+}
+/** นับจำนวนวันทำงานจริง (ไม่รวมอาทิตย์/วันหยุดตามเงื่อนไข Order) ตั้งแต่ first ถึง end รวมปลายทาง */
+function orderWorkingDaysInclusive(firstWorkIso, endIso, o){
+  var da = new Date(firstWorkIso + 'T12:00:00');
+  var db = new Date(endIso + 'T12:00:00');
+  if(isNaN(da.getTime()) || isNaN(db.getTime())) return 1;
+  if(db < da) return 1;
+  var n = 0;
+  var d = new Date(da);
+  var guard = 0;
+  while(d <= db && guard++ < 800){
+    if(!orderIsNonWorkingDay(d, o)) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return Math.max(1, n);
+}
+/** คาดการณ์วันที่ผลิตครบ (ตามเป้า ชิ้น/ชม. + เงื่อนไขกะ/อาทิตย์/วันหยุด/OT3) */
+function orderEstFinishDate(o){
+  if(!o) return '';
+  var j = jobs.find(function(x){ return x.name === o.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(o.jobName) : null);
+  if(!j || !j.target || j.target <= 0) return '';
+  var rem = Math.max(0, (o.qty || 0) - (o.produced || 0));
+  if(rem <= 0) return o.dueDate || '';
+  var prodHrs = rem / (+j.target);
+  var eff = orderEffectiveHoursPerDay(o);
+  if(!isFinite(eff) || eff <= 0) return '';
+  var nDays = Math.max(1, Math.ceil(prodHrs / eff));
+  var start = o.startDate || new Date().toISOString().split('T')[0];
+  var first = orderFirstWorkingDate(start, o);
+  return orderFinishAfterWorkDays(first, nDays, o);
+}
+function orderScheduleBehindDue(o){
+  if(!o || !o.dueDate) return false;
+  if(o.status === 'ส่งแล้ว' || o.shippedAt) return false;
+  if(typeof isOrderAwaitingShipment === 'function' && isOrderAwaitingShipment(o)) return false;
+  var est = orderEstFinishDate(o);
+  if(!est) return false;
+  return est > o.dueDate;
+}
+function ttGetEffectiveHoursForOrderNo(orderNo){
+  if(!orderNo || orderNo === 'MANUAL') return ttGetHoursPerDay();
+  var o = orders.find(function(x){ return x.orderNo === orderNo; });
+  return o ? orderEffectiveHoursPerDay(o) : ttGetHoursPerDay();
+}
+function ttDailyTargetPcsForTTEntry(j){
+  var jM = jobs.find(function(jj){ return jj.name === j.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(j.jobName) : null);
+  var phr = (jM && jM.target) ? +jM.target : 0;
+  if(!isFinite(phr) || phr <= 0) return 0;
+  var h = ttGetEffectiveHoursForOrderNo(j.orderNo);
+  return Math.round(phr * h);
+}
+function orderUpdateModalCalcPreview(){
+  var calc = document.getElementById('order-calc');
+  var prev = document.getElementById('order-calc-plan');
+  if(prev) prev.remove();
+  var name = (document.getElementById('order-job') || {}).value;
+  var j = jobs.find(function(x){ return x.name === name; });
+  var qty = parseInt((document.getElementById('order-qty') || {}).value, 10) || 0;
+  var due = (document.getElementById('order-due') || {}).value || '';
+  var start = (document.getElementById('order-start') || {}).value || '';
+  if(!calc) return;
+  if(!j){
+    calc.style.display = 'none';
+    return;
+  }
+  var oTmp = {
+    jobName: name,
+    qty: qty,
+    produced: 0,
+    startDate: start,
+    dueDate: due,
+    orderPlanHours: parseFloat(String((document.getElementById('order-plan-hours') || {}).value)),
+    planShiftMode: (document.getElementById('order-plan-shift') || {}).value || 'day',
+    shiftCount: parseInt((document.getElementById('order-shift-count') || {}).value, 10) || 1,
+    ot3h: !!(document.getElementById('order-ot3') && document.getElementById('order-ot3').checked),
+    allowSundayOT: !!(document.getElementById('order-sun-ot') && document.getElementById('order-sun-ot').checked),
+    allowCompanyHolidayWork: !!(document.getElementById('order-holiday-work') && document.getElementById('order-holiday-work').checked)
+  };
+  if(!isFinite(oTmp.orderPlanHours) || oTmp.orderPlanHours < 0.5) oTmp.orderPlanHours = ttGetHoursPerDay();
+  var eff = orderEffectiveHoursPerDay(oTmp);
+  var hrsNeed = (j.target > 0 && qty > 0) ? Math.ceil(qty / j.target) : 0;
+  var est = orderEstFinishDate(oTmp);
+  var warn = (due && est && est > due) ? ' ⚠️ คาดว่าไม่ทันกำหนดส่ง — พิจารณาขอ OT วันอาทิตย์/วันหยุดหรือปรับกะ/ชม.' : '';
+  calc.style.display = qty > 0 ? 'flex' : 'none';
+  if(qty > 0) calc.innerHTML = '⏱ ประมาณเวลาผลิตรวม: <b>' + hrsNeed + '</b> ชม. (เป้า ' + j.target + ' ชิ้น/ชม.)';
+  var div = document.createElement('div');
+  div.id = 'order-calc-plan';
+  div.className = 'alert alert-success';
+  div.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:12px';
+  var topLine = qty > 0 ? '' : '⏱ ใส่จำนวนสั่งเพื่อคำนวณชม.รวม · ';
+  div.innerHTML = topLine + '📅 แผนเดินเครื่อง: <b>' + eff + '</b> ชม./วัน (' + orderPlanShiftLabel(oTmp.planShiftMode)
+    + (parseInt(oTmp.shiftCount, 10) > 1 ? ' × ' + oTmp.shiftCount + ' กะ' : '')
+    + (oTmp.ot3h ? ' +OT 3ชม.' : '') + ')'
+    + (qty > 0 && est ? '<br>คาดจบผลิต: <b>' + est + '</b>' + (due ? ' (กำหนดส่ง ' + due + ')' : '') + warn : '');
+  var ob = document.getElementById('order-plan-block');
+  var parent = calc.parentNode;
+  if(ob && ob.parentNode === parent) parent.insertBefore(div, ob.nextSibling);
+  else parent.insertBefore(div, calc.nextSibling);
+}
+function switchOrderTabOt(){
+  if(typeof showPage === 'function') showPage('orders');
+  var page = document.getElementById('page-orders');
+  if(!page) return;
+  var tabs = page.querySelectorAll('.tabs .tab');
+  var targetTab = null;
+  tabs.forEach(function(t){
+    if((t.textContent || '').indexOf('ขอ OT') >= 0) targetTab = t;
+  });
+  if(targetTab && typeof switchTab === 'function') switchTab(targetTab, 'tab-order-ot');
+  if(typeof renderOtRequestsPage === 'function') renderOtRequestsPage();
+}
+function renderOtRequestsPage(){
+  var sel = document.getElementById('ot-req-order');
+  if(sel){
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">-- เลือก Order --</option>' + (orders || []).filter(function(o){ return typeof isOrderInActivePipeline !== 'function' || isOrderInActivePipeline(o); }).map(function(o){
+      return '<option value="' + String(o.orderNo).replace(/"/g, '&quot;') + '">' + o.orderNo + ' — ' + String(o.jobName || '').replace(/</g, '') + '</option>';
+    }).join('');
+    if(prev && [...sel.options].some(function(op){ return op.value === prev; })) sel.value = prev;
+  }
+  var hol = document.getElementById('company-holidays-input');
+  if(hol && document.activeElement !== hol) hol.value = (companyHolidays || []).join('\n');
+  var tb = document.getElementById('ot-req-tbody');
+  if(!tb) return;
+  tb.innerHTML = (otRequests || []).map(function(r){
+    var st = r.status || 'รออนุมัติ';
+    var badge = st === 'อนุมัติแล้ว' ? 'badge-green' : st === 'ไม่อนุมัติ' ? 'badge-red' : 'badge-yellow';
+    return '<tr>'
+      + '<td class="mono" style="font-size:11px">' + (r.createdAt || '').replace('T', ' ').slice(0, 16) + '</td>'
+      + '<td class="mono">' + (r.orderNo || '-') + '</td>'
+      + '<td>' + (r.otType === 'holiday' ? 'วันหยุดบริษัท' : 'วันอาทิตย์') + '</td>'
+      + '<td class="mono">' + (r.workDate || '-') + '</td>'
+      + '<td style="max-width:220px;font-size:11px;white-space:pre-wrap">' + String(r.employees || '-').replace(/</g, '&lt;') + '</td>'
+      + '<td><span class="badge ' + badge + '">' + st + '</span></td>'
+      + '<td style="white-space:nowrap">'
+      + '<button type="button" class="btn btn-secondary btn-sm" onclick="otReqApprove(\'' + String(r.id).replace(/'/g, "\\'") + '\',\'อนุมัติแล้ว\')">✓ อนุมัติ</button> '
+      + '<button type="button" class="btn btn-secondary btn-sm" onclick="otReqApprove(\'' + String(r.id).replace(/'/g, "\\'") + '\',\'ไม่อนุมัติ\')">✕ ไม่อนุมัติ</button>'
+      + '</td></tr>';
+  }).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีคำขอ OT</td></tr>';
+}
+function otReqApprove(id, status){
+  var r = otRequests.find(function(x){ return x.id === id; });
+  if(!r) return;
+  r.status = status;
+  r.approvedAt = new Date().toISOString();
+  saveOtRequests();
+  renderOtRequestsPage();
+  if(typeof _toast === 'function') _toast('บันทึกสถานะ: ' + status);
+}
+function submitOtRequestForm(){
+  var orderNo = (document.getElementById('ot-req-order') || {}).value || '';
+  var otType = (document.getElementById('ot-req-type') || {}).value || 'sunday';
+  var workDate = (document.getElementById('ot-req-date') || {}).value || '';
+  var employees = (document.getElementById('ot-req-employees') || {}).value || '';
+  if(!orderNo){ if(typeof _infoToast === 'function') _infoToast('เลือก Order'); return; }
+  if(!workDate){ if(typeof _infoToast === 'function') _infoToast('ระบุวันที่ทำ OT'); return; }
+  var id = 'OT-' + Date.now();
+  otRequests.unshift({
+    id: id,
+    orderNo: orderNo,
+    otType: otType,
+    workDate: workDate,
+    employees: employees,
+    status: 'รออนุมัติ',
+    createdAt: new Date().toISOString()
+  });
+  saveOtRequests();
+  if(typeof addToApprovalLog === 'function'){
+    addToApprovalLog('ot-' + id, 'ขอ OT ' + (otType === 'holiday' ? 'วันหยุด' : 'วันอาทิตย์') + ': ' + orderNo, 'ผู้ใช้', 'รออนุมัติ');
+  }
+  renderOtRequestsPage();
+  if(typeof _toast === 'function') _toast('✅ ส่งคำขอ OT แล้ว (รออนุมัติ)');
+  var ta = document.getElementById('ot-req-employees'); if(ta) ta.value = '';
+}
+function saveCompanyHolidaysFromInput(){
+  var raw = (document.getElementById('company-holidays-input') || {}).value || '';
+  companyHolidays = raw.split(/[\n,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  saveCompanyHolidays();
+  if(typeof _toast === 'function') _toast('บันทึกวันหยุดบริษัทแล้ว');
+}
 function ttSaveMachPick(){
   var arr = [];
   document.querySelectorAll('.tt-mach-pick:checked').forEach(function(cb){ arr.push(cb.value); });
@@ -13986,6 +14304,7 @@ function renderOrdersTable(filter, statusFilter){
       <td><div style="min-width:80px"><div class="flex justify-between" style="font-size:11px"><span class="mono">${o.produced.toLocaleString()}</span><span>${pct}%</span></div><div class="progress" style="margin-top:2px"><div class="progress-fill" style="width:${pct}%;background:${pct>=100?'var(--green)':pct>=50?'var(--accent4)':'var(--red)'}"></div></div></div></td>
       <td class="mono" style="font-size:12px">${o.startDate||'<span style="color:var(--text3);font-size:10px">—</span>'}</td>
       <td class="mono" style="font-size:12px;color:${diff<0?'var(--red)':diff<=3?'var(--yellow)':'var(--text)'}">${o.dueDate}</td>
+      <td style="font-size:10px;line-height:1.35;max-width:150px">${(()=>{ var effH=typeof orderEffectiveHoursPerDay==='function'?orderEffectiveHoursPerDay(o):20; var lbl=typeof orderPlanShiftLabel==='function'?orderPlanShiftLabel(o.planShiftMode||'day'):''; var est=typeof orderEstFinishDate==='function'?orderEstFinishDate(o):''; var late=est&&o.dueDate&&est>o.dueDate; return '<span class="mono" style="font-weight:700;color:#79c0ff">'+effH+'</span> ชม./วัน · '+lbl+(parseInt(o.shiftCount,10)>1?' ×'+o.shiftCount+'กะ':'')+(o.ot3h?'+OT3':'')+'<br><span style="color:'+(late?'var(--red)':'var(--text3)')+'">จบ ~'+est+'</span>'; })()}</td>
       <td class="mono" style="font-size:12px">${o.machine||'-'}</td>
       <td><span class="badge mat-${o.plastic}">${o.plastic}</span></td>
       <td><span class="badge ${badge}">${o.status}</span></td>
@@ -13996,7 +14315,7 @@ function renderOrdersTable(filter, statusFilter){
         <button data-ord="${on}" onclick="deleteOrder(this.dataset.ord)" title="ลบ Order นี้" style="padding:3px 8px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:2px">🗑</button>
       </td>
     </tr>`;
-  }).join('')||'<tr><td colspan="13" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบ Order ตามตัวกรอง</td></tr>';
+  }).join('')||'<tr><td colspan="14" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบ Order ตามตัวกรอง</td></tr>';
   updateOrderSelectionUI();
 }
 function filterOrders(v){ renderOrdersTable(v, undefined); }
@@ -14085,38 +14404,47 @@ function importToTT(orderNo){
   // ── Calculate production days needed ──────────────────
   const job = jobs.find(j=>j.name===o.jobName);
   let daysNeeded = 1; // default
+  let hoursPerDay = typeof ttGetHoursPerDay === 'function' ? ttGetHoursPerDay() : (parseInt(document.getElementById('tt-hours-per-day')?.value, 10) || 20);
+  if(typeof orderEffectiveHoursPerDay === 'function') hoursPerDay = orderEffectiveHoursPerDay(o);
   
   if(job && job.target > 0){
-    // job.target = pcs/hr (targetPerHr), ไม่ต้องหาร 3600
-    // ดึงค่าชั่วโมงทำงาน/วัน จาก input ถ้ามี ไม่งั้นใช้ค่า default 20 ชม.
-    const hoursPerDay = typeof ttGetHoursPerDay === 'function' ? ttGetHoursPerDay() : (parseInt(document.getElementById('tt-hours-per-day')?.value, 10) || 20);
-    const targetPerDay = job.target * hoursPerDay; // pcs/hr × hrs/day = pcs/day
+    const targetPerDay = job.target * hoursPerDay;
     const daysRequired = Math.ceil(o.qty / targetPerDay);
     daysNeeded = Math.max(1, daysRequired);
-    
+    var estEnd = (typeof orderEstFinishDate === 'function') ? orderEstFinishDate(o) : '';
+    var firstW = (typeof orderFirstWorkingDate === 'function') ? orderFirstWorkingDate(o.startDate || prodDate, o) : (o.startDate || prodDate);
+    if(estEnd && typeof orderWorkingDaysInclusive === 'function'){
+      daysNeeded = orderWorkingDaysInclusive(firstW, estEnd, o);
+    }
     if(typeof _toast==='function'){
-      _toast('📊 คำนวณแล้ว: '+o.qty+' ชิ้น ÷ '+Math.round(targetPerDay)+' ชิ้น/วัน ('+hoursPerDay+'ชม.) = '+daysNeeded+' วัน');
+      _toast('📊 คำนวณแล้ว: '+o.qty+' ชิ้น ÷ '+Math.round(targetPerDay)+' ชิ้น/วัน ('+hoursPerDay+'ชม.) = '+daysNeeded+' วันทำงาน (ข้ามอาทิตย์/หยุดตามตั้งค่า Order)');
     }
   }
 
-  // ── Add entries for each day ──────────────────
-  const startDate = new Date(prodDate);
-  for(let d=0; d<daysNeeded; d++){
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + d);
-    const dateStr = currentDate.toISOString().split('T')[0];
-    
-    if(!ttData[dateStr]) ttData[dateStr]=[];
-    
-    if(!ttData[dateStr].find(x=>x.machine===assignedMach&&x.orderNo===o.orderNo)){
-      ttData[dateStr].push({
-        machine:assignedMach, jobName:o.jobName, lot:o.lotNo,
-        qty:o.qty, plastic:o.plastic, mb:o.mb||jobs.find(j=>j.name===o.jobName)?.mb||'-',
-        orderNo:o.orderNo, date:dateStr, dueDate:o.dueDate,
-        groupAssigned:'', // ไม่ได้ใช้ Machine Group
-        dayIndex: d+1, totalDays: daysNeeded
-      });
+  // ── Add entries เฉพาะวันทำงาน (สอดคล้องคำนวณจบงาน) ──────────────────
+  var cal = new Date((o.startDate || prodDate) + 'T12:00:00');
+  if(isNaN(cal.getTime())) cal = new Date();
+  var dPlaced = 0;
+  var g2 = 0;
+  while(dPlaced < daysNeeded && g2++ < 800){
+    var dateStr = cal.toISOString().split('T')[0];
+    if(typeof orderIsNonWorkingDay !== 'function' || !orderIsNonWorkingDay(cal, o)){
+      if(!ttData[dateStr]) ttData[dateStr]=[];
+      if(!ttData[dateStr].find(x=>x.machine===assignedMach&&x.orderNo===o.orderNo)){
+        ttData[dateStr].push({
+          machine:assignedMach, jobName:o.jobName, lot:o.lotNo,
+          qty:o.qty, plastic:o.plastic, mb:o.mb||jobs.find(j=>j.name===o.jobName)?.mb||'-',
+          orderNo:o.orderNo, date:dateStr, dueDate:o.dueDate,
+          groupAssigned:'',
+          dayIndex: dPlaced+1, totalDays: daysNeeded,
+          orderPlanHours:o.orderPlanHours, planShiftMode:o.planShiftMode, shiftCount:o.shiftCount,
+          ot3h:!!o.ot3h, allowSundayOT:!!o.allowSundayOT, allowCompanyHolidayWork:!!o.allowCompanyHolidayWork,
+          effHoursPerDay: hoursPerDay
+        });
+      }
+      dPlaced++;
     }
+    cal.setDate(cal.getDate()+1);
   }
   
   // Save ttData to localStorage
@@ -14281,12 +14609,10 @@ function fillJobInfo(){
   if(ms&&j.machine){
     for(let opt of ms.options){ if(opt.value.startsWith(j.machine)) {ms.value=opt.value;break;} }
   }
+  const calc=document.getElementById('order-calc');
   const qty=document.getElementById('order-qty').value;
-  if(qty){
-    const hrs=Math.ceil(parseInt(qty)/j.target);
-    document.getElementById('order-calc').style.display='flex';
-    document.getElementById('order-calc').textContent=`⏱ ประมาณเวลาผลิต: ${hrs} ชั่วโมง (เป้า ${j.target} ชิ้น/ชม)`;
-  }
+  if(!qty && calc){ calc.style.display='none'; }
+  if(typeof orderUpdateModalCalcPreview==='function') orderUpdateModalCalcPreview();
 }
 
 // ===================== TIMETABLE =====================
@@ -14434,15 +14760,20 @@ function renderTT(){
       +(function(){
         var jM = jobs.find(function(jj){ return jj.name === j.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(j.jobName) : null);
         var phr = (jM && jM.target) ? +jM.target : 0;
-        var dayTgt = (typeof ttDailyTargetPcsForJob === 'function') ? ttDailyTargetPcsForJob(j.jobName) : Math.round(phr * hoursDay);
+        var effH = (j.effHoursPerDay != null && isFinite(+j.effHoursPerDay)) ? +j.effHoursPerDay : ((typeof ttGetEffectiveHoursForOrderNo === 'function') ? ttGetEffectiveHoursForOrderNo(j.orderNo) : hoursDay);
+        var dayTgt = (typeof ttDailyTargetPcsForTTEntry === 'function') ? ttDailyTargetPcsForTTEntry(j) : Math.round(phr * effH);
         var okD = (typeof ttDailyOkFromReport === 'function') ? ttDailyOkFromReport(j.machine, rptDate) : null;
+        var modeLbl = (typeof orderPlanShiftLabel === 'function') ? orderPlanShiftLabel(j.planShiftMode || 'day') : (j.planShiftMode || '');
+        var scn = parseInt(j.shiftCount, 10) || 0;
+        var planLine = '<div style="font-size:9px;color:#a371f7;font-weight:700;margin-top:2px">แผนเดิน: '+effH+' ชม./วัน · '+modeLbl
+          +(scn > 1 ? ' ×'+scn+'กะ' : '')+(j.ot3h ? ' +OT3' : '')+'</div>';
         var tLine = '<div style="font-size:10px;color:#79c0ff;font-weight:700;margin-top:2px">เป้าต่อวัน: '+dayTgt.toLocaleString()+' ชิ้น'
-          +(phr>0 ? ' <span style="color:var(--text3);font-weight:600">('+hoursDay+'h×'+phr+'/h)</span>' : '')
+          +(phr>0 ? ' <span style="color:var(--text3);font-weight:600">('+effH+'h×'+phr+'/h)</span>' : '')
           +'</div>';
         var aLine = (okD === null)
           ? '<div style="font-size:10px;color:var(--text3);margin-top:1px">ผลิตได้/วัน: — <span style="font-size:9px">(ยังไม่กรอกรายงาน)</span></div>'
           : '<div style="font-size:10px;color:#3fb950;font-weight:700;margin-top:1px">ผลิตได้/วัน: '+okD.toLocaleString()+' ชิ้น <span style="font-size:9px;color:var(--text3);font-weight:600">(OK)</span></div>';
-        return tLine + aLine;
+        return planLine + tLine + aLine;
       })()
       +'<div style="display:flex;gap:4px;margin-top:4px;align-items:center">'
         +'<span class="badge mat-'+pl+'" style="font-size:9px">'+pl+'</span>'
@@ -15814,6 +16145,7 @@ function _bomFullEstimate(){
   var laborPerHr=laborRateOverride>0?laborRateOverride:(cs.laborPerHr||45);
   var elecPerHr=cs.electricPerHr||35;
   var machPerHr=cs.machineDepHr||20;
+  var extraPerHr=typeof costExtraHrPerHr==='function'?costExtraHrPerHr():0;
   var procCostTotal=0;
 
   if(mainTgtHr>0){
@@ -15823,7 +16155,7 @@ function _bomFullEstimate(){
       var stepCT=step.ct>0?step.ct:(ct*proc.ct_factor);
       var stepTgt=stepCT>0?3600/stepCT:mainTgtHr/cav;
       var stepLaborPc=(laborPerHr*stepWorkers)/stepTgt;
-      var stepMachPc=idx===0?(elecPerHr+machPerHr)/mainTgtHr:0;
+      var stepMachPc=idx===0?(elecPerHr+machPerHr+extraPerHr)/mainTgtHr:0;
       var stepCostPc=stepLaborPc+stepMachPc;
       procCostTotal+=stepCostPc;
       var costDisp=document.getElementById('bom-proc-cost-'+(idx+1));
@@ -15834,7 +16166,7 @@ function _bomFullEstimate(){
     });
     // If no process steps selected, use basic injection labor
     if(processSteps.length===0){
-      procCostTotal=(laborPerHr+elecPerHr+machPerHr)/mainTgtHr;
+      procCostTotal=(laborPerHr+elecPerHr+machPerHr+extraPerHr)/mainTgtHr;
     }
     for(var i=processSteps.length+1;i<=7;i++){
       var cd=document.getElementById('bom-proc-cost-'+i);
@@ -16113,7 +16445,7 @@ function _bomCalcEstimate(){
   var matPr=(cs.matPricePerKg&&cs.matPricePerKg[plastic])||50;
   var mbPr=cs.mbPricePerKg||180;
   var matCostPc=matKgPerPc*matPr+mbKgPerPc*mbPr;
-  var labCostHr=(cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20);
+  var labCostHr=(cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20)+(typeof costExtraHrPerHr==='function'?costExtraHrPerHr():0);
   var labCostPc=labCostHr/tgtHr;
   var sub=matCostPc+labCostPc;
   var ovhCostPc=sub*((cs.overheadPct||15)/100);
@@ -24618,7 +24950,8 @@ function rptSendToCost(){
   var totalProd=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);
   var totalNg=(rpt.rows||[]).reduce(function(s,r){return s+(r.ng||0);},0);
   var hrs=(rpt.rows||[]).filter(function(r){return r.produced>0||r.ltMins>0;}).length;
-  var labCost=hrs*((cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20));
+  var exH = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
+  var labCost=hrs*((cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20)+exH);
   var ovhCost=(matCost+labCost)*((cs.overheadPct||15)/100);
   if(typeof MANUAL_COST_ENTRIES!=='undefined'){
     MANUAL_COST_ENTRIES=MANUAL_COST_ENTRIES.filter(function(e){return !e._id||!e._id.startsWith('RPT-'+currentRptKey);});
@@ -25128,7 +25461,8 @@ function _renderCostOrderEstimates(){
     const matP = cs.matPricePerKg[j.plastic||'PP']||50;
     const matC = wtKg*matP;
     const mbC  = wtKg*(j.mbRatio||10)/1000*cs.mbPricePerKg;
-    const labC = hrs*(cs.laborPerHr+cs.electricPerHr+cs.machineDepHr);
+    const extraH = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
+    const labC = hrs*(cs.laborPerHr+cs.electricPerHr+cs.machineDepHr+extraH);
     const sub  = matC+mbC+labC;
     const ovh  = sub*cs.overheadPct/100;
     const tot  = sub+ovh;
@@ -25170,7 +25504,8 @@ function _renderCostOrderEstimates(){
     const wtKg=o.qty*(j.wt||5)/1000;
     const matC=wtKg*(cs.matPricePerKg[j.plastic||'PP']||50);
     const mbC=wtKg*(j.mbRatio||10)/1000*cs.mbPricePerKg;
-    const labC=hrs*(cs.laborPerHr+cs.electricPerHr+cs.machineDepHr);
+    const extraH2 = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
+    const labC=hrs*(cs.laborPerHr+cs.electricPerHr+cs.machineDepHr+extraH2);
     const sub=matC+mbC+labC;
     const tot=sub+sub*cs.overheadPct/100;
     acc.total+=tot; acc.unit+=o.qty>0?tot/o.qty:0; acc.n++;
@@ -25194,10 +25529,39 @@ function renderCostSettings(){
   el('cs-labor-hr').value  = cs.laborPerHr;
   el('cs-overhead').value  = cs.overheadPct;
   el('cs-mach-dep').value  = cs.machineDepHr;
-  ['PP','LDPE','HDPE','POM','NY6','AS','ABS','PC'].forEach(m=>{
-    const inp = el('cs-mat-'+m);
-    if(inp) inp.value = cs.matPricePerKg[m]||0;
+  COST_STD_MAT_KEYS.forEach(function(m){
+    const inp = el('cs-mat-' + m);
+    if(inp) inp.value = (cs.matPricePerKg && cs.matPricePerKg[m] != null) ? cs.matPricePerKg[m] : 0;
   });
+  var matExtra = el('cs-mat-extra-list');
+  if(matExtra){
+    matExtra.innerHTML = '';
+    Object.keys(cs.matPricePerKg || {}).forEach(function(k){
+      if(COST_STD_MAT_KEYS.indexOf(k) >= 0) return;
+      if(typeof costAddMatExtraLine === 'function') costAddMatExtraLine(k, cs.matPricePerKg[k]);
+    });
+    if(!matExtra.children.length){
+      matExtra.innerHTML = '<span data-cs-empty style="font-size:11px;color:var(--text3)">ยังไม่มี — กด &quot;+ เพิ่มเม็ดอื่นๆ&quot;</span>';
+    }
+  }
+  var hrList = el('cs-custom-hr-list');
+  if(hrList){
+    hrList.innerHTML = '';
+    (cs.customHrRates || []).forEach(function(r){
+      if(typeof costAddHrLine === 'function'){
+        costAddHrLine();
+        var last = hrList.querySelector('.cs-hr-row:last-of-type');
+        if(last){
+          var li = last.querySelector('.cs-hr-label'); var ri = last.querySelector('.cs-hr-rate');
+          if(li) li.value = r.label || '';
+          if(ri) ri.value = (r.perHr != null && !isNaN(r.perHr)) ? r.perHr : '';
+        }
+      }
+    });
+    if(!hrList.querySelector('.cs-hr-row')){
+      hrList.innerHTML = '<span data-cs-empty style="font-size:11px;color:var(--text3)">ยังไม่มี — กด &quot;+ เพิ่มค่าใช้จ่าย (บาท/ชม.)&quot;</span>';
+    }
+  }
 }
 
 function _calcLotCost(rpt){
@@ -25223,7 +25587,10 @@ function _calcLotCost(rpt){
   const elecCost  = schedHrs * cs.electricPerHr;
   const labCost   = schedHrs * cs.laborPerHr;
   const machCost  = schedHrs * cs.machineDepHr;
-  const sub       = matCost + mbCost + elecCost + labCost + machCost;
+  const extraHrCost = (cs.customHrRates || []).reduce(function(s, x){
+    return s + schedHrs * (parseFloat(x.perHr) || 0);
+  }, 0);
+  const sub       = matCost + mbCost + elecCost + labCost + machCost + extraHrCost;
   const ovhCost   = sub * cs.overheadPct / 100;
   const totalCost = sub + ovhCost;
   const unitCost  = okProd > 0 ? totalCost / okProd : 0;
@@ -25234,7 +25601,7 @@ function _calcLotCost(rpt){
   const alertPct  = j?.costAlertPct || 10;
   return {
     j, cs, totalProd, totalNg, runHrs, schedHrs, okProd, wtPerPc,
-    matKg, mbKg, matPr, matCost, mbCost, elecCost, labCost, machCost,
+    matKg, mbKg, matPr, matCost, mbCost, elecCost, labCost, machCost, extraHrCost,
     sub, ovhCost, totalCost, unitCost, ngCostVal, bomUnit, variance, alertPct
   };
 }
@@ -25281,7 +25648,7 @@ function renderCostLotList(filterJob){
       totalProd: c.totalProd, totalNg: c.totalNg, okProd: c.okProd,
       schedHrs: c.schedHrs, runHrs: c.runHrs,
       matCost: c.matCost, mbCost: c.mbCost,
-      elecCost: c.elecCost, labCost: c.labCost, machCost: c.machCost,
+      elecCost: c.elecCost, labCost: c.labCost, machCost: c.machCost, extraHrCost: c.extraHrCost || 0,
       ovhCost: c.ovhCost, totalCost: c.totalCost,
       unitCost: c.unitCost, ngCostVal: c.ngCostVal,
       bomUnit: c.bomUnit, variance: c.variance, alertPct: c.alertPct,
@@ -25327,7 +25694,7 @@ function renderCostLotList(filterJob){
       totalProd: produced, totalNg: ng, okProd: okProd,
       schedHrs: +(e.hrs || 0), runHrs: +(e.hrs || 0),
       matCost: mat, mbCost: 0,
-      elecCost: 0, labCost: lab, machCost: 0,
+      elecCost: 0, labCost: lab, machCost: 0, extraHrCost: 0,
       ovhCost: ovh, totalCost: totalCost,
       unitCost: unitCost, ngCostVal: ngCostVal,
       bomUnit: bomUnit, variance: variance, alertPct: alertPct,
@@ -25356,7 +25723,7 @@ function renderCostLotList(filterJob){
     const lbBorder = over ? 'border-left:3px solid var(--red)' : '';
     const totC = lot.totalCost || 1;
     const matPct = Math.round((lot.matCost + lot.mbCost) / totC * 100);
-    const labPct = Math.round((lot.elecCost + lot.labCost + lot.machCost) / totC * 100);
+    const labPct = Math.round((lot.elecCost + lot.labCost + lot.machCost + (lot.extraHrCost || 0)) / totC * 100);
     const jSafe = (lot.jobName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const lSafe = (lot.lotNo || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const manualTag = lot.source === 'manual'
@@ -25383,7 +25750,7 @@ function renderCostLotList(filterJob){
       + '</td>'
       + '<td style="padding:5px 8px;text-align:right" class="mono">' + fmt2(lot.matCost + lot.mbCost) + '</td>'
       + '<td style="padding:5px 8px;text-align:right">'
-        + '<div class="mono">' + fmt2(lot.elecCost + lot.labCost + lot.machCost) + '</div>'
+        + '<div class="mono">' + fmt2(lot.elecCost + lot.labCost + lot.machCost + (lot.extraHrCost || 0)) + '</div>'
         + '<div style="height:3px;border-radius:2px;margin-top:2px;background:var(--bg3);overflow:hidden;display:flex">'
           + '<div style="width:' + matPct + '%;background:rgba(57,197,207,0.7)"></div>'
           + '<div style="width:' + labPct + '%;background:rgba(121,192,255,0.7)"></div>'
@@ -25425,7 +25792,7 @@ function renderCostLotList(filterJob){
 
   // Chart: cost breakdown bar (stacked summary)
   const totMat = lots.reduce((s,l)=>s+l.matCost+l.mbCost,0);
-  const totLab = lots.reduce((s,l)=>s+l.elecCost+l.labCost+l.machCost,0);
+  const totLab = lots.reduce((s,l)=>s+l.elecCost+l.labCost+l.machCost+(l.extraHrCost||0),0);
   const totOvh = lots.reduce((s,l)=>s+l.ovhCost,0);
   const totAll = totMat+totLab+totOvh||1;
   ['ck-bar-mat','ck-bar-lab','ck-bar-ovh'].forEach((id,k)=>{
@@ -31510,6 +31877,16 @@ function dcExportList(){
 
 let wiDocs=[];
 let rwDocs=[];   // WI Rework records
+try{
+  var _rwLoad = localStorage.getItem('_rwDocs');
+  if(_rwLoad){
+    var _rwParsed = JSON.parse(_rwLoad);
+    if(Array.isArray(_rwParsed)) rwDocs = _rwParsed;
+  }
+}catch(e){ rwDocs = []; }
+function saveRwDocs(){
+  try{ localStorage.setItem('_rwDocs', JSON.stringify(rwDocs)); }catch(e){}
+}
 let devRecords=[]; // Deviation (ปล่อยผ่าน) records
 
 let wiViewMode='card';
@@ -31951,7 +32328,7 @@ function rwRender(){
   if(dl&&dl.options.length===0) jobs.forEach(j=>{const o=document.createElement('option');o.value=j.name;dl.appendChild(o);});
 
   let list=rwDocs.filter(d=>{
-    if(search&&!d.job.toLowerCase().includes(search)&&!(d.rwNo||'').toLowerCase().includes(search)&&!(d.defectDesc||'').toLowerCase().includes(search)) return false;
+    if(search&&!String(d.job||'').toLowerCase().includes(search)&&!(d.rwNo||'').toLowerCase().includes(search)&&!(d.defectDesc||'').toLowerCase().includes(search)) return false;
     if(statusF&&d.status!==statusF) return false;
     if(defectF&&d.defectType!==defectF) return false;
     return true;
@@ -32107,6 +32484,7 @@ function rwSave(){
   if(!data.rwNo||!data.job){if(typeof _infoToast==='function')_infoToast('กรุณาระบุเลขที่ WI Rework และชื่องาน');return;}
   if(id){const d=rwDocs.find(x=>x.id===id);if(d)Object.assign(d,data);}
   else{data.id='RW-'+String(rwDocs.length+1).padStart(3,'0');rwDocs.unshift(data);}
+  if(typeof saveRwDocs==='function') saveRwDocs();
   closeModal('modal-rw-edit');
   rwRender();
   if(typeof _infoToast==='function')_infoToast('✅ บันทึก WI Rework เรียบร้อย');
@@ -32978,6 +33356,15 @@ function renderAlertCenter(){
         detail:`งาน: ${o.jobName||'-'} | ลูกค้า: ${o.customer||'-'} | ความคืบหน้า: ${prog}% | ผลิต: ${(o.produced||0).toLocaleString()}/${(o.qty||0).toLocaleString()} ชิ้น`,
         action:'ดูความคืบหน้า', page:'orders',
         badge:'ส่ง '+d+' วัน', badgeColor: d<=2?'#f85149':'#e3b341'});
+    }
+    if(typeof orderScheduleBehindDue === 'function' && orderScheduleBehindDue(o)){
+      var estFin = typeof orderEstFinishDate === 'function' ? orderEstFinishDate(o) : '';
+      push({id:'ord-otrisk-'+o.orderNo, cat:'order', level:'warning',
+        icon:'⏰', title:`Order ${o.orderNo} แผนปัจจุบันคาดว่าไม่ทันกำหนดส่ง`,
+        detail:`งาน: ${o.jobName||'-'} | คาดจบผลิต ~${estFin||'-'} vs กำหนดส่ง ${o.dueDate} | ปรับกะ/ชม. หรือส่งคำขอ OT วันอาทิตย์/วันหยุด`,
+        action:'ขอ OT / ประวัติ', page:'orders',
+        onclick:`showPage('orders');switchOrderTabOt();`,
+        badge:'เสี่ยงไม่ทัน', badgeColor:'#e3b341'});
     }
   });
 
@@ -36876,10 +37263,43 @@ const COST_DEFAULTS = {
   laborPerHr: 45,
   overheadPct: 15,
   machineDepHr: 20,
+  customHrRates: [] // { id, label, perHr } บาท/ชม. เพิ่มจากหน้าตั้งค่า
 };
+const COST_STD_MAT_KEYS = ['PP','LDPE','HDPE','POM','NY6','AS','ABS','PC'];
 let COST_SETTINGS = JSON.parse(JSON.stringify(COST_DEFAULTS));
+function mergeCostSettingsFromStorage(raw){
+  var base = JSON.parse(JSON.stringify(COST_DEFAULTS));
+  if(!raw || typeof raw !== 'object') return base;
+  ['mbPricePerKg','electricPerHr','laborPerHr','overheadPct','machineDepHr'].forEach(function(k){
+    var v = parseFloat(raw[k]);
+    if(!isNaN(v) && v >= 0) base[k] = v;
+  });
+  if(raw.matPricePerKg && typeof raw.matPricePerKg === 'object'){
+    base.matPricePerKg = Object.assign({}, COST_DEFAULTS.matPricePerKg, raw.matPricePerKg);
+  }
+  if(Array.isArray(raw.customHrRates)){
+    base.customHrRates = raw.customHrRates.map(function(x){
+      return { id: String(x.id || ('hr-' + Math.random())), label: String(x.label || '').trim(), perHr: parseFloat(x.perHr) || 0 };
+    }).filter(function(x){ return x.label; });
+  }
+  return base;
+}
+function loadCostSettings(){
+  try{
+    var s = localStorage.getItem('_costSettings');
+    if(s) COST_SETTINGS = mergeCostSettingsFromStorage(JSON.parse(s));
+  }catch(e){ COST_SETTINGS = JSON.parse(JSON.stringify(COST_DEFAULTS)); }
+}
+function persistCostSettings(){
+  try{ localStorage.setItem('_costSettings', JSON.stringify(COST_SETTINGS)); }catch(e){}
+}
+loadCostSettings();
 
 function getCostSettings(){ return COST_SETTINGS; }
+function costExtraHrPerHr(){
+  var cs = COST_SETTINGS || {};
+  return (cs.customHrRates || []).reduce(function(s, x){ return s + (parseFloat(x.perHr) || 0); }, 0);
+}
 
 function costSwitchTab(n){
   [1,2].forEach(i=>{
@@ -36893,9 +37313,10 @@ function costSwitchTab(n){
 
 function resetCostSettings(){
   COST_SETTINGS = JSON.parse(JSON.stringify(COST_DEFAULTS));
+  if(typeof persistCostSettings === 'function') persistCostSettings();
   renderCostSettings();
   renderCostLotList();
-  if(typeof _infoToast==="function") _infoToast('รีเซ็ตค่า Default แล้ว');
+  if(typeof _infoToast==="function") _infoToast('รีเซ็ตค่า Default แล้ว (บันทึกลงเครื่องแล้ว)');
 }
 
 function saveCostSettings(){
@@ -36905,13 +37326,54 @@ function saveCostSettings(){
   COST_SETTINGS.laborPerHr    = gv('cs-labor-hr');
   COST_SETTINGS.overheadPct   = gv('cs-overhead');
   COST_SETTINGS.machineDepHr  = gv('cs-mach-dep');
-  ['PP','LDPE','HDPE','POM','NY6','AS','ABS','PC'].forEach(m=>{
-    const v = parseFloat(document.getElementById('cs-mat-'+m)?.value);
-    if(!isNaN(v)) COST_SETTINGS.matPricePerKg[m] = v;
+  var newMat = {};
+  COST_STD_MAT_KEYS.forEach(function(m){
+    var v = parseFloat(document.getElementById('cs-mat-' + m)?.value);
+    if(!isNaN(v) && v >= 0) newMat[m] = v;
   });
-  // Re-calc all lots with new prices
+  document.querySelectorAll('#cs-mat-extra-list .cs-mat-extra-row').forEach(function(row){
+    var code = (row.querySelector('.cs-mat-code') && row.querySelector('.cs-mat-code').value || '').trim().toUpperCase().replace(/[^A-Z0-9\-\/]/g, '');
+    var pr = parseFloat(row.querySelector('.cs-mat-price') && row.querySelector('.cs-mat-price').value);
+    if(code && !isNaN(pr) && pr >= 0) newMat[code] = pr;
+  });
+  COST_SETTINGS.matPricePerKg = newMat;
+  var hrs = [];
+  document.querySelectorAll('#cs-custom-hr-list .cs-hr-row').forEach(function(row, idx){
+    var lab = (row.querySelector('.cs-hr-label') && row.querySelector('.cs-hr-label').value || '').trim();
+    var pr = parseFloat(row.querySelector('.cs-hr-rate') && row.querySelector('.cs-hr-rate').value);
+    if(lab && !isNaN(pr) && pr >= 0) hrs.push({ id: 'hr-' + idx + '-' + Date.now(), label: lab, perHr: pr });
+  });
+  COST_SETTINGS.customHrRates = hrs;
+  if(typeof persistCostSettings === 'function') persistCostSettings();
+  if(typeof renderCostSettings === 'function') renderCostSettings();
   renderCostLotList();
-  if(typeof _infoToast==="function") _infoToast('บันทึกการตั้งค่าต้นทุนแล้ว ✓ (คำนวณใหม่อัตโนมัติ)'); else console.warn('บันทึกการตั้งค่าต้นทุนแล้ว ✓ (คำนวณใหม่อัตโนมัติ)');
+  if(typeof _infoToast==="function") _infoToast('บันทึกการตั้งค่าต้นทุนลงเครื่องแล้ว ✓ (คำนวณใหม่อัตโนมัติ)'); else console.warn('บันทึกการตั้งค่าต้นทุนแล้ว ✓ (คำนวณใหม่อัตโนมัติ)');
+}
+
+function costAddHrLine(){
+  var wrap = document.getElementById('cs-custom-hr-list');
+  if(!wrap) return;
+  if(wrap.querySelector('span[data-cs-empty]')) wrap.innerHTML = '';
+  var div = document.createElement('div');
+  div.className = 'cs-hr-row';
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap';
+  div.innerHTML = '<input type="text" class="cost-inp cs-hr-label" placeholder="ชื่อรายการ (เช่น แม่พิมพ์, น้ำหล่อเย็น)" style="flex:1;min-width:140px;padding:6px 8px">'
+    + '<input type="number" step="0.01" min="0" class="cost-inp cs-hr-rate" placeholder="บาท/ชม." style="width:120px;padding:6px 8px">'
+    + '<button type="button" class="btn btn-secondary btn-sm" onclick="this.parentElement.remove()">ลบ</button>';
+  wrap.appendChild(div);
+}
+
+function costAddMatExtraLine(code, price){
+  var wrap = document.getElementById('cs-mat-extra-list');
+  if(!wrap) return;
+  if(wrap.querySelector('span[data-cs-empty]')) wrap.innerHTML = '';
+  var div = document.createElement('div');
+  div.className = 'cs-mat-extra-row';
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap';
+  div.innerHTML = '<input type="text" class="cost-inp cs-mat-code" placeholder="รหัสเม็ด (เช่น TPU, PET)" style="width:120px;padding:6px 8px;text-transform:uppercase" value="' + String(code || '').replace(/"/g, '&quot;') + '">'
+    + '<input type="number" step="0.5" min="0" class="cost-inp cs-mat-price" placeholder="บาท/kg" style="width:100px;padding:6px 8px" value="' + (price != null && !isNaN(price) ? String(price) : '') + '">'
+    + '<button type="button" class="btn btn-secondary btn-sm" onclick="this.parentElement.remove()">ลบ</button>';
+  wrap.appendChild(div);
 }
 
 // ── openCostAnalysis : open detail modal for one lot ────────────────────────
@@ -37002,7 +37464,8 @@ function calcCost(){
   const elecCost = hrs   * elecPr;
   const labCost  = hrs   * labPr;
   const machCost = hrs   * machDep;
-  const subTotal = matCost + mbCost + elecCost + labCost + machCost;
+  const extraHrCost = hrs * (typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0);
+  const subTotal = matCost + mbCost + elecCost + labCost + machCost + extraHrCost;
   const ovhCost  = subTotal * ovhPct / 100;
   const total    = subTotal + ovhCost;
   const unitCost = okProd>0 ? total/okProd : 0;
@@ -37014,6 +37477,7 @@ function calcCost(){
   st('cr-elec',   fmt(elecCost));
   st('cr-labor',  fmt(labCost));
   st('cr-mach',   fmt(machCost));
+  st('cr-extra-hr', fmt(extraHrCost));
   st('cr-ovh',    fmt(ovhCost));
   st('cr-total',  fmt(total));
   st('cr-unit',   fmt(unitCost));       // hidden span used by printCostReport
@@ -37037,9 +37501,9 @@ function calcCost(){
   }
 
   // Bar chart widths
-  const vals = [matCost,mbCost,elecCost,labCost,machCost,ovhCost];
+  const vals = [matCost,mbCost,elecCost,labCost,machCost,extraHrCost,ovhCost];
   const maxV = Math.max(...vals,1);
-  ['bar-mat','bar-mb','bar-elec','bar-labor','bar-mach','bar-ovh'].forEach((id,k)=>{
+  ['bar-mat','bar-mb','bar-elec','bar-labor','bar-mach','bar-extra-hr','bar-ovh'].forEach((id,k)=>{
     sw(id, Math.max(4,(vals[k]/maxV*100)).toFixed(0)+'%');
   });
 }
@@ -37074,6 +37538,7 @@ function printCostReport(){
     ['ค่าไฟฟ้า',           el('cr-elec')?.textContent||'0.00'],
     ['ค่าแรงงาน',          el('cr-labor')?.textContent||'0.00'],
     ['ค่าเสื่อมเครื่องจักร',el('cr-mach')?.textContent||'0.00'],
+    ['ค่าใช้จ่ายเพิ่ม (มาตรฐาน)', el('cr-extra-hr')?.textContent||'0.00'],
     ['Overhead',           el('cr-ovh')?.textContent||'0.00'],
   ];
   const total   = el('cr-total')?.textContent||'0.00';
@@ -38350,15 +38815,15 @@ function _clRenderChart(){
   </div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">ชื่องาน</div>
-      <select id="order-job" onchange="fillJobInfo()">
+      <select id="order-job" onchange="fillJobInfo();if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();">
         <option value="">-- เลือกงาน --</option>
       </select>
     </div>
     <div class="form-group"><div class="form-label">ลูกค้า</div><input type="text" id="order-customer"></div>
   </div>
   <div class="form-row">
-    <div class="form-group"><div class="form-label">จำนวนสั่งผลิต (ชิ้น)</div><input type="number" id="order-qty" placeholder="10000"></div>
-    <div class="form-group"><div class="form-label">กำหนดส่ง</div><input type="date" id="order-due"></div>
+    <div class="form-group"><div class="form-label">จำนวนสั่งผลิต (ชิ้น)</div><input type="number" id="order-qty" placeholder="10000" oninput="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
+    <div class="form-group"><div class="form-label">กำหนดส่ง</div><input type="date" id="order-due" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
   </div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">เครื่องจักร</div>
@@ -38366,7 +38831,46 @@ function _clRenderChart(){
         <option value="">-- เลือกเครื่อง --</option>
       </select>
     </div>
-    <div class="form-group"><div class="form-label">วันที่เริ่มผลิต</div><input type="date" id="order-start"></div>
+    <div class="form-group"><div class="form-label">วันที่เริ่มผลิต</div><input type="date" id="order-start" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
+  </div>
+  <div id="order-plan-block" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:8px">
+    <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px">⏱ แผนเดินเครื่อง (ใช้คำนวณวันจบ + แสดงใน Time Table)</div>
+    <div class="form-row" style="flex-wrap:wrap;gap:10px">
+      <div class="form-group" style="margin:0;min-width:100px">
+        <div class="form-label">ชม./กะ</div>
+        <input type="number" id="order-plan-hours" min="0.5" max="24" step="0.5" value="20" title="ชั่วโมงต่อกะที่วางแผนให้เครื่องเดิน"
+          oninput="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"
+          style="width:72px;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:13px">
+      </div>
+      <div class="form-group" style="margin:0;min-width:160px">
+        <div class="form-label">โหมดกะ</div>
+        <select id="order-plan-shift" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"
+          style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px">
+          <option value="day">กะเช้า (ใช้ชม./กะด้านบน)</option>
+          <option value="night">กะดึก (ใช้ชม./กะด้านบน)</option>
+          <option value="full24">เดิน 24 ชม. (+ OT3 ถ้าติ๊ก)</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:90px">
+        <div class="form-label">จำนวนกะ/วัน</div>
+        <select id="order-shift-count" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"
+          style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px">
+          <option value="1">1 กะ</option>
+          <option value="2">2 กะ</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="flex-wrap:wrap;gap:12px;margin-top:8px;align-items:center">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="order-ot3" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"> เปิด OT ต่อวัน 3 ชม. (บวกความจุรายวัน)
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="order-sun-ot" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"> นับวันอาทิตย์เป็นวันผลิต (หลังขออนุมัติ OT อาทิตย์)
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="order-holiday-work" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"> นับวันหยุดบริษัทเป็นวันผลิต
+      </label>
+    </div>
   </div>
   <div id="order-calc" class="alert alert-success" style="display:none"></div>
   <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
@@ -41098,6 +41602,11 @@ function _clRenderChart(){
             <span class="mono" id="cr-mach" style="text-align:right;font-size:11px;font-weight:600">0.00</span>
             <div style="height:8px;background:var(--bg2);border-radius:3px;overflow:hidden"><div id="bar-mach" style="height:100%;background:rgba(255,155,100,0.8);border-radius:3px;width:0%;transition:width .4s"></div></div>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 70px 90px;gap:4px;align-items:center;padding:3px 2px;border-radius:3px">
+            <span style="font-size:11px;color:var(--text2)">➕ ค่าใช้จ่ายเพิ่ม (ตั้งค่ามาตรฐาน)</span>
+            <span class="mono" id="cr-extra-hr" style="text-align:right;font-size:11px;font-weight:600">0.00</span>
+            <div style="height:8px;background:var(--bg2);border-radius:3px;overflow:hidden"><div id="bar-extra-hr" style="height:100%;background:rgba(86,211,100,0.75);border-radius:3px;width:0%;transition:width .4s"></div></div>
+          </div>
           <!-- Overhead -->
           <div style="display:grid;grid-template-columns:1fr 70px 90px;gap:4px;align-items:center;padding:3px 2px;border-radius:3px">
             <span style="font-size:11px;color:var(--text2)">📊 Overhead</span>
@@ -41429,6 +41938,19 @@ function _clRenderChart(){
             <div><div class="form-label"><span class="badge mat-ABS" style="font-size:10px">ABS</span></div><input type="number" id="cs-mat-ABS" class="cost-inp" step="1"></div>
             <div><div class="form-label"><span class="badge mat-PC" style="font-size:10px">PC</span></div><input type="number" id="cs-mat-PC" class="cost-inp" step="1"></div>
           </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+            <div style="font-size:11px;font-weight:700;color:#79c0ff;margin-bottom:8px">➕ เม็ดพลาสติกอื่นๆ (บาท/kg)</div>
+            <div id="cs-mat-extra-list" style="margin-bottom:8px"></div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="costAddMatExtraLine()">+ เพิ่มเม็ดอื่นๆ</button>
+            <div style="font-size:10px;color:var(--text3);margin-top:6px">ใช้รหัสเดียวกับช่อง &quot;เม็ด&quot; ใน BOM/งาน (เช่น TPU, PET, NY66)</div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg2);border-radius:10px;padding:16px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">📎 รายการค่าใช้จ่ายเพิ่มเติม (บาท/ชม.)</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">รวมเข้าการคำนวณต้นทุนตามชั่วโมงที่บันทึกในรายงานผลิต (ชม. เดียวกับค่าไฟ/แรง/เครื่อง)</div>
+          <div id="cs-custom-hr-list" style="margin-bottom:10px"></div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="costAddHrLine()">+ เพิ่มค่าใช้จ่าย (บาท/ชม.)</button>
         </div>
 
         <button class="btn btn-primary" onclick="saveCostSettings()">✓ บันทึกการตั้งค่า</button>
