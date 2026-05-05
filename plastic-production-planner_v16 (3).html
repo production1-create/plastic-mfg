@@ -6995,6 +6995,61 @@ try{
 }catch(e){
   console.error('Error loading jobs:', e);
 }
+/** บันทึก jobs[] → localStorage เดียวกับหน้า BOM */
+function persistJobs(){
+  try{
+    localStorage.setItem('_jobs', JSON.stringify(jobs));
+  }catch(e){
+    console.error('persistJobs:', e);
+  }
+}
+/** ผสานทะเบียนงาน (JOB_REGISTRY) เข้า jobs สำหรับหน้า BOM — เก็บฟิลด์ BOM เดิมไว้ */
+function jobsMergeFromJobRegistry(){
+  if(!Array.isArray(JOB_REGISTRY)) return;
+  JOB_REGISTRY.forEach(function(jr){
+    if(!jr || typeof jr!=='object') return;
+    if(!_normalizeText(jr.name||'')) return;
+    var wgCandidate=String(jr.registryWorkGroup||'').trim().toLowerCase();
+    var wg=(wgCandidate==='injection'||wgCandidate==='assembly'||wgCandidate==='secondary')?wgCandidate:_jobInferWorkGroup(jr);
+    var patch={
+      name: jr.name,
+      cav: jr.cavity||0,
+      ct: jr.cycleTime||0,
+      eff: jr.efficiency||85,
+      target: jr.targetPerHr||0,
+      machine: jr.machine||'',
+      ton: +(jr.ton||0)||0,
+      customer: jr.customer||'',
+      plastic: jr.plastic||'PP',
+      grade: jr.grade||'',
+      mb: (jr.mb&&jr.mb!==''&&jr.mb!=='-'?jr.mb:'-'),
+      mbRatio: jr.mbRatio||0,
+      process: jr.process||'',
+      moldCode: jr.moldCode||'',
+      wiCode: jr.wiCode||'',
+      registryWorkGroup: wg,
+      workGroup: wg,
+      jobType: wg==='assembly'?'assembly':(wg==='secondary'?'secondary':'injection')
+    };
+    if(jr.processDetail) patch.processDetail = jr.processDetail;
+    var hasPack=(parseInt(jr.packingQty,10)||0)>0||(jr.packingUnit&&String(jr.packingUnit).trim()!=='');
+    if(hasPack){
+      var pq=parseInt(jr.packingQty,10)||0;
+      var pu=jr.packingUnit||'ชิ้น/กล่อง';
+      patch.packingStd={ qty:pq, unit:pu, pcsBox:pq };
+    }
+    var jIdx=jobs.findIndex(function(j){ return j&&j.name===jr.name; });
+    if(jIdx>=0){
+      var prev=jobs[jIdx]||{};
+      var merged=Object.assign({}, prev, patch);
+      if(!hasPack && prev.packingStd) merged.packingStd=prev.packingStd;
+      jobs[jIdx]=merged;
+    }else{
+      jobs.push(Object.assign({ wt:0 }, patch));
+    }
+  });
+  persistJobs();
+}
 let orders = [];
 let ttData = {}; // {date: [{machine, jobName, lot, qty, plastic}]}
 
@@ -9664,7 +9719,8 @@ function clExportAll(){
 window._jobregWorkGroup = window._jobregWorkGroup || '';
 window._ordersWorkGroup = window._ordersWorkGroup || '';
 
-function _jobWorkGroup(j){
+/** เดากลุ่มงานจากเครื่องในทะเบียนจักร / ประเภทกระบวนการ (เมื่อไม่มี registryWorkGroup) */
+function _jobInferWorkGroup(j){
   if(!j || typeof j!=='object') return 'injection';
   var mid=String(j.machine||'').trim();
   var m=(typeof MACHINES!=='undefined')?MACHINES.find(function(mm){return String(mm.id)===mid;}):null;
@@ -9675,6 +9731,39 @@ function _jobWorkGroup(j){
   if(/ประกอบ/.test(p)) return 'assembly';
   if(/พ่นสี|ชุบ|Hot\s*Stamp|หยอดกาว|โซนิค|พิมพ์สกรีน|ตัด\+แต่ง/.test(p)) return 'secondary';
   return 'injection';
+}
+
+function _jobWorkGroup(j){
+  if(!j || typeof j!=='object') return 'injection';
+  var rw=String(j.registryWorkGroup||j.workGroup||'').trim().toLowerCase();
+  if(rw==='assembly'||rw==='secondary'||rw==='injection') return rw;
+  return _jobInferWorkGroup(j);
+}
+
+/** เติม registryWorkGroup ให้เรคคอร์ดเก่าที่ขาด (รันบางจุดหลังโหลด) */
+function migrateRegistryWorkGroups(){
+  var ch=false;
+  if(!Array.isArray(JOB_REGISTRY)) return false;
+  JOB_REGISTRY.forEach(function(j){
+    if(!j||typeof j!=='object') return;
+    var rw=String(j.registryWorkGroup||'').trim().toLowerCase();
+    if(rw==='assembly'||rw==='secondary'||rw==='injection') return;
+    j.registryWorkGroup=_jobInferWorkGroup(j); ch=true;
+  });
+  if(ch && typeof saveJobRegistry==='function') saveJobRegistry();
+  return ch;
+}
+
+/** รายการเครื่องในฟอร์มทะเบียนงาน — ให้เมนู 4B/4C เห็นเฉพาะเครื่องประกอบหรือไลน์รอง */
+function _machinesFilteredForJobreg(){
+  var wg=window._jobregWorkGroup||'';
+  var out=MACHINES.filter(function(m){
+    var mt=String(m.machineType||'injection').toLowerCase();
+    if(wg==='assembly') return mt==='assembly';
+    if(wg==='secondary') return mt==='secondary' || (mt!==''&&mt!=='injection');
+    return mt==='injection' || !m.machineType;
+  });
+  return out.length ? out : MACHINES;
 }
 
 function _orderWorkGroup(o){
@@ -9839,7 +9928,12 @@ function _jobregPopulateDropdowns(selCust,selMach){
     if(selCust) custSel.value=selCust;
   }
   var machSel=document.getElementById('je-machine');
-  if(machSel){ machSel.innerHTML='<option value="">— เลือกเครื่อง —</option>'+MACHINES.map(function(m){return '<option value="'+m.id+'" '+(m.id===selMach?'selected':'')+'>'+m.id+' ('+m.ton+'T)</option>';}).join(''); if(selMach)machSel.value=selMach; }
+  if(machSel){
+    var mList=typeof _machinesFilteredForJobreg==='function'?_machinesFilteredForJobreg():MACHINES;
+    machSel.innerHTML='<option value="">— เลือกเครื่อง —</option>'
+      +mList.map(function(m){return '<option value="'+m.id+'" '+(m.id===selMach?'selected':'')+'">'+(m.id||'')+' ('+m.ton+'T)</option>';}).join('');
+    if(selMach)machSel.value=selMach;
+  }
 }
 
 // ── Job Registry Search Helpers ────────────────────────────────
@@ -10046,9 +10140,9 @@ function jeInitModal(){
   // Machine list
   var machEl=document.getElementById('je-machine');
   if(machEl){
+    var mList2=typeof _machinesFilteredForJobreg==='function'?_machinesFilteredForJobreg():MACHINES;
     machEl.innerHTML='<option value="">— เลือกเครื่อง —</option>'
-      +MACHINES.filter(function(m){return !m.machineType||m.machineType==='injection';})
-        .map(function(m){return '<option value="'+m.id+'">'+m.id+' ('+m.ton+'T)</option>';}).join('');
+      +mList2.map(function(m){return '<option value="'+m.id+'">'+m.id+' ('+m.ton+'T)</option>';}).join('');
   }
 
   // Process detail visibility
@@ -10120,15 +10214,28 @@ function jobregSave(){
     status:document.getElementById('je-status').value,
     remark:document.getElementById('je-remark').value.trim()
   };
+  var regWg=(window._jobregWorkGroup==='injection'||window._jobregWorkGroup==='assembly'||window._jobregWorkGroup==='secondary')
+    ? window._jobregWorkGroup
+    : _jobInferWorkGroup(obj);
+  obj.registryWorkGroup=regWg;
   var idx2=JOB_REGISTRY.findIndex(function(j){return j.id===id;});
   if(idx2>=0) JOB_REGISTRY[idx2]=obj; else JOB_REGISTRY.push(obj);
   saveJobRegistry();
   // Sync back to jobs array for pages that use it
   var jIdx=jobs.findIndex(function(j){return j.name===name;});
+  var jt=(regWg==='assembly'?'assembly':(regWg==='secondary'?'secondary':'injection'));
   var jObj={name:obj.name,cav:obj.cavity,ct:obj.cycleTime,eff:obj.efficiency,target:obj.targetPerHr,
     machine:obj.machine,ton:obj.ton,customer:obj.customer,plastic:obj.plastic,grade:obj.grade,
-    mb:obj.mb,mbRatio:obj.mbRatio,process:obj.process,processDetail:obj.processDetail};
-  if(jIdx>=0) jobs[jIdx]=Object.assign(jobs[jIdx],jObj); else jobs.push(Object.assign({jobType:'injection',wt:0,packingStd:{qty:obj.packingQty,unit:obj.packingUnit}},jObj));
+    mb:obj.mb,mbRatio:obj.mbRatio,process:obj.process,processDetail:obj.processDetail,
+    moldCode:obj.moldCode,wiCode:obj.wiCode,workGroup:regWg,registryWorkGroup:regWg,jobType:jt};
+  var packMini={ qty: obj.packingQty||0, unit: obj.packingUnit||'ชิ้น/กล่อง' };
+  if(jIdx>=0){
+    jobs[jIdx]=Object.assign(jobs[jIdx],jObj);
+    if(!(jobs[jIdx].packingStd&&jobs[jIdx].packingStd.pcsBox)&&obj.packingQty) jobs[jIdx].packingStd=Object.assign({},jobs[jIdx].packingStd||{},packMini);
+  }else{
+    jobs.push(Object.assign({ wt:0, packingStd: packMini },jObj));
+  }
+  persistJobs();
   closeModal('modal-job-edit');
   renderJobRegistry();
   if(typeof _toast==='function') _toast('✅ บันทึกงาน '+name+' แล้ว');
@@ -26957,7 +27064,7 @@ function renderPage(id){
     if(_htt && _hord && _hord.value) _htt.value = _hord.value;
     renderTT();
   }
-  else if(id==='bom') renderBom();
+  else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
   else if(id==='dc') dcRender();
   else if(id==='qrtrack'){ qrtRender(); }
   else if(id==='wi-rework') rwRender();
@@ -31920,17 +32027,40 @@ function addApChangeRow(){
 function printApprovalProcDoc(docId){
   const id = docId || document.getElementById('ap-doc-id')?.value || (_apCurrentId||'');
   const d  = approvalProcDocs.find(x=>x.id===id);
+  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติ'); return; }
   const today = new Date().toLocaleDateString('th-TH');
-  const machine  = document.getElementById('ap-machine')?.value  || d?.machine||'';
-  const jobName  = document.getElementById('ap-jobname')?.value  || d?.jobName||'';
-  const orderNo  = document.getElementById('ap-orderno')?.value  || d?.orderNo||'';
-  const lotNo    = document.getElementById('ap-lotno')?.value    || d?.lotNo||'';
-  const customer = document.getElementById('ap-customer')?.value || d?.customer||'';
-  const moldNo   = document.getElementById('ap-moldno')?.value   || d?.moldNo||'';
-  const cavity   = document.getElementById('ap-cavity')?.value   || d?.cavity||'';
-  const weight   = document.getElementById('ap-weight')?.value   || d?.weight||'';
-
-  const fv = (fid) => { const el=document.getElementById(fid); return el?el.value:(d?.data?.[fid]||''); };
+  const curDocId = document.getElementById('ap-doc-id')?.value || '';
+  const useLive = (curDocId === id);
+  const fromDoc = function(fid){
+    if(fid==='ap-machine') return d.machine||'';
+    if(fid==='ap-jobname') return d.jobName||'';
+    if(fid==='ap-orderno') return d.orderNo||'';
+    if(fid==='ap-lotno') return d.lotNo||'';
+    if(fid==='ap-customer') return d.customer||'';
+    if(fid==='ap-moldno') return d.moldNo||'';
+    if(fid==='ap-cavity') return d.cavity||'';
+    if(fid==='ap-weight') return d.weight||'';
+    return d?.data?.[fid] || '';
+  };
+  const fv = function(fid){
+    if(useLive){
+      const el=document.getElementById(fid);
+      if(el){
+        if(el.type==='checkbox') return el.checked ? '1' : '0';
+        const cur=('value' in el) ? el.value : '';
+        if(String(cur||'').trim()!=='') return cur;
+      }
+    }
+    return fromDoc(fid);
+  };
+  const machine  = fv('ap-machine');
+  const jobName  = fv('ap-jobname');
+  const orderNo  = fv('ap-orderno');
+  const lotNo    = fv('ap-lotno');
+  const customer = fv('ap-customer');
+  const moldNo   = fv('ap-moldno');
+  const cavity   = fv('ap-cavity');
+  const weight   = fv('ap-weight');
   const fvSign = (fid) => {
     const raw = fv(fid);
     if(!raw) return '<div style="min-height:28px"></div>';
@@ -31980,7 +32110,7 @@ function printApprovalProcDoc(docId){
   };
 
   // Get main sigs
-  const mainSigs = (_apSigs && _apCurrentId && _apSigs[_apCurrentId]) ? _apSigs[_apCurrentId] : {};
+  const mainSigs = (_apSigs && _apSigs[id]) ? _apSigs[id] : {};
   const sigRoles = [
     {key:'engineer',label:'วิศวกรกระบวนการ'},
     {key:'qcmgr',label:'QC Manager'},
@@ -36325,6 +36455,8 @@ function masterInit(){
   // ── โหลด Registry (Job / Employee / Customer / Mold) ──────────
   initJobRegistry();        // sync JOB_REGISTRY จาก JOBS_RAW ถ้ายังว่าง
   sanitizeJobRegistry();    // ล้างข้อมูล job ที่เป็น undefined/ไม่ครบ
+  if(typeof migrateRegistryWorkGroups==='function') migrateRegistryWorkGroups();
+  if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
   initEmployeeRegistry();   // sync EMPLOYEE_REGISTRY จาก employees ถ้ายังว่าง
   loadHrAttendance();
   loadHrDeptMachGroups();
@@ -47895,7 +48027,7 @@ var XL_CONFIG={
     headers:['ชื่องาน*','ลูกค้า','เครื่อง','Cavity','CycleTime(s)','EFF%','เป้า/ชม','พลาสติก','เกรด','MB','%MB','กระบวนการ','MoldCode','WICode','จำนวน/กล่อง','หน่วย','สถานะ','หมายเหตุ'],
     required:[0],
     example:[['PART-001','ลูกค้า A','MC-01','4','18','85','720','PP','PP-H110','MB-RED','2','Injection','M-001','WI-001','100','ชิ้น/กล่อง','active','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var nm=(r[0]||'').trim();if(!nm)return;var obj={id:'JOB-'+String(Date.now()+a).slice(-6),name:nm,customer:r[1]||'',machine:r[2]||'',cavity:parseInt(r[3])||0,cycleTime:parseFloat(r[4])||0,efficiency:parseInt(r[5])||85,targetPerHr:parseInt(r[6])||0,plastic:r[7]||'',grade:r[8]||'',mb:r[9]||'-',mbRatio:parseFloat(r[10])||0,process:r[11]||'',moldCode:r[12]||'',wiCode:r[13]||'',packingQty:parseInt(r[14])||0,packingUnit:r[15]||'ชิ้น/กล่อง',status:r[16]||'active',remark:r[17]||''};var idx=JOB_REGISTRY.findIndex(function(j){return j.name===nm;});if(idx>=0){if(ow){JOB_REGISTRY[idx]=Object.assign(JOB_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{JOB_REGISTRY.push(obj);a++;}}else{JOB_REGISTRY.push(obj);a++;}});saveJobRegistry();if(typeof renderJobRegistry==='function')renderJobRegistry();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var nm=(r[0]||'').trim();if(!nm)return;var obj={id:'JOB-'+String(Date.now()+a).slice(-6),name:nm,customer:r[1]||'',machine:r[2]||'',cavity:parseInt(r[3])||0,cycleTime:parseFloat(r[4])||0,efficiency:parseInt(r[5])||85,targetPerHr:parseInt(r[6])||0,plastic:r[7]||'',grade:r[8]||'',mb:r[9]||'-',mbRatio:parseFloat(r[10])||0,process:r[11]||'',moldCode:r[12]||'',wiCode:r[13]||'',packingQty:parseInt(r[14])||0,packingUnit:r[15]||'ชิ้น/กล่อง',status:r[16]||'active',remark:r[17]||''};obj.registryWorkGroup=(window._jobregWorkGroup==='injection'||window._jobregWorkGroup==='assembly'||window._jobregWorkGroup==='secondary')?window._jobregWorkGroup:_jobInferWorkGroup(obj);var idx=JOB_REGISTRY.findIndex(function(j){return j.name===nm;});if(idx>=0){if(ow){JOB_REGISTRY[idx]=Object.assign(JOB_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{JOB_REGISTRY.push(obj);a++;}}else{JOB_REGISTRY.push(obj);a++;}});saveJobRegistry();if(typeof renderJobRegistry==='function')renderJobRegistry();if(typeof jobsMergeFromJobRegistry==='function')jobsMergeFromJobRegistry();return{added:a,skipped:s,updated:u};}},
   empreg:{title:'ทะเบียนพนักงาน',sub:'นำเข้าข้อมูลพนักงาน',
     headers:['รหัสพนักงาน*','ชื่อ-นามสกุล*','เพศ','แผนก','ตำแหน่ง','เครื่องประจำ','Zone','กะ(1-3)','โทร','วันเริ่มงาน(YYYY-MM-DD)','ทักษะ(คั่นด้วยจุลภาค)','สถานะ','หมายเหตุ'],
     required:[0,1],
