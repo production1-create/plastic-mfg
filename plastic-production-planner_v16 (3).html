@@ -17734,17 +17734,52 @@ function rmStockCatTab(cat, el){
 }
 
 function getRawmatMonthlyUsage(material){
-  // Estimate monthly usage from running orders + BOM
-  let kgPerMonth = 0;
-  orders.filter(o=>o.status==='กำลังผลิต').forEach(o=>{
-    const j = jobs.find(jj=>jj.name===o.jobName)||{};
-    if((j.plastic||'').toUpperCase()===material.toUpperCase()){
-      const shotWt = (parseFloat(j.wt)||0)*(parseInt(j.cav)||1); // g/shot
-      const qty = parseInt(o.qty||0) - parseInt(o.produced||0);
-      kgPerMonth += (shotWt * qty/1000); // g → kg
+  // Backward-compatible: return the highest monthly usage from order history/plan.
+  var prof = getRawmatUsageProfile(material);
+  return Math.round(prof.maxMonthlyKg || 0);
+}
+
+function getRawmatUsageProfile(material){
+  var matKey=String(material||'').trim().toUpperCase();
+  var monthly={}; // YYYY-MM -> kg
+  var maxMonthKey='';
+  var maxMonthlyKg=0;
+
+  function _orderMonthKey(o){
+    var dt=(o&&o.dueDate)||(o&&o.startDate)||(o&&o.createdAt)||'';
+    dt=String(dt||'').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt.slice(0,7);
+    if(/^\d{4}-\d{2}$/.test(dt)) return dt;
+    return new Date().toISOString().slice(0,7);
+  }
+  function _daysInMonth(yyyyMM){
+    var y=parseInt(String(yyyyMM).slice(0,4),10)||new Date().getFullYear();
+    var m=parseInt(String(yyyyMM).slice(5,7),10)||1;
+    return new Date(y,m,0).getDate()||30;
+  }
+
+  (orders||[]).forEach(function(o){
+    if(!o || o.status==='ยกเลิก' || o.status==='cancelled') return;
+    var j=jobs.find(function(jj){return jj&&jj.name===o.jobName;})||{};
+    var oPlastic=String(o.plastic||j.plastic||'').trim().toUpperCase();
+    if(!oPlastic || oPlastic!==matKey) return;
+    var qty=Math.max(0,(parseFloat(o.qty)||0)-(parseFloat(o.produced)||0));
+    var wtPerPc=parseFloat(j.wt)||0; // g/pc
+    if(!(wtPerPc>0) || !(qty>0)) return;
+    var kg=(wtPerPc*qty)/1000;
+    var mk=_orderMonthKey(o);
+    monthly[mk]=(monthly[mk]||0)+kg;
+  });
+
+  Object.keys(monthly).forEach(function(mk){
+    if(monthly[mk]>maxMonthlyKg){
+      maxMonthlyKg=monthly[mk];
+      maxMonthKey=mk;
     }
   });
-  return Math.round(kgPerMonth);
+  var days=maxMonthKey?_daysInMonth(maxMonthKey):30;
+  var dailyFromPeak=days>0?maxMonthlyKg/days:0;
+  return {monthly:monthly,maxMonthlyKg:maxMonthlyKg,maxMonthKey:maxMonthKey,dailyFromPeak:dailyFromPeak};
 }
 
 function renderRawmat(){
@@ -17793,26 +17828,33 @@ function renderRawmat(){
   const today=new Date().toISOString().split('T')[0];
 
   // Keep stock thresholds displayable even when localStorage values are missing/invalid.
-  // Prefer values from stock object, then fallback to registry minStock/maxStock.
+  // Auto-calc Min/Max from monthly order usage + supplier LT.
   mats.forEach((p)=>{
     if(!rawMatStock[p]) rawMatStock[p] = {qty:0,min:0,max:9999,grade:''};
     const s = rawMatStock[p];
     const reg = regForStock(p, s);
-    const regMin = reg ? toNum(reg.minStock, 0) : 0;
-    const regMax = reg ? toNum(reg.maxStock, 0) : 0;
-    const curMin = toNum(s.min, NaN);
-    const curMax = toNum(s.max, NaN);
-    // Registry is source-of-truth for threshold values when available.
-    // This keeps "วัตถุดิบ Batch" aligned with "ทะเบียนวัตถุดิบ".
-    if (reg && Number.isFinite(regMin) && (regMin > 0 || !Number.isFinite(curMin) || curMin === 0)) {
-      s.min = regMin;
-    } else {
-      s.min = Number.isFinite(curMin) ? curMin : 0;
-    }
-    if (reg && Number.isFinite(regMax) && regMax > 0) {
-      s.max = regMax;
-    } else {
-      s.max = Number.isFinite(curMax) && curMax > 0 ? curMax : 9999;
+    const cfg = rawMatSettings[p]||{};
+    const regLT = reg ? toNum(reg.leadTime, 0) : 0;
+    const ltDays = Math.max(1, Math.round(regLT>0 ? regLT : toNum(cfg.ltDays, 14)));
+    const prof = getRawmatUsageProfile(p);
+    const dailyUse = prof.dailyFromPeak || 0;
+    const peakMonthly = prof.maxMonthlyKg || 0;
+    // ตามโจทย์:
+    // MAX = (ยอดใช้สูงสุดรายเดือน) + (ยอดใช้ต่อวัน × LT)
+    // MIN = (ยอดใช้ต่อวัน × LT) × 2 (เผื่อ)
+    const calcMax = Math.ceil(peakMonthly + (dailyUse * ltDays));
+    const calcMin = Math.ceil((dailyUse * ltDays) * 2);
+    if(calcMax>0 || calcMin>0){
+      s.max = Math.max(1, calcMax, calcMin);
+      s.min = Math.max(0, calcMin);
+    }else{
+      // fallback เมื่อยังไม่มี order ใช้งานเม็ดนี้
+      const regMin = reg ? toNum(reg.minStock, 0) : 0;
+      const regMax = reg ? toNum(reg.maxStock, 0) : 0;
+      const curMin = toNum(s.min, NaN);
+      const curMax = toNum(s.max, NaN);
+      s.min = Number.isFinite(curMin) ? curMin : (regMin||0);
+      s.max = Number.isFinite(curMax) && curMax>0 ? curMax : (regMax||9999);
     }
   });
 
