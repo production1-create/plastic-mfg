@@ -3133,7 +3133,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I009 &nbsp;|&nbsp; 🔗 Order → Mix Plan → Stock Check</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <button onclick="mixRebuildFromTT({merge:true});renderMixing();if(typeof _toast==='function')_toast('📅 ซิงค์แผนผสมจาก Time Table แล้ว')" style="padding:7px 14px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="อ่านแผนรายวันจาก Time Table การผลิต — ผสมล่วงหน้า 2 วันต่อวันผลิต">📅 ซิงค์จาก TT</button>
+        <button onclick="mixRebuildFromTT({merge:true});renderMixing();if(typeof _toast==='function')_toast('📅 ซิงค์แผนผสมจาก TT แล้ว (ถัง + ป้อนสี)')" style="padding:7px 14px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="ซิงค์แผนถังผสม (ล่วงหน้า 2 วัน) และแผนป้อนสีรายวันจาก Time Table">📅 ซิงค์จาก TT</button>
         <button onclick="mixAutoGenerate()" style="padding:7px 14px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">⚡ สร้างแผนจาก Order</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-mix')">+ เพิ่มแผนเอง</button>
         <button class="page-print-btn btn-sm" onclick="openPrintPanel('page-mixing')">🖨 พิมพ์</button>
@@ -3153,7 +3153,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="tab" onclick="mixTab('feeder',this)">⚙️ เครื่องป้อนสี</div>
     <div class="tab" onclick="mixTab('auto',this)">⚡ จาก Order (อัตโนมัติ)</div>
     <div class="tab" onclick="mixTab('stock',this)">📦 ตรวจสต็อก & จอง</div>
-    <div class="tab" onclick="mixTab('tt',this)">📅 Time Table ผสม</div>
+    <div class="tab" onclick="mixTab('tt',this)">📅 Time Table ถังผสม</div>
+    <div class="tab" onclick="mixTab('ttfeeder',this)">📅 Time Table ป้อนสี</div>
     <div class="tab" onclick="mixTab('dispatch',this)">📤 เบิกส่งฝ่ายผลิต & ประวัติ</div>
   </div>
 
@@ -3224,6 +3225,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ดพลาสติก</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สี MB</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB ต่อ 1 shot</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600" title="จาก TT / เป้าเครื่อง">เป้า pcs/วัน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ด kg/วัน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB kg/วัน</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องป้อนสี</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องฉีด</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">วันผลิต</th>
@@ -3232,7 +3236,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           </tr>
         </thead>
         <tbody id="mix-feeder-tbody">
-          <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text3)">กด Tab นี้เพื่อโหลดข้อมูลเครื่องป้อนสี</td></tr>
+          <tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text3)">กด Tab นี้เพื่อโหลดข้อมูลเครื่องป้อนสี</td></tr>
         </tbody>
       </table>
     </div>
@@ -3268,8 +3272,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div id="mix-tab-tt" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <div>
-        <div style="font-size:13px;font-weight:700">📅 Time Table ผสม (อ้างอิง TT การผลิต)</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">วันที่ในกริด = <b>วันผสม</b> (ล่วงหน้า 2 วันจากวันผลิตใน Time Table) · กด &quot;ซิงค์จาก TT&quot; ที่หัวหน้าเมนูถ้าแผนไม่อัปเดต</div>
+        <div style="font-size:13px;font-weight:700">📅 Time Table ถังผสม (Pre-mix)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">วันที่ในกริด = <b>วันผสมถัง</b> (ล่วงหน้า 2 วันจากวันผลิตใน TT) · ใช้กับงาน <b>ถังผสม</b> เท่านั้น · กด &quot;ซิงค์จาก TT&quot; ที่หัวหน้าเมนูถ้าแผนไม่อัปเดต</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn btn-secondary btn-sm" onclick="mixTtShiftDays(-7)">« −7 วัน</button>
@@ -3278,6 +3282,22 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
     </div>
     <div class="card" id="mix-tt-grid" style="background:var(--bg);border:1px solid var(--border)"></div>
+  </div>
+
+  <!-- ══════════ TAB: TIME TABLE FEEDER ══════════ -->
+  <div id="mix-tab-ttfeeder" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:13px;font-weight:700">📅 Time Table เครื่องป้อนสี (แยกจากถังผสม)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">วันที่ในกริด = <b>วันผลิตตาม TT</b> · แสดงความต้องการ <b>เม็ด + MB ต่อวัน</b> จากเป้าชิ้น/วัน · อนุมัติแต่ละช่องแล้วระบบจะ <b>เบิกตัดสต็อก</b> (รายวัน) อัตโนมัติ</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="mixTtFeederShiftDays(-7)">« −7 วัน</button>
+        <input type="date" id="mix-ttfeeder-date" style="padding:6px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px" onchange="renderMixingFeederTT()">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="mixTtFeederShiftDays(7)">+7 วัน »</button>
+      </div>
+    </div>
+    <div class="card" id="mix-ttfeeder-grid" style="background:var(--bg);border:1px solid var(--border)"></div>
   </div>
 
   <!-- ══════════ TAB: DISPATCH / HISTORY ══════════ -->
@@ -3349,6 +3369,10 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">รอเข้า (kg)</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">คาดเข้าวันที่</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">สั่งได้วันที่</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3)" title="เดือนที่ยอดใช้สูงสุดจาก Order">เดือน PK</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3)" title="ยอดใช้สูงสุดในเดือนนั้น">สูงสุด/ด.</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3)" title="เฉลี่ยต่อวัน = สูงสุด/ด. ÷ วันในเดือน">เฉลี่ย/วัน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3)" title="เผื่อระหว่างรอส่ง (LT) = เฉลี่ย/วัน × Lead time">สำรอง LT</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">คาดใช้/เดือน</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">สถานะ</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3)">จัดการ</th>
@@ -4306,6 +4330,10 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
             <th style="padding:8px 12px;text-align:left;color:var(--text3)">Supplier</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">Stock (kg)</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">Min (kg)</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)" title="เดือนที่ยอดใช้สูงสุดจาก Order">เดือน PK</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">สูงสุด/ด.</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">เฉลี่ย/วัน</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">สำรอง LT</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">ราคา (฿/kg)</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">สถานะ</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">จัดการ</th>
@@ -4338,6 +4366,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
             <th style="padding:8px 12px;text-align:left;color:var(--text3)">วันที่/เวลา</th>
             <th style="padding:8px 12px;text-align:left;color:var(--text3)">รหัสสี / ชื่อ</th>
             <th style="padding:8px 12px;text-align:left;color:var(--text3)">งาน / Lot</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text3)">Lot วัตถุดิบ MB</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">ประเภท</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">จำนวน (kg)</th>
             <th style="padding:8px 12px;text-align:center;color:var(--text3)">Balance (kg)</th>
@@ -7304,6 +7333,24 @@ function loadMixDispatchHistory(){
 }
 loadMixPlans();
 loadMixDispatchHistory();
+let mixFeederPlans = [];
+let mixStockIssueLog = [];
+function saveMixFeederPlans(){ try{ localStorage.setItem('_mixFeederPlans', JSON.stringify(mixFeederPlans)); }catch(e){} }
+function loadMixFeederPlans(){
+  try{
+    var d = localStorage.getItem('_mixFeederPlans');
+    if(d){ var arr = JSON.parse(d); if(Array.isArray(arr)) mixFeederPlans = arr; }
+  }catch(e){}
+}
+function saveMixStockIssueLog(){ try{ localStorage.setItem('_mixStockIssueLog', JSON.stringify(mixStockIssueLog)); }catch(e){} }
+function loadMixStockIssueLog(){
+  try{
+    var d = localStorage.getItem('_mixStockIssueLog');
+    if(d){ var arr = JSON.parse(d); if(Array.isArray(arr)) mixStockIssueLog = arr; }
+  }catch(e){}
+}
+loadMixFeederPlans();
+loadMixStockIssueLog();
 var MIX_LEAD_DAYS = 2;
 function mixPlanTTKey(orderNo, ttProdDate, machine){
   return String(orderNo||'')+'|'+String(ttProdDate||'')+'|'+String(machine||'');
@@ -10930,7 +10977,6 @@ function renderRawmatLedger(){
     var isIn=r.type==='in';
     var isAdj=r.type==='adj';
     var suppName=r.supplierName||'';
-    var lotDisplay=r.lotNo||r.jobName||'';
     var typeBadge = isAdj
       ? '<span class="badge" style="background:rgba(227,179,65,0.2);color:#e3b341;border:1px solid rgba(227,179,65,0.4)">⚖️ ปรับยอด</span>'
       : isIn
@@ -10942,12 +10988,14 @@ function renderRawmatLedger(){
       +'<td style="padding:7px 12px;font-family:monospace;font-size:11px;color:var(--text3)">'+r.date+'<br><span style="font-size:9px">'+(r.time||'')+'</span></td>'
       +'<td style="padding:7px 8px;text-align:center">'+typeBadge+'</td>'
       +'<td style="padding:7px 8px"><span class="badge mat-'+r.material+'">'+r.material+'</span></td>'
-      +'<td style="padding:7px 8px;font-size:11px;color:var(--text3)">'+(r.grade||'—')+'<br><span style="font-size:9px;color:var(--text3);font-family:monospace">'+(r.batchNo||'')+'</span></td>'
+      +'<td style="padding:7px 8px;font-size:11px;color:var(--text3)">'+(r.grade||'—')
+        +(r.batchNo?'<br><span style="font-size:9px;color:#79c0ff;font-family:monospace">Lot วัตถุดิบ: '+r.batchNo+'</span>':'')
+      +'</td>'
       +'<td style="padding:7px 8px;text-align:center;font-weight:700;font-size:13px;color:'+qtyColor+'">'+qtyPrefix+(isAdj?Math.abs(r.qty).toLocaleString():r.qty.toLocaleString())+'</td>'
       +'<td style="padding:7px 8px;font-family:monospace;font-size:11px;color:var(--text2)">'+(r.ref||'—')+'</td>'
       +'<td style="padding:7px 8px;font-size:11px">'
         +(r.jobName?'<span style="color:var(--accent2);font-weight:600">'+r.jobName+'</span>':'—')
-        +(lotDisplay&&r.lotNo?'<br><span style="font-size:9px;color:var(--text3);font-family:monospace">Lot: '+r.lotNo+'</span>':'')
+        +(r.lotNo?'<br><span style="font-size:9px;color:var(--text3);font-family:monospace">Lot งาน: '+r.lotNo+'</span>':'')
       +'</td>'
       +'<td style="padding:7px 8px;font-size:10px;color:var(--text3)">'+(suppName||'—')+'</td>'
       +'<td style="padding:7px 8px;text-align:center;font-weight:700;font-size:12px">'+r.balance.toLocaleString()+'</td>'
@@ -14849,6 +14897,66 @@ function mixRebuildFromTT(opts){
     });
   });
   saveMixPlans();
+  mixRebuildFeederFromTT(opts);
+}
+function mixUpsertFeederPlanFromTTEntry(en, ttProdDate, order){
+  var j = jobs.find(function(jj){ return jj.name === (en.jobName||order.jobName); });
+  if(!j || j.mixMethod!=='feeder') return;
+  if(!j.mb || j.mb==='-' || !(j.mbRatio>0)) return;
+  var wg = (typeof ttJobPlanningGroup==='function') ? ttJobPlanningGroup(en) : 'injection';
+  if(wg!=='injection') return;
+  var dayPcs = (typeof ttDailyTargetPcsForJob==='function') ? ttDailyTargetPcsForJob(j.name) : 0;
+  if(!dayPcs || dayPcs<=0){
+    var hp = (typeof ttGetHoursPerDay==='function') ? ttGetHoursPerDay() : 20;
+    dayPcs = Math.round((j.target||0)*hp);
+  }
+  if(!dayPcs || dayPcs<=0) return;
+  var wt = parseFloat(j.wt)||0;
+  if(!(wt>0)) return;
+  var kgTotal = dayPcs * wt / 1000;
+  var mbKg = +(kgTotal * (j.mbRatio||0) / 1000).toFixed(4);
+  var plasticKg = Math.max(0.0001, +(kgTotal - mbKg).toFixed(4));
+  var mach = en.machine || order.machine || j.machine || '';
+  var key = mixPlanTTKey(order.orderNo, ttProdDate, mach);
+  var id = 'MIX-F-TT-' + key.replace(/[^a-zA-Z0-9\-_.]/g,'_');
+  var idx = mixFeederPlans.findIndex(function(p){ return p.ttSourceKey===key; });
+  var slotTime = (en.startTime||en.time||en.slot||'08:00');
+  if(typeof slotTime==='string' && slotTime.length>5) slotTime = slotTime.slice(0,5);
+  var row = {
+    id:id, feederTTSource:true, ttSourceKey:key,
+    date: ttProdDate, time: slotTime,
+    ttProdDate:ttProdDate, prodDate:ttProdDate,
+    machine:mach,
+    jobName:j.name, orderNo:order.orderNo, lotNo:order.lotNo||en.lot||'',
+    plastic:j.plastic, grade:j.grade||'',
+    mb:j.mb, mbRatio:j.mbRatio||0,
+    plasticKgPerDay:plasticKg, mbKgPerDay:mbKg, dayPcs:dayPcs,
+    feederCode:j.feederCode||'',
+    status:'รอเดินงาน', autoCreated:true, stockIssued:false
+  };
+  if(idx>=0){
+    var keep = mixFeederPlans[idx];
+    row.stockIssued = keep.stockIssued||false;
+    row.status = keep.status||row.status;
+    mixFeederPlans[idx]=row;
+  }else{
+    mixFeederPlans.unshift(row);
+  }
+}
+function mixRebuildFeederFromTT(opts){
+  opts = opts || {};
+  if(!opts.merge){
+    mixFeederPlans = mixFeederPlans.filter(function(p){ return !p.feederTTSource; });
+  }
+  Object.keys(ttData||{}).forEach(function(dateStr){
+    (ttData[dateStr]||[]).forEach(function(en){
+      if(!en || !en.orderNo || en.orderNo==='MANUAL') return;
+      var o = orders.find(function(x){ return x.orderNo===en.orderNo; });
+      if(!o || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
+      mixUpsertFeederPlanFromTTEntry(en, dateStr, o);
+    });
+  });
+  saveMixFeederPlans();
 }
 function mixRebuildFromTTForOrder(orderNo){
   Object.keys(ttData||{}).forEach(function(dateStr){
@@ -14857,9 +14965,11 @@ function mixRebuildFromTTForOrder(orderNo){
       var o = orders.find(function(x){ return x.orderNo===orderNo; });
       if(!o) return;
       mixUpsertPlanFromTTEntry(en, dateStr, o);
+      mixUpsertFeederPlanFromTTEntry(en, dateStr, o);
     });
   });
   saveMixPlans();
+  saveMixFeederPlans();
 }
 function autoCreateMixPlan(order, prodDate){
   const j=jobs.find(jj=>jj.name===order.jobName);
@@ -16887,8 +16997,214 @@ function bomMixMethodChange(){
 // ════════════════════════════════════════════════════════════════
 var _mixCurrentTab = 'plan';
 
+function mixFeederDailyFromJob(o,j){
+  if(!j) return {dayPcs:0,plasticKg:0,mbKg:0};
+  var dayPcs = (typeof ttDailyTargetPcsForJob==='function') ? ttDailyTargetPcsForJob(j.name) : 0;
+  if(!dayPcs || dayPcs<=0){
+    var hp = (typeof ttGetHoursPerDay==='function') ? ttGetHoursPerDay() : 20;
+    dayPcs = Math.round((j.target||0)*hp);
+  }
+  var wt = parseFloat(j.wt)||0;
+  var plasticKg = (dayPcs>0 && wt>0) ? +(dayPcs*wt/1000).toFixed(4) : 0;
+  var mbKg = (j.mbRatio>0 && plasticKg>0) ? +(plasticKg*(j.mbRatio/1000)).toFixed(4) : 0;
+  return {dayPcs:dayPcs||0, plasticKg:plasticKg, mbKg:mbKg};
+}
+
+function mixResolveMbCode(mbLabel){
+  var lb=String(mbLabel||'').trim();
+  if(!lb||lb==='-') return '';
+  if(typeof mbColors!=='undefined' && mbColors[lb]) return lb;
+  var keys=Object.keys(mbColors||{});
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i], inf=mbColors[k]||{};
+    if(String(inf.name||'').trim()===lb) return k;
+  }
+  return '';
+}
+
+function mixFefoDeductPlasticBatches(mat, needKg){
+  var labels=[], remain=Math.max(0,needKg);
+  var cands=(batchMatStock||[]).filter(function(b){
+    return b.material===mat && (b.weightLeft||0)>0.0001;
+  }).sort(function(a,b){
+    return String(a.dateIn||'').localeCompare(String(b.dateIn||''));
+  });
+  for(var i=0;i<cands.length && remain>0.0001;i++){
+    var b=cands[i], w=b.weightLeft||0, take=Math.min(w,remain);
+    if(take<=0) continue;
+    b.weightLeft=+(w-take).toFixed(3);
+    if(b.weightLeft<0.001) b.status='หมดแล้ว';
+    labels.push(b.batchNo);
+    remain-=take;
+  }
+  if(typeof renderBatchStock==='function') renderBatchStock();
+  return {labels:labels, short:remain};
+}
+
+function mixFefoDeductMbBatches(mbLabel, needKg){
+  var labels=[], remain=Math.max(0,needKg);
+  var cands=(batchMbStock||[]).filter(function(b){
+    return (b.colorName===mbLabel||b.batchNo===mbLabel)&&(b.weightLeft||0)>0.0001;
+  }).sort(function(a,b){
+    return String(a.dateIn||'').localeCompare(String(b.dateIn||''));
+  });
+  for(var i=0;i<cands.length && remain>0.0001;i++){
+    var b=cands[i], w=b.weightLeft||0, take=Math.min(w,remain);
+    if(take<=0) continue;
+    b.weightLeft=+(w-take).toFixed(3);
+    if(b.weightLeft<0.001) b.status='หมดแล้ว';
+    labels.push(b.batchNo);
+    remain-=take;
+  }
+  if(typeof renderBatchStock==='function') renderBatchStock();
+  return {labels:labels, short:remain};
+}
+
+function mixPushStockIssueLog(entry){
+  mixStockIssueLog.unshift(Object.assign({id:'MIXISS-'+Date.now(), at:new Date().toISOString()}, entry));
+  saveMixStockIssueLog();
+}
+
+function mixExecuteStockIssueForPlan(planId, opts){
+  opts=opts||{};
+  var by=opts.by||'—';
+  var p=mixPlans.find(function(x){ return String(x.id)===String(planId); });
+  if(!p){ if(typeof _infoToast==='function') _infoToast('ไม่พบแผนผสมถัง'); return; }
+  if(p.stockIssued){ if(typeof _infoToast==='function') _infoToast('แผนนี้เบิกสต็อกแล้ว'); return; }
+  var approveKey='mixing-'+p.id;
+  var ap=approvals[approveKey];
+  if(!ap || ap.status!=='approved'){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนผสมถังก่อน จึงจะเบิกสต็อกอัตโนมัติ');
+    return;
+  }
+  var mat=p.plastic||'';
+  var pq=Math.max(0, parseFloat(p.plasticKg||p.weight||0)||0);
+  var mq=Math.max(0, parseFloat(p.mbKg||0)||0);
+  var rkey=p.id+'_'+mat;
+  if(rawMatReservations[rkey]){ delete rawMatReservations[rkey]; saveReservations(); }
+
+  var plasticRmLots='—';
+  if(mat && pq>0){
+    if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:p.grade||''};
+    rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-pq);
+    saveRawMatStock();
+    var pk=mixFefoDeductPlasticBatches(mat,pq);
+    plasticRmLots=pk.labels.length?pk.labels.join(', '):'—';
+    if(pk.short>0.0001) plasticRmLots+=(plasticRmLots!=='—'?' · ':'')+'คงเหลือหักจากสต็อกรวม';
+    rawMatLedger.unshift({
+      _id:'RMX-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
+      type:'out', material:mat, grade:p.grade||rawMatStock[mat].grade||'', qty:pq, batchNo:plasticRmLots,
+      ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
+      balance:rawMatStock[mat].qty||0, by:by,
+      note:'เบิกผสมถัง (อนุมัติ) · แผน '+p.id
+    });
+    saveRawMatLedger();
+  }
+
+  var mbRmLots='—';
+  if(mq>0 && p.mb && p.mb!=='-'){
+    var code=mixResolveMbCode(p.mb);
+    if(code && typeof mbStock!=='undefined' && mbStock[code]){
+      var have=mbStock[code].qty||0;
+      if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ (มี '+have.toFixed(3)+' ต้องการ '+mq.toFixed(3)+')');
+      mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
+      saveMbStock();
+      var g=(batchMbStock||[]).find(function(b){ return b.colorName===p.mb||b.batchNo===code; });
+      mbRmLots=g?g.batchNo:'—';
+    }else{
+      var mbOnly=mixFefoDeductMbBatches(p.mb,mq);
+      mbRmLots=mbOnly.labels.length?mbOnly.labels.join(', '):'—';
+    }
+    mbLedger.unshift({
+      _id:'MBX-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
+      code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกผสมถัง (อนุมัติ)',
+      balance:(code&&mbStock[code])?mbStock[code].qty:0, note:'แผน '+p.id, mbBatch:mbRmLots
+    });
+    saveMbLedger();
+  }
+
+  p.stockIssued=true;
+  p.stockIssuedAt=new Date().toISOString();
+  p.status='ผสมแล้ว';
+  saveMixPlans();
+  mixPushStockIssueLog({
+    kind:'tank', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
+    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, by:by
+  });
+  if(typeof renderMixing==='function') renderMixing();
+  if(typeof renderRawmatLedger==='function') renderRawmatLedger();
+  if(typeof mbRenderLedger==='function') mbRenderLedger();
+  if(typeof _toast==='function') _toast('✅ อนุมัติแล้ว — เบิกเม็ด/MB ตามแผนถัง: '+p.jobName);
+}
+
+function mixExecuteFeederStockIssue(planId, opts){
+  opts=opts||{};
+  var by=opts.by||'—';
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(planId); });
+  if(!p){ if(typeof _infoToast==='function') _infoToast('ไม่พบแผนป้อนสี'); return; }
+  if(p.stockIssued){ if(typeof _infoToast==='function') _infoToast('ช่องนี้เบิกสต็อกรายวันแล้ว'); return; }
+  var approveKey='mixfeeder-'+p.id;
+  var ap=approvals[approveKey];
+  if(!ap || ap.status!=='approved'){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนป้อนสี (ช่อง TT) ก่อน');
+    return;
+  }
+  var mat=p.plastic||'';
+  var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
+  var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+  var plasticRmLots='—';
+  if(mat && pq>0){
+    if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:p.grade||''};
+    rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-pq);
+    saveRawMatStock();
+    var pk=mixFefoDeductPlasticBatches(mat,pq);
+    plasticRmLots=pk.labels.length?pk.labels.join(', '):'—';
+    rawMatLedger.unshift({
+      _id:'RMXF-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
+      type:'out', material:mat, grade:p.grade||rawMatStock[mat].grade||'', qty:pq, batchNo:plasticRmLots,
+      ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
+      balance:rawMatStock[mat].qty||0, by:by,
+      note:'เบิกป้อนสีรายวัน (อนุมัติ) · '+p.ttProdDate+' · '+p.id
+    });
+    saveRawMatLedger();
+  }
+  var mbRmLots='—';
+  if(mq>0 && p.mb && p.mb!=='-'){
+    var code=mixResolveMbCode(p.mb);
+    if(code && typeof mbStock!=='undefined' && mbStock[code]){
+      var have=mbStock[code].qty||0;
+      if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ');
+      mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
+      saveMbStock();
+      var g=(batchMbStock||[]).find(function(b){ return b.colorName===p.mb||b.batchNo===code; });
+      mbRmLots=g?g.batchNo:'—';
+    }else{
+      var mbO=mixFefoDeductMbBatches(p.mb,mq);
+      mbRmLots=mbO.labels.length?mbO.labels.join(', '):'—';
+    }
+    mbLedger.unshift({
+      _id:'MBXF-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
+      code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกป้อนสีรายวัน (อนุมัติ)',
+      balance:(code&&mbStock[code])?mbStock[code].qty:0, note:p.ttProdDate+' · '+p.id, mbBatch:mbRmLots
+    });
+    saveMbLedger();
+  }
+  p.stockIssued=true;
+  p.stockIssuedAt=new Date().toISOString();
+  p.status='เบิกแล้ว';
+  saveMixFeederPlans();
+  mixPushStockIssueLog({
+    kind:'feeder', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
+    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, prodDate:p.ttProdDate||'', by:by
+  });
+  if(typeof renderMixing==='function') renderMixing();
+  if(typeof renderRawmatLedger==='function') renderRawmatLedger();
+  if(typeof mbRenderLedger==='function') mbRenderLedger();
+  if(typeof _toast==='function') _toast('✅ อนุมัติป้อนสี — เบิกต่อวัน: '+p.jobName+' ('+p.ttProdDate+')');
+}
+
 function mixTab(tab, el){
-  ['plan','feeder','auto','stock','tt','dispatch'].forEach(function(t){
+  ['plan','feeder','auto','stock','tt','ttfeeder','dispatch'].forEach(function(t){
     var p = document.getElementById('mix-tab-'+t);
     if(p) p.style.display = t===tab ? 'block' : 'none';
   });
@@ -16900,6 +17216,7 @@ function mixTab(tab, el){
   if(tab==='auto')   renderMixAutoList();
   if(tab==='stock')  renderMixStockGrid();
   if(tab==='tt')     renderMixingTT();
+  if(tab==='ttfeeder') renderMixingFeederTT();
   if(tab==='dispatch') renderMixDispatchTab();
 }
 
@@ -16911,6 +17228,7 @@ function renderMixing(){
   else if(_mixCurrentTab==='auto')   renderMixAutoList();
   else if(_mixCurrentTab==='stock')  renderMixStockGrid();
   else if(_mixCurrentTab==='tt')     renderMixingTT();
+  else if(_mixCurrentTab==='ttfeeder') renderMixingFeederTT();
   else if(_mixCurrentTab==='dispatch') renderMixDispatchTab();
 }
 
@@ -16980,7 +17298,7 @@ function renderMixFeeder(){
   }
 
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text3)">'
+    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3)">'
       +'<div style="font-size:32px;margin-bottom:8px">⚙️</div>'
       +'<div>ยังไม่มีงานที่ตั้งค่าใช้เครื่องป้อนสี</div>'
       +'<div style="font-size:11px;margin-top:4px;color:var(--text3)">ไปที่ BOM → แก้ไขงาน → เลือก "⚙️ เครื่องป้อนสี (Auto Feeder)"</div>'
@@ -16990,6 +17308,7 @@ function renderMixFeeder(){
 
   tbody.innerHTML = rows.map(function(r){
     var j=r.j, o=r.o, feeder=r.feeder;
+    var daily = o ? mixFeederDailyFromJob(o,j) : {dayPcs:0,plasticKg:0,mbKg:0};
     var mbOK = !r.mbKg || r.mbAvail>=r.mbKg;
     var mbCol = mbOK?'#3fb950':'#f85149';
     var mbLabel = r.mbKg>0
@@ -17017,6 +17336,9 @@ function renderMixFeeder(){
             +'<div style="font-size:9px;color:var(--text3)">พลาสติก 1 shot '+jobPlasticShotGrams(j).toFixed(2)+' g</div>'
           :'—')
       +'</td>'
+      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#79c0ff;font-weight:700">'+(daily.dayPcs>0?Number(daily.dayPcs).toLocaleString():'—')+'</td>'
+      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#3fb950;font-weight:700">'+(daily.plasticKg>0?daily.plasticKg.toFixed(2):'—')+'</td>'
+      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">'+(daily.mbKg>0?daily.mbKg.toFixed(3):'—')+'</td>'
       // Feeder machine
       +'<td style="padding:9px 8px;text-align:center">'
         +(feeder
@@ -17501,32 +17823,20 @@ function mixCheckAllStock(){
   if(typeof _toast==='function') _toast('🔍 ตรวจสต็อกเสร็จแล้ว');
 }
 
-// ── Mark mixed ────────────────────────────────────────────────────
+// ── Mark mixed (ต้องอนุมัติแผนก่อน — ระบบเบิกสต็อกตอนอนุมัติ) ───────
 function mixMarkMixed(id){
   var p=mixPlans.find(function(x){return x.id===id||x.id===String(id);}); if(!p) return;
-  p.status='ผสมแล้ว';
-  // Release reservation when mixed (deduct from stock instead)
-  var key=id+'_'+(p.plastic||'');
-  if(rawMatReservations[key]){
-    // Deduct from rawMatStock
-    var mat=p.plastic; var qty=p.plasticKg||p.weight||0;
-    if(rawMatStock[mat]){ rawMatStock[mat].qty=Math.max(0,rawMatStock[mat].qty-qty); }
-    delete rawMatReservations[key];
-    saveReservations();
+  var ak='mixing-'+p.id;
+  var ap=approvals[ak];
+  if(!ap || ap.status!=='approved'){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องกด "ขออนุมัติ" และให้ผู้อนุมัติก่อน — ระบบจะเบิกเม็ด/MB อัตโนมัติเมื่ออนุมัติ');
+    return;
   }
-  // Auto log to ledger
-  var mat=p.plastic; var qty=p.plasticKg||p.weight||0;
-  if(mat&&qty>0&&typeof rawMatLedger!=='undefined'){
-    rawMatLedger.unshift({date:new Date().toISOString().split('T')[0],time:new Date().toTimeString().slice(0,5),
-      type:'out',material:mat,grade:p.grade||'',qty:qty,batchNo:'',
-      ref:p.orderNo||p.id,jobName:p.jobName,lotNo:p.lotNo||'',balance:rawMatStock[mat]?.qty||0,
-      by:p.mixer||'พนักงานผสม',note:'เบิกสำหรับผสมแผน '+p.id,
-      supplierName:'',price:0});
-    if(typeof saveRawMatLedger==='function') saveRawMatLedger();
+  if(p.stockIssued){
+    if(typeof _toast==='function') _toast('✅ เบิกสต็อกตามแผนนี้แล้ว');
+    return;
   }
-  saveMixPlans();
-  renderMixing();
-  if(typeof _toast==='function') _toast('✅ บันทึกผสมเสร็จ: '+p.jobName+' | เบิก '+qty.toFixed(1)+' kg จากสต็อก');
+  mixExecuteStockIssueForPlan(p.id,{by:p.mixer||'ยืนยันผสม'});
 }
 // Legacy alias
 function markMixed(id){ mixMarkMixed(id); }
@@ -17584,6 +17894,79 @@ function renderMixingTT(){
             +(p.ttProdDate?'<div style="font-size:9px;color:#79c0ff">ผลิต TT: '+p.ttProdDate+'</div>':'')
             +'<span class="badge '+(p.status==='ผสมแล้ว'?'badge-green':p.status==='จองวัตถุดิบแล้ว'?'badge-yellow':'badge-orange')+'" style="font-size:9px">'+p.status+'</span>'
           +'</div>';
+        });
+      } else {
+        html+='<div style="height:44px;display:flex;align-items:center;justify-content:center"><span style="color:rgba(139,148,158,0.15);font-size:16px">·</span></div>';
+      }
+      html+='</td>';
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function mixTtFeederShiftDays(delta){
+  var el=document.getElementById('mix-ttfeeder-date'); if(!el) return;
+  var b=el.value?new Date(el.value+'T12:00:00'):new Date();
+  if(isNaN(b.getTime())) b=new Date();
+  b.setDate(b.getDate()+(delta||0));
+  el.value=b.toISOString().split('T')[0];
+  renderMixingFeederTT();
+}
+
+// ── Time Table ป้อนสี: คอลัมน์ = วันผลิต (TT) · แสดง kg/วัน + อนุมัติเบิก ──
+function renderMixingFeederTT(){
+  var el=document.getElementById('mix-ttfeeder-grid'); if(!el) return;
+  if(!mixFeederPlans.length){
+    el.innerHTML='<div style="text-align:center;padding:28px;color:var(--text3);font-size:12px">ยังไม่มีแผนป้อนสีจาก TT — กด <b>ซิงค์จาก TT</b> ที่หัวหน้าเมนู</div>';
+    return;
+  }
+  var dateEl=document.getElementById('mix-ttfeeder-date');
+  if(dateEl && !dateEl.value) dateEl.value=new Date().toISOString().split('T')[0];
+  var anchor=(dateEl&&dateEl.value)?dateEl.value:new Date().toISOString().split('T')[0];
+  var today=new Date().toISOString().split('T')[0];
+  var days=[];
+  for(var i=-5;i<=8;i++){
+    var d=new Date(anchor+'T12:00:00'); d.setDate(d.getDate()+i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  var DOW=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  var html='<div style="overflow-x:auto"><table style="border-collapse:collapse;min-width:960px;width:100%">'
+    +'<thead><tr>'
+    +'<th style="background:var(--bg3);padding:8px 10px;font-size:11px;color:var(--text3);white-space:nowrap;min-width:72px">เวลา</th>'
+    +days.map(function(d){
+      var dt=new Date(d+'T12:00:00');
+      var isToday=d===today;
+      var label=DOW[dt.getDay()]+' '+dt.getDate()+'/'+(dt.getMonth()+1);
+      var plans=mixFeederPlans.filter(function(p){ return p.date===d; });
+      return '<th style="background:'+(isToday?'rgba(56,139,253,0.1)':'var(--bg3)')+';padding:8px 6px;text-align:center;font-size:10px;min-width:132px;border-left:1px solid var(--border);'+(isToday?'border-top:2px solid #388bfd;':'')+'">'
+        +'<div style="color:'+(isToday?'var(--accent2)':'var(--text3)')+';font-weight:'+(isToday?'800':'600')+'">'+label+'</div>'
+        +'<div style="font-size:9px;color:var(--text3);margin-top:2px">ผลิต '+d+'</div>'
+        +(plans.length?'<span style="font-size:9px;padding:1px 5px;background:rgba(86,211,100,0.15);border-radius:6px;color:#56d364;margin-top:3px;display:inline-block">'+plans.length+' ช่อง</span>':'')
+      +'</th>';
+    }).join('')
+    +'</tr></thead><tbody>';
+  ['08:00','10:00','13:00','15:00'].forEach(function(t){
+    html+='<tr><td style="background:var(--bg3);padding:6px 10px;font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;border-top:1px solid var(--border)">'+t+'</td>';
+    days.forEach(function(d){
+      var plans=mixFeederPlans.filter(function(p){ return p.date===d && (p.time||'08:00')===t; });
+      var isToday=d===today;
+      html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:64px;background:'+(isToday?'rgba(56,139,253,0.04)':'transparent')+'">';
+      if(plans.length){
+        plans.forEach(function(p){
+          var col=p.stockIssued?'#3fb950':(p.status==='เบิกแล้ว'?'#3fb950':'#79c0ff');
+          var apLbl='อนุมัติเบิกป้อนสี';
+          var apHtml=(typeof getApprovalBadge==='function')?getApprovalBadge('mixfeeder-'+p.id, apLbl):'';
+          html+='<div style="background:rgba(0,0,0,0.15);border-left:3px solid '+col+';padding:5px 6px;border-radius:4px;margin-bottom:4px;font-size:10px">'
+            +'<div style="font-weight:800;color:var(--accent2);font-family:monospace;font-size:9px">'+(p.machine||'—')+'</div>'
+            +'<div style="font-weight:700;color:var(--text);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.jobName||'')+'</div>'
+            +'<div style="font-size:9px;color:var(--text3)">เป้า '+((p.dayPcs!=null)?Number(p.dayPcs).toLocaleString():'—')+' pcs/วัน</div>'
+            +'<div style="color:#3fb950">เม็ด '+((p.plasticKgPerDay||0).toFixed(2))+' kg/วัน</div>'
+            +'<div style="color:#e3b341">MB '+((p.mbKgPerDay||0).toFixed(3))+' kg/วัน</div>'
+            +'<div style="margin-top:4px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">'+apHtml
+            +(p.stockIssued?'<span class="badge badge-green" style="font-size:9px">เบิกแล้ว</span>':'')
+            +'</div></div>';
         });
       } else {
         html+='<div style="height:44px;display:flex;align-items:center;justify-content:center"><span style="color:rgba(139,148,158,0.15);font-size:16px">·</span></div>';
@@ -17664,6 +18047,34 @@ function renderMixDispatchTab(){
         +'<td style="padding:8px;color:var(--text3)">'+(r.note||'')+'</td>'
       +'</tr>';
     }).join(''):'<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีประวัติการจัดส่ง</td></tr>')
+  +'</tbody></table></div>'
+  +'<div style="margin-top:18px;font-size:13px;font-weight:800;margin-bottom:8px">📒 ประวัติเบิกตัดสต็อก (หลังอนุมัติ — เม็ด &amp; MB)</div>'
+  +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
+  +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg3)">'
+  +'<th style="padding:8px;text-align:left">วันเวลา</th>'
+  +'<th style="padding:8px;text-align:left">ประเภท</th>'
+  +'<th style="padding:8px;text-align:left">งาน / Order</th>'
+  +'<th style="padding:8px;text-align:left">Lot งาน</th>'
+  +'<th style="padding:8px;text-align:right">เม็ด (kg)</th>'
+  +'<th style="padding:8px;text-align:right">MB (kg)</th>'
+  +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (เม็ด)</th>'
+  +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (MB)</th>'
+  +'<th style="padding:8px;text-align:left">ผู้บันทึก</th>'
+  +'</tr></thead><tbody>'
+  +(mixStockIssueLog.length?mixStockIssueLog.slice(0,150).map(function(r){
+    var dt=String(r.at||'').replace('T',' ').slice(0,19);
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:8px" class="mono">'+dt+'</td>'
+      +'<td style="padding:8px">'+(r.kind==='feeder'?'ป้อนสี/วัน':'ถังผสม')+(r.prodDate?'<div style="font-size:9px;color:var(--text3)">ผลิต '+r.prodDate+'</div>':'')+'</td>'
+      +'<td style="padding:8px">'+(r.jobName||'—')+'<div style="font-size:10px;color:var(--text3)">'+(r.orderNo||'')+'</div></td>'
+      +'<td style="padding:8px;font-family:monospace">'+(r.jobLot||'—')+'</td>'
+      +'<td style="padding:8px;text-align:right">'+(r.plasticKg!=null?Number(r.plasticKg).toFixed(2):'')+'</td>'
+      +'<td style="padding:8px;text-align:right">'+(r.mbKg!=null?Number(r.mbKg).toFixed(3):'')+'</td>'
+      +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.plasticRmLots||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.mbRmLots||'—')+'</td>'
+      +'<td style="padding:8px">'+(r.by||'—')+'</td>'
+    +'</tr>';
+  }).join(''):'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีประวัติเบิกอัตโนมัติ — อนุมัติแผนถังหรือแผนป้อนสีใน Time Table</td></tr>')
   +'</tbody></table></div>';
 }
 
@@ -17733,17 +18144,71 @@ function rmStockCatTab(cat, el){
   renderRawmat();
 }
 
-function getRawmatMonthlyUsage(material){
-  // Backward-compatible: return the highest monthly usage from order history/plan.
-  var prof = getRawmatUsageProfile(material);
-  return Math.round(prof.maxMonthlyKg || 0);
+function _packagingDemandForOrder(matKeyU, j, remainingQty){
+  var rq=Math.max(0, parseFloat(remainingQty)||0);
+  if(rq<=0) return 0;
+  var pk=j.packingStd||{};
+  function match(val){
+    if(!val) return false;
+    return String(val).trim().toUpperCase()===matKeyU;
+  }
+  if(match(pk.boxCode)||match(j.packBox)){
+    var pcs=parseInt(pk.pcsBox||j.packBoxPcs,10)||0;
+    if(pcs>0) return Math.ceil(rq/pcs);
+    return Math.ceil(rq);
+  }
+  if(match(pk.bagType)||match(j.packBag)){
+    var pcsB=parseInt(pk.pcsBag||j.packBagPcs,10)||0;
+    if(pcsB>0) return Math.ceil(rq/pcsB);
+    return Math.ceil(rq);
+  }
+  var pcsCtn=parseInt(pk.pcsCtn,10)||0;
+  if(!pcsCtn && pk.pcsBox && pk.boxCtn) pcsCtn=(parseInt(pk.pcsBox,10)||0)*(parseInt(pk.boxCtn,10)||0);
+  if(match(pk.ctnCode)||match(j.packCrate)){
+    if(pcsCtn>0) return Math.ceil(rq/pcsCtn);
+    var bx=parseInt(j.packCrateBox,10)||0;
+    if(bx>0) return Math.ceil(rq/bx);
+    return Math.ceil(rq);
+  }
+  return 0;
 }
 
-function getRawmatUsageProfile(material){
-  var matKey=String(material||'').trim().toUpperCase();
-  var monthly={}; // YYYY-MM -> kg
+function _mbJobMatches(code, j){
+  var a=String(code||'').trim().toUpperCase();
+  var b=String(j.mb||'').trim().toUpperCase();
+  if(!b || b==='-' || b==='ไม่มีสี' || b==='NATURAL') return false;
+  if(a===b) return true;
+  if(a.length>=3 && (b.indexOf(a)>=0 || a.indexOf(b)>=0)) return true;
+  var info=(typeof mbColors!=='undefined')?mbColors[code]:null;
+  if(info && info.name && String(info.name).trim().toUpperCase()===b) return true;
+  return false;
+}
+
+function _mbMaterialMatchesStockCode(code, j){
+  if(_mbJobMatches(code, j)) return true;
+  var key=String(code||'').trim().toUpperCase();
+  var r=null;
+  for(var i=(RAWMAT_REGISTRY||[]).length-1;i>=0;i--){
+    var x=RAWMAT_REGISTRY[i];
+    if(String(x.code||'').trim().toUpperCase()===key){ r=x; break; }
+  }
+  if(!r || (r.category!=='mb_color' && r.category!=='additive')) return false;
+  var b=String(j.mb||'').trim().toUpperCase();
+  if(!b || b==='-' || b==='ไม่มีสี' || b==='NATURAL') return false;
+  var nm=String(r.name||'').trim().toUpperCase();
+  var nmen=String(r.nameEn||'').trim().toUpperCase();
+  if(nm && (nm===b || b.indexOf(nm)>=0 || nm.indexOf(b)>=0)) return true;
+  if(nmen && (nmen===b || b.indexOf(nmen)>=0 || nmen.indexOf(b)>=0)) return true;
+  return false;
+}
+
+/** kind: 'plastic' | 'mb_color' | 'packaging' — ยอดรายเดือนหน่วยตามชนิด (kg หรือ หน่วยบรรจุภัณฑ์) */
+function getStockDemandProfile(materialKey, kind){
+  kind=kind||'plastic';
+  var matKey=String(materialKey||'').trim().toUpperCase();
+  var monthly={};
   var maxMonthKey='';
-  var maxMonthlyKg=0;
+  var maxMonthly=0;
 
   function _orderMonthKey(o){
     var dt=(o&&o.dueDate)||(o&&o.startDate)||(o&&o.createdAt)||'';
@@ -17761,25 +18226,48 @@ function getRawmatUsageProfile(material){
   (orders||[]).forEach(function(o){
     if(!o || o.status==='ยกเลิก' || o.status==='cancelled') return;
     var j=jobs.find(function(jj){return jj&&jj.name===o.jobName;})||{};
-    var oPlastic=String(o.plastic||j.plastic||'').trim().toUpperCase();
-    if(!oPlastic || oPlastic!==matKey) return;
     var qty=Math.max(0,(parseFloat(o.qty)||0)-(parseFloat(o.produced)||0));
-    var wtPerPc=parseFloat(j.wt)||0; // g/pc
-    if(!(wtPerPc>0) || !(qty>0)) return;
-    var kg=(wtPerPc*qty)/1000;
     var mk=_orderMonthKey(o);
-    monthly[mk]=(monthly[mk]||0)+kg;
+    var add=0;
+
+    if(kind==='plastic'){
+      var oPlastic=String(o.plastic||j.plastic||'').trim().toUpperCase();
+      if(!oPlastic || oPlastic!==matKey) return;
+      var wtPerPc=parseFloat(j.wt)||0;
+      if(!(wtPerPc>0) || !(qty>0)) return;
+      add=(wtPerPc*qty)/1000;
+    }else if(kind==='mb_color'){
+      if(!_mbMaterialMatchesStockCode(materialKey, j)) return;
+      var wt2=parseFloat(j.wt)||0;
+      if(!(wt2>0) || !(qty>0)) return;
+      var plasticKg=(wt2*qty)/1000;
+      var info=(typeof mbColors!=='undefined')?mbColors[materialKey]:null;
+      var ratioG=(info&&(parseFloat(info.ratio)||parseFloat(info.mbRatio)))||parseFloat(j.mbRatio)||0;
+      if(!(ratioG>0)) return;
+      add=plasticKg*(ratioG/1000);
+    }else if(kind==='packaging'){
+      add=_packagingDemandForOrder(matKey, j, qty);
+      if(!(add>0)) return;
+    }else return;
+
+    monthly[mk]=(monthly[mk]||0)+add;
   });
 
   Object.keys(monthly).forEach(function(mk){
-    if(monthly[mk]>maxMonthlyKg){
-      maxMonthlyKg=monthly[mk];
+    if(monthly[mk]>maxMonthly){
+      maxMonthly=monthly[mk];
       maxMonthKey=mk;
     }
   });
   var days=maxMonthKey?_daysInMonth(maxMonthKey):30;
-  var dailyFromPeak=days>0?maxMonthlyKg/days:0;
-  return {monthly:monthly,maxMonthlyKg:maxMonthlyKg,maxMonthKey:maxMonthKey,dailyFromPeak:dailyFromPeak};
+  var dailyFromPeak=days>0?maxMonthly/days:0;
+  return {monthly:monthly,maxMonthly:maxMonthly,maxMonthlyKg:maxMonthly,maxMonthKey:maxMonthKey,dailyFromPeak:dailyFromPeak};
+}
+
+function getRawmatMonthlyUsage(material, kindOpt){
+  var k=kindOpt||((_rmStockCat==='mb_color')?'mb_color':((_rmStockCat==='packaging')?'packaging':'plastic'));
+  var prof=getStockDemandProfile(material, k);
+  return Math.round(prof.maxMonthly||0);
 }
 
 function renderRawmat(){
@@ -17823,6 +18311,7 @@ function renderRawmat(){
     // plastic tab: include plastic + unknown (not mb_color/packaging)
     return c!=='mb_color' && c!=='packaging';
   });
+  const demandKind = _rmStockCat==='mb_color'?'mb_color':(_rmStockCat==='packaging'?'packaging':'plastic');
   const cards=document.getElementById('rawmat-cards');
   const tbody=document.getElementById('rawmat-tbody');
   const today=new Date().toISOString().split('T')[0];
@@ -17836,9 +18325,9 @@ function renderRawmat(){
     const cfg = rawMatSettings[p]||{};
     const regLT = reg ? toNum(reg.leadTime, 0) : 0;
     const ltDays = Math.max(1, Math.round(regLT>0 ? regLT : toNum(cfg.ltDays, 14)));
-    const prof = getRawmatUsageProfile(p);
+    const prof = getStockDemandProfile(p, demandKind);
     const dailyUse = prof.dailyFromPeak || 0;
-    const peakMonthly = prof.maxMonthlyKg || 0;
+    const peakMonthly = prof.maxMonthly || 0;
     // ตามโจทย์:
     // MAX = (ยอดใช้สูงสุดรายเดือน) + (ยอดใช้ต่อวัน × LT)
     // MIN = (ยอดใช้ต่อวัน × LT) × 2 (เผื่อ)
@@ -17896,19 +18385,20 @@ function renderRawmat(){
     const col=low?'var(--red)':s.qty>s.max?'var(--orange)':'var(--green)';
     const status=low?'ต่ำกว่า Min':s.qty>s.max?'เกิน Max':'ปกติ';
     const reg=regForStock(p, s);
+    const unitLbl=(reg&&reg.unit&&demandKind==='packaging')?reg.unit:'kg';
     const pendingKg=[...purchaseRequests,...rawMatPRList].filter(pr=>(pr.status==='pending'||pr.status==='รออนุมัติ')&&pr.material===p).reduce((a,pr)=>a+(pr.qty||0),0);
     return `<div class="card" style="${low?'border:1px solid var(--red)':''}">
       <div class="flex justify-between items-center mb-2">
         <span class="badge mat-${p}">${p}</span>
         <span class="badge ${low?'badge-red':s.qty>s.max?'badge-yellow':'badge-green'}" style="font-size:10px">${status}</span>
       </div>
-      <div class="kpi-value mono" style="font-size:20px;color:${col}">${s.qty.toLocaleString()}<span style="font-size:11px;color:var(--text3)"> kg</span></div>
+      <div class="kpi-value mono" style="font-size:20px;color:${col}">${s.qty.toLocaleString()}<span style="font-size:11px;color:var(--text3)"> ${unitLbl}</span></div>
       <div class="progress mt-2"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
       <div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: ${(s.min||0).toLocaleString()} | Max: ${(s.max||0).toLocaleString()}</div>
       ${reg&&reg.grade?`<div style="font-size:10px;color:#79c0ff;margin-top:2px">เกรด: ${reg.grade}</div>`:''}
       ${reg&&reg.price?`<div style="font-size:10px;color:#e3b341;margin-top:2px">฿ ${reg.price.toLocaleString()}/kg</div>`:''}
       ${pendingKg>0?`<div style="font-size:10px;color:#e3b341;margin-top:3px;font-weight:700">⏳ รอเข้า: ${pendingKg.toLocaleString()} kg</div>`:''}
-      ${(()=>{ const mu=getRawmatMonthlyUsage(p); return mu>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">📦 คาดใช้/เดือน: <span style="color:#ffa657;font-weight:700">${Math.round(mu).toLocaleString()} kg</span></div>`:''; })()}
+      ${(()=>{ const mu=getRawmatMonthlyUsage(p, demandKind); const u=(reg&&reg.unit&&demandKind==='packaging')?reg.unit:'kg'; return mu>0?`<div style="font-size:10px;color:var(--text3);margin-top:4px">📦 คาดใช้/เดือน: <span style="color:#ffa657;font-weight:700">${Math.round(mu).toLocaleString()} ${u}</span></div>`:''; })()}
       ${low?`<button class="btn btn-red btn-sm" style="margin-top:8px;width:100%;font-size:10px" onclick="rmOpenPRFor('${p}')">🛒 ขอซื้อเพิ่ม</button>`:''}
     </div>`;
   }).join('');
@@ -17923,7 +18413,15 @@ function renderRawmat(){
     const suppName=suppObj?suppObj.name:(suppId||'—');
     const grade=reg?reg.grade:(s.grade||'—');
     const low=s.qty<s.min; const status=low?'ต่ำกว่า Min':s.qty>s.max?'เกิน Max':'ปกติ';
-    const mu=getRawmatMonthlyUsage(p);
+    const regLTb=reg?toNum(reg.leadTime,0):0;
+    const ltDays=Math.max(1,Math.round(regLTb>0?regLTb:toNum(cfg.ltDays,14)));
+    const profTb=getStockDemandProfile(p,demandKind);
+    const dailyTb=profTb.dailyFromPeak||0;
+    const peakTb=profTb.maxMonthly||0;
+    const bufTb=dailyTb*ltDays;
+    const pkgU=(reg&&reg.unit&&demandKind==='packaging')?reg.unit:'';
+    const fmtPk=n=>demandKind==='packaging'?String(Math.round(n)).toLocaleString():(Math.round(n*10)/10).toLocaleString();
+    const mu=getRawmatMonthlyUsage(p,demandKind);
     const pendingKg=[...purchaseRequests,...rawMatPRList].filter(pr=>(pr.status==='pending'||pr.status==='รออนุมัติ')&&pr.material===p).reduce((a,pr)=>a+(pr.qty||0),0);
     const col=low?'#f85149':s.qty>s.max?'#f0883e':'#3fb950';
     // pending PRs with dates
@@ -17941,7 +18439,11 @@ function renderRawmat(){
       <td style="padding:8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">${pendingKg>0?pendingKg.toLocaleString()+' kg':'—'}</td>
       <td style="padding:8px;text-align:center;font-size:11px">${nextArrival?'<span style="color:#3fb950;font-weight:700">'+nextArrival.expectedDate+'</span><br><span style="font-size:9px;color:var(--text3)">'+nextArrival.id+'</span>':'—'}</td>
       <td style="padding:8px;text-align:center;font-size:11px">${orderInfo||'—'}</td>
-      <td style="padding:8px;text-align:center;font-size:11px;color:#ffa657">${mu>0?Math.round(mu).toLocaleString():'-'}</td>
+      <td style="padding:8px;text-align:center;font-size:10px;color:var(--text3)">${profTb.maxMonthKey||'—'}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:var(--text2)">${peakTb>0?fmtPk(peakTb)+(demandKind==='packaging'?(pkgU?' '+pkgU:''):' kg'):'—'}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:var(--text2)">${dailyTb>0?fmtPk(dailyTb)+(demandKind==='packaging'?(pkgU?' '+pkgU:''):' kg'):'—'}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:#79c0ff">${bufTb>0?fmtPk(bufTb)+(demandKind==='packaging'?(pkgU?' '+pkgU:''):' kg'):'—'}</td>
+      <td style="padding:8px;text-align:center;font-size:11px;color:#ffa657">${mu>0?Math.round(mu).toLocaleString()+(demandKind==='packaging'?(pkgU?' '+pkgU:''):' kg'):'-'}</td>
       <td style="padding:8px;text-align:center"><span class="badge ${low?'badge-red':s.qty>s.max?'badge-orange':'badge-green'}">${status}</span></td>
       <td style="padding:8px;text-align:center;display:flex;gap:3px;justify-content:center">
         <button onclick="rmEditMat('${p}')" style="padding:3px 7px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:10px">✏️</button>
@@ -30020,6 +30522,16 @@ function doApproval(action){
     const mx=mixPlans.find(x=>x.id===mixId||x.id===parseInt(mixId));
     if(mx) mx.approvalStatus=action;
     saveMixPlans();
+    if(action==='approved' && typeof mixExecuteStockIssueForPlan==='function')
+      mixExecuteStockIssueForPlan(mixId, { by: by });
+    renderMixing();
+  } else if(key.startsWith('mixfeeder-')){
+    const fid=key.replace('mixfeeder-','');
+    const fx=mixFeederPlans.find(function(x){ return String(x.id)===String(fid); });
+    if(fx) fx.approvalStatus=action;
+    saveMixFeederPlans();
+    if(action==='approved' && typeof mixExecuteFeederStockIssue==='function')
+      mixExecuteFeederStockIssue(fid, { by: by });
     renderMixing();
   } else if(key.startsWith('pm-')){
     const pmId=key.replace('pm-','');
@@ -45574,6 +46086,38 @@ function saveMbColors(){ try{localStorage.setItem('_mbColors',JSON.stringify(mbC
 function saveMbStock(){  try{localStorage.setItem('_mbStock', JSON.stringify(mbStock)); }catch(e){} }
 function saveMbLedger(){ try{localStorage.setItem('_mbLedger',JSON.stringify(mbLedger));}catch(e){} }
 
+function _mbLeadTimeDays(code){
+  var info=mbColors[code]||{};
+  var key=String(code||'').trim().toUpperCase();
+  var reg=null;
+  for(var i=(RAWMAT_REGISTRY||[]).length-1;i>=0;i--){
+    var r=RAWMAT_REGISTRY[i];
+    if(String(r&&r.code||'').trim().toUpperCase()===key){ reg=r; break; }
+  }
+  var lt=reg?parseFloat(reg.leadTime)||0:0;
+  if(lt<=0 && info.supplier){
+    var sup=SUPPLIER_REGISTRY.find(function(s){ return s.id===info.supplier||s.name===info.supplier; });
+    if(sup) lt=parseFloat(sup.leadTime)||0;
+  }
+  return Math.max(1, Math.round(lt||14));
+}
+
+function mbApplyAutoMinMaxFromOrders(){
+  Object.keys(mbColors||{}).forEach(function(code){
+    var prof=getStockDemandProfile(code,'mb_color');
+    var ltDays=_mbLeadTimeDays(code);
+    var peakMonthly=prof.maxMonthly||0;
+    var dailyUse=prof.dailyFromPeak||0;
+    var calcMax=Math.ceil(peakMonthly+(dailyUse*ltDays));
+    var calcMin=Math.ceil((dailyUse*ltDays)*2);
+    if(calcMax>0 || calcMin>0){
+      mbColors[code].max=Math.max(1, calcMax, calcMin);
+      mbColors[code].min=Math.max(0, calcMin);
+    }
+  });
+  saveMbColors();
+}
+
 // ── Init page ──
 function mbInit(){
   mbRenderStock();
@@ -45607,6 +46151,7 @@ function mbUpdateKPI(){
 
 function mbRenderStock(){
   var tbody=document.getElementById('mb-stock-tbody'); if(!tbody)return;
+  mbApplyAutoMinMaxFromOrders();
   var search=(document.getElementById('mb-search')?.value||'').toLowerCase();
   var plasticF=document.getElementById('mb-filter-plastic')?.value||'';
   var statusF=document.getElementById('mb-filter-status')?.value||'';
@@ -45639,6 +46184,12 @@ function mbRenderStock(){
   var totalQty=0,lowCount=0,totalVal=0;
   tbody.innerHTML=list.map(function(code){
     var info=mbColors[code]||{}; var s=mbStock[code]||{qty:0,lastLot:'—',lastJob:'—',lastIn:0};
+    var profMb=getStockDemandProfile(code,'mb_color');
+    var ltMb=_mbLeadTimeDays(code);
+    var duMb=profMb.dailyFromPeak||0;
+    var pmMb=profMb.maxMonthly||0;
+    var bufMb=duMb*ltMb;
+    var fmtMb=function(x){ return (Math.round(x*1000)/1000).toLocaleString(); };
     totalQty+=(s.qty||0); if((s.qty||0)<(info.min||0)) lowCount++;
     totalVal+=(s.qty||0)*(info.price||0);
     var low=(s.qty||0)<(info.min||0), empty=(s.qty||0)<=0;
@@ -45659,6 +46210,10 @@ function mbRenderStock(){
           +(info.max>0?'<div style="width:40px;height:5px;background:var(--bg3);border-radius:3px"><div style="width:'+pct+'%;height:100%;border-radius:3px;background:'+(low?'#f85149':'#3fb950')+'"></div></div>':'')
         +'</div></td>'
       +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text3)">'+(info.min||0)+'</td>'
+      +'<td style="padding:8px 12px;text-align:center;font-size:10px;color:var(--text3)">'+(profMb.maxMonthKey||'—')+'</td>'
+      +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text2)">'+(pmMb>0?fmtMb(pmMb):'—')+'</td>'
+      +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text2)">'+(duMb>0?fmtMb(duMb):'—')+'</td>'
+      +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:#79c0ff">'+(bufMb>0?fmtMb(bufMb):'—')+'</td>'
       +'<td style="padding:8px 12px;text-align:center;font-size:11px;color:#e3b341">'+(info.price?info.price.toLocaleString()+' ฿':'—')+'</td>'
       +'<td style="padding:8px 12px;text-align:center">'+statusBadge+'</td>'
       +'<td style="padding:8px 12px;text-align:center;white-space:nowrap">'
@@ -45668,7 +46223,7 @@ function mbRenderStock(){
         +'<button onclick="mbEditColor(\''+code+'\')" style="padding:3px 7px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px">✏️</button>'
         +'<button onclick="mbDeleteColor(\''+code+'\')" style="'+_DEL_BTN+';margin-left:3px">🗑</button>'
       +'</td></tr>';
-  }).join('')||'<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text3)">ยังไม่มีข้อมูลเม็ดสี<br><span style="font-size:11px">กด <b>+ เพิ่มสี</b> เพื่อเพิ่มรหัสสี MB</span></td></tr>';
+  }).join('')||'<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--text3)">ยังไม่มีข้อมูลเม็ดสี<br><span style="font-size:11px">กด <b>+ เพิ่มสี</b> เพื่อเพิ่มรหัสสี MB</span></td></tr>';
 
   // Update KPI
   var e1=document.getElementById('mb-kpi-colors');if(e1)e1.textContent=Object.keys(mbColors).length;
@@ -45693,14 +46248,15 @@ function mbRenderLedger(){
     return '<tr style="border-bottom:1px solid var(--border);background:'+(isAdj?'rgba(227,179,65,0.03)':'')+'">'
       +'<td style="padding:7px 10px;font-size:11px"><span class="mono">'+r.date+'</span><br><span style="color:var(--text3);font-size:10px">'+(r.time||'')+'</span></td>'
       +'<td style="padding:7px 10px;font-size:12px"><span style="font-family:monospace;color:var(--accent2);font-weight:700">'+r.code+'</span>'+(info.colorHex?'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+info.colorHex+';margin-left:6px;vertical-align:middle"></span>':'')+'<br><span style="font-size:10px;color:var(--text3)">'+(info.name||'')+'</span></td>'
-      +'<td style="padding:7px 10px;font-size:11px;max-width:120px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(r.job||'—')+'</div><div style="font-size:10px;color:var(--text3);font-family:monospace">'+(r.lot||'—')+'</div></td>'
+      +'<td style="padding:7px 10px;font-size:11px;max-width:120px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(r.job||'—')+'</div><div style="font-size:10px;color:var(--text3);font-family:monospace">Lot งาน: '+(r.lot||'—')+'</div></td>'
+      +'<td style="padding:7px 10px;font-size:10px;font-family:monospace;color:#79c0ff;max-width:100px;word-break:break-word">'+(r.mbBatch||'—')+'</td>'
       +'<td style="padding:7px 10px;text-align:center">'+tBadge+'</td>'
       +'<td style="padding:7px 10px;text-align:center;font-family:monospace;font-weight:700;color:'+qc+'">'+qs+Math.abs(r.qty).toFixed(3)+'</td>'
       +'<td style="padding:7px 10px;text-align:center;font-family:monospace">'+r.balance.toFixed(3)+'</td>'
       +'<td style="padding:7px 10px;font-size:11px">'+(r.by||'—')+(r.reason?'<br><span style="font-size:10px;color:var(--text3)">'+r.reason+'</span>':'')+'</td>'
       +'<td style="padding:7px 10px;text-align:center"><button onclick="mbDeleteLedger(\''+r._id+'\')" style="'+_DEL_BTN+'">🗑</button></td>'
     +'</tr>';
-  }).join('')||'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text3)">ยังไม่มีรายการ</td></tr>';
+  }).join('')||'<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text3)">ยังไม่มีรายการ</td></tr>';
 }
 
 // ── TX (รับ/เบิก) ──────────────────────────────────────────────
