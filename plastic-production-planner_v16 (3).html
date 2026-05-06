@@ -15138,7 +15138,7 @@ function renderTT(){
       const isToday=d===today;
       const dow=DOW[dt.getDay()];
       const isWknd=dt.getDay()===0||dt.getDay()===6;
-      html+='<th style="min-width:150px;padding:8px 6px;border-bottom:2px solid var(--border);border-right:1px solid rgba(48,54,61,0.5);text-align:center;'
+      html+='<th style="min-width:150px;padding:8px 6px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);text-align:center;'
         +(isToday?'background:rgba(56,139,253,0.12);border-bottom:2px solid #388bfd;':isWknd?'background:rgba(255,166,87,0.06);':'')+'">'
         +'<div style="font-size:10px;font-weight:600;color:'+(isWknd?'#ffa657':isToday?'#388bfd':'var(--text3)')+'">'+dow+'</div>'
         +'<div style="font-size:13px;font-weight:700;color:'+(isToday?'#388bfd':'var(--text)')+'">'+dt.getDate()+'</div>'
@@ -15149,7 +15149,7 @@ function renderTT(){
     html+='</tr></thead><tbody>';
 
     machineList.forEach((m,mi)=>{
-      const rowBg = mi%2===0?'var(--bg)':'rgba(22,27,34,0.6)';
+      const rowBg = mi%2===0?'var(--bg)':'var(--bg3)';
       const hasAnyJob=days.some(function(d){
         return (ttData[d]||[]).find(function(x){
           if(x.machine!==m.id) return false;
@@ -15159,7 +15159,7 @@ function renderTT(){
       });
       const rowStyle = hasAnyJob?'background:'+rowBg+';':'background:'+rowBg+';opacity:0.65;';
       html+='<tr style="'+rowStyle+'">'
-        +'<td style="position:sticky;left:0;z-index:2;background:'+(hasAnyJob?'rgba(14,20,27,0.98)':'rgba(13,17,23,0.98)')+';padding:6px 10px;border-right:1px solid var(--border);border-bottom:1px solid rgba(48,54,61,0.4);white-space:nowrap">'
+        +'<td style="position:sticky;left:0;z-index:2;background:var(--bg2);padding:6px 10px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap">'
           +'<div style="font-size:12px;font-weight:700;color:'+(hasAnyJob?'var(--text)':'var(--text3)')+'">'+m.id+'</div>'
           +'<div style="font-size:10px;color:var(--text3)">'+m.ton+'T'
           +'<span style="margin-left:5px;width:6px;height:6px;border-radius:50%;display:inline-block;background:'+(m.status==='running'?'#3fb950':m.status==='idle'?'#ffa657':'#f85149')+';vertical-align:middle"></span>'
@@ -15176,7 +15176,7 @@ function renderTT(){
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
         }).map(x=>({...x,date:d,machine:m.id}));
         const bgCell=isToday?'rgba(56,139,253,0.05)':isWknd?'rgba(255,166,87,0.03)':'transparent';
-        const borderStyle=isToday?'border:1px solid rgba(56,139,253,0.3);':'border-right:1px solid rgba(48,54,61,0.4);border-bottom:1px solid rgba(48,54,61,0.4);';
+        const borderStyle=isToday?'border:1px solid rgba(56,139,253,0.3);':'border-right:1px solid var(--border);border-bottom:1px solid var(--border);';
         html+='<td style="padding:5px;'+borderStyle+'vertical-align:top;min-height:70px;background:'+bgCell+';cursor:pointer;position:relative" onclick="addTTEntry(\''+m.id+'\',\''+d+'\')">';
         if(dayJobs.length){
           dayJobs.forEach(j=>{ html+=jobCard(j); });
@@ -15254,7 +15254,7 @@ function renderTT(){
       const dt=new Date(dk+'T00:00:00');
       const isToday=dk===today;
       const isWknd=dt.getDay()===0||dt.getDay()===6;
-      html+='<th style="padding:4px 2px;border-bottom:2px solid var(--border);border-right:1px solid rgba(48,54,61,0.4);text-align:center;'
+      html+='<th style="padding:4px 2px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);text-align:center;'
         +(isToday?'background:rgba(56,139,253,0.12);border-bottom:2px solid #388bfd;':isWknd?'background:rgba(255,166,87,0.06);':'')+'">'
         +'<div style="font-size:9px;color:'+(isWknd?'#ffa657':isToday?'#388bfd':'var(--text3)')+'">'+DOW_SHORT[dt.getDay()]+'</div>'
         +'<div style="font-size:12px;font-weight:700;color:'+(isToday?'#388bfd':'var(--text)')+'">'+d+'</div>'
@@ -15263,7 +15263,7 @@ function renderTT(){
     html+='</tr></thead><tbody>';
 
     machineList.forEach((m,mi)=>{
-      const rowBg=mi%2===0?'var(--bg)':'rgba(22,27,34,0.5)';
+      const rowBg=mi%2===0?'var(--bg)':'var(--bg3)';
       // Check if this machine has any job this month
       const monthJobs=dateKeys.flatMap(dk=>(ttData[dk]||[]).filter(function(x){
         if(x.machine!==m.id) return false;
@@ -15272,7 +15272,7 @@ function renderTT(){
       }));
       const hasAny=monthJobs.length>0;
       html+='<tr style="background:'+rowBg+';'+(hasAny?'':'opacity:0.55;')+'">'
-        +'<td style="position:sticky;left:0;z-index:2;background:rgba(13,17,23,0.98);padding:5px 8px;border-right:1px solid var(--border);border-bottom:1px solid rgba(48,54,61,0.3);white-space:nowrap">'
+        +'<td style="position:sticky;left:0;z-index:2;background:var(--bg2);padding:5px 8px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap">'
           +'<div style="font-size:12px;font-weight:700;color:'+(hasAny?'var(--text)':'var(--text3)')+'">'+m.id+'</div>'
           +'<div style="font-size:10px;color:var(--text3)">'+m.ton+'T'
           +(hasAny?' <span style="color:#3fb950">● '+monthJobs.length+' งาน</span>':'')
@@ -15293,7 +15293,7 @@ function renderTT(){
         const pl=hasJob?(dayJobs[0].plastic||'PP'):'';
         const col=hasJob?(MAT_COLOR[pl]||'#3fb950'):'';
         const bg=hasJob?('rgba('+hexToRgb(col)+',0.25)'):isToday?'rgba(56,139,253,0.06)':isWknd?'rgba(255,166,87,0.03)':'transparent';
-        const border=isToday?'1px solid rgba(56,139,253,0.3)':hasJob?'1px solid '+(col+'44'):'1px solid rgba(48,54,61,0.3)';
+        const border=isToday?'1px solid rgba(56,139,253,0.3)':hasJob?'1px solid '+(col+'44'):'1px solid var(--border)';
         const title=hasJob?dayJobs.map(j=>j.jobName+' | '+j.lot).join('\n'):dk;
         html+='<td title="'+title.replace(/"/g,'&quot;')+'" style="border:'+border+';background:'+bg+';padding:2px;text-align:center;cursor:pointer;vertical-align:top;height:42px;position:relative" onclick="addTTEntry(\''+m.id+'\',\''+dk+'\')">';
         if(hasJob){
@@ -15379,18 +15379,18 @@ function renderTT(){
     for(let mo=0;mo<12;mo++){
       const moStr=yr+'-'+String(mo+1).padStart(2,'0');
       const isCurMo=today.startsWith(moStr);
-      html+='<th style="padding:8px 4px;border-bottom:2px solid var(--border);border-right:1px solid rgba(48,54,61,0.4);text-align:center;'+(isCurMo?'background:rgba(56,139,253,0.1);border-bottom:2px solid #388bfd;':'')+'">'
+      html+='<th style="padding:8px 4px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);text-align:center;'+(isCurMo?'background:rgba(56,139,253,0.1);border-bottom:2px solid #388bfd;':'')+'">'
         +'<div style="font-size:12px;font-weight:700;color:'+(isCurMo?'#388bfd':'var(--text)')+'">'+months[mo]+'</div>'
         +'</th>';
     }
     html+='</tr></thead><tbody>';
 
     machineList.forEach((m,mi)=>{
-      const rowBg=mi%2===0?'var(--bg)':'rgba(22,27,34,0.5)';
+      const rowBg=mi%2===0?'var(--bg)':'var(--bg3)';
       const yearData=machineMonthData[m.id];
       const totalJobs=yearData.reduce((a,x)=>a+x.count,0);
       html+='<tr style="background:'+rowBg+'">'
-        +'<td style="position:sticky;left:0;z-index:2;background:rgba(13,17,23,0.98);padding:5px 8px;border-right:1px solid var(--border);border-bottom:1px solid rgba(48,54,61,0.3);white-space:nowrap">'
+        +'<td style="position:sticky;left:0;z-index:2;background:var(--bg2);padding:5px 8px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap">'
           +'<div style="font-size:12px;font-weight:700;color:'+(totalJobs>0?'var(--text)':'var(--text3)')+'">'+m.id+'</div>'
           +'<div style="font-size:10px;color:var(--text3)">'+m.ton+'T'
           +(totalJobs>0?' <span style="color:#3fb950">● '+totalJobs+'</span>':'')
@@ -15410,11 +15410,11 @@ function renderTT(){
           const alpha=(0.1+pct*0.6).toFixed(2);
           bg='rgba('+hexToRgb(col)+','+alpha+')';
         }
-        html+='<td style="padding:3px;border-right:1px solid rgba(48,54,61,0.3);border-bottom:1px solid rgba(48,54,61,0.3);text-align:center;vertical-align:middle;cursor:pointer;height:46px;background:'+bg+';'+(isCurMo?'outline:1px solid rgba(56,139,253,0.4);':'')+'" onclick="ttView=\'month\';document.getElementById(\'tt-date\').value=\''+moStr+'-01\';renderTT()">';
+        html+='<td style="padding:3px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;vertical-align:middle;cursor:pointer;height:46px;background:'+bg+';'+(isCurMo?'outline:1px solid rgba(56,139,253,0.4);':'')+'" onclick="ttView=\'month\';document.getElementById(\'tt-date\').value=\''+moStr+'-01\';renderTT()">';
         if(md.count>0){
           // Heat bar
           const barW=Math.max(4,Math.round(pct*85));
-          html+='<div style="margin:0 auto;width:85%;background:rgba(0,0,0,0.3);border-radius:3px;height:6px;margin-bottom:3px">'
+          html+='<div style="margin:0 auto;width:85%;background:var(--bg3);border:1px solid var(--border);border-radius:3px;height:6px;margin-bottom:3px">'
             +'<div style="width:'+barW+'%;height:6px;background:'+col+';border-radius:3px;transition:width .3s"></div></div>'
             +'<div style="font-size:9px;font-weight:700;color:'+col+'">'+md.count+'</div>';
           const topMats=Object.entries(md.plastics).sort((a,b)=>b[1]-a[1]).slice(0,2);
@@ -15453,25 +15453,25 @@ function addTTEntry(machine, date){
   const popup=document.createElement('div');
   popup.id='tt-quick-add';
   popup.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center';
-  popup.innerHTML='<div style="background:var(--bg2);border:1px solid #30363d;border-radius:12px;padding:20px;min-width:380px;max-width:480px">'
+  popup.innerHTML='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;min-width:380px;max-width:480px">'
     +'<div style="font-size:14px;font-weight:700;color:#388bfd;margin-bottom:12px">➕ เพิ่มงาน — '+machine+' | '+date+'</div>'
     +existInfo
     +'<div style="margin-bottom:10px">'
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:4px">เลือกจาก Order (ดึง Lot อัตโนมัติ)</div>'
-    +'<select id="tt-qa-order" onchange="ttQAFillFromOrder()" style="width:100%;padding:7px;background:var(--bg);border:1px solid #30363d;color:var(--text);border-radius:6px;font-size:12px">'
+    +'<select id="tt-qa-order" onchange="ttQAFillFromOrder()" style="width:100%;padding:7px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px">'
     +'<option value="">— เลือก Order หรือกรอกเอง —</option>'+orderOpts
     +'</select></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
     +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:3px">ชื่องาน</div>'
-    +'<input id="tt-qa-job" list="tt-qa-job-list" style="width:100%;padding:6px;background:var(--bg);border:1px solid #30363d;color:var(--text);border-radius:6px;font-size:12px" placeholder="ชื่องาน...">'
+    +'<input id="tt-qa-job" list="tt-qa-job-list" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px" placeholder="ชื่องาน...">'
     +'<datalist id="tt-qa-job-list">'+jobOpts+'</datalist></div>'
     +'<div><div style="font-size:11px;color:var(--text3);margin-bottom:3px">Lot No.</div>'
-    +'<input id="tt-qa-lot" style="width:100%;padding:6px;background:var(--bg);border:1px solid #30363d;color:var(--text);border-radius:6px;font-size:12px" placeholder="Lot No."></div>'
+    +'<input id="tt-qa-lot" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px" placeholder="Lot No."></div>'
     +'</div>'
     +'<div style="margin-bottom:14px"><div style="font-size:11px;color:var(--text3);margin-bottom:3px">จำนวนเป้า (ชิ้น)</div>'
-    +'<input id="tt-qa-qty" type="number" style="width:100%;padding:6px;background:var(--bg);border:1px solid #30363d;color:var(--text);border-radius:6px;font-size:12px" placeholder="1000" value="1000"></div>'
+    +'<input id="tt-qa-qty" type="number" style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px" placeholder="1000" value="1000"></div>'
     +'<div style="display:flex;gap:8px;justify-content:flex-end">'
-    +'<button onclick="ttQAClose()" style="padding:7px 16px;background:var(--bg3);border:1px solid #30363d;color:var(--text);border-radius:6px;cursor:pointer;font-size:12px" id="tt-qa-cancel-btn">ยกเลิก</button>'
+    +'<button onclick="ttQAClose()" style="padding:7px 16px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;font-size:12px" id="tt-qa-cancel-btn">ยกเลิก</button>'
     +'<button id="tt-qa-save-btn" style="padding:7px 18px;background:#388bfd;border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">💾 บันทึก</button>'
     +'</div>'
     +'</div>';
