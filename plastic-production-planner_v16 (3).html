@@ -2992,7 +2992,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <div class="card"><div class="tbl-wrap"><table>
     <thead><tr>
-      <th>ชื่องาน</th><th>Cavity</th><th>CT (วิ)</th><th>EFF %</th><th>เป้า/ชม</th>
+      <th>ชื่องาน</th><th>Cavity</th><th>CT (วิ/ชิ้น)</th><th>EFF %</th><th>เป้า/ชม</th>
       <th>เครื่อง</th><th>Ton</th>
       <th style="white-space:nowrap;color:#79c0ff">ยี่ห้อเครื่อง</th>
       <th style="white-space:nowrap;color:#79c0ff">Model</th>
@@ -8720,19 +8720,50 @@ function robotBrandChange(){
 // ════════════════════════════════════════════════════════════════
 // 🧩  BOM — Auto-fill from Job Registry when name typed
 // ════════════════════════════════════════════════════════════════
+/** CT 1 shot (วินาที) → CT ต่อชิ้น (วินาที) สำหรับแสดงในฟอร์ม BOM */
+function bomCtPieceFromShot(ctShot,cav){
+  var c=parseInt(cav,10)||0; var cs=parseFloat(ctShot)||0;
+  if(cs<=0) return '';
+  if(c<=0) return String(cs);
+  return String(+(cs/c).toFixed(4));
+}
+/** CT ต่อชิ้นในฟอร์ม BOM → เก็บใน jobs[] เป็น CT ต่อ 1 shot (วินาที) */
+function bomCtShotFromPiece(ctPiece,cav){
+  var c=parseInt(cav,10)||0; var cp=parseFloat(ctPiece)||0;
+  if(cp<=0) return 0;
+  if(c<=0) return cp;
+  return +(cp*c).toFixed(6);
+}
+/** ดึง cavity / ton จากทะเบียนแม่พิมพ์เมื่อมีรหัสใน BOM */
+function bomApplyMoldRegistryHints(){
+  var moldCode=(document.getElementById('bom-mold')?.value||'').trim();
+  if(!moldCode||typeof MOLD_DB==='undefined') return;
+  var mold=MOLD_DB.find(function(m){return m.code===moldCode;});
+  if(!mold) return;
+  var cavEl=document.getElementById('bom-cav');
+  var mcav=parseInt(mold.cavity!=null?mold.cavity:mold.cav,10)||0;
+  if(cavEl&&mcav>0) cavEl.value=mcav;
+  if(!bomIsAssemblyWorkGroupSelected()){
+    var tonEl=document.getElementById('bom-ton');
+    var mton=parseInt(mold.machTon!=null?mold.machTon:mold.ton,10)||0;
+    if(tonEl&&mton>0) tonEl.value=mton;
+  }
+}
 
 function bomJobAutoFill(){
   var nameEl=document.getElementById('bom-name');
   if(!nameEl) return;
   var jName=nameEl.value.trim();
   if(!jName) return;
+  if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
   var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
   var j=allJobs.find(function(x){return x.name===jName;});
   if(!j) return;
+  var ctShot=(j.cycleTime!=null&&j.cycleTime!=='')?parseFloat(j.cycleTime):parseFloat(j.ct||j.ctStd)||0;
+  var cavInit=parseInt(j.cavity!=null&&j.cavity!==''?j.cavity:j.cav,10)||0;
   var setVal=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null&&v!=='')el.value=v;};
-  setVal('bom-cav',    j.cav);
-  setVal('bom-ct',     j.ct||j.ctStd);
-  setVal('bom-eff',    j.eff||j.effTarget);
+  setVal('bom-cav',    cavInit||j.cav);
+  setVal('bom-eff',    j.eff||j.effTarget||j.efficiency);
   bomSetWorkGroupFromJob(j);
   if(!bomIsAssemblyWorkGroupSelected()) setVal('bom-ton', j.ton);
   setVal('bom-plastic',j.plastic);
@@ -8744,18 +8775,30 @@ function bomJobAutoFill(){
   setVal('bom-wt',     j.wt);
   setVal('bom-unit-cost',j.bomUnitCost);
   setVal('bom-cost-alert',j.costAlertPct||10);
+  setVal('bom-mold',   j.moldCode||j.mold||'');
+  bomApplyMoldRegistryHints();
+  var cavAfter=parseInt(document.getElementById('bom-cav')?.value,10)||cavInit||1;
+  var ctEl=document.getElementById('bom-ct');
+  if(ctEl&&ctShot>0) ctEl.value=bomCtPieceFromShot(ctShot,cavAfter);
   // Packing
   if(j.packBagPcs||j.packBox||j.packBagPcs){
     setVal('bom-pcs-box', j.packBoxPcs||j.packBagPcs);
     setVal('bom-bag-type',j.packBag);
     setVal('bom-box-code',j.packBox);
   }
-  // Find mold
-  if(j.moldCode){
-    var moldEl=document.getElementById('bom-mold-code')||document.getElementById('bom-box-code');
-    // Try MOLD_DB
-  }
+  if(j.packingStd&&j.packingStd.pcsBox) setVal('bom-pcs-box', j.packingStd.pcsBox);
+  bomFillGrade();
   if(typeof _toast==='function') _toast('📥 ดึงข้อมูลจาก "'+jName+'" แล้ว');
+  bomCalcTarget();
+  if(typeof bomEstimateCost==='function') bomEstimateCost();
+}
+
+function bomRefreshBomNameDatalist(){
+  var dl=document.getElementById('bom-name-datalist');
+  if(!dl) return;
+  var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
+  var unique=new Set(allJobs.map(function(j){return j&&j.name?j.name:'';}).filter(Boolean));
+  dl.innerHTML=[...unique].sort().map(function(n){return '<option value="'+n+'">';}).join('');
 }
 
 function bomNameSuggestInit(){
@@ -8764,10 +8807,8 @@ function bomNameSuggestInit(){
   if(nameEl.getAttribute('list')) return; // already set
   var dl=document.createElement('datalist');
   dl.id='bom-name-datalist';
-  var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
-  var unique=new Set(allJobs.map(function(j){return j.name;}));
-  dl.innerHTML=[...unique].sort().map(function(n){return '<option value="'+n+'">';}).join('');
   document.body.appendChild(dl);
+  bomRefreshBomNameDatalist();
   nameEl.setAttribute('list','bom-name-datalist');
   nameEl.addEventListener('change', bomJobAutoFill);
   nameEl.addEventListener('blur', bomJobAutoFill);
@@ -10238,6 +10279,8 @@ function jobregSave(){
   persistJobs();
   closeModal('modal-job-edit');
   renderJobRegistry();
+  if(typeof renderBom==='function' && window._currentPage==='bom') renderBom();
+  if(typeof bomRefreshBomNameDatalist==='function') bomRefreshBomNameDatalist();
   if(typeof _toast==='function') _toast('✅ บันทึกงาน '+name+' แล้ว');
 }
 
@@ -15830,10 +15873,12 @@ function renderBom(filter='',matFilter=''){
     const tonCell = (jwg==='assembly')
       ? '<span style="color:var(--text3)">—</span>'
       : ((j.ton&&Number(j.ton)>0) ? '<span style="color:#ffa657;font-weight:700">'+j.ton+'T</span>' : '<span style="color:var(--text3)">—</span>');
+    var _ctShotJ=parseFloat(j.ct)||0; var _cavJ=parseInt(j.cav,10)||0;
+    var ctPieceDisp=(_ctShotJ>0&&_cavJ>0)?(+(_ctShotJ/_cavJ).toFixed(2)):(_ctShotJ>0?_ctShotJ:'—');
     return '<tr>'
       +'<td style="font-size:12px;font-weight:600">'+j.name+'</td>'
       +'<td class="mono" style="text-align:center">'+j.cav+'</td>'
-      +'<td class="mono" style="text-align:center">'+j.ct+'</td>'
+      +'<td class="mono" style="text-align:center" title="CT 1 shot: '+(_ctShotJ||'—')+' วิ">'+ctPieceDisp+'</td>'
       +'<td class="mono" style="text-align:center">'+j.eff+'%</td>'
       +'<td class="mono" style="color:var(--accent3);text-align:right">'+j.target+'</td>'
       +'<td class="mono" style="font-size:12px;text-align:center;font-weight:700;color:#79c0ff">'+(j.machine||'—')+'</td>'
@@ -15881,7 +15926,8 @@ function editBom(i){
   sv('bom-name',      j.name);
   sv('bom-mold',      j.moldCode||j.mold||'');
   sv('bom-cav',       j.cav);
-  sv('bom-ct',        j.ct);
+  var _bcav=parseInt(j.cav,10)||0; var _bctS=parseFloat(j.ct)||0;
+  sv('bom-ct',        (_bcav>0&&_bctS>0)?bomCtPieceFromShot(_bctS,_bcav):(_bctS||''));
   sv('bom-eff',       j.eff||100);
   sv('bom-customer',  j.customer||'');
   sv('bom-wt',        j.wt||'');
@@ -15965,10 +16011,13 @@ function saveBom(){
   var processSteps=bomGetProcessSteps();
   var processNames=processSteps.map(function(s){return typeof s==='string'?s:s.name;});
 
+  var _cavBom=parseInt(document.getElementById('bom-cav')?.value)||1;
+  var _ctPiece=parseFloat(document.getElementById('bom-ct')?.value);
+  var _ctShotOut=(_ctPiece>0&&isFinite(_ctPiece))?bomCtShotFromPiece(_ctPiece,_cavBom):30;
   const data={
     name,
-    cav:    parseInt(document.getElementById('bom-cav')?.value)||1,
-    ct:     parseFloat(document.getElementById('bom-ct')?.value)||30,
+    cav:    _cavBom,
+    ct:     _ctShotOut,
     eff:    parseInt(document.getElementById('bom-eff')?.value)||100,
     workGroup: (document.getElementById('bom-work-group')?.value)||'injection',
     ton:    (function(){
@@ -16028,7 +16077,9 @@ function saveBom(){
     // 4-ingredient mixing formula
     mixIngredients: (typeof bomGetMixIngredients==='function') ? bomGetMixIngredients() : []
   };
-  data.target=Math.floor(data.cav/data.ct*3600*data.eff/100);
+  data.target=(_ctPiece>0&&isFinite(_ctPiece))
+    ? Math.floor(3600/_ctPiece*data.eff/100)
+    : Math.floor((data.cav>0&&data.ct>0)?data.cav/data.ct*3600*data.eff/100:0);
   if(idx>=0) jobs[idx]={...jobs[idx],...data};
   else jobs.push(data);
   
@@ -16042,8 +16093,20 @@ function saveBom(){
   // Sync JOB_REGISTRY
   if(typeof JOB_REGISTRY!=='undefined'){
     var ri=JOB_REGISTRY.findIndex(function(jr){return jr.name===name;});
-    if(ri>=0) Object.assign(JOB_REGISTRY[ri],data);
-    else JOB_REGISTRY.push(data);
+    if(ri>=0){
+      Object.assign(JOB_REGISTRY[ri],data);
+      JOB_REGISTRY[ri].cycleTime=data.ct;
+      JOB_REGISTRY[ri].cavity=data.cav;
+      JOB_REGISTRY[ri].efficiency=data.eff;
+      JOB_REGISTRY[ri].targetPerHr=data.target;
+    }else{
+      JOB_REGISTRY.push(data);
+      var _jri=JOB_REGISTRY.length-1;
+      JOB_REGISTRY[_jri].cycleTime=data.ct;
+      JOB_REGISTRY[_jri].cavity=data.cav;
+      JOB_REGISTRY[_jri].efficiency=data.eff;
+      JOB_REGISTRY[_jri].targetPerHr=data.target;
+    }
     if(typeof saveJobRegistry==='function') saveJobRegistry();
   }
   closeModal('modal-add-bom');
@@ -16369,8 +16432,8 @@ function _bomFullEstimate(){
   var regrindSavePc=regrindPerPc>0?(regrindPerPc/1000)*(matPr*0.3):0;
   var netMatPc=Math.max(0,matCostPc+mbCostPc-regrindSavePc);
 
-  // ── Labor cost (requires CT) ──
-  var mainTgtHr=(ct>0&&cav>0)?cav/ct*3600*(eff/100):0;
+  // ── Labor cost (requires CT) — ct ในฟอร์ม BOM = วินาที/ชิ้น (CT shot ÷ CAV) ──
+  var mainTgtHr=(ct>0)?3600/ct*(eff/100):0;
   var laborPerHr=laborRateOverride>0?laborRateOverride:(cs.laborPerHr||45);
   var elecPerHr=cs.electricPerHr||35;
   var machPerHr=cs.machineDepHr||20;
@@ -16382,7 +16445,7 @@ function _bomFullEstimate(){
       var proc=_BOM_PROCESS_LIST.find(function(p){return p.v===step.name;})||{ct_factor:0.5};
       var stepWorkers=step.workers||1;
       var stepCT=step.ct>0?step.ct:(ct*proc.ct_factor);
-      var stepTgt=stepCT>0?3600/stepCT:mainTgtHr/cav;
+      var stepTgt=stepCT>0?3600/stepCT:mainTgtHr;
       var stepLaborPc=(laborPerHr*stepWorkers)/stepTgt;
       var stepMachPc=idx===0?(elecPerHr+machPerHr+extraPerHr)/mainTgtHr:0;
       var stepCostPc=stepLaborPc+stepMachPc;
@@ -16543,17 +16606,19 @@ function bomSearchJobs(q){
 }
 
 function bomSelectJob(name){
+  if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
   var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
   var j=allJobs.find(function(x){return x.name===name;});
   if(!j) return;
+  var ctShot=(j.cycleTime!=null&&j.cycleTime!=='')?parseFloat(j.cycleTime):parseFloat(j.ct||j.ctStd)||0;
+  var cavInit=parseInt(j.cavity!=null&&j.cavity!==''?j.cavity:j.cav,10)||0;
   // Fill all fields
   var sv=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null&&String(v).length>0)el.value=v;};
   sv('bom-name',       j.name);
   sv('bom-job-search', j.name);
   sv('bom-mold',       j.moldCode||j.mold||'');
-  sv('bom-cav',        j.cav);
-  sv('bom-ct',         j.ct||j.ctStd);
-  sv('bom-eff',        j.eff||j.effTarget||100);
+  sv('bom-cav',        cavInit||j.cav);
+  sv('bom-eff',        j.eff||j.effTarget||j.efficiency||100);
   sv('bom-grade',      j.grade);
   sv('bom-mb',         j.mb&&j.mb!=='-'?j.mb:'');
   sv('bom-mb-ratio',   j.mbRatio);
@@ -16585,12 +16650,11 @@ function bomSelectJob(name){
     sv('bom-pack-note',pk.packNote||'');
     bomUpdateCtnCalc();
   }
-  // Try to fill mold data from MOLD_DB
-  if(j.moldCode||j.mold){
-    var moldCode=j.moldCode||j.mold;
-    var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return m.code===moldCode;}):null;
-    if(mold){sv('bom-mold',mold.code);}
-  }
+  bomApplyMoldRegistryHints();
+  var cavAfter=parseInt(document.getElementById('bom-cav')?.value,10)||cavInit||1;
+  var ctEl=document.getElementById('bom-ct');
+  if(ctEl&&ctShot>0) ctEl.value=bomCtPieceFromShot(ctShot,cavAfter);
+  bomFillGrade();
   // Show selected badge
   var badge=document.getElementById('bom-job-selected');
   var badgeName=document.getElementById('bom-job-selected-name');
@@ -16619,13 +16683,12 @@ function bomSelectJob(name){
 }
 
 function bomCalcTarget(){
-  var cav=parseInt(document.getElementById('bom-cav')?.value)||0;
   var ct=parseFloat(document.getElementById('bom-ct')?.value)||0;
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
   var prev=document.getElementById('bom-target-preview');
   var calc=document.getElementById('bom-target-calc');
-  if(cav>0&&ct>0&&prev&&calc){
-    var tgt=Math.floor(cav/ct*3600*eff/100);
+  if(ct>0&&prev&&calc){
+    var tgt=Math.floor(3600/ct*eff/100);
     calc.textContent=tgt.toLocaleString();
     prev.style.display='block';
   } else if(prev) prev.style.display='none';
@@ -16647,8 +16710,18 @@ function bomFillFromMold(){
   var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return m.code===moldCode;}):null;
   if(!mold){_infoToast('ไม่พบแม่พิมพ์รหัส: '+moldCode);return;}
   var sv=function(id,v){var el=document.getElementById(id);if(el&&v)el.value=v;};
+  var oldCav=parseInt(document.getElementById('bom-cav')?.value,10)||0;
+  var oldPiece=parseFloat(document.getElementById('bom-ct')?.value)||0;
+  var impliedShot=(oldCav>0&&oldPiece>0)?oldPiece*oldCav:0;
   sv('bom-cav', mold.cavity||mold.cav);
+  var newCav=parseInt(mold.cavity||mold.cav,10)||0;
+  if(impliedShot>0&&newCav>0){
+    var pcEl=document.getElementById('bom-ct');
+    if(pcEl) pcEl.value=String(+(impliedShot/newCav).toFixed(4));
+  }
   if(!bomIsAssemblyWorkGroupSelected()) sv('bom-ton', mold.machTon||mold.ton);
+  bomCalcTarget();
+  if(typeof bomEstimateCost==='function') bomEstimateCost();
   if(typeof _toast==='function') _toast('🔧 ดึงข้อมูลจากแม่พิมพ์ '+moldCode+' | Cavity: '+(mold.cavity||mold.cav||'—'));
 }
 
@@ -16667,9 +16740,9 @@ function _bomCalcEstimate(){
   var cav=parseInt(document.getElementById('bom-cav')?.value)||1;
   var ct=parseFloat(document.getElementById('bom-ct')?.value)||30;
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
-  if(!wt||!ct||!cav) return null;
+  if(!wt||!ct) return null;
   var cs=COST_SETTINGS||{electricPerHr:35,laborPerHr:45,machineDepHr:20,overheadPct:15,mbPricePerKg:180,matPricePerKg:{}};
-  var tgtHr=cav/ct*3600*(eff/100);
+  var tgtHr=3600/ct*(eff/100);
   if(tgtHr<=0) return null;
   var matKgPerPc=wt/1000;
   var mbKgPerPc=matKgPerPc*(mbRatio/1000);
@@ -16700,6 +16773,8 @@ function bomEstimateCost(){
 
 // ── Open BOM modal (+ เพิ่ม BOM button) ────────────────────────
 function openAddBomModal(){
+  if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
+  if(typeof bomRefreshBomNameDatalist==='function') bomRefreshBomNameDatalist();
   bomClearForm();
   openModal('modal-add-bom');
   // Init process steps AND mix rows AFTER modal opens (DOM must be visible)
@@ -40156,7 +40231,7 @@ function _clRenderChart(){
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
     <div class="form-group" style="margin:0"><div class="form-label">Cavity</div><input type="number" id="bom-cav" oninput="bomCalcTarget();bomEstimateCost();bomUpdateFeederShotDisplay()"></div>
-    <div class="form-group" style="margin:0"><div class="form-label">CT (วินาที)</div><input type="number" id="bom-ct" step="0.01" oninput="bomCalcTarget();bomEstimateCost()"></div>
+    <div class="form-group" style="margin:0"><div class="form-label">CT ต่อชิ้น (วินาที) = shot÷CAV</div><input type="number" id="bom-ct" step="0.01" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0"><div class="form-label">EFF (%)</div><input type="number" id="bom-eff" value="100" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0" id="bom-ton-wrap"><div class="form-label">Ton เครื่อง</div><input type="number" id="bom-ton" placeholder="เช่น 80"></div>
   </div>
@@ -48027,7 +48102,7 @@ var XL_CONFIG={
     headers:['ชื่องาน*','ลูกค้า','เครื่อง','Cavity','CycleTime(s)','EFF%','เป้า/ชม','พลาสติก','เกรด','MB','%MB','กระบวนการ','MoldCode','WICode','จำนวน/กล่อง','หน่วย','สถานะ','หมายเหตุ'],
     required:[0],
     example:[['PART-001','ลูกค้า A','MC-01','4','18','85','720','PP','PP-H110','MB-RED','2','Injection','M-001','WI-001','100','ชิ้น/กล่อง','active','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var nm=(r[0]||'').trim();if(!nm)return;var obj={id:'JOB-'+String(Date.now()+a).slice(-6),name:nm,customer:r[1]||'',machine:r[2]||'',cavity:parseInt(r[3])||0,cycleTime:parseFloat(r[4])||0,efficiency:parseInt(r[5])||85,targetPerHr:parseInt(r[6])||0,plastic:r[7]||'',grade:r[8]||'',mb:r[9]||'-',mbRatio:parseFloat(r[10])||0,process:r[11]||'',moldCode:r[12]||'',wiCode:r[13]||'',packingQty:parseInt(r[14])||0,packingUnit:r[15]||'ชิ้น/กล่อง',status:r[16]||'active',remark:r[17]||''};obj.registryWorkGroup=(window._jobregWorkGroup==='injection'||window._jobregWorkGroup==='assembly'||window._jobregWorkGroup==='secondary')?window._jobregWorkGroup:_jobInferWorkGroup(obj);var idx=JOB_REGISTRY.findIndex(function(j){return j.name===nm;});if(idx>=0){if(ow){JOB_REGISTRY[idx]=Object.assign(JOB_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{JOB_REGISTRY.push(obj);a++;}}else{JOB_REGISTRY.push(obj);a++;}});saveJobRegistry();if(typeof renderJobRegistry==='function')renderJobRegistry();if(typeof jobsMergeFromJobRegistry==='function')jobsMergeFromJobRegistry();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var nm=(r[0]||'').trim();if(!nm)return;var obj={id:'JOB-'+String(Date.now()+a).slice(-6),name:nm,customer:r[1]||'',machine:r[2]||'',cavity:parseInt(r[3])||0,cycleTime:parseFloat(r[4])||0,efficiency:parseInt(r[5])||85,targetPerHr:parseInt(r[6])||0,plastic:r[7]||'',grade:r[8]||'',mb:r[9]||'-',mbRatio:parseFloat(r[10])||0,process:r[11]||'',moldCode:r[12]||'',wiCode:r[13]||'',packingQty:parseInt(r[14])||0,packingUnit:r[15]||'ชิ้น/กล่อง',status:r[16]||'active',remark:r[17]||''};obj.registryWorkGroup=(window._jobregWorkGroup==='injection'||window._jobregWorkGroup==='assembly'||window._jobregWorkGroup==='secondary')?window._jobregWorkGroup:_jobInferWorkGroup(obj);var idx=JOB_REGISTRY.findIndex(function(j){return j.name===nm;});if(idx>=0){if(ow){JOB_REGISTRY[idx]=Object.assign(JOB_REGISTRY[idx],obj);u++;}else if(skip){s++;}else{JOB_REGISTRY.push(obj);a++;}}else{JOB_REGISTRY.push(obj);a++;}});saveJobRegistry();if(typeof renderJobRegistry==='function')renderJobRegistry();if(typeof jobsMergeFromJobRegistry==='function')jobsMergeFromJobRegistry();if(window._currentPage==='bom'&&typeof renderBom==='function')renderBom();return{added:a,skipped:s,updated:u};}},
   empreg:{title:'ทะเบียนพนักงาน',sub:'นำเข้าข้อมูลพนักงาน',
     headers:['รหัสพนักงาน*','ชื่อ-นามสกุล*','เพศ','แผนก','ตำแหน่ง','เครื่องประจำ','Zone','กะ(1-3)','โทร','วันเริ่มงาน(YYYY-MM-DD)','ทักษะ(คั่นด้วยจุลภาค)','สถานะ','หมายเหตุ'],
     required:[0,1],
