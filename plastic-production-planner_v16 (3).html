@@ -35354,7 +35354,20 @@ function saveDevRecords(){
 
 let wiViewMode='card';
 
+function wiReloadFromStorageIfNeeded(){
+  if (Array.isArray(wiDocs) && wiDocs.length > 0) return;
+  try{
+    var raw = localStorage.getItem('_wiDocs');
+    if(!raw) return;
+    var parsed = JSON.parse(raw);
+    if(Array.isArray(parsed) && parsed.length){
+      wiDocs = parsed;
+    }
+  }catch(e){}
+}
+
 function wiRender(){
+  wiReloadFromStorageIfNeeded();
   const search=(document.getElementById('wi-search')?.value||'').toLowerCase();
   const typeF=document.getElementById('wi-type-filter')?.value||'';
   const jobF=document.getElementById('wi-job-filter')?.value||'';
