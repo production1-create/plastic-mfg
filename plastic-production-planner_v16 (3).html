@@ -21650,7 +21650,7 @@ function _condScanPreprocessImage(dataUrl){
           for(var i=0;i<p.length;i+=4){
             var g=(p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114);
             // Increase contrast and binarize for scanned table forms
-            var v=g>165?255:0;
+            var v=g>148?255:0;
             p[i]=p[i+1]=p[i+2]=v;
           }
           ctx.putImageData(d,0,0);
@@ -21677,6 +21677,21 @@ function _condScanMergeRows(a,b){
   });
   return out;
 }
+/** Nissei: spatial/word rows first; line-OCR only fills keys not present (avoids bogus "1" from zone/line noise). */
+function _condScanMergeNisseiSpatialFirst(spatialRows, textRows){
+  var byKey={};
+  (textRows||[]).forEach(function(r){
+    if(!r||!r.key) return;
+    var k=String(r.key).trim(); if(!k) return;
+    if(!byKey[k]) byKey[k]=r;
+  });
+  (spatialRows||[]).forEach(function(r){
+    if(!r||!r.key) return;
+    var k=String(r.key).trim(); if(!k) return;
+    byKey[k]=r;
+  });
+  return Object.keys(byKey).map(function(k){ return byKey[k]; });
+}
 function _condScanWordNum(wordText){
   var t=String(wordText||'').replace(/,/g,'').trim();
   if(!t) return null;
@@ -21700,23 +21715,72 @@ function _condScanExtractNisseiFromWords(wordLists){
     });
   });
   if(!words.length) return [];
-  function nearNum(x,y,minDy,maxDy,maxDx){
-    var best=null, bd=1e9;
-    words.forEach(function(w){
-      if(w.num==null) return;
-      var dy=w.cy-y, dx=Math.abs(w.cx-x);
-      if(dy<minDy||dy>maxDy||dx>maxDx) return;
-      var d=Math.abs(dy)*2+dx;
-      if(d<bd){ bd=d; best=w.num; }
-    });
-    return best;
-  }
+  words.sort(function(a,b){ return a.cy-b.cy||a.x0-b.x0; });
   function push(out,key,label,val){
     if(val==null||isNaN(val)) return;
     out.push({key:key,label:label,value:val,tol:null});
   }
+  /** Lines = words clustered by centroid y */
+  function buildLines(yTol){
+    var lines=[];
+    words.forEach(function(w){
+      var found=null;
+      for(var li=0;li<lines.length;li++){
+        if(Math.abs(lines[li].cy-w.cy)<=yTol){ found=lines[li]; break; }
+      }
+      if(!found){ found={cy:w.cy,items:[]}; lines.push(found); }
+      found.items.push(w);
+      var n=found.items.length, s=0;
+      for(var i=0;i<n;i++) s+=found.items[i].cy;
+      found.cy=s/n;
+    });
+    lines.forEach(function(L){
+      L.items.sort(function(a,b){ return a.x0-b.x0; });
+      L.raw=L.items.map(function(x){return x.t;}).join(' ');
+      L.norm=_condNormLabel(L.raw);
+      L.y0=Math.min.apply(null,L.items.map(function(x){return x.y0;}));
+      L.y1=Math.max.apply(null,L.items.map(function(x){return x.y1;}));
+    });
+    lines.sort(function(a,b){ return a.y0-b.y0; });
+    return lines;
+  }
+  var lines=buildLines(14);
+  function numsOnLine(L){
+    return L.items.filter(function(w){ return w.num!=null; }).sort(function(a,b){ return a.cx-b.cx; });
+  }
+  /** Map header anchors (one per key) to number row cells by nearest x */
+  function matchHeaderToRowBelow(keys, headerLine, nums, label){
+    var anchors=[];
+    keys.forEach(function(k){
+      var nk=_condNormLabel(k);
+      var best=null,bd=1e9;
+      headerLine.items.forEach(function(w){
+        if(w.n!==nk&&w.n.indexOf(nk)<0) return;
+        var d=Math.abs(w.cy-headerLine.cy);
+        if(w.n===nk) d-=0.5;
+        if(d<bd){ bd=d; best=w; }
+      });
+      if(best) anchors.push({key:k, cx:best.cx, ay:best.cy});
+    });
+    if(anchors.length<Math.min(2,keys.length)) return;
+    anchors.sort(function(a,b){ return a.cx-b.cx; });
+    var used={}, outPairs=[];
+    anchors.forEach(function(a){
+      var bn=null,bdist=1e9,nidx=-1;
+      nums.forEach(function(nw,idx){
+        if(used[idx]) return;
+        var d=Math.abs(nw.cx-a.cx);
+        if(d<bdist){ bdist=d; bn=nw; nidx=idx; }
+      });
+      if(nidx>=0 && bn&&bdist<140){
+        used[nidx]=1;
+        outPairs.push({key:a.key,val:bn.num});
+      }
+    });
+    return outPairs;
+  }
   var out=[];
-  // Columnar header extraction (works for Nissei grid)
+  // Multi-column bands: locate header row (several keys on same norm line), then scan next lines for numbers.
   var groups=[
     {keys:['V6','V5','V4','V3','V2','V1'], label:'Velocity'},
     {keys:['Sv5','Sv4','Sv3','Sv2','Sv1','SM'], label:'Inj Pos'},
@@ -21727,23 +21791,156 @@ function _condScanExtractNisseiFromWords(wordLists){
     {keys:['BP1','BP2','BP3'], label:'Back P'}
   ];
   groups.forEach(function(g){
-    g.keys.forEach(function(k){
+    var keys=g.keys, lbl=g.label||'';
+    if(!Array.isArray(keys)) return;
+    var nkSet=keys.map(function(k){ return _condNormLabel(k); });
+    var headerIdx=-1,i,j;
+    for(i=0;i<lines.length;i++){
+      var hit=0, L=lines[i];
+      if(numsOnLine(L).length>Math.ceil(keys.length/2)+1) continue;
+      for(j=0;j<nkSet.length;j++){
+        var pat=nkSet[j];
+        var ok=L.items.some(function(w){
+          if(w.num!=null) return false;
+          return w.n===pat||(pat.length<=4&&(w.n.indexOf(pat)>=0||pat.indexOf(w.n)>=0&&w.n.length>=2));
+        });
+        if(ok&&(pat.length<=4)) hit++;
+      }
+      var needHdr=Math.max(2, Math.min(keys.length-1, 4));
+      if(hit>=needHdr){ headerIdx=i; break; }
+    }
+    if(headerIdx>=0){
+      var hL=lines[headerIdx];
+      for(var step=1;step<=6;step++){
+        var cand=lines[headerIdx+step];
+        if(!cand) break;
+        if(cand.y0-hL.y1>160) break;
+        var rowNums=numsOnLine(cand);
+        if(rowNums.length<keys.length*0.4) continue;
+        var pairs=matchHeaderToRowBelow(keys,hL,rowNums,lbl);
+        if(pairs&&pairs.length){
+          var got={};
+          pairs.forEach(function(p){ push(out,p.key,(lbl?lbl+' ':'')+String(p.key),p.val); got[p.key]=1; });
+          if(keys.every(function(k){ return got[k]; })) return;
+          break;
+        }
+      }
+    }
+    // Fallback: old per-cell "below label" (still useful if header not fully read)
+    function nearNum(x,y,minDy,maxDy,maxDx){
+      var best=null, bd=1e9;
+      words.forEach(function(w){
+        if(w.num==null) return;
+        var dy=w.cy-y, dx=Math.abs(w.cx-x);
+        if(dy<minDy||dy>maxDy||dx>maxDx) return;
+        var d=Math.abs(dy)*2+dx;
+        if(d<bd){ bd=d; best=w.num; }
+      });
+      return best;
+    }
+    var already={}; out.forEach(function(r){ if(r&&r.key) already[r.key]=1; });
+    keys.forEach(function(k){
+      if(already[k]) return;
       var nk=_condNormLabel(k);
       var anchors=words.filter(function(w){ return w.n===nk; });
       if(!anchors.length) return;
       var a=anchors[0];
-      var v=nearNum(a.cx,a.cy,8,120,42);
-      push(out,k,g.label+' '+k,v);
+      var v=nearNum(a.cx,a.cy,4,130,48);
+      if(v==null) return;
+      push(out,k,(lbl?lbl+' ':'')+String(k),v);
+      already[k]=1;
     });
   });
-  // Single labels
+  // Temperature row: "Set Temp" or zone names
+  (function(){
+    var tempKeys=['NOZ_T','FRONT_T','MIDDLE_T','REAR1_T','REAR2_T','FEED_T'];
+    var hi=-1;
+    for(var i=0;i<lines.length;i++){
+      var n=lines[i].norm;
+      if(n.indexOf('settemp')>=0||(n.indexOf('nozz')>=0&&n.indexOf('front')>=0)) hi=i;
+    }
+    if(hi<0) return;
+    var hL=lines[hi];
+    for(var s=1;s<=5;s++){
+      var L2=lines[hi+s];
+      if(!L2||L2.y0-hL.y1>120) break;
+      var nums=numsOnLine(L2);
+      if(nums.length>=4){
+        nums.sort(function(a,b){ return a.cx-b.cx; });
+        for(var t=0;t<Math.min(tempKeys.length,nums.length);t++){
+          push(out,tempKeys[t],'Set Temp '+tempKeys[t],nums[t].num);
+        }
+        break;
+      }
+    }
+  })();
+  /** Same-line: label tokens then first number to the right (mold / timing rows) */
+  function firstNumRightOf(anchorWord,maxRightX){
+    var best=null,bd=1e9;
+    words.forEach(function(w){
+      if(w.num==null) return;
+      if(w.cy<anchorWord.cy-18||w.cy>anchorWord.cy+18) return;
+      var gap=w.x0-anchorWord.x1;
+      if(gap<-4||gap>520) return;
+      if(maxRightX!=null&&w.x0>maxRightX) return;
+      var d=gap+Math.abs(w.cy-anchorWord.cy)*3;
+      if(d<bd){ bd=d; best=w; }
+    });
+    return best?best.num:null;
+  }
+  var moldChecks=[
+    {key:'LVL_P', ok:function(n){ return n.indexOf('lvlp')>=0||(n.indexOf('lvl')>=0&&n.indexOf('p')>=0); }},
+    {key:'HP_CL', ok:function(n){ return n.indexOf('hpcl')>=0||(n.indexOf('hp')>=0&&n.indexOf('cl')>=0&&n.indexOf('chg')<0); }},
+    {key:'OPN_ST_V', ok:function(n){ return n.indexOf('open')>=0&&n.indexOf('stv')>=0||n.indexOf('openstv')>=0||(n.indexOf('open')>=0&&n.indexOf('st')>=0&&n.indexOf('v')>=0&&n.indexOf('very')<0&&n.indexOf('slow')<0); }},
+    {key:'OPN_STP', ok:function(n){ return n.indexOf('open')>=0&&n.indexOf('stp')>=0; }},
+    {key:'VERY_SLOW_STOP', ok:function(n){ return (n.indexOf('very')>=0||n.indexOf('ver')>=0)&&n.indexOf('slow')>=0&&(n.indexOf('stop')>=0||n.indexOf('stp')>=0)||n.indexOf('veryslowstop')>=0; }},
+    {key:'OPN_VERY_SLOW_V', ok:function(n){ return n.indexOf('open')>=0&&n.indexOf('very')>=0&&n.indexOf('slow')>=0&&n.indexOf('v')>=0; }},
+    {key:'HI_P', ok:function(n){ return n==='hip'||n.indexOf('hip')>=0; }},
+    {key:'LOW_P', ok:function(n){ return n==='lowp'||n.indexOf('lowp')>=0; }}
+  ];
+  moldChecks.forEach(function(mc){
+    for(var li=0;li<lines.length;li++){
+      var L=lines[li], n=L.norm;
+      if(!mc.ok(n)) continue;
+      var nums=numsOnLine(L), v=null;
+      if(nums.length===1) v=nums[0].num;
+      else if(nums.length){
+        var lastText=null;
+        for(var ii=0;ii<L.items.length;ii++){
+          var it=L.items[ii];
+          if(it.num==null) lastText=it;
+          else if(lastText){ v=it.num; break; }
+        }
+        if(v==null&&lastText) v=firstNumRightOf(lastText);
+      }else{
+        var L2=lines[li+1];
+        if(L2&&Math.abs(L2.y0-L.y1)<80){
+          var n2=numsOnLine(L2);
+          if(n2.length===1) v=n2[0].num;
+        }
+      }
+      if(v!=null){ push(out,mc.key,mc.key,v); break; }
+    }
+  });
+  // Single labels (keep wide search)
+  function nearNumLoose(x,y,minDy,maxDy,maxDx){
+    var best=null, bd=1e9;
+    words.forEach(function(w){
+      if(w.num==null) return;
+      var dy=w.cy-y, dx=Math.abs(w.cx-x);
+      if(dy<minDy||dy>maxDy||dx>maxDx) return;
+      var d=Math.abs(dy)*2+dx;
+      if(d<bd){ bd=d; best=w.num; }
+    });
+    return best;
+  }
   var singles=[
     {aliases:['injecttime'], key:'INJECT_T', label:'Inject Time'},
     {aliases:['cooltime'], key:'COOL_T', label:'Cool Time'},
     {aliases:['cycstart'], key:'CYC_START', label:'Cyc Start'},
-    {aliases:['vpchgpos','v-pchgpos'], key:'VP_POS', label:'V-P Chg Pos'},
+    {aliases:['vpchgpos','v-pchgpos','vpchg'], key:'VP_POS', label:'V-P Chg Pos'},
     {aliases:['limitp','limitpressure'], key:'LIMIT_P', label:'Limit P'},
-    {aliases:['shotsizesd','sd'], key:'SD', label:'Shot Size'},
+    {aliases:['shotsize','shotsizesd'], key:'SD', label:'Shot Size'},
     {aliases:['decompv','decompvelocity'], key:'DECOMP_V', label:'Decomp V'},
     {aliases:['decbefmtg'], key:'DEC_BEF', label:'Dec Bef MTG'},
     {aliases:['oiltemp'], key:'OIL_T', label:'Oil Temp'},
@@ -21753,7 +21950,7 @@ function _condScanExtractNisseiFromWords(wordLists){
     var anchors=words.filter(function(w){ return s.aliases.some(function(a){ return w.n.indexOf(_condNormLabel(a))>=0; }); });
     if(!anchors.length) return;
     var a=anchors[0];
-    var v=nearNum(a.cx,a.cy,-10,110,160);
+    var v=nearNumLoose(a.cx,a.cy,-12,130,220);
     push(out,s.key,s.label,v);
   });
   return out;
@@ -21871,14 +22068,17 @@ function _condScanAnalyzePhotoLocal(dataUrl, mode){
       var wordLists=results.map(function(r){
         return (r.status==='fulfilled' ? (r.value?.data?.words||[]) : []);
       });
-      var rows=[];
+      var textRows=[];
       texts.forEach(function(t){
-        rows=_condScanMergeRows(rows,_condScanExtractRowsFromOcrText(t, mode));
+        textRows=_condScanMergeRows(textRows,_condScanExtractRowsFromOcrText(t, mode));
       });
       var cfg=_condScanGetParamsByMode(mode);
+      var rows=textRows;
       if(cfg.prefix==='ns_'){
-        rows=_condScanMergeRows(rows,_condScanExtractNisseiFromWords(wordLists));
+        var spatial=_condScanExtractNisseiFromWords(wordLists);
+        rows=_condScanMergeNisseiSpatialFirst(spatial, textRows);
       }
+      try{ window._condLastCondOcrText=texts.join('\n--- pass ---\n'); }catch(e){}
       _condScanShowPreview(rows,mode);
       if(rows.length===0){
         _condScanSetStatus(mode,'⚠️ อ่านข้อความได้ แต่ยังจับคู่พารามิเตอร์ไม่สำเร็จ ลองครอปเฉพาะส่วนค่าที่ต้องการ', '#e3b341');
