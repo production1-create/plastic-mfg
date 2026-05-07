@@ -21677,6 +21677,87 @@ function _condScanMergeRows(a,b){
   });
   return out;
 }
+function _condScanWordNum(wordText){
+  var t=String(wordText||'').replace(/,/g,'').trim();
+  if(!t) return null;
+  var m=t.match(/[-+]?\d*\.?\d+/);
+  if(!m) return null;
+  var v=parseFloat(m[0]);
+  return isNaN(v)?null:v;
+}
+function _condScanExtractNisseiFromWords(wordLists){
+  var words=[];
+  (wordLists||[]).forEach(function(list){
+    (list||[]).forEach(function(w){
+      var txt=String(w.text||'').trim();
+      if(!txt) return;
+      var b=w.bbox||{};
+      words.push({
+        t:txt, n:_condNormLabel(txt), x0:+(b.x0||0), x1:+(b.x1||0), y0:+(b.y0||0), y1:+(b.y1||0),
+        cx:((+(b.x0||0))+(+(b.x1||0)))/2, cy:((+(b.y0||0))+(+(b.y1||0)))/2,
+        num:_condScanWordNum(txt)
+      });
+    });
+  });
+  if(!words.length) return [];
+  function nearNum(x,y,minDy,maxDy,maxDx){
+    var best=null, bd=1e9;
+    words.forEach(function(w){
+      if(w.num==null) return;
+      var dy=w.cy-y, dx=Math.abs(w.cx-x);
+      if(dy<minDy||dy>maxDy||dx>maxDx) return;
+      var d=Math.abs(dy)*2+dx;
+      if(d<bd){ bd=d; best=w.num; }
+    });
+    return best;
+  }
+  function push(out,key,label,val){
+    if(val==null||isNaN(val)) return;
+    out.push({key:key,label:label,value:val,tol:null});
+  }
+  var out=[];
+  // Columnar header extraction (works for Nissei grid)
+  var groups=[
+    {keys:['V6','V5','V4','V3','V2','V1'], label:'Velocity'},
+    {keys:['Sv5','Sv4','Sv3','Sv2','Sv1','SM'], label:'Inj Pos'},
+    {keys:['Pp3','Pp2','Pp1'], label:'Hold P'},
+    {keys:['Tp2','Tp1'], label:'Hold T'},
+    {keys:['Pv3','Pv2','Pv1'], label:'VP Chg P'},
+    {keys:['Sp2','Sp1'], label:'VP Chg Pos'},
+    {keys:['BP1','BP2','BP3'], label:'Back P'}
+  ];
+  groups.forEach(function(g){
+    g.keys.forEach(function(k){
+      var nk=_condNormLabel(k);
+      var anchors=words.filter(function(w){ return w.n===nk; });
+      if(!anchors.length) return;
+      var a=anchors[0];
+      var v=nearNum(a.cx,a.cy,8,120,42);
+      push(out,k,g.label+' '+k,v);
+    });
+  });
+  // Single labels
+  var singles=[
+    {aliases:['injecttime'], key:'INJECT_T', label:'Inject Time'},
+    {aliases:['cooltime'], key:'COOL_T', label:'Cool Time'},
+    {aliases:['cycstart'], key:'CYC_START', label:'Cyc Start'},
+    {aliases:['vpchgpos','v-pchgpos'], key:'VP_POS', label:'V-P Chg Pos'},
+    {aliases:['limitp','limitpressure'], key:'LIMIT_P', label:'Limit P'},
+    {aliases:['shotsizesd','sd'], key:'SD', label:'Shot Size'},
+    {aliases:['decompv','decompvelocity'], key:'DECOMP_V', label:'Decomp V'},
+    {aliases:['decbefmtg'], key:'DEC_BEF', label:'Dec Bef MTG'},
+    {aliases:['oiltemp'], key:'OIL_T', label:'Oil Temp'},
+    {aliases:['moldthick','moldthickness'], key:'MOLD_THICK', label:'Mold Thick'}
+  ];
+  singles.forEach(function(s){
+    var anchors=words.filter(function(w){ return s.aliases.some(function(a){ return w.n.indexOf(_condNormLabel(a))>=0; }); });
+    if(!anchors.length) return;
+    var a=anchors[0];
+    var v=nearNum(a.cx,a.cy,-10,110,160);
+    push(out,s.key,s.label,v);
+  });
+  return out;
+}
 function _condScanGetParamsByMode(mode){
   var params,prefix;
   if(mode==='std'){
@@ -21787,10 +21868,17 @@ function _condScanAnalyzePhotoLocal(dataUrl, mode){
       var texts=results.map(function(r){
         return (r.status==='fulfilled' ? (r.value?.data?.text||'') : '');
       }).filter(Boolean);
+      var wordLists=results.map(function(r){
+        return (r.status==='fulfilled' ? (r.value?.data?.words||[]) : []);
+      });
       var rows=[];
       texts.forEach(function(t){
         rows=_condScanMergeRows(rows,_condScanExtractRowsFromOcrText(t, mode));
       });
+      var cfg=_condScanGetParamsByMode(mode);
+      if(cfg.prefix==='ns_'){
+        rows=_condScanMergeRows(rows,_condScanExtractNisseiFromWords(wordLists));
+      }
       _condScanShowPreview(rows,mode);
       if(rows.length===0){
         _condScanSetStatus(mode,'⚠️ อ่านข้อความได้ แต่ยังจับคู่พารามิเตอร์ไม่สำเร็จ ลองครอปเฉพาะส่วนค่าที่ต้องการ', '#e3b341');
