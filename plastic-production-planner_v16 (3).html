@@ -21632,6 +21632,51 @@ function _condScanEnsureTesseract(){
   });
   return window._condTesseractLoadingPromise;
 }
+function _condScanPreprocessImage(dataUrl){
+  return new Promise(function(resolve){
+    try{
+      var img=new Image();
+      img.onload=function(){
+        try{
+          var scale=2;
+          var cw=Math.max(320, Math.round(img.width*scale));
+          var ch=Math.max(240, Math.round(img.height*scale));
+          var canvas=document.createElement('canvas');
+          canvas.width=cw; canvas.height=ch;
+          var ctx=canvas.getContext('2d',{ willReadFrequently:true });
+          ctx.drawImage(img,0,0,cw,ch);
+          var d=ctx.getImageData(0,0,cw,ch);
+          var p=d.data;
+          for(var i=0;i<p.length;i+=4){
+            var g=(p[i]*0.299+p[i+1]*0.587+p[i+2]*0.114);
+            // Increase contrast and binarize for scanned table forms
+            var v=g>165?255:0;
+            p[i]=p[i+1]=p[i+2]=v;
+          }
+          ctx.putImageData(d,0,0);
+          resolve(canvas.toDataURL('image/png'));
+        }catch(e){ resolve(dataUrl); }
+      };
+      img.onerror=function(){ resolve(dataUrl); };
+      img.src=dataUrl;
+    }catch(e){ resolve(dataUrl); }
+  });
+}
+function _condScanMergeRows(a,b){
+  var out=[];
+  var seen={};
+  (a||[]).concat(b||[]).forEach(function(r){
+    if(!r) return;
+    var k=String(r.key||'').trim();
+    var lk=String(r.label||'').trim().toLowerCase();
+    var sig=(k||'')+'|'+lk;
+    if(sig==='|') return;
+    if(seen[sig]) return;
+    seen[sig]=1;
+    out.push(r);
+  });
+  return out;
+}
 function _condScanGetParamsByMode(mode){
   var params,prefix;
   if(mode==='std'){
@@ -21722,12 +21767,30 @@ function _condScanExtractRowsFromOcrText(text, mode){
 function _condScanAnalyzePhotoLocal(dataUrl, mode){
   _condScanSetStatus(mode,'⏳ กำลังสแกนด้วย Local OCR...', '#e3b341');
   return _condScanEnsureTesseract()
-    .then(function(Tesseract){
-      return Tesseract.recognize(dataUrl,'eng',{ logger:function(){} });
+    .then(function(){
+      return _condScanPreprocessImage(dataUrl);
     })
-    .then(function(result){
-      var text=result?.data?.text||'';
-      var rows=_condScanExtractRowsFromOcrText(text, mode);
+    .then(function(preprocessedUrl){
+      return { src:dataUrl, pp:preprocessedUrl };
+    })
+    .then(function(Tesseract){
+      var O=window.Tesseract;
+      var optA={ logger:function(){}, tessedit_pageseg_mode:'6', preserve_interword_spaces:'1' };
+      var optB={ logger:function(){}, tessedit_pageseg_mode:'11', preserve_interword_spaces:'1' };
+      return Promise.allSettled([
+        O.recognize(Tesseract.src,'eng',optA),
+        O.recognize(Tesseract.pp || Tesseract.src,'eng',optA),
+        O.recognize(Tesseract.pp || Tesseract.src,'eng',optB)
+      ]);
+    })
+    .then(function(results){
+      var texts=results.map(function(r){
+        return (r.status==='fulfilled' ? (r.value?.data?.text||'') : '');
+      }).filter(Boolean);
+      var rows=[];
+      texts.forEach(function(t){
+        rows=_condScanMergeRows(rows,_condScanExtractRowsFromOcrText(t, mode));
+      });
       _condScanShowPreview(rows,mode);
       if(rows.length===0){
         _condScanSetStatus(mode,'⚠️ อ่านข้อความได้ แต่ยังจับคู่พารามิเตอร์ไม่สำเร็จ ลองครอปเฉพาะส่วนค่าที่ต้องการ', '#e3b341');
