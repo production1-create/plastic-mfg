@@ -2073,7 +2073,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         </div>
         <div class="form-group"><div class="form-label">Rev.</div><input id="wi-f-rev" placeholder="00" style="width:60px"></div>
         <div class="form-group" style="grid-column:1/-1"><div class="form-label">ชื่องาน / Part</div>
-          <input id="wi-f-job" list="wi-job-datalist" placeholder="ชื่องาน..." oninput="wiFillFromJob()" autocomplete="off">
+          <input id="wi-f-job" list="wi-job-datalist" placeholder="ชื่องาน..." oninput="wiFillFromJob()" onchange="wiFillFromJob()" onblur="wiFillFromJob()" autocomplete="off">
           <datalist id="wi-job-datalist"></datalist>
         </div>
         <div class="form-group"><div class="form-label">เครื่อง</div><input id="wi-f-machine" placeholder="I001"></div>
@@ -2342,7 +2342,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <div class="form-group"><div class="form-label">วันที่ขอ *</div><input type="date" id="dev-f-date"></div>
           <div class="form-group"><div class="form-label">ผู้ขอ</div><input id="dev-f-requester" placeholder="ชื่อผู้ขอ"></div>
           <div class="form-group" style="grid-column:span 2"><div class="form-label">ชื่องาน / Part *</div>
-            <input id="dev-f-job" list="dev-job-datalist" placeholder="ชื่องาน..." autocomplete="off">
+            <input id="dev-f-job" list="dev-job-datalist" placeholder="ชื่องาน..." autocomplete="off" oninput="devFillFromJob()" onchange="devFillFromJob()" onblur="devFillFromJob()">
             <datalist id="dev-job-datalist"></datalist>
           </div>
           <div class="form-group"><div class="form-label">เครื่อง</div><input id="dev-f-machine" placeholder="I001"></div>
@@ -7030,6 +7030,49 @@ function persistJobs(){
     console.error('persistJobs:', e);
   }
 }
+/** หา Mold Code จากชื่องาน: jobs/JOB_REGISTRY ก่อน แล้ว fallback จาก MOLD_DB (name/jobName) */
+function getMoldCodeByJobName(jobName){
+  var name=String(jobName||'').trim();
+  if(!name) return '';
+  var nrm=_normalizeText(name);
+  var fromJobs=((typeof jobs!=='undefined'&&jobs)?jobs:[]).find(function(j){
+    return _normalizeText(j&&j.name)===nrm;
+  });
+  if(fromJobs && String(fromJobs.moldCode||fromJobs.mold||'').trim()){
+    return String(fromJobs.moldCode||fromJobs.mold||'').trim();
+  }
+  var fromReg=((typeof JOB_REGISTRY!=='undefined'&&JOB_REGISTRY)?JOB_REGISTRY:[]).find(function(j){
+    return _normalizeText(j&&j.name)===nrm;
+  });
+  if(fromReg && String(fromReg.moldCode||fromReg.mold||'').trim()){
+    return String(fromReg.moldCode||fromReg.mold||'').trim();
+  }
+  var fromMold=((typeof MOLD_DB!=='undefined'&&MOLD_DB)?MOLD_DB:[]).find(function(m){
+    return _normalizeText(m&&m.name)===nrm || _normalizeText(m&&m.jobName)===nrm;
+  });
+  if(fromMold && String(fromMold.code||'').trim()){
+    return String(fromMold.code||'').trim();
+  }
+  return '';
+}
+/** เติม moldCode ให้ report อัตโนมัติจาก order/job เมื่อยังว่าง */
+function ensureDailyRptMoldCode(rpt){
+  if(!rpt || typeof rpt!=='object') return '';
+  var now=String(rpt.moldCode||'').trim();
+  if(now) return now;
+  var byOrder='';
+  if(rpt.orderNo){
+    var ord=((typeof orders!=='undefined'&&orders)?orders:[]).find(function(o){ return o&&o.orderNo===rpt.orderNo; })||null;
+    if(ord) byOrder=String(ord.moldCode||ord.moldNo||ord.mold||'').trim();
+  }
+  var byJob=getMoldCodeByJobName(rpt.jobName||'');
+  var code=byOrder||byJob||'';
+  if(code){
+    rpt.moldCode=code;
+    rpt._updatedAt=new Date().toISOString();
+  }
+  return code;
+}
 /** ผสานทะเบียนงาน (JOB_REGISTRY) เข้า jobs สำหรับหน้า BOM — เก็บฟิลด์ BOM เดิมไว้ */
 function jobsMergeFromJobRegistry(){
   if(!Array.isArray(JOB_REGISTRY)) return;
@@ -7417,7 +7460,7 @@ function moldAggregateShotsFromDailyReports(){
     var rpt = dr[key];
     if(!rpt || !rpt.rows || !rpt.rows.length) return;
     var j = ((typeof jobs !== 'undefined' && jobs) ? jobs : []).find(function(jj){ return jj.name===rpt.jobName; }) || {};
-    var code = String(rpt.moldCode || j.moldCode || '').trim();
+    var code = String(rpt.moldCode || j.moldCode || getMoldCodeByJobName(rpt.jobName||'') || '').trim();
     if(!code) return;
     var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code; });
     var cavR = Math.max(1,
@@ -8905,7 +8948,7 @@ function bomJobAutoFill(){
   setVal('bom-wt',     j.wt);
   setVal('bom-unit-cost',j.bomUnitCost);
   setVal('bom-cost-alert',j.costAlertPct||10);
-  setVal('bom-mold',   j.moldCode||j.mold||'');
+  setVal('bom-mold',   j.moldCode||j.mold||getMoldCodeByJobName(jName)||'');
   bomApplyMoldRegistryHints();
   var cavAfter=parseInt(document.getElementById('bom-cav')?.value,10)||cavInit||1;
   var ctEl=document.getElementById('bom-ct');
@@ -16262,6 +16305,7 @@ function saveBom(){
   var _ctShotOut=(_ctPiece>0&&isFinite(_ctPiece))?bomCtShotFromPiece(_ctPiece,_cavBom):30;
   const data={
     name,
+    moldCode:(document.getElementById('bom-mold')?.value||'').trim(),
     cav:    _cavBom,
     ct:     _ctShotOut,
     eff:    parseInt(document.getElementById('bom-eff')?.value)||100,
@@ -16862,7 +16906,7 @@ function bomSelectJob(name){
   var sv=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null&&String(v).length>0)el.value=v;};
   sv('bom-name',       j.name);
   sv('bom-job-search', j.name);
-  sv('bom-mold',       j.moldCode||j.mold||'');
+  sv('bom-mold',       j.moldCode||j.mold||getMoldCodeByJobName(name)||'');
   sv('bom-cav',        cavInit||j.cav);
   sv('bom-eff',        j.eff||j.effTarget||j.efficiency||100);
   sv('bom-grade',      j.grade);
@@ -21280,6 +21324,49 @@ function moldLedgerSave(){
   ['moldld-symptom','moldld-repair','moldld-tooling','moldld-note','moldld-issue-by','moldld-recv-by','moldld-shot','moldld-pcs'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
   renderMoldLedger();
 }
+/** บันทึก/อัปเดต history แม่พิมพ์อัตโนมัติจากรายงานผลิต (1 รายการต่อ rptKey) */
+function moldLedgerUpsertFromDailyReport(rptKey, rpt){
+  if(!rpt||!rptKey) return;
+  var code=ensureDailyRptMoldCode(rpt);
+  if(!code) return;
+  var mold=(MOLD_DB||[]).find(function(m){ return String(m.code||'')===String(code); })||null;
+  var cav=Math.max(1,
+    parseInt(mold&&(mold.cavity||mold.cav),10)||
+    parseInt(((typeof jobs!=='undefined'&&jobs||[]).find(function(j){ return j.name===rpt.jobName; })||{}).cav,10)||
+    1
+  );
+  var pcs=(rpt.rows||[]).reduce(function(s,row){ return s+Math.max(0,parseInt(row&&row.produced,10)||0); },0);
+  var shots=Math.floor(pcs/cav);
+  var rec={
+    id:'ML-AUTO-'+String(rptKey),
+    autoKey:'rpt_'+String(rptKey),
+    autoSource:'daily_report',
+    moldCode:code,
+    moldId:mold?mold.id:'',
+    actionType:'auto_daily_report',
+    shotAt:shots,
+    piecesQty:pcs,
+    issuedBy:'Auto(F-PD-I007)',
+    receivedBy:'',
+    machine:String(rpt.machine||''),
+    symptom:'สะสม Shot อัตโนมัติจากรายงานผลิต',
+    repairAction:'',
+    toolingChange:'',
+    intervalType:'other',
+    timeOut:'',
+    timeIn:'',
+    timeRepairStart:'',
+    timeRepairEnd:'',
+    repairResult:'na',
+    prepOnTime:'na',
+    note:'Order '+String(rpt.orderNo||'-')+' | Lot '+String(rpt.lotNo||'-')+' | Job '+String(rpt.jobName||'-'),
+    createdAt:new Date().toISOString()
+  };
+  var idx=(moldLedger||[]).findIndex(function(x){ return x&&x.id===rec.id; });
+  if(idx>=0) moldLedger[idx]=Object.assign({}, moldLedger[idx], rec);
+  else moldLedger.unshift(rec);
+  saveMoldLedger();
+}
 function moldLedgerDelete(id){
   if(!id) return;
   if(typeof _confirmDel==='function'){
@@ -21306,7 +21393,7 @@ function renderMoldLedger(){
     if(monthF&&r.createdAt&&r.createdAt.substring(0,7)!==monthF) return false;
     return true;
   });
-  var actLabel={ issue_to_prod:'เบิกไปผลิต', return_from_prod:'รับคืนจากผลิต', send_repair:'ส่งซ่อม/PM', return_from_repair:'รับคืนหลังซ่อม', in_use_repair:'ซ่อมระหว่างใช้งาน' };
+  var actLabel={ issue_to_prod:'เบิกไปผลิต', return_from_prod:'รับคืนจากผลิต', send_repair:'ส่งซ่อม/PM', return_from_repair:'รับคืนหลังซ่อม', in_use_repair:'ซ่อมระหว่างใช้งาน', auto_daily_report:'สะสมจากรายงานผลิต (Auto)' };
   var intLabel={ pm_plan:'PM ตามแผน', emergency:'ฉุกเฉิน', tooling:'เปลี่ยน tooling', other:'อื่นๆ' };
   tbody.innerHTML=list.map(function(r){
     var prep=_moldLedgerFmtMin(r.timeOut,r.timeIn);
@@ -23758,7 +23845,8 @@ function renderDailyRpt(){
   document.getElementById('rpt-mb-batch').textContent = rpt.mbBatch || '-';
   document.getElementById('rpt-target-hr').textContent = (rpt.targetHr||0).toLocaleString() + ' ชิ้น/ชม';
   var moldEl = document.getElementById('rpt-mold-display');
-  if(moldEl) moldEl.textContent = rpt.moldCode || '-';
+  var autoMold=ensureDailyRptMoldCode(rpt);
+  if(moldEl) moldEl.textContent = autoMold || rpt.moldCode || '-';
   // TT/Approval badges
   var ttBadge = document.getElementById('rpt-tt-link-badge');
   if(ttBadge) ttBadge.style.display = rpt.fromTT ? 'inline' : 'none';
@@ -24269,6 +24357,7 @@ function saveDailyRpt(){
   rpt.supervisor = supEl ? supEl.value : '';
   rpt.qc         = qcEl  ? qcEl.value  : '';
   rpt.remark     = document.getElementById('rpt-remark')?.value || '';
+  ensureDailyRptMoldCode(rpt);
   rpt.savedAt    = new Date().toISOString();
   rpt._updatedAt = rpt.savedAt;
   // Update machine running status in dashboard
@@ -24288,6 +24377,9 @@ function saveDailyRpt(){
   if(typeof _saveDailyRptExtra==='function') _saveDailyRptExtra();
   // ── Persist dailyReports to localStorage ──
   try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
+  if(typeof moldLedgerUpsertFromDailyReport==='function'){
+    moldLedgerUpsertFromDailyReport(currentRptKey, rpt);
+  }
   if(typeof moldApplyDailyShotsToMoldDB==='function'){
     moldApplyDailyShotsToMoldDB();
     if(document.getElementById('page-molds')?.classList?.contains('active')&&typeof renderMolds==='function') renderMolds();
@@ -27145,7 +27237,7 @@ function _createDailyRptFromTT(machine, date, orderNo){
     lotNo:   ttEntry ? ttEntry.lot     : (ord.lotNo||'LOT-'+Date.now().toString().slice(-4)),
     jobName: jobName,
     plastic: j.plastic||'PP',
-    moldCode: ord.mold || j.moldCode || '',
+    moldCode: ord.moldCode || ord.moldNo || ord.mold || j.moldCode || getMoldCodeByJobName(jobName) || '',
     matBatch: matBatch ? matBatch.batchNo : '-',
     mbBatch:  mbBatch  ? mbBatch.batchNo  : '-',
     targetHr: j.target||0,
@@ -28292,6 +28384,7 @@ function renderPage(id){
   else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
   else if(id==='dc') dcRender();
   else if(id==='qrtrack'){ qrtRender(); }
+  else if(id==='wi') wiRender();
   else if(id==='wi-rework') rwRender();
   else if(id==='wi-deviation') devRender();
   else if(id==='barcode') bcInit();
@@ -31108,7 +31201,19 @@ function quickOpenPMChecklist(pmId){
 // ===================== APPROVAL SYSTEM =====================
 let approvals = {};
 let approvalLog = [];
+const APPROVALS_LS_KEY = '_approvalsV1';
 const APPROVAL_LOG_LS_KEY = '_approvalLogV1';
+function saveApprovals(){
+  try{ localStorage.setItem(APPROVALS_LS_KEY, JSON.stringify(approvals||{})); }catch(e){}
+}
+function loadApprovals(){
+  try{
+    var raw = localStorage.getItem(APPROVALS_LS_KEY);
+    if(!raw) return;
+    var obj = JSON.parse(raw);
+    if(obj && typeof obj==='object') approvals = obj;
+  }catch(e){}
+}
 function saveApprovalLog(){
   try{ localStorage.setItem(APPROVAL_LOG_LS_KEY, JSON.stringify(approvalLog||[])); }catch(e){}
 }
@@ -31143,6 +31248,7 @@ function doApproval(action){
     status:action, by, note, date:new Date().toISOString().split('T')[0],
     time:new Date().toTimeString().slice(0,5)
   };
+  saveApprovals();
   // Update related data
   if(key.startsWith('order-')){
     const orderNo=key.replace('order-','');
@@ -31193,6 +31299,12 @@ function doApproval(action){
     if(procDoc){
       procDoc.status = action==='approved' ? 'อนุมัติแล้ว' : 'ปฏิเสธ';
       procDoc.approvedBy = by;
+      if(_apCurrentId===procDoc.id){
+        const _stEl=document.getElementById('ap-status'); if(_stEl) _stEl.value=procDoc.status;
+        document.querySelectorAll('input[name="ap-status-radio"]').forEach(function(el){
+          el.checked = (el.value===procDoc.status);
+        });
+      }
       if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
       if(typeof renderApprovalProcList==='function') renderApprovalProcList();
       if(!approvalLog) approvalLog=[];
@@ -31260,6 +31372,17 @@ function getApprovalBadge(key, label){
   if(a.status==='approved') return `<span class="badge badge-green" title="อนุมัติโดย ${a.by} เมื่อ ${a.date}">✓ อนุมัติ ${a.by}</span>`;
   if(a.status==='rejected') return `<span class="badge badge-red" title="${a.note}">✗ ปฏิเสธ</span><button class="btn btn-secondary btn-sm" onclick="openApproval('${key}','${lbl}',null)" style="font-size:10px;margin-left:4px">🔄</button>`;
   return `<span class="badge badge-yellow">⏳ รอ</span>`;
+}
+
+function syncApprovalProcDocStatusWithApprovalMap(d){
+  if(!d||!d.id) return false;
+  var a=approvals['ap-'+d.id];
+  if(!a) return false;
+  var want = a.status==='approved' ? 'อนุมัติแล้ว' : (a.status==='rejected' ? 'ปฏิเสธ' : d.status||'รออนุมัติ');
+  var changed=false;
+  if(want && d.status!==want){ d.status=want; changed=true; }
+  if((a.by||'').trim() && d.approvedBy!==a.by){ d.approvedBy=a.by; changed=true; }
+  return changed;
 }
 
 
@@ -32660,6 +32783,11 @@ function renderApprovalProcList(){
   }
   const filterOrder   = document.getElementById('ap-order-sel')?.value||'';
   const filterMachine = document.getElementById('approc-machine-sel')?.value||'';
+  var needSaveProc = false;
+  approvalProcDocs.forEach(function(d){
+    if(syncApprovalProcDocStatusWithApprovalMap(d)) needSaveProc = true;
+  });
+  if(needSaveProc && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
   const list = approvalProcDocs.filter(d=>
     (!filterOrder   || d.orderNo===filterOrder) &&
     (!filterMachine || d.machine===filterMachine) &&
@@ -32700,6 +32828,7 @@ function openNewApprovalProc(){
 function openApprovalProcDetail(id){
   const d = approvalProcDocs.find(x=>x.id===id);
   if(!d) return;
+  if(syncApprovalProcDocStatusWithApprovalMap(d) && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
   _apCurrentId = id;
   document.getElementById('ap-detail-section').style.display = '';
   const _elDocId=document.getElementById('ap-doc-id'); if(_elDocId) _elDocId.value=id;
@@ -33335,6 +33464,17 @@ function saveApprovalProc(){
   d.status   = stFromUi;
   if(d.status==='อนุมัติแล้ว'){
     d.approvedBy = (AUTH && AUTH.name) ? AUTH.name : (d.approvedBy && d.approvedBy!=='-' ? d.approvedBy : '—');
+  }
+  var apKey='ap-'+d.id;
+  if(d.status==='อนุมัติแล้ว' || d.status==='ปฏิเสธ'){
+    approvals[apKey]={
+      status:d.status==='อนุมัติแล้ว'?'approved':'rejected',
+      by:d.approvedBy||((AUTH&&AUTH.name)||'—'),
+      note:'',
+      date:new Date().toISOString().split('T')[0],
+      time:new Date().toTimeString().slice(0,5)
+    };
+    saveApprovals();
   }
   // Save all ap-input fields — including radio buttons and checkboxes
   d.data = {};
@@ -34460,6 +34600,16 @@ function dcExportList(){
 
 
 let wiDocs=[];
+try{
+  var _wiLoad = localStorage.getItem('_wiDocs');
+  if(_wiLoad){
+    var _wiParsed = JSON.parse(_wiLoad);
+    if(Array.isArray(_wiParsed)) wiDocs = _wiParsed;
+  }
+}catch(e){ wiDocs = []; }
+function saveWiDocs(){
+  try{ localStorage.setItem('_wiDocs', JSON.stringify(wiDocs||[])); }catch(e){}
+}
 let rwDocs=[];   // WI Rework records
 try{
   var _rwLoad = localStorage.getItem('_rwDocs');
@@ -34472,6 +34622,16 @@ function saveRwDocs(){
   try{ localStorage.setItem('_rwDocs', JSON.stringify(rwDocs)); }catch(e){}
 }
 let devRecords=[]; // Deviation (ปล่อยผ่าน) records
+try{
+  var _devLoad = localStorage.getItem('_devRecords');
+  if(_devLoad){
+    var _devParsed = JSON.parse(_devLoad);
+    if(Array.isArray(_devParsed)) devRecords = _devParsed;
+  }
+}catch(e){ devRecords = []; }
+function saveDevRecords(){
+  try{ localStorage.setItem('_devRecords', JSON.stringify(devRecords||[])); }catch(e){}
+}
 
 let wiViewMode='card';
 
@@ -34482,7 +34642,7 @@ function wiRender(){
 
   // Populate job datalist + filter select
   const dl=document.getElementById('wi-job-datalist');
-  if(dl&&dl.options.length===0) jobs.forEach(j=>{ const o=document.createElement('option'); o.value=j.name; dl.appendChild(o); });
+  if(dl){ dl.innerHTML=''; jobs.forEach(j=>{ const o=document.createElement('option'); o.value=j.name; dl.appendChild(o); }); }
   const jfSel=document.getElementById('wi-job-filter');
   if(jfSel&&jfSel.options.length<=1){
     const jobNames=[...new Set(wiDocs.map(d=>d.job))];
@@ -34641,7 +34801,29 @@ function wiSyncFromBOM(){
   const jfSel=document.getElementById('wi-job-filter');
   if(jfSel) jfSel.innerHTML='<option value="">🏭 ทุกชื่องาน</option>';
   wiRender();
+  saveWiDocs();
   if(typeof _infoToast==="function") _infoToast('✅ ดึงข้อมูลจาก BOM เรียบร้อย เพิ่ม '+added+' รายการ');
+}
+
+/** เติมช่องที่ว่างจาก BOM ใน object ที่จะบันทึก (เซฟ WI) */
+function wiAugmentDataFromJob(data){
+  if(!data||!data.job) return data;
+  const j=jobs.find(jj=>jj.name===data.job);
+  if(!j) return data;
+  if(!String(data.machine||'').trim()&&j.machine) data.machine=String(j.machine);
+  const numEmpty=function(v){ return v===undefined||v===null||String(v).trim()===''; };
+  if(numEmpty(data.wt)&&j.wt!=null&&j.wt!=='') data.wt=j.wt;
+  if(numEmpty(data.cav)&&j.cav!=null&&j.cav!=='') data.cav=j.cav;
+  data.packing=data.packing||{};
+  const p=data.packing, pk=j.packingStd||{};
+  const g=function(x){ return parseInt(x,10)||0; };
+  if(!g(p.pcsBag)&&g(pk.pcsBag)) p.pcsBag=g(pk.pcsBag);
+  if(!g(p.pcsBox)&&g(pk.pcsBox)) p.pcsBox=g(pk.pcsBox);
+  if(!g(p.boxCtn)&&g(pk.boxCtn)) p.boxCtn=g(pk.boxCtn);
+  if(!String(p.bagType||'').trim()&&(pk.bagType||pk.packNote)) p.bagType=String(pk.bagType||pk.packNote||'');
+  if(!String(p.bagNote||'').trim()&&pk.packNote) p.bagNote=String(pk.packNote);
+  p.pcsCtn=g(p.pcsBox)*g(p.boxCtn);
+  return data;
 }
 
 function wiViewPacking(id){
@@ -34733,21 +34915,23 @@ function wiOpen(id){
 }
 
 function wiFillFromJob(){
-  const jobName=document.getElementById('wi-f-job')?.value||'';
+  const jobName=String(document.getElementById('wi-f-job')?.value||'').trim();
   const j=jobs.find(jj=>jj.name===jobName); if(!j) return;
-  const sv=(id,v)=>{ const e=document.getElementById(id); if(e&&!e.value&&v) e.value=v; };
-  sv('wi-f-machine',j.machine);
-  sv('wi-f-wt',j.wt);
-  sv('wi-f-cav',j.cav);
+  const txtEmpty=function(e){ return !e||String(e.value||'').trim()===''; };
+  const numEmpty=function(e){ return !e||(e.value===''||e.value==null); };
+  const svText=(id,v)=>{ const e=document.getElementById(id); if(!e||v==null||v==='') return; if(txtEmpty(e)) e.value=v; };
+  const svNum=(id,v)=>{ const e=document.getElementById(id); if(!e||v==null||v==='') return; const n=parseFloat(v); if(isNaN(n)||n<=0)return; if(numEmpty(e)||parseFloat(e.value)<=0) e.value=n; };
+  svText('wi-f-machine',j.machine);
+  if(j.wt!=null&&j.wt!=='') svNum('wi-f-wt',j.wt);
+  if(j.cav!=null&&j.cav!=='') svNum('wi-f-cav',j.cav);
   const pk=j.packingStd||{};
-  sv('wi-f-pcs-bag',pk.pcsBag);
-  sv('wi-f-pcs-box',pk.pcsBox);
-  sv('wi-f-box-ctn',pk.boxCtn);
-  sv('wi-f-bag-type',pk.bagType||pk.packNote);
+  if(pk.pcsBag!=null&&pk.pcsBag!=='') svNum('wi-f-pcs-bag',pk.pcsBag);
+  if(pk.pcsBox!=null&&pk.pcsBox!=='') svNum('wi-f-pcs-box',pk.pcsBox);
+  if(pk.boxCtn!=null&&pk.boxCtn!=='') svNum('wi-f-box-ctn',pk.boxCtn);
+  svText('wi-f-bag-type',pk.bagType||pk.packNote);
   wiCalcCtn();
-  // Auto-set WI No
   const noEl=document.getElementById('wi-f-no');
-  if(noEl&&!noEl.value) noEl.value='WI-'+j.name.replace(/\s+/g,'-').substring(0,10)+'-001';
+  if(noEl&&txtEmpty(noEl)) noEl.value='WI-'+j.name.replace(/\s+/g,'-').substring(0,10)+'-001';
 }
 
 function wiCalcCtn(){
@@ -34799,8 +34983,10 @@ function wiSave(){
     by:window.AUTH?.name||'-',
   };
   if(!data.wiNo||!data.job){ if(typeof _infoToast==="function") _infoToast('กรุณาระบุเลขที่ WI และชื่องาน'); return; }
+  wiAugmentDataFromJob(data);
   if(id){ const d=wiDocs.find(x=>x.id===id); if(d) Object.assign(d,data); }
   else { data.id='WI-'+String(wiDocs.length+1).padStart(3,'0'); wiDocs.unshift(data); }
+  saveWiDocs();
   closeModal('modal-wi-edit');
   wiRender();
   if(typeof _infoToast==="function") _infoToast('✅ บันทึก WI เรียบร้อย');
@@ -35139,9 +35325,8 @@ function devRender(){
   const dateFrom=document.getElementById('dev-date-from')?.value||'';
   const dateTo=document.getElementById('dev-date-to')?.value||'';
 
-  // Populate job datalist
   const dl=document.getElementById('dev-job-datalist');
-  if(dl&&dl.options.length===0) jobs.forEach(j=>{const o=document.createElement('option');o.value=j.name;dl.appendChild(o);});
+  if(dl){ dl.innerHTML=''; jobs.forEach(j=>{const o=document.createElement('option');o.value=j.name;dl.appendChild(o);}); }
 
   let list=devRecords.filter(d=>{
     if(search&&!d.job.toLowerCase().includes(search)&&!(d.devNo||'').toLowerCase().includes(search)&&!(d.approver||'').toLowerCase().includes(search)) return false;
@@ -35199,6 +35384,21 @@ function devRender(){
       +'</td>'
     +'</tr>';
   }).join('');
+}
+
+function devFillFromJob(){
+  const jobName=String(document.getElementById('dev-f-job')?.value||'').trim();
+  const j=jobs.find(jj=>jj.name===jobName);
+  if(!j) return;
+  const me=document.getElementById('dev-f-machine');
+  if(me&&!String(me.value||'').trim()&&j.machine) me.value=String(j.machine);
+}
+function devAugmentFromJob(data){
+  if(!data||!data.job) return data;
+  const j=jobs.find(jj=>jj.name===data.job);
+  if(!j) return data;
+  if(!String(data.machine||'').trim()&&j.machine) data.machine=String(j.machine);
+  return data;
 }
 
 function devNew(){
@@ -35297,8 +35497,10 @@ function devSave(){
   };
   if(!data.devNo||!data.job){if(typeof _infoToast==='function')_infoToast('กรุณาระบุเลขที่ใบขอและชื่องาน');return;}
   if(data.status==='approved'&&!data.approver){if(typeof _infoToast==='function')_infoToast('กรุณาระบุชื่อผู้อนุมัติ');return;}
+  devAugmentFromJob(data);
   if(id){const d=devRecords.find(x=>x.id===id);if(d)Object.assign(d,data);}
   else{data.id='DEV-'+String(devRecords.length+1).padStart(4,'0');devRecords.unshift(data);}
+  saveDevRecords();
   closeModal('modal-dev-edit');
   devRender();
   if(typeof _infoToast==='function')_infoToast('✅ บันทึกใบขออนุมัติเรียบร้อย');
@@ -37893,6 +38095,7 @@ function masterInit(){
 
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
   loadOrders();             // orders
+  if(typeof loadApprovals==='function') loadApprovals();
   if(typeof loadApprovalLog==='function') loadApprovalLog();
   if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
   if(typeof apBackfillApprovalDocsFromOrders==='function') apBackfillApprovalDocsFromOrders();
