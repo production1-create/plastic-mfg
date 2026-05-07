@@ -3435,12 +3435,24 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div style="background:var(--bg2);border-radius:10px;border:1px solid var(--border);overflow:hidden">
       <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <span style="font-weight:600;font-size:13px">📒 รับเข้า-จ่ายออก</span>
+        <select id="led-scope" onchange="renderRawmatLedger()"
+          style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+          <option value="all">ทุกหมวด (เม็ด + MB)</option>
+          <option value="plastic">เฉพาะเม็ด</option>
+          <option value="mb">เฉพาะ MB สี</option>
+        </select>
         <select id="led-material" onchange="renderRawmatLedger()"
           style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกชนิด</option>
         </select>
         <input type="month" id="led-month" onchange="renderRawmatLedger()"
           style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+        <input type="text" id="led-job-search" placeholder="ค้นหาชื่องาน"
+          oninput="renderRawmatLedger()"
+          style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;min-width:160px">
+        <input type="text" id="led-lot-search" placeholder="ค้นหา Lot"
+          oninput="renderRawmatLedger()"
+          style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;min-width:120px">
         <select id="led-type-filter" onchange="renderRawmatLedger()"
           style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกประเภท</option>
@@ -7365,7 +7377,8 @@ function saveOrderModal(withTT){
   o.createdAt=new Date().toISOString().split('T')[0];
   orders.unshift(o);
   saveOrders();
-  if(typeof apAutoEnsureForOrder==='function') apAutoEnsureForOrder(o);
+  var _autoApDoc = null;
+  if(typeof apAutoEnsureForOrder==='function') _autoApDoc = apAutoEnsureForOrder(o) || null;
   var navEl=document.getElementById('order-after-save-nav');
   var goAppr=navEl && navEl.value==='approvalproc';
   if(navEl) navEl.value='';
@@ -7381,6 +7394,7 @@ function saveOrderModal(withTT){
     var apWg = typeof _orderWorkGroup==='function' ? _orderWorkGroup(o) : '';
     showPage('approvalproc', null, apWg==='assembly'||apWg==='secondary' ? 'postprocess' : 'injection');
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
+    if(_autoApDoc && _autoApDoc.id && typeof openApprovalProcDetail==='function') openApprovalProcDetail(_autoApDoc.id);
     if(typeof _toast==='function') _toast('📋 ไปหน้าใบอนุมัติกระบวนการ — สร้างใบอัตโนมัติจาก BOM (รอผลิต)');
   }
 }
@@ -11189,13 +11203,47 @@ function _renderRawmatOld(){
 
 function renderRawmatLedger(){
   var tbody=document.getElementById('rawmat-ledger-tbody'); if(!tbody) return;
+  var scope=document.getElementById('led-scope')?.value||'all';
   var mat=document.getElementById('led-material')?.value||'';
   var month=document.getElementById('led-month')?.value||'';
   var typeF=document.getElementById('led-type-filter')?.value||'';
-  var rows=rawMatLedger.filter(function(r){
-    if(mat&&r.material!==mat) return false;
-    if(month&&!r.date.startsWith(month)) return false;
+  var jobQ=(document.getElementById('led-job-search')?.value||'').trim().toLowerCase();
+  var lotQ=(document.getElementById('led-lot-search')?.value||'').trim().toLowerCase();
+
+  var rawRows=(rawMatLedger||[]).map(function(r){
+    return Object.assign({_scope:'plastic', _mat:r.material||'', _job:r.jobName||'', _lot:r.lotNo||'', _batch:r.batchNo||''}, r);
+  });
+  var mbRows=(mbLedger||[]).map(function(r){
+    var grade=(mbColors&&mbColors[r.code]&&mbColors[r.code].name)?mbColors[r.code].name:'';
+    return {
+      _id:r._id, date:r.date, time:r.time||'', type:r.type, material:r.code||'', grade:grade, qty:Math.abs(Number(r.qty||0)),
+      ref:r.reason||'', jobName:r.job||'', lotNo:r.lot||'', supplierName:'', balance:Number(r.balance||0), by:r.by||'',
+      note:r.note||'', batchNo:r.mbBatch||'', _scope:'mb', _mat:r.code||'', _job:r.job||'', _lot:r.lot||'', _batch:r.mbBatch||''
+    };
+  });
+
+  var allRows=(scope==='plastic')?rawRows:(scope==='mb'?mbRows:rawRows.concat(mbRows));
+
+  var matSel=document.getElementById('led-material');
+  if(matSel){
+    var prev=matSel.value;
+    var mats=Array.from(new Set(allRows.map(function(r){ return String(r._mat||'').trim(); }).filter(Boolean))).sort();
+    matSel.innerHTML='<option value="">ทุกชนิด</option>'+mats.map(function(m){
+      return '<option value="'+m.replace(/"/g,'&quot;')+'">'+m+'</option>';
+    }).join('');
+    if(prev && mats.includes(prev)) matSel.value=prev;
+  }
+  mat=document.getElementById('led-material')?.value||'';
+
+  var rows=allRows.filter(function(r){
+    if(mat&&r._mat!==mat) return false;
+    if(month&&!(String(r.date||'').startsWith(month))) return false;
     if(typeF&&r.type!==typeF) return false;
+    if(jobQ&&String(r._job||'').toLowerCase().indexOf(jobQ)<0) return false;
+    if(lotQ){
+      var lotField=(String(r._lot||'')+' '+String(r._batch||'')).toLowerCase();
+      if(lotField.indexOf(lotQ)<0) return false;
+    }
     return true;
   });
   if(!rows.length){tbody.innerHTML='<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีรายการ</td></tr>';return;}
@@ -11210,10 +11258,16 @@ function renderRawmatLedger(){
         : '<span class="badge badge-red">📤 เบิกออก</span>';
     var qtyColor = isAdj ? '#e3b341' : isIn ? '#3fb950' : '#f85149';
     var qtyPrefix = isAdj ? (r.qty>=0?'+':'') : (isIn?'+':'-');
+    var matBadge = (r._scope==='mb')
+      ? '<span style="background:rgba(227,179,65,0.15);color:#e3b341;border:1px solid rgba(227,179,65,0.35);padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700">'+(r.material||'MB')+'</span>'
+      : '<span class="badge mat-'+r.material+'">'+r.material+'</span>';
+    var delBtn = (r._scope==='mb')
+      ? '<button onclick="mbDeleteLedger(\''+r._id+'\')" style="padding:2px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.25);color:#f85149;border-radius:4px;cursor:pointer;font-size:10px" title="ลบรายการนี้">🗑</button>'
+      : '<button onclick="deleteLedgerEntry(\''+r._id+'\')" style="padding:2px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.25);color:#f85149;border-radius:4px;cursor:pointer;font-size:10px" title="ลบรายการนี้">🗑</button>';
     return '<tr style="border-bottom:1px solid var(--border)'+(isAdj?';background:rgba(227,179,65,0.04)':'')+'">'
       +'<td style="padding:7px 12px;font-family:monospace;font-size:11px;color:var(--text3)">'+r.date+'<br><span style="font-size:9px">'+(r.time||'')+'</span></td>'
       +'<td style="padding:7px 8px;text-align:center">'+typeBadge+'</td>'
-      +'<td style="padding:7px 8px"><span class="badge mat-'+r.material+'">'+r.material+'</span></td>'
+      +'<td style="padding:7px 8px">'+matBadge+'</td>'
       +'<td style="padding:7px 8px;font-size:11px;color:var(--text3)">'+(r.grade||'—')
         +(r.batchNo?'<br><span style="font-size:9px;color:#79c0ff;font-family:monospace">Lot วัตถุดิบ: '+r.batchNo+'</span>':'')
       +'</td>'
@@ -11231,7 +11285,7 @@ function renderRawmatLedger(){
         +(isAdj&&r.adjReason?'<br><span style="background:rgba(227,179,65,0.15);padding:1px 5px;border-radius:4px;font-size:9px">'+r.adjReason+'</span>':'')
       +'</td>'
       +'<td style="padding:7px 8px;text-align:center">'
-        +'<button onclick="deleteLedgerEntry(\''+r._id+'\')" style="padding:2px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.25);color:#f85149;border-radius:4px;cursor:pointer;font-size:10px" title="ลบรายการนี้">🗑</button>'
+        +delBtn
       +'</td>'
     +'</tr>';
   }).join('');
@@ -17316,24 +17370,71 @@ function mixPushStockIssueLog(entry){
   saveMixStockIssueLog();
 }
 
+function mixNormKey(v){
+  return String(v||'').toUpperCase().replace(/\s+/g,'').replace(/[^A-Z0-9ก-๙]/g,'');
+}
+
+function mixResolveJobForPlan(p){
+  var orderNo=String(p&&p.orderNo||'').trim();
+  if(orderNo){
+    var o=(orders||[]).find(function(x){ return x && String(x.orderNo||'').trim()===orderNo; });
+    if(o){
+      var jByOrder=(jobs||[]).find(function(jj){ return jj && _normalizeText(jj.name)===_normalizeText(o.jobName); });
+      if(jByOrder) return jByOrder;
+    }
+  }
+  var jByName=(jobs||[]).find(function(jj){ return jj && _normalizeText(jj.name)===_normalizeText(p&&p.jobName); });
+  if(jByName) return jByName;
+  var nk=mixNormKey(p&&p.jobName);
+  return (jobs||[]).find(function(jj){ return mixNormKey(jj&&jj.name)===nk; })||null;
+}
+
+function mixResolveRawMatCode(matLike){
+  var raw=String(matLike||'').trim();
+  if(!raw) return '';
+  if(typeof rawMatStock!=='undefined' && rawMatStock[raw]) return raw;
+  var nk=mixNormKey(raw);
+  if(typeof rawMatStock!=='undefined'){
+    var exact=Object.keys(rawMatStock||{}).find(function(k){ return mixNormKey(k)===nk; });
+    if(exact) return exact;
+  }
+  var reg=(RAWMAT_REGISTRY||[]).find(function(r){
+    return mixNormKey(r&&r.code)===nk || mixNormKey(r&&r.name)===nk || mixNormKey(r&&r.nameEn)===nk;
+  });
+  if(reg && reg.code){
+    if(typeof rawMatStock!=='undefined' && rawMatStock[reg.code]) return reg.code;
+    var byReg=Object.keys(rawMatStock||{}).find(function(k){ return mixNormKey(k)===mixNormKey(reg.code); });
+    if(byReg) return byReg;
+    return reg.code;
+  }
+  if(typeof rawMatStock!=='undefined'){
+    var fuzzy=Object.keys(rawMatStock||{}).find(function(k){
+      var kk=mixNormKey(k);
+      return kk.includes(nk) || nk.includes(kk);
+    });
+    if(fuzzy) return fuzzy;
+  }
+  return raw;
+}
+
 function mixResolvePlasticUsageRows(p, totalPlasticKg){
   var qtyTotal=Math.max(0, parseFloat(totalPlasticKg||0)||0);
   var rows=[];
   if(!(qtyTotal>0)) return rows;
-  var j=(jobs||[]).find(function(jj){ return jj && jj.name===p.jobName; })||null;
+  var j=mixResolveJobForPlan(p);
   var ing=(j&&Array.isArray(j.mixIngredients)?j.mixIngredients:[]).filter(function(m){
     var code=String(m&&m.code||'').trim();
     var pct=parseFloat(m&&m.pct)||0;
     return !!code && pct>0;
   });
   if(!ing.length){
-    var mat=String(p.plastic||'').trim();
+    var mat=mixResolveRawMatCode(p.plastic);
     if(mat) rows.push({material:mat, qty:qtyTotal, grade:p.grade||''});
     return rows;
   }
   var sumPct=ing.reduce(function(s,m){ return s+(parseFloat(m.pct)||0); },0);
   if(!(sumPct>0)){
-    var mat2=String(p.plastic||'').trim();
+    var mat2=mixResolveRawMatCode(p.plastic);
     if(mat2) rows.push({material:mat2, qty:qtyTotal, grade:p.grade||''});
     return rows;
   }
@@ -17344,7 +17445,7 @@ function mixResolvePlasticUsageRows(p, totalPlasticKg){
     var q=(idx===priIdx) ? rem : +(qtyTotal*(parseFloat(m.pct)||0)/sumPct).toFixed(4);
     if(idx===priIdx){ q=+Math.max(0, rem).toFixed(4); }
     rem=+(rem-q).toFixed(4);
-    rows.push({material:String(m.code||'').trim(), qty:Math.max(0,q), grade:String(m.grade||p.grade||'').trim()});
+    rows.push({material:mixResolveRawMatCode(String(m.code||'').trim()), qty:Math.max(0,q), grade:String(m.grade||p.grade||'').trim()});
   });
   return rows.filter(function(r){ return r.material && r.qty>0; });
 }
@@ -33459,6 +33560,52 @@ const APPROVAL_PROC_LS_KEY = '_approvalProcDocs';
 let approvalProcDocs = []; // [{id,docNo,date,orderNo,jobName,machine,moldNo,status,approvedBy,data:{},apWorkGroup,apCalcSnapshot}]
 let _apCurrentId = null;
 
+function apTemplateByWorkGroup(wg){
+  return (wg==='assembly' || wg==='secondary' || wg==='postprocess') ? 'assembly-line' : 'injection';
+}
+function apTemplateLabel(t){
+  return t==='assembly-line' ? 'ไลน์ประกอบ (3 หน้า)' : 'เครื่องฉีด (F-PD-I008)';
+}
+function apToggleTemplateUI(t){
+  var inj=document.getElementById('ap-injection-form');
+  var asm=document.getElementById('ap-assembly-form');
+  if(inj) inj.style.display = (t==='assembly-line') ? 'none' : '';
+  if(asm) asm.style.display = (t==='assembly-line') ? '' : 'none';
+}
+function apEnsureAssemblyRows(){
+  var b1=document.getElementById('al1-body');
+  if(b1 && !b1.children.length){
+    var h1='';
+    for(var i=1;i<=12;i++){
+      h1+='<tr>'
+        +'<td><input id="al1-date-'+i+'" type="date"></td>'
+        +'<td><input id="al1-step-'+i+'" placeholder="ประกอบ/สกรีน/บรรจุ"></td>'
+        +'<td><input id="al1-a-'+i+'"></td><td><input id="al1-b-'+i+'"></td><td><input id="al1-c-'+i+'"></td>'
+        +'<td><input id="al1-d-'+i+'"></td><td><input id="al1-e-'+i+'"></td><td><input id="al1-f-'+i+'"></td><td><input id="al1-g-'+i+'"></td>'
+        +'<td><input id="al1-checker-'+i+'"></td><td><input id="al1-approver-'+i+'"></td>'
+      +'</tr>';
+    }
+    b1.innerHTML=h1;
+  }
+  var b2=document.getElementById('al2-body');
+  if(b2 && !b2.children.length){
+    var topics=['การยืนยันข้อมูลงาน','ความพร้อมอุปกรณ์/เครื่องมือ','ความพร้อมพื้นที่ผลิต','ความพร้อม WI/Condition/Q-Point','ความปลอดภัยหน้างาน'];
+    var h2='';
+    for(var j=1;j<=10;j++){
+      h2+='<tr><td><input id="al2-topic-'+j+'" value="'+(topics[j-1]||'')+'"></td><td><input id="al2-pass-'+j+'"></td><td><input id="al2-fail-'+j+'"></td><td><input id="al2-checker-'+j+'"></td><td><input id="al2-approver-'+j+'"></td></tr>';
+    }
+    b2.innerHTML=h2;
+  }
+  var b3=document.getElementById('al3-body');
+  if(b3 && !b3.children.length){
+    var h3='';
+    for(var k=1;k<=8;k++){
+      h3+='<tr><td><input id="al3-mat-'+k+'" placeholder="ชื่อวัตถุดิบ / Batch"></td><td><input id="al3-matqty-'+k+'"></td><td><input id="al3-result-'+k+'"></td><td><input id="al3-checker-'+k+'"></td><td><input id="al3-approver-'+k+'"></td></tr>';
+    }
+    b3.innerHTML=h3;
+  }
+}
+
 function saveApprovalProcDocs(){
   try{ localStorage.setItem(APPROVAL_PROC_LS_KEY, JSON.stringify(approvalProcDocs)); }catch(e){}
 }
@@ -33515,6 +33662,10 @@ function approvalProcOnListTabChange(v){
   window._apListTab = v || 'active';
   renderApprovalProcList();
 }
+function approvalProcOnFormTypeChange(v){
+  var t = (v==='assembly-line') ? 'assembly-line' : 'injection';
+  apToggleTemplateUI(t);
+}
 
 function initApprovalProcDocs(){
   loadApprovalProcDocs();
@@ -33552,6 +33703,7 @@ function addToApprovalLog(key, label, by, action){
 
 function renderApprovalProcList(){
   if(typeof window._apListTab !== 'string') window._apListTab = 'active';
+  apEnsureAssemblyRows();
   const tbody = document.getElementById('approvalproc-tbody');
   if(!tbody) return;
   const oSel = document.getElementById('ap-order-sel');
@@ -33615,7 +33767,7 @@ function renderApprovalProcList(){
     <td class="mono" style="font-size:11px">${d.docNo}</td>
     <td class="mono" style="font-size:12px">${d.date}</td>
     <td class="mono" style="font-size:12px">${d.orderNo}</td>
-    <td style="font-size:12px">${(d.jobName||'').substring(0,25)}</td>
+    <td style="font-size:12px">${(d.jobName||'').substring(0,25)}<br><span style="font-size:10px;color:var(--text3)">${apTemplateLabel(d.apFormType||apTemplateByWorkGroup(apDocLineGroup(d)))}</span></td>
     <td class="mono" style="font-size:12px">${d.machine||'-'}</td>
     <td class="mono" style="font-size:12px">${d.moldNo||'-'}</td>
     <td><span class="badge ${statusColor[d.status]||'badge-yellow'}">${d.status}</span></td>
@@ -33632,9 +33784,10 @@ function renderApprovalProcList(){
 function openNewApprovalProc(){
   const id = 'AP-'+Date.now();
   const docNo = 'F-PD-I008-'+apNextDocSuffix();
+  var wgCur=(window._apWorkGroup==='postprocess')?'postprocess':'injection';
   const newDoc = {id, docNo, date:new Date().toISOString().split('T')[0],
     orderNo:'', jobName:'', machine:'', moldNo:'', customer:'', cavity:'', weight:'',
-    status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:''};
+    status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:wgCur, apFormType:apTemplateByWorkGroup(wgCur)};
   approvalProcDocs.unshift(newDoc);
   saveApprovalProcDocs();
   openApprovalProcDetail(id);
@@ -33669,6 +33822,17 @@ function openApprovalProcDetail(id){
     if(jj && jj.wt) resolvedWt = jj.wt;
   }
   const _elWt=document.getElementById('ap-weight'); if(_elWt) _elWt.value=resolvedWt;
+  var formType=(d.apFormType||'').trim();
+  if(!formType) formType=apTemplateByWorkGroup(apDocLineGroup(d));
+  d.apFormType=formType;
+  var tSel=document.getElementById('ap-form-type');
+  if(tSel) tSel.value=formType;
+  apToggleTemplateUI(formType);
+  var aJob=document.getElementById('apa-jobname'); if(aJob) aJob.value=d.jobName||'';
+  var aOrd=document.getElementById('apa-orderno'); if(aOrd) aOrd.value=d.orderNo||'';
+  var aLot=document.getElementById('apa-lotno'); if(aLot) aLot.value=(d.lotNo||resolvedLot||'');
+  var aCust=document.getElementById('apa-customer'); if(aCust) aCust.value=d.customer||'';
+  var aDate=document.getElementById('apa-date'); if(aDate && !aDate.value) aDate.value=new Date().toISOString().split('T')[0];
   // Radio status
   document.querySelectorAll('input[name="ap-status-radio"]').forEach(r=>{ r.checked = r.value===d.status; });
   const _elSt=document.getElementById('ap-status'); if(_elSt) _elSt.value=d.status||'รออนุมัติ';
@@ -33687,6 +33851,11 @@ function openApprovalProcDetail(id){
       }
     }
   });
+  var aType=document.getElementById('apa-process-type');
+  if(aType && !aType.value){
+    var g=apDocLineGroup(d);
+    aType.value=(g==='assembly')?'ประกอบ':(g==='secondary'?'ไลน์รอง':'ประกอบ');
+  }
   // Scroll to detail section
   setTimeout(function(){
     var _detailEl = document.getElementById('ap-detail-section');
@@ -33870,9 +34039,22 @@ function apOnOrderChange(){
   if(!bom) return;
 
   apApplyBomMapToDom(bom);
+  var o=bom.o||{};
+  var setA=function(id,val){ var el=document.getElementById(id); if(el && !String(el.value||'').trim()) el.value=val||''; };
+  setA('apa-jobname', o.jobName||bom.jobName||'');
+  setA('apa-orderno', o.orderNo||'');
+  setA('apa-lotno', o.lotNo||'');
+  setA('apa-customer', o.customer||'');
+  setA('al3-customer', o.customer||'');
+  setA('apa-date', new Date().toISOString().split('T')[0]);
+  if(document.getElementById('ap-form-type')?.value==='assembly-line'){
+    var g = (typeof _orderWorkGroup==='function') ? _orderWorkGroup(o) : '';
+    var p = document.getElementById('apa-process-type');
+    if(p && !p.value) p.value = (g==='secondary') ? 'ไลน์รอง' : 'ประกอบ';
+  }
 
-  apCalcProduction(bom.o, bom.j);
-  if(typeof apHydrateProdRowsFromDailyReport==='function') apHydrateProdRowsFromDailyReport(bom.o);
+  apCalcProduction(o, bom.j);
+  if(typeof apHydrateProdRowsFromDailyReport==='function') apHydrateProdRowsFromDailyReport(o);
   const panel = document.getElementById('ap-calc-panel');
   if(panel) panel.style.display = '';
   const badge = document.getElementById('ap-bom-calc-badge');
@@ -33937,7 +34119,8 @@ function apBackfillApprovalDocsFromOrders(){
 
 function apAutoEnsureForOrder(o){
   if(!o || !o.orderNo) return;
-  if(approvalProcDocs.some(function(x){ return x.orderNo===o.orderNo; })) return;
+  var existed=approvalProcDocs.find(function(x){ return x.orderNo===o.orderNo; });
+  if(existed) return existed;
   var j = jobs.find(function(jj){ return jj.name===o.jobName; }) || {};
   var wg = _orderWorkGroup(o);
   var bom = apBuildApOrderBomMap(o.orderNo, o.jobName||'');
@@ -33960,11 +34143,13 @@ function apAutoEnsureForOrder(o){
     approvedBy: '-',
     data: Object.assign({}, fields),
     apWorkGroup: wg,
+    apFormType: apTemplateByWorkGroup(wg),
     apCalcSnapshot: null
   };
   newDoc.apCalcSnapshot = _apCalcMetrics(o,j,{overrideQty:0}).calcDisplay;
   approvalProcDocs.unshift(newDoc);
   saveApprovalProcDocs();
+  return newDoc;
 }
 
 function apRefreshLS(jobNameOverride){
@@ -34278,6 +34463,7 @@ function saveApprovalProc(){
   d.cavity   = document.getElementById('ap-cavity').value;
   d.weight   = document.getElementById('ap-weight').value;
   d.status   = stFromUi;
+  d.apFormType = (document.getElementById('ap-form-type')?.value||'injection');
   if(d.status==='อนุมัติแล้ว'){
     d.approvedBy = (AUTH && AUTH.name) ? AUTH.name : (d.approvedBy && d.approvedBy!=='-' ? d.approvedBy : '—');
   }
@@ -34303,6 +34489,11 @@ function saveApprovalProc(){
   // Save cl-* note inputs (checklist section note text)
   document.querySelectorAll('[id^="cl-"]').forEach(el=>{
     if(el.id && el.type!=='radio') d.data[el.id] = el.value||'';
+  });
+  document.querySelectorAll('[id^="apa-"],[id^="al1-"],[id^="al2-"],[id^="al3-"]').forEach(function(el){
+    if(!el || !el.id) return;
+    if(el.type==='checkbox') d.data[el.id] = el.checked ? '1' : '0';
+    else d.data[el.id] = ('value' in el) ? (el.value||'') : '';
   });
   // Save radio buttons by name (cl-* checklist radios)
   const radioNames = new Set();
@@ -34345,6 +34536,10 @@ function printApprovalProcDoc(docId){
   const id = docId || document.getElementById('ap-doc-id')?.value || (_apCurrentId||'');
   const d  = approvalProcDocs.find(x=>x.id===id);
   if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติ'); return; }
+  if((d.apFormType||'')==='assembly-line'){
+    apPrintAssemblyLineDoc(id);
+    return;
+  }
   const today = new Date().toLocaleDateString('th-TH');
   const curDocId = document.getElementById('ap-doc-id')?.value || '';
   const useLive = (curDocId === id);
@@ -34945,6 +35140,58 @@ function apSignMain(roleKey, roleLabel){
       }
     }
   );
+}
+
+function apPrintAssemblyLineDoc(docId){
+  const id = docId || document.getElementById('ap-doc-id')?.value || (_apCurrentId||'');
+  const d  = approvalProcDocs.find(x=>x.id===id);
+  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติไลน์ประกอบ'); return; }
+  const curDocId = document.getElementById('ap-doc-id')?.value || '';
+  const useLive = (curDocId === id);
+  const fv = function(fid){
+    if(useLive){
+      const el=document.getElementById(fid);
+      if(el && ('value' in el)) return el.value||'';
+    }
+    return (d.data&&d.data[fid]) || '';
+  };
+  const today = new Date().toLocaleDateString('th-TH');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+  @page{size:A4;margin:10mm}
+  *{box-sizing:border-box;font-family:Arial,sans-serif}
+  body{margin:0;color:#000;font-size:11px}
+  .pb{page-break-before:always}
+  .h{display:flex;justify-content:space-between;align-items:center;border:1px solid #000;padding:6px 8px;margin-bottom:6px}
+  .t{font-size:20px;font-weight:800}
+  .sub{font-size:11px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #000;padding:4px 6px;vertical-align:top}
+  .small{font-size:10px}
+  .line{height:24px}
+  </style></head><body>
+  <div class="h"><div class="t">ใบอนุมัติกระบวนการไลน์ประกอบ</div><div class="sub">DOC: ${d.docNo||'-'} | พิมพ์: ${today}</div></div>
+  <table><tr><td>ชื่องาน: ${fv('apa-jobname')||d.jobName||'-'}</td><td>Order: ${fv('apa-orderno')||d.orderNo||'-'}</td><td>Lot: ${fv('apa-lotno')||d.lotNo||'-'}</td></tr>
+  <tr><td>ลูกค้า: ${fv('apa-customer')||d.customer||'-'}</td><td>กระบวนการ: ${fv('apa-process-type')||'ประกอบ'}</td><td>วันที่: ${fv('apa-date')||d.date||''}</td></tr></table>
+  <div style="margin:6px 0 4px;font-weight:700">หน้า 1: ใบรายงานการผลิต (F-PD-N013)</div>
+  <table><thead><tr><th>วันที่</th><th>ขั้นตอน</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=12;i++){out+=`<tr class="line"><td>${fv('al1-date-'+i)}</td><td>${fv('al1-step-'+i)}</td><td>${fv('al1-a-'+i)}</td><td>${fv('al1-b-'+i)}</td><td>${fv('al1-c-'+i)}</td><td>${fv('al1-d-'+i)}</td><td>${fv('al1-e-'+i)}</td><td>${fv('al1-f-'+i)}</td><td>${fv('al1-g-'+i)}</td><td>${fv('al1-checker-'+i)}</td><td>${fv('al1-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
+  <div class="pb"></div>
+  <div class="h"><div class="t" style="font-size:18px">การตรวจสอบก่อนการผลิต</div><div class="sub">F-PD-I095 Rev.01</div></div>
+  <table><tr><th>หัวข้อการตรวจสอบ</th><th style="width:70px">ผ่าน</th><th style="width:70px">ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
+  ${(function(){var out='';for(var i=1;i<=10;i++){out+=`<tr class="line"><td>${fv('al2-topic-'+i)}</td><td>${fv('al2-pass-'+i)}</td><td>${fv('al2-fail-'+i)}</td><td>${fv('al2-checker-'+i)}</td><td>${fv('al2-approver-'+i)}</td></tr>`;} return out;})()}
+  </table>
+  <div style="margin-top:6px" class="small">หมายเหตุ: ${fv('al2-note')||''}</div>
+  <div class="pb"></div>
+  <div class="h"><div class="t" style="font-size:18px">บันทึกกระบวนการไลน์กึ่งอัตโนมัติ</div><div class="sub">F-PD-I095 Rev.81</div></div>
+  <table><tr><td>PO: ${fv('al3-po')||''}</td><td>ผู้ว่าจ้าง: ${fv('al3-customer')||d.customer||''}</td><td>จำนวนที่ผลิต: ${fv('al3-qty')||''}</td></tr></table>
+  <table style="margin-top:6px"><thead><tr><th>วัสดุ / Batch</th><th>จำนวน</th><th>ผลตรวจ</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=8;i++){out+=`<tr class="line"><td>${fv('al3-mat-'+i)}</td><td>${fv('al3-matqty-'+i)}</td><td>${fv('al3-result-'+i)}</td><td>${fv('al3-checker-'+i)}</td><td>${fv('al3-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
+  <div style="margin-top:8px" class="small">การปรับเปลี่ยนระหว่างการผลิต: ${fv('al3-change')||''}</div>
+  </body></html>`;
+  if(typeof safePrint==='function') safePrint(html, 'F-PD-I095 / N013 ไลน์ประกอบ');
+  else { var w=window.open('','_blank'); w.document.write(html); w.document.close(); }
 }
 
 // Print with signatures embedded
@@ -44291,6 +44538,13 @@ function _clRenderChart(){
       <!-- Auto-filled fields (read-assist, still editable) -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
         <div class="form-group" style="margin:0">
+          <div class="form-label">รูปแบบใบอนุมัติ</div>
+          <select id="ap-form-type" onchange="approvalProcOnFormTypeChange(this.value)">
+            <option value="injection">🏭 เครื่องฉีด (F-PD-I008)</option>
+            <option value="assembly-line">🧩 ไลน์ประกอบ (3 หน้า)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
           <div class="form-label">Lot No. <span style="font-size:9px;color:#3fb950;background:rgba(63,185,80,0.1);padding:1px 6px;border-radius:4px">↑ แผนผลิต</span></div>
           <input type="text" id="ap-lotno" placeholder="ดึงอัตโนมัติ" style="border-color:rgba(63,185,80,0.4)">
         </div>
@@ -44346,6 +44600,7 @@ function _clRenderChart(){
       </div>
     </div>
 
+    <div id="ap-injection-form">
     <!-- ══ Production Calculation Panel ══ -->
     <div id="ap-calc-panel" style="display:none;border-top:3px solid #388bfd" class="card mb-3">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -44856,6 +45111,40 @@ function _clRenderChart(){
       </div>
     </div>
 
+    </div>
+    <div id="ap-assembly-form" class="card mb-3" style="display:none">
+      <div class="card-title">🧩 ใบอนุมัติกระบวนการไลน์ประกอบ (3 หน้า)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:10px">
+        <div><div class="form-label">วันที่เอกสาร</div><input type="date" id="apa-date"></div>
+        <div><div class="form-label">ชื่องาน</div><input id="apa-jobname"></div>
+        <div><div class="form-label">Order No.</div><input id="apa-orderno"></div>
+        <div><div class="form-label">Lot No.</div><input id="apa-lotno"></div>
+        <div><div class="form-label">ลูกค้า</div><input id="apa-customer"></div>
+        <div><div class="form-label">ประเภทกระบวนการ</div><input id="apa-process-type" placeholder="ประกอบ/สกรีน/พ่น"></div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:8px 0">หน้า 1: ใบรายงานการผลิต (F-PD-N013)</div>
+      <div style="overflow:auto"><table style="min-width:1100px">
+        <thead><tr><th>วันที่</th><th>ขั้นตอน</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al1-body"></tbody>
+      </table></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:12px 0 8px">หน้า 2: การตรวจสอบก่อนการผลิต (F-PD-I095 Rev.01)</div>
+      <div style="overflow:auto"><table style="min-width:760px">
+        <thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al2-body"></tbody>
+      </table></div>
+      <div style="margin-top:6px"><input id="al2-note" placeholder="หมายเหตุหน้า 2"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:12px 0 8px">หน้า 3: บันทึกกระบวนการไลน์กึ่งอัตโนมัติ (F-PD-I095 Rev.81)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:8px">
+        <div><div class="form-label">PO</div><input id="al3-po"></div>
+        <div><div class="form-label">ลูกค้า</div><input id="al3-customer"></div>
+        <div><div class="form-label">จำนวนที่ผลิต</div><input id="al3-qty"></div>
+      </div>
+      <div style="overflow:auto"><table style="min-width:760px">
+        <thead><tr><th>วัสดุ / Batch</th><th>จำนวน</th><th>ผลตรวจ</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al3-body"></tbody>
+      </table></div>
+      <div style="margin-top:6px"><input id="al3-change" placeholder="การปรับเปลี่ยนระหว่างการผลิต"></div>
+    </div>
     <!-- Sign section -->
       <div style="margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px">✍️ ลายเซ็นผู้รับผิดชอบ</div>
@@ -44886,7 +45175,7 @@ function _clRenderChart(){
       <!-- Actions -->
       <div class="flex gap-3" style="border-top:1px solid var(--border);padding-top:14px">
         <button class="btn btn-primary" onclick="saveApprovalProc()">💾 บันทึก</button>
-        <button class="btn btn-green" onclick="apPrintWithSigs()">🖨 พิมพ์ F-PD-I008 (พร้อมลายเซ็น)</button>
+        <button class="btn btn-green" onclick="apPrintWithSigs()">🖨 พิมพ์ใบอนุมัติ (พร้อมลายเซ็น)</button>
         <button class="btn btn-secondary btn-sm" onclick="printApprovalProcDoc()">🖨 พิมพ์ (ไม่มีลายเซ็น)</button>
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ap-detail-section').style.display='none'">ซ่อน</button>
       </div>
