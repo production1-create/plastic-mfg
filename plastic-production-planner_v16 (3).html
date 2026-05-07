@@ -19001,9 +19001,11 @@ var _DASH_WIDGETS = [
   {id:'condtoday', label:'🌡️ Condition วันนี้',         fn:'dashWidgetCondToday'},
 ];
 
-const LINE_SUMMARY_MENU_DEFS = (_DASH_WIDGETS||[]).map(function(w){
-  return {id:w.id, label:w.label};
-});
+function lineSummaryMenuDefs(){
+  return (_DASH_WIDGETS||[]).map(function(w){
+    return {id:w.id, label:w.label};
+  });
+}
 
 const LINE_SUMMARY_MENUS_LS_KEY = '_lineSummaryMenus';
 let _lineSummaryMenus = JSON.parse(localStorage.getItem(LINE_SUMMARY_MENUS_LS_KEY)||'null') || ['orders','machines','ng','mix','maintenance'];
@@ -19023,7 +19025,8 @@ function lineSummarySelectedDate(){
 function lineSummaryRenderMenuChecks(){
   var wrap=document.getElementById('line-sum-menu-wrap');
   if(!wrap) return;
-  wrap.innerHTML = LINE_SUMMARY_MENU_DEFS.map(function(m){
+  var defs=lineSummaryMenuDefs();
+  wrap.innerHTML = defs.map(function(m){
     var checked = _lineSummaryMenus.includes(m.id);
     return `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${checked?'rgba(56,139,253,0.12)':'var(--bg3)'};border:1px solid ${checked?'rgba(56,139,253,0.35)':'var(--border)'};border-radius:8px;cursor:pointer;font-size:12px;font-weight:600">
       <input type="checkbox" ${checked?'checked':''} onchange="lineSummaryToggleMenu('${m.id}',this.checked)" style="accent-color:var(--accent2)">
@@ -19042,14 +19045,16 @@ function lineSummaryToggleMenu(id, checked){
 }
 
 function lineSummarySelectMenus(all){
-  _lineSummaryMenus = all ? LINE_SUMMARY_MENU_DEFS.map(function(m){return m.id;}) : [];
+  var defs=lineSummaryMenuDefs();
+  _lineSummaryMenus = all ? defs.map(function(m){return m.id;}) : [];
   lineSummarySaveMenus();
   lineSummaryRenderMenuChecks();
   lineSummaryBuildText();
 }
 
 function lineSummaryApplyDashboardWidgets(){
-  var validIds = new Set((LINE_SUMMARY_MENU_DEFS||[]).map(function(m){ return m.id; }));
+  var defs=lineSummaryMenuDefs();
+  var validIds = new Set((defs||[]).map(function(m){ return m.id; }));
   var picked = (_dashActiveWidgets||[]).filter(function(id){ return validIds.has(id); });
   if(!picked.length){
     if(typeof _infoToast==='function') _infoToast('ไม่พบ widget ที่แมพได้ — ใช้ชุดเดิม');
@@ -19222,10 +19227,11 @@ function lineSummaryCollectTopIssues(menuId, dateStr, topN){
 function lineSummaryBuildText(){
   var out=document.getElementById('line-sum-output');
   if(!out) return;
+  var defs=lineSummaryMenuDefs();
   var dateStr=lineSummarySelectedDate();
   var topN=lineSummaryGetTopN();
   var picked = (_lineSummaryMenus||[]).filter(function(id){
-    return LINE_SUMMARY_MENU_DEFS.some(function(m){ return m.id===id; });
+    return defs.some(function(m){ return m.id===id; });
   });
 
   var lines=[];
@@ -19240,7 +19246,7 @@ function lineSummaryBuildText(){
   }
 
   picked.forEach(function(menuId){
-    var def=LINE_SUMMARY_MENU_DEFS.find(function(m){ return m.id===menuId; });
+    var def=defs.find(function(m){ return m.id===menuId; });
     var label=def?def.label:menuId;
     var issues=lineSummaryCollectTopIssues(menuId, dateStr, topN);
     lines.push('━━━━━━━━━━━━');
