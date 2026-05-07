@@ -21661,16 +21661,20 @@ function _condScanExtractRowsFromOcrText(text, mode){
     if(id==='bp') aliases=aliases.concat(['back pressure','bp1','bp2','bp3']);
     if(id==='srpm') aliases=aliases.concat(['screw','rpm']);
     if(id==='cyc') aliases=aliases.concat(['cycle','cyc']);
-    var hit=lines.find(function(line){
+    var hitIdx=lines.findIndex(function(line){
       var n=_condNormLabel(line);
       return aliases.some(function(a){ return n.indexOf(_condNormLabel(a))>=0; });
     });
-    if(!hit) return;
-    var nums=(hit.match(/[-+]?\d*\.?\d+/g)||[]).map(function(n){ return parseFloat(n); }).filter(function(v){ return !isNaN(v); });
+    if(hitIdx<0) return;
+    var hit=lines[hitIdx];
+    var scanBlock=[hit, lines[hitIdx+1]||'', lines[hitIdx+2]||''].join(' ');
+    var nums=(scanBlock.match(/[-+]?\d*\.?\d+/g)||[]).map(function(n){ return parseFloat(n); }).filter(function(v){ return !isNaN(v); });
     if(!nums.length) return;
-    var tolMatch=hit.match(/±\s*([-+]?\d*\.?\d+)/);
+    var tolMatch=scanBlock.match(/±\s*([-+]?\d*\.?\d+)/);
     var tol=tolMatch ? parseFloat(tolMatch[1]) : null;
-    out.push({label:label, value:nums[0], tol:(isNaN(tol)?null:tol)});
+    var picked=_condScanPickBestNumber(nums, scanBlock);
+    if(picked==null || isNaN(picked)) return;
+    out.push({label:label, key:id, value:picked, tol:(isNaN(tol)?null:tol)});
   });
   return out;
 }
@@ -21694,6 +21698,19 @@ function _condScanAnalyzePhotoLocal(dataUrl, mode){
 }
 function _condNormLabel(s){
   return String(s||'').toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9ก-๙]/g,'');
+}
+function _condScanPickBestNumber(nums, lineText){
+  if(!nums || !nums.length) return null;
+  var cleaned = String(lineText||'');
+  var likely = nums.filter(function(v){
+    var av=Math.abs(Number(v)||0);
+    return av > 1;
+  });
+  if(cleaned.match(/zone\s*[1-9]/i) && likely.length>1){
+    return likely[likely.length-1];
+  }
+  if(likely.length) return likely[0];
+  return nums[0];
 }
 function _condGetStdParamDefAndPrefix(){
   var brand=_stdCurrentBrand||'general';
@@ -21786,7 +21803,7 @@ function _condScanAnalyzePhoto(dataUrl, mode){
         role:'user',
         content:[
           {type:'image', source:{type:'base64', media_type:mediaType, data:base64}},
-          {type:'text', text:'อ่านข้อความจากภาพนี้และดึงเฉพาะค่าพารามิเตอร์เครื่องฉีดพลาสติกออกมาเป็น JSON เท่านั้น ห้ามมีข้อความอื่น รูปแบบ: {"rows":[{"label":"ชื่อพารามิเตอร์","value":123.4,"tol":5.0}]} โดย tol ใส่เฉพาะเมื่อพบค่า ± จากภาพ ถ้าไม่พบให้เป็น null'}
+          {type:'text', text:'อ่านข้อความจากภาพเครื่องฉีดพลาสติกแล้วดึงค่าเป็น JSON เท่านั้น (ห้ามมี markdown/คำอธิบาย) รูปแบบ: {"rows":[{"key":"รหัสพารามิเตอร์ เช่น t1,tmold,ip หรือมี prefix tb_/ns_","label":"ชื่อพารามิเตอร์จากภาพ","value":123.4,"tol":null}]} ให้เลือกเฉพาะค่าเซ็ตจริงของพารามิเตอร์ ห้ามดึงเลขลำดับบรรทัด/zone number มาเป็น value ถ้าไม่มั่นใจไม่ต้องใส่แถวนั้น'}
         ]
       }]
     })
@@ -21816,8 +21833,15 @@ function _condScanResolveRows(rows, mode){
   var aliasMap=_condBuildAliasMap(params,prefix);
   return (rows||[]).map(function(r){
     var rawLabel=String(r?.label||r?.name||r?.param||'').trim();
+    var rawKey=String(r?.key||r?.id||'').trim();
     var label=_condNormLabel(rawLabel);
-    var key=aliasMap[label]||'';
+    var key='';
+    if(rawKey){
+      var nk=_condNormLabel(rawKey).replace(/^(tb_|ns_)/,'');
+      key = prefix ? (prefix + nk) : nk;
+      if(!params.some(function(p){ return (prefix+p[0])===key; })) key='';
+    }
+    if(!key) key=aliasMap[label]||'';
     var v=parseFloat(r.value); if(isNaN(v)) v=null;
     var t=(r.tol!=null&&r.tol!=='')?parseFloat(r.tol):null; if(isNaN(t)) t=null;
     return { rawLabel:rawLabel||'-', key:key, value:v, tol:t };
@@ -22290,8 +22314,9 @@ const COND_GROUP_LABELS_NISSEI = {
 };
 
 let condStdList = (function(){try{var _c=localStorage.getItem('_condStdList');return _c?JSON.parse(_c):[];}catch(e){return [];}})();   // STD records
-let condActualList = []; // Actual daily records
+let condActualList = (function(){try{var _a=localStorage.getItem('_condActualList');return _a?JSON.parse(_a):[];}catch(e){return [];}})(); // Actual daily records
 let currentCondStdId = null; // for view/edit
+function saveCondActualList(){ try{ localStorage.setItem('_condActualList', JSON.stringify(condActualList||[])); }catch(e){} }
 
 function initCondData(){
   // condStdList / condActualList โหลดจาก localStorage
@@ -22981,6 +23006,7 @@ function saveCondDaily(){
   obj.approvalStatus = ['operator','leader','qc'].every(k=>_cdSigs[k]) ? 'approved' : 'pending';
 
   if(existing>=0) condActualList[existing]=obj; else condActualList.push(obj);
+  saveCondActualList();
   const sigCount = ['operator','leader','qc'].filter(k=>_cdSigs[k]).length;
   if(typeof _infoToast==="function") _infoToast(`บันทึก Condition สำเร็จ!\n${machine} | ${date} | ${shiftLabel}\nลายเซ็น ${sigCount}/3 คน`);
   _cdResetSigns();
@@ -29840,6 +29866,10 @@ function initEmployees(){
 function initDayAttendance(date,shift){
   if(typeof syncHrEmployeesFromRegistry === 'function') syncHrEmployeesFromRegistry();
   const key=date+'_'+shift;
+  var eligible = (employees||[]).filter(function(e){
+    var st = String((e&&e.status)||'active').toLowerCase();
+    return st!=='resigned' && st!=='inactive' && st!=='ออก';
+  });
   const template=function(e){
     return {
       empId:e.id,status:'absent',machine:e.mainMachine||'',
@@ -29848,14 +29878,14 @@ function initDayAttendance(date,shift){
     };
   };
   if(!attendance[key]){
-    attendance[key]=employees.map(template);
+    attendance[key]=eligible.map(template);
     saveHrAttendance();
     return;
   }
   var existing=attendance[key];
   var byId={};
   existing.forEach(function(r){ byId[r.empId]=r; });
-  attendance[key]=employees.map(function(e){
+  attendance[key]=eligible.map(function(e){
     if(byId[e.id]){
       var row=Object.assign({},byId[e.id]);
       if(row.timeIn==null||row.timeIn==='') row.timeIn=(shift==='day'?'08:00':'20:00');
@@ -29889,12 +29919,13 @@ function renderEmpList(){
     });
   }
   const today=new Date().toISOString().split('T')[0];
+  initDayAttendance(today,'day');
   const todayAtt=attendance[today+'_day']||[];
   const tbody=document.getElementById('emp-tbody');
   if(!tbody) return;
   tbody.innerHTML=list.map(e=>{
     const att=todayAtt.find(a=>a.empId===e.id);
-    const attBadge=att?(att.status==='present'?'<span class="badge badge-green">มา</span>':att.status==='absent'?'<span class="badge badge-red">ขาด</span>':'<span class="badge badge-yellow">ลา</span>'):'<span class="badge" style="background:var(--bg4)">-</span>';
+    const attBadge=att?(att.status==='present'?'<span class="badge badge-green">มา</span>':att.status==='absent'?'<span class="badge badge-red">ขาด</span>':att.status==='late'?'<span class="badge badge-yellow">สาย</span>':'<span class="badge badge-yellow">ลา</span>'):'<span class="badge" style="background:var(--bg4)">-</span>';
     const statusBadge=e.status==='active'?'<span class="badge badge-green">ปกติ</span>':e.status==='leave'?'<span class="badge badge-yellow">ลา</span>':'<span class="badge badge-red">ออก</span>';
     var zLab='-';
     if(e.zone && typeof ZONES!=='undefined'){
@@ -29925,7 +29956,15 @@ function renderEmpList(){
     </tr>`;
   }).join('');
   const sumEl=document.getElementById('emp-summary');
-  if(sumEl) sumEl.textContent=`พนักงานทั้งหมด ${employees.length} คน | แสดง ${list.length} คน`;
+  if(sumEl){
+    var resignedNow=employees.filter(function(e){ return e.status==='resigned'; }).length;
+    var todayRows=todayAtt.filter(function(a){ return employees.some(function(e){ return e.id===a.empId && e.status!=='resigned'; }); });
+    var p=todayRows.filter(function(r){return r.status==='present';}).length;
+    var a=todayRows.filter(function(r){return r.status==='absent';}).length;
+    var l=todayRows.filter(function(r){return r.status==='leave';}).length;
+    var t=todayRows.filter(function(r){return r.status==='late';}).length;
+    sumEl.innerHTML=`พนักงานทั้งหมด ${employees.length} คน | แสดง ${list.length} คน | เช้าวันนี้ มา ${p} · ขาด ${a} · สาย ${t} · ลา ${l}`+(resignedNow>0?` <span style="color:#f85149;font-weight:700">| ลาออก/พ้น ${resignedNow}</span>`:'');
+  }
 }
 
 function renderAttendance(){
@@ -29943,7 +29982,7 @@ function renderAttendance(){
     const recs=attendance[key]||[];
     recs.forEach(r=>{
       const emp=employees.find(e=>e.id===r.empId);
-      if(emp) rows.push({...r,emp,shift:s});
+      if(emp && emp.status!=='resigned') rows.push({...r,emp,shift:s});
     });
   });
   const tbody=document.getElementById('att-tbody');
@@ -30242,6 +30281,7 @@ function renderAttModalTable(date,shift){
   tbody.innerHTML=recs.map((r)=>{
     const emp=employees.find(e=>e.id===r.empId);
     if(!emp) return '';
+    if(emp.status==='resigned') return '';
     if(zoneF && typeof getMachineZone==='function'){
       var z=getMachineZone((emp.mainMachine||r.machine||'').trim());
       if(!z||z.id!==zoneF) return '';
