@@ -24393,6 +24393,61 @@ let currentLtHour = null;
 
 let NG_DEFECTS = ['เปลือย/หน้าขาด','เป็นรอย/scratch','สีผิดเพี้ยน','ขนาดเกิน spec','แตกร้าว','มีเศษพลาสติก','ฝาปิดไม่สนิท','หดเสียรูป','ไหม้/ดำ','บวม/โป่ง'];
 let LT_REASONS = ['Breakdown เครื่อง','ซ่อมบำรุง PM','รอวัตถุดิบ','แม่พิมพ์ขัดข้อง','หยุดตรวจ QC','Setup/เปลี่ยนงาน','ขาดแคลนพนักงาน','ไฟ/น้ำ/ลม ขัดข้อง'];
+let NG_TYPES_FULL = [
+  'จุดดำ/จุดไหม้','สีผิดเพี้ยน','รอยขีดข่วน','รอยย่น/รอยพ่น',
+  'ฟองอากาศ','ไม่ได้ Spec','เกลียวบี้/บิด','คราบน้ำมัน',
+  'ฉีดไม่เต็ม','แตกร้าว/บิ่น','ผิวหยาบ/ไม่เรียบ','ขนาดเกิน tol.'
+];
+try{
+  var _ngDefSaved = localStorage.getItem('_ngDefects');
+  if(_ngDefSaved){
+    var _arr = JSON.parse(_ngDefSaved);
+    if(Array.isArray(_arr) && _arr.length) NG_DEFECTS = _arr;
+  }
+}catch(e){}
+try{
+  var _ltSaved = localStorage.getItem('_ltReasons');
+  if(_ltSaved){
+    var _arr2 = JSON.parse(_ltSaved);
+    if(Array.isArray(_arr2) && _arr2.length) LT_REASONS = _arr2;
+  }
+}catch(e){}
+function saveNgDefectMaster(){
+  try{ localStorage.setItem('_ngDefects', JSON.stringify(NG_DEFECTS||[])); }catch(e){}
+}
+function saveLtReasonMaster(){
+  try{ localStorage.setItem('_ltReasons', JSON.stringify(LT_REASONS||[])); }catch(e){}
+}
+function ngDefectOptions(){
+  var set = new Set();
+  (NG_DEFECTS||[]).forEach(function(x){ if(String(x||'').trim()) set.add(String(x).trim()); });
+  (NG_TYPES_FULL||[]).forEach(function(x){ if(String(x||'').trim()) set.add(String(x).trim()); });
+  return Array.from(set);
+}
+function upsertNgDefectName(name){
+  var v = String(name||'').trim();
+  if(!v) return '';
+  if(NG_DEFECTS.indexOf(v)===-1) NG_DEFECTS.push(v);
+  if(NG_TYPES_FULL.indexOf(v)===-1) NG_TYPES_FULL.push(v);
+  saveNgDefectMaster();
+  return v;
+}
+function renderNgDefectSelectOptions(selected){
+  var opts = ngDefectOptions();
+  if(selected && opts.indexOf(selected)===-1) opts.unshift(selected);
+  return opts.map(function(t){
+    var sel = (t===selected) ? ' selected' : '';
+    return '<option value="'+String(t).replace(/"/g,'&quot;')+'"'+sel+'>'+t+'</option>';
+  }).join('');
+}
+function refreshNgDefectMasterUI(){
+  var sel = document.getElementById('ng-defect-type');
+  if(sel){
+    var cur = sel.value || '';
+    sel.innerHTML = renderNgDefectSelectOptions(cur || NG_DEFECTS[0] || '');
+    if(cur) sel.value = cur;
+  }
+}
 
 function getActiveEmpList(){
   var src = (typeof EMPLOYEE_REGISTRY!=='undefined' && EMPLOYEE_REGISTRY && EMPLOYEE_REGISTRY.length)
@@ -24723,11 +24778,6 @@ function rptUpdateSummary(){
 }
 
 // ── Full hourly entry modal ─────────────────────────────────────────────────
-const NG_TYPES_FULL = [
-  'จุดดำ/จุดไหม้','สีผิดเพี้ยน','รอยขีดข่วน','รอยย่น/รอยพ่น',
-  'ฟองอากาศ','ไม่ได้ Spec','เกลียวบี้/บิด','คราบน้ำมัน',
-  'ฉีดไม่เต็ม','แตกร้าว/บิ่น','ผิวหยาบ/ไม่เรียบ','ขนาดเกิน tol.'
-];
 
 
 // [duplicate openHrEntryModal removed]
@@ -24746,8 +24796,10 @@ function _renderHreNgTable(ngItems){
     <div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:rgba(248,81,73,0.07);border-radius:6px;margin-bottom:4px;flex-wrap:wrap">
       <select onchange="_hreNgSync()" data-idx="${i}" data-field="defect"
         style="flex:1.5;min-width:120px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 6px;border-radius:5px;font-size:12px">
-        ${(NG_TYPES_FULL||[]).map(t=>`<option${t===n.defect?' selected':''}>${t}</option>`).join('')}
+        ${renderNgDefectSelectOptions(n.defect)}
       </select>
+      <button type="button" onclick="addCustomNgDefect()"
+        style="padding:4px 8px;background:rgba(56,139,253,0.14);border:1px dashed rgba(56,139,253,0.5);color:#79c0ff;border-radius:5px;cursor:pointer;font-size:11px">+ อาการ</button>
       <input type="number" min="0" value="${n.qty||1}" data-idx="${i}" data-field="qty" oninput="_hreNgSync();calcHreOk()"
         style="width:64px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 6px;border-radius:5px;font-size:13px;text-align:center;font-weight:700;color:var(--red)">
       <span style="font-size:11px;color:var(--text3)">ชิ้น</span>
@@ -24781,7 +24833,7 @@ function _hreNgRemove(i){
 function hreAddNgRow(){
   if(_hrEntryIdx===null) return;
   _hreNgSync();
-  _hreNgTemp.push({defect:(NG_TYPES_FULL||['จุดดำ'])[0], qty:1, note:''});
+  _hreNgTemp.push({defect:(ngDefectOptions()[0]||'อื่นๆ'), qty:1, note:''});
   _renderHreNgTable(_hreNgTemp);
   calcHreOk();
 }
@@ -24826,7 +24878,7 @@ function openHrEntryModal(idx){
   var quickEl = el('hre-ng-quick');
   if(quickEl){
     quickEl.innerHTML = '';
-    (NG_TYPES_FULL||[]).forEach(function(t){
+    ngDefectOptions().forEach(function(t){
       var btn = document.createElement('button');
       btn.textContent = t;
       btn.className   = 'ng-tag';
@@ -24838,6 +24890,12 @@ function openHrEntryModal(idx){
       };
       quickEl.appendChild(btn);
     });
+    var addBtn = document.createElement('button');
+    addBtn.textContent = '+ เพิ่มอาการ';
+    addBtn.className = 'ng-tag';
+    addBtn.style.cssText = 'cursor:pointer;font-size:10px;border:1px dashed var(--border);background:transparent';
+    addBtn.onclick = function(){ addCustomNgDefect(); };
+    quickEl.appendChild(addBtn);
   }
 
   el('hre-lt-mins').value    = r.ltMins||0;
@@ -24889,7 +24947,8 @@ function openNgModal(idx){
   const r=rpt.rows[idx];
   document.getElementById('ng-modal-hour-info').textContent=`ชั่วโมง ${String(r.hour).padStart(2,'0')}:00 | ${rpt.jobName}`;
   document.getElementById('ng-qty').value=r.ng||'';
-  document.getElementById('ng-defect-type').value=r.ngDefect||NG_DEFECTS[0];
+  refreshNgDefectMasterUI();
+  document.getElementById('ng-defect-type').value=r.ngDefect||ngDefectOptions()[0]||'อื่นๆ';
   document.getElementById('ng-detail').value=r.ngDetail||'';
   openModal('modal-ng-detail');
 }
@@ -24897,7 +24956,7 @@ function saveNgEntry(){
   if(currentNgHour===null||!currentRptKey) return;
   const r=dailyReports[currentRptKey].rows[currentNgHour];
   r.ng=parseInt(document.getElementById('ng-qty').value)||0;
-  r.ngDefect=document.getElementById('ng-defect-type').value;
+  r.ngDefect=upsertNgDefectName(document.getElementById('ng-defect-type').value)||'อื่นๆ';
   r.ngDetail=document.getElementById('ng-detail').value;
   r._updatedAt = new Date().toISOString();
   closeModal('modal-ng-detail');
@@ -24928,21 +24987,21 @@ function quickAddLt(reason){ if(currentLtHour!==null) document.getElementById('l
 function addCustomNgDefect(){
   var name = (prompt('เพิ่มอาการเสีย NG ใหม่:','')||'').trim();
   if(!name) return;
-  if(NG_DEFECTS.indexOf(name)===-1) NG_DEFECTS.push(name);
+  name = upsertNgDefectName(name);
   var sel = document.getElementById('ng-defect-type');
-  if(sel && !Array.from(sel.options).find(function(o){ return o.value===name || o.text===name; })){
-    var opt = document.createElement('option');
-    opt.textContent = name;
-    opt.value = name;
-    sel.appendChild(opt);
-  }
+  refreshNgDefectMasterUI();
   if(sel) sel.value = name;
+  if(_hrEntryIdx!==null && _hreNgTemp && _hreNgTemp.length){
+    _hreNgTemp[_hreNgTemp.length-1].defect = name;
+    _renderHreNgTable(_hreNgTemp);
+  }
   if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt();
 }
 function addCustomLtReason(){
   var name = (prompt('เพิ่มสาเหตุ Loss/Breakdown ใหม่:','')||'').trim();
   if(!name) return;
   if(LT_REASONS.indexOf(name)===-1) LT_REASONS.push(name);
+  saveLtReasonMaster();
   ['lt-category','hre-lt-reason'].forEach(function(id){
     var sel = document.getElementById(id);
     if(sel && !Array.from(sel.options).find(function(o){ return (o.value||o.text)===name || o.text===name; })){
@@ -43690,6 +43749,7 @@ function _clRenderChart(){
         <option>ฝาปิดไม่สนิท</option><option>หดเสียรูป</option><option>ไหม้/ดำ</option>
         <option>บวม/โป่ง</option><option>อื่นๆ (ระบุ)</option>
       </select>
+      <button type="button" class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="addCustomNgDefect()">+ เพิ่มอาการเสียที่ไม่มีในรายการ</button>
     </div>
   </div>
   <div class="form-row">
