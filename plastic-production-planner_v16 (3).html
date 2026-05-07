@@ -18983,6 +18983,7 @@ var _DASH_WIDGETS = [
   {id:'molds',     label:'🔧 แม่พิมพ์ & PM',              fn:'dashWidgetMolds'},
   {id:'machines',  label:'⚙️ สถานะเครื่องจักร',          fn:'dashWidgetMachines'},
   {id:'kpi',       label:'🎯 KPI Summary',                fn:'dashWidgetKPI'},
+  {id:'eff',       label:'📈 EFF',                        fn:'dashWidgetEFF'},
   {id:'employees', label:'👷 พนักงาน',                    fn:'dashWidgetEmployees'},
   {id:'pr',        label:'🛒 ใบขอซื้อ (PR)',              fn:'dashWidgetPR'},
   {id:'maintenance',label:'🔩 ซ่อมบำรุง',                fn:'dashWidgetMaintenance'},
@@ -19005,6 +19006,7 @@ const LINE_SUMMARY_MENU_DEFS = [
   {id:'mix', label:'🧪 แผนผสมเม็ด'},
   {id:'rawmat', label:'📦 วัตถุดิบ'},
   {id:'machines', label:'⚙️ สถานะเครื่อง'},
+  {id:'eff', label:'📈 EFF'},
   {id:'maintenance', label:'🔩 แผน PM'},
   {id:'ng', label:'🔴 NG & Defect'},
   {id:'actionplan', label:'📌 Action Plan'},
@@ -19057,7 +19059,7 @@ function lineSummarySelectMenus(all){
 function lineSummaryApplyDashboardWidgets(){
   var map = {
     orders:'orders', mix:'mix', rawmat:'rawmat', machines:'machines',
-    maintenance:'maintenance', ng:'ng', actionplan:'actionplan', delivery:'delivery'
+    eff:'eff', maintenance:'maintenance', ng:'ng', actionplan:'actionplan', delivery:'delivery'
   };
   var picked = (_dashActiveWidgets||[]).map(function(id){ return map[id]; }).filter(Boolean);
   if(!picked.length){
@@ -19139,6 +19141,38 @@ function lineSummaryCollectTopIssues(menuId, dateStr, topN){
     Object.entries(dtByReason).forEach(function(en){
       issues.push({title:'Downtime: '+en[0], count:Math.round(en[1]), detail:'นาทีรวม'});
     });
+  }
+
+  if(menuId==='eff'){
+    var targetEff=typeof _dashFindKpiTarget==='function'?_dashFindKpiTarget('eff',85):85;
+    var byMachine={};
+    Object.values(dailyReports||{}).forEach(function(r){
+      if(!r || r.date!==dateOnly) return;
+      var m=r.machine||'ไม่ระบุเครื่อง';
+      if(!byMachine[m]) byMachine[m]={ok:0,target:0};
+      (r.rows||[]).forEach(function(row){
+        var prod=Number(row.produced||0), ng=Number(row.ng||0), tgt=Number(row.target||0);
+        byMachine[m].ok+=Math.max(0, prod-ng);
+        byMachine[m].target+=tgt;
+      });
+    });
+    Object.entries(byMachine).forEach(function(en){
+      var m=en[0],v=en[1];
+      if(!(v.target>0)) return;
+      var eff=Math.min(100,(v.ok/v.target*100));
+      if(eff<targetEff){
+        var gap=+(targetEff-eff).toFixed(1);
+        issues.push({title:'EFF ต่ำ: '+m+' ('+eff.toFixed(1)+'%)', count:gap, detail:'ต่ำกว่าเป้า '+targetEff+'% อยู่ '+gap+'%'});
+      }
+    });
+    var effVals=Object.values(byMachine).filter(function(v){ return v.target>0; }).map(function(v){ return Math.min(100,(v.ok/v.target*100)); });
+    if(effVals.length){
+      var avg=effVals.reduce(function(s,v){ return s+v; },0)/effVals.length;
+      if(avg<targetEff){
+        var avgGap=+(targetEff-avg).toFixed(1);
+        issues.push({title:'EFF เฉลี่ยทั้งวันต่ำกว่าเป้า ('+avg.toFixed(1)+'%)', count:avgGap, detail:'เป้า '+targetEff+'%'});
+      }
+    }
   }
 
   if(menuId==='maintenance'){
@@ -20055,6 +20089,41 @@ function dashWidgetKPI(){
     +'<div style="background:rgba(227,179,65,0.08);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:800;color:#e3b341">'+totalNG.toLocaleString()+'</div><div style="font-size:10px;color:var(--text3)">NG (ชิ้น)</div></div>'
     +'</div>';
   return _dashWidgetCard('🎯 KPI ('+wr.label+')',html);
+}
+
+function dashWidgetEFF(){
+  var wr=_dashWidgetRange();
+  var rpts=Object.values(dailyReports||{}).filter(function(r){ return _dashIsInRange(r.date,wr); });
+  var byMachine={};
+  rpts.forEach(function(r){
+    var m=r.machine||'ไม่ระบุเครื่อง';
+    if(!byMachine[m]) byMachine[m]={ok:0,target:0};
+    (r.rows||[]).forEach(function(row){
+      var prod=Number(row.produced||0), ng=Number(row.ng||0), tgt=Number(row.target||0);
+      byMachine[m].ok+=Math.max(0,prod-ng);
+      byMachine[m].target+=tgt;
+    });
+  });
+  var items=Object.entries(byMachine).map(function(en){
+    var m=en[0], v=en[1];
+    var eff=v.target>0?Math.min(100,(v.ok/v.target*100)):0;
+    return {machine:m, eff:eff};
+  }).filter(function(x){ return x.eff>0; }).sort(function(a,b){ return b.eff-a.eff; });
+  var targetEff=typeof _dashFindKpiTarget==='function'?_dashFindKpiTarget('eff',85):85;
+  var avg=items.length?items.reduce(function(s,x){ return s+x.eff; },0)/items.length:0;
+  var html='<div style="font-size:10px;color:var(--text3);margin-bottom:8px">เป้า EFF: <b>'+targetEff+'%</b> | ค่าเฉลี่ย: <b style="color:'+(avg>=targetEff?'#3fb950':'#f85149')+'">'+avg.toFixed(1)+'%</b></div>';
+  if(!items.length){
+    html+='<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px">ยังไม่มีข้อมูล EFF ในช่วงที่เลือก</div>';
+    return _dashWidgetCard('📈 EFF',html);
+  }
+  html+=items.slice(0,6).map(function(x){
+    var col=x.eff>=targetEff?'#3fb950':(x.eff>=targetEff-10?'#e3b341':'#f85149');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+x.machine+'</div>'
+      +'<div style="font-family:monospace;font-weight:800;color:'+col+'">'+x.eff.toFixed(1)+'%</div>'
+    +'</div>';
+  }).join('');
+  return _dashWidgetCard('📈 EFF ('+wr.label+')',html);
 }
 
 function dashWidgetRegrind(){
