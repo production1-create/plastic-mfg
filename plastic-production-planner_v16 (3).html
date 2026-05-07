@@ -21649,6 +21649,7 @@ function _condScanGetParamsByMode(mode){
 function _condScanExtractRowsFromOcrText(text, mode){
   var cfg=_condScanGetParamsByMode(mode);
   var params=cfg.params||[];
+  var prefix=cfg.prefix||'';
   var lines=String(text||'').split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
   var out=[];
   params.forEach(function(p){
@@ -21676,6 +21677,46 @@ function _condScanExtractRowsFromOcrText(text, mode){
     if(picked==null || isNaN(picked)) return;
     out.push({label:label, key:id, value:picked, tol:(isNaN(tol)?null:tol)});
   });
+  // Fallback for Nissei-style screenshot layout (table headers + value rows)
+  if(prefix==='ns_' && out.length<5){
+    var flat=(' '+String(text||'')+' ')
+      .replace(/[|]/g,' ')
+      .replace(/\s+/g,' ');
+    function pushN(key,label,val){
+      var v=parseFloat(val);
+      if(isNaN(v)) return;
+      out.push({label:label,key:key,value:v,tol:null});
+    }
+    function seq(re, keys, label){
+      var m=flat.match(re);
+      if(!m) return;
+      keys.forEach(function(k,idx){ if(m[idx+1]!=null) pushN(k,label+' '+k,m[idx+1]); });
+    }
+    seq(/v6\s+v5\s+v4\s+v3\s+v2\s+v1[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['V6','V5','V4','V3','V2','V1'], 'Velocity');
+    seq(/sv5\s+sv4\s+sv3\s+sv2\s+sv1\s+sm[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['Sv5','Sv4','Sv3','Sv2','Sv1','SM'], 'Inj Pos');
+    seq(/pp3\s+pp2\s+pp1[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['Pp3','Pp2','Pp1'], 'Hold P');
+    seq(/tp2\s+tp1[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['Tp2','Tp1'], 'Hold T');
+    seq(/pv3\s+pv2\s+pv1[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['Pv3','Pv2','Pv1'], 'VP Chg P');
+    seq(/sp2\s+sp1[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['Sp2','Sp1'], 'VP Chg Pos');
+    seq(/bp1\s+bp2\s+bp3[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['BP1','BP2','BP3'], 'Back P');
+    seq(/set\s+temp[^\d\-+]*([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)\s+([\-+]?\d*\.?\d+)/i, ['NOZ_T','FRONT_T','MIDDLE_T','REAR1_T','REAR2_T','FEED_T'], 'Set Temp');
+    var singles=[
+      {re:/inject\s*time[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'INJECT_T',label:'Inject Time'},
+      {re:/cool\s*time[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'COOL_T',label:'Cool Time'},
+      {re:/cyc\s*start[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'CYC_START',label:'Cyc Start'},
+      {re:/v[\- ]?p\s*chg\s*pos[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'VP_POS',label:'V-P Chg Pos'},
+      {re:/limit\s*p(?:ressure)?[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'LIMIT_P',label:'Limit P'},
+      {re:/shot\s*size\s*sd[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'SD',label:'Shot Size'},
+      {re:/decomp\s*v(?:elocity)?[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'DECOMP_V',label:'Decomp V'},
+      {re:/dec\s*bef\s*mtg[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'DEC_BEF',label:'Dec Bef MTG'},
+      {re:/oil\s*temp[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'OIL_T',label:'Oil Temp'},
+      {re:/mold\s*thick(?:ness)?[^\d\-+]*([\-+]?\d*\.?\d+)/i,key:'MOLD_THICK',label:'Mold Thick'}
+    ];
+    singles.forEach(function(s){
+      var m=flat.match(s.re);
+      if(m&&m[1]!=null) pushN(s.key,s.label,m[1]);
+    });
+  }
   return out;
 }
 function _condScanAnalyzePhotoLocal(dataUrl, mode){
@@ -21831,6 +21872,8 @@ function _condScanResolveRows(rows, mode){
   var conf=_condScanGetParamsByMode(mode);
   var params=conf.params, prefix=conf.prefix;
   var aliasMap=_condBuildAliasMap(params,prefix);
+  var idByNorm={};
+  (params||[]).forEach(function(p){ idByNorm[_condNormLabel(p[0])]=p[0]; });
   return (rows||[]).map(function(r){
     var rawLabel=String(r?.label||r?.name||r?.param||'').trim();
     var rawKey=String(r?.key||r?.id||'').trim();
@@ -21838,8 +21881,10 @@ function _condScanResolveRows(rows, mode){
     var key='';
     if(rawKey){
       var nk=_condNormLabel(rawKey).replace(/^(tb_|ns_)/,'');
-      key = prefix ? (prefix + nk) : nk;
-      if(!params.some(function(p){ return (prefix+p[0])===key; })) key='';
+      var canonicalId=idByNorm[nk]||'';
+      if(canonicalId){
+        key = (prefix||'') + canonicalId;
+      }
     }
     if(!key) key=aliasMap[label]||'';
     var v=parseFloat(r.value); if(isNaN(v)) v=null;
