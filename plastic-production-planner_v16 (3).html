@@ -17316,6 +17316,75 @@ function mixPushStockIssueLog(entry){
   saveMixStockIssueLog();
 }
 
+function mixResolvePlasticUsageRows(p, totalPlasticKg){
+  var qtyTotal=Math.max(0, parseFloat(totalPlasticKg||0)||0);
+  var rows=[];
+  if(!(qtyTotal>0)) return rows;
+  var j=(jobs||[]).find(function(jj){ return jj && jj.name===p.jobName; })||null;
+  var ing=(j&&Array.isArray(j.mixIngredients)?j.mixIngredients:[]).filter(function(m){
+    var code=String(m&&m.code||'').trim();
+    var pct=parseFloat(m&&m.pct)||0;
+    return !!code && pct>0;
+  });
+  if(!ing.length){
+    var mat=String(p.plastic||'').trim();
+    if(mat) rows.push({material:mat, qty:qtyTotal, grade:p.grade||''});
+    return rows;
+  }
+  var sumPct=ing.reduce(function(s,m){ return s+(parseFloat(m.pct)||0); },0);
+  if(!(sumPct>0)){
+    var mat2=String(p.plastic||'').trim();
+    if(mat2) rows.push({material:mat2, qty:qtyTotal, grade:p.grade||''});
+    return rows;
+  }
+  var rem=qtyTotal;
+  var priIdx=ing.findIndex(function(m){ return !!m.primary; });
+  if(priIdx<0) priIdx=0;
+  ing.forEach(function(m,idx){
+    var q=(idx===priIdx) ? rem : +(qtyTotal*(parseFloat(m.pct)||0)/sumPct).toFixed(4);
+    if(idx===priIdx){ q=+Math.max(0, rem).toFixed(4); }
+    rem=+(rem-q).toFixed(4);
+    rows.push({material:String(m.code||'').trim(), qty:Math.max(0,q), grade:String(m.grade||p.grade||'').trim()});
+  });
+  return rows.filter(function(r){ return r.material && r.qty>0; });
+}
+
+function mixFormatUsageFormula(rows){
+  var arr=(rows||[]).filter(function(r){
+    return r && String(r.material||'').trim() && (parseFloat(r.qty)||0)>0;
+  });
+  if(!arr.length) return '—';
+  return arr.map(function(r){
+    return String(r.material).trim()+' '+Number(r.qty||0).toFixed(3)+' kg';
+  }).join(' + ');
+}
+
+function mixResolveMbCodeStrict(mbValue){
+  var raw=String(mbValue||'').trim();
+  if(!raw) return '';
+  var direct=mixResolveMbCode(raw);
+  if(direct) return direct;
+  if(typeof mbStock!=='undefined' && mbStock[raw]) return raw;
+  var u=raw.toUpperCase();
+  if(typeof mbStock!=='undefined'){
+    var exact=Object.keys(mbStock||{}).find(function(k){ return String(k||'').trim().toUpperCase()===u; });
+    if(exact) return exact;
+  }
+  var byName=Object.keys(mbColors||{}).find(function(k){
+    var n=String((mbColors[k]||{}).name||'').trim().toUpperCase();
+    return n===u;
+  });
+  if(byName) return byName;
+  if(typeof mbStock!=='undefined'){
+    var fuzzy=Object.keys(mbStock||{}).find(function(k){
+      var ku=String(k||'').toUpperCase();
+      return ku.includes(u) || u.includes(ku);
+    });
+    if(fuzzy) return fuzzy;
+  }
+  return '';
+}
+
 function mixExecuteStockIssueForPlan(planId, opts){
   opts=opts||{};
   var by=opts.by||'—';
@@ -17328,44 +17397,56 @@ function mixExecuteStockIssueForPlan(planId, opts){
     if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนผสมถังก่อน จึงจะเบิกสต็อกอัตโนมัติ');
     return;
   }
-  var mat=p.plastic||'';
   var pq=Math.max(0, parseFloat(p.plasticKg||p.weight||0)||0);
   var mq=Math.max(0, parseFloat(p.mbKg||0)||0);
-  var rkey=p.id+'_'+mat;
-  if(rawMatReservations[rkey]){ delete rawMatReservations[rkey]; saveReservations(); }
+  var plasticRows=mixResolvePlasticUsageRows(p,pq);
+  if(plasticRows.length){
+    plasticRows.forEach(function(r){
+      var rkey=p.id+'_'+r.material;
+      if(rawMatReservations[rkey]) delete rawMatReservations[rkey];
+    });
+    saveReservations();
+  }
 
   var plasticRmLots='—';
-  if(mat && pq>0){
-    if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:p.grade||''};
-    rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-pq);
-    saveRawMatStock();
-    var pk=mixFefoDeductPlasticBatches(mat,pq);
-    plasticRmLots=pk.labels.length?pk.labels.join(', '):'—';
-    if(pk.short>0.0001) plasticRmLots+=(plasticRmLots!=='—'?' · ':'')+'คงเหลือหักจากสต็อกรวม';
-    rawMatLedger.unshift({
-      _id:'RMX-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
-      type:'out', material:mat, grade:p.grade||rawMatStock[mat].grade||'', qty:pq, batchNo:plasticRmLots,
-      ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
-      balance:rawMatStock[mat].qty||0, by:by,
-      note:'เบิกผสมถัง (อนุมัติ) · แผน '+p.id
+  var plasticFormula='—';
+  if(plasticRows.length){
+    var plasticLotNotes=[];
+    plasticRows.forEach(function(pr,idx){
+      var mat=pr.material, q=Math.max(0,parseFloat(pr.qty||0)||0);
+      if(!(q>0)) return;
+      if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:pr.grade||''};
+      rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-q);
+      var pk=mixFefoDeductPlasticBatches(mat,q);
+      var lotTxt=pk.labels.length?pk.labels.join(', '):'—';
+      if(pk.short>0.0001) lotTxt+=(lotTxt!=='—'?' · ':'')+'คงเหลือหักจากสต็อกรวม';
+      plasticLotNotes.push(mat+': '+lotTxt);
+      rawMatLedger.unshift({
+        _id:'RMX-'+Date.now()+'-'+idx, date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
+        type:'out', material:mat, grade:pr.grade||rawMatStock[mat].grade||'', qty:q, batchNo:lotTxt,
+        ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
+        balance:rawMatStock[mat].qty||0, by:by,
+        note:'เบิกผสมถัง (อนุมัติ) · แผน '+p.id
+      });
     });
+    saveRawMatStock();
     saveRawMatLedger();
+    plasticRmLots=plasticLotNotes.length?plasticLotNotes.join(' | '):'—';
+    plasticFormula=mixFormatUsageFormula(plasticRows);
   }
 
   var mbRmLots='—';
   if(mq>0 && p.mb && p.mb!=='-'){
-    var code=mixResolveMbCode(p.mb);
-    if(code && typeof mbStock!=='undefined' && mbStock[code]){
+    var code=mixResolveMbCodeStrict(p.mb);
+    if(code && typeof mbStock!=='undefined'){
+      if(!mbStock[code]) mbStock[code]={qty:0};
       var have=mbStock[code].qty||0;
       if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ (มี '+have.toFixed(3)+' ต้องการ '+mq.toFixed(3)+')');
       mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
       saveMbStock();
-      var g=(batchMbStock||[]).find(function(b){ return b.colorName===p.mb||b.batchNo===code; });
-      mbRmLots=g?g.batchNo:'—';
-    }else{
-      var mbOnly=mixFefoDeductMbBatches(p.mb,mq);
-      mbRmLots=mbOnly.labels.length?mbOnly.labels.join(', '):'—';
     }
+    var mbOnly=mixFefoDeductMbBatches(code||p.mb,mq);
+    mbRmLots=mbOnly.labels.length?mbOnly.labels.join(', '):'—';
     mbLedger.unshift({
       _id:'MBX-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
       code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกผสมถัง (อนุมัติ)',
@@ -17373,6 +17454,7 @@ function mixExecuteStockIssueForPlan(planId, opts){
     });
     saveMbLedger();
   }
+  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbCodeStrict(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
 
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
@@ -17380,7 +17462,8 @@ function mixExecuteStockIssueForPlan(planId, opts){
   saveMixPlans();
   mixPushStockIssueLog({
     kind:'tank', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
-    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, by:by
+    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, by:by,
+    plasticFormula:plasticFormula, mbFormula:mbFormula
   });
   if(typeof renderMixing==='function') renderMixing();
   if(typeof renderRawmatLedger==='function') renderRawmatLedger();
@@ -17400,39 +17483,46 @@ function mixExecuteFeederStockIssue(planId, opts){
     if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนป้อนสี (ช่อง TT) ก่อน');
     return;
   }
-  var mat=p.plastic||'';
   var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
   var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+  var plasticRows=mixResolvePlasticUsageRows(p,pq);
   var plasticRmLots='—';
-  if(mat && pq>0){
-    if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:p.grade||''};
-    rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-pq);
-    saveRawMatStock();
-    var pk=mixFefoDeductPlasticBatches(mat,pq);
-    plasticRmLots=pk.labels.length?pk.labels.join(', '):'—';
-    rawMatLedger.unshift({
-      _id:'RMXF-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
-      type:'out', material:mat, grade:p.grade||rawMatStock[mat].grade||'', qty:pq, batchNo:plasticRmLots,
-      ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
-      balance:rawMatStock[mat].qty||0, by:by,
-      note:'เบิกป้อนสีรายวัน (อนุมัติ) · '+p.ttProdDate+' · '+p.id
+  var plasticFormula='—';
+  if(plasticRows.length){
+    var feederLotNotes=[];
+    plasticRows.forEach(function(pr,idx){
+      var mat=pr.material, q=Math.max(0,parseFloat(pr.qty||0)||0);
+      if(!(q>0)) return;
+      if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:pr.grade||''};
+      rawMatStock[mat].qty=Math.max(0,(rawMatStock[mat].qty||0)-q);
+      var pk=mixFefoDeductPlasticBatches(mat,q);
+      var lotTxt=pk.labels.length?pk.labels.join(', '):'—';
+      feederLotNotes.push(mat+': '+lotTxt);
+      rawMatLedger.unshift({
+        _id:'RMXF-'+Date.now()+'-'+idx, date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5),
+        type:'out', material:mat, grade:pr.grade||rawMatStock[mat].grade||'', qty:q, batchNo:lotTxt,
+        ref:p.orderNo||p.id, jobName:p.jobName||'', lotNo:p.lotNo||'',
+        balance:rawMatStock[mat].qty||0, by:by,
+        note:'เบิกป้อนสีรายวัน (อนุมัติ) · '+p.ttProdDate+' · '+p.id
+      });
     });
+    saveRawMatStock();
     saveRawMatLedger();
+    plasticRmLots=feederLotNotes.length?feederLotNotes.join(' | '):'—';
+    plasticFormula=mixFormatUsageFormula(plasticRows);
   }
   var mbRmLots='—';
   if(mq>0 && p.mb && p.mb!=='-'){
-    var code=mixResolveMbCode(p.mb);
-    if(code && typeof mbStock!=='undefined' && mbStock[code]){
+    var code=mixResolveMbCodeStrict(p.mb);
+    if(code && typeof mbStock!=='undefined'){
+      if(!mbStock[code]) mbStock[code]={qty:0};
       var have=mbStock[code].qty||0;
       if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ');
       mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
       saveMbStock();
-      var g=(batchMbStock||[]).find(function(b){ return b.colorName===p.mb||b.batchNo===code; });
-      mbRmLots=g?g.batchNo:'—';
-    }else{
-      var mbO=mixFefoDeductMbBatches(p.mb,mq);
-      mbRmLots=mbO.labels.length?mbO.labels.join(', '):'—';
     }
+    var mbO=mixFefoDeductMbBatches(code||p.mb,mq);
+    mbRmLots=mbO.labels.length?mbO.labels.join(', '):'—';
     mbLedger.unshift({
       _id:'MBXF-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
       code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกป้อนสีรายวัน (อนุมัติ)',
@@ -17440,13 +17530,15 @@ function mixExecuteFeederStockIssue(planId, opts){
     });
     saveMbLedger();
   }
+  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbCodeStrict(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
   p.status='เบิกแล้ว';
   saveMixFeederPlans();
   mixPushStockIssueLog({
     kind:'feeder', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
-    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, prodDate:p.ttProdDate||'', by:by
+    plasticKg:pq, mbKg:mq, plasticRmLots:plasticRmLots, mbRmLots:mbRmLots, prodDate:p.ttProdDate||'', by:by,
+    plasticFormula:plasticFormula, mbFormula:mbFormula
   });
   if(typeof renderMixing==='function') renderMixing();
   if(typeof renderRawmatLedger==='function') renderRawmatLedger();
@@ -18310,6 +18402,7 @@ function renderMixDispatchTab(){
   +'<th style="padding:8px;text-align:right">MB (kg)</th>'
   +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (เม็ด)</th>'
   +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (MB)</th>'
+  +'<th style="padding:8px;text-align:left">สูตรตัดสต๊อกจริง</th>'
   +'<th style="padding:8px;text-align:left">ผู้บันทึก</th>'
   +'</tr></thead><tbody>'
   +(mixStockIssueLog.length?mixStockIssueLog.slice(0,150).map(function(r){
@@ -18323,9 +18416,13 @@ function renderMixDispatchTab(){
       +'<td style="padding:8px;text-align:right">'+(r.mbKg!=null?Number(r.mbKg).toFixed(3):'')+'</td>'
       +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.plasticRmLots||'—')+'</td>'
       +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.mbRmLots||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;max-width:260px;line-height:1.35">'
+        +'<div><span style="color:var(--text3)">เม็ด:</span> '+(r.plasticFormula||'—')+'</div>'
+        +'<div><span style="color:var(--text3)">สี:</span> '+(r.mbFormula||'—')+'</div>'
+      +'</td>'
       +'<td style="padding:8px">'+(r.by||'—')+'</td>'
     +'</tr>';
-  }).join(''):'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีประวัติเบิกอัตโนมัติ — อนุมัติแผนถังหรือแผนป้อนสีใน Time Table</td></tr>')
+  }).join(''):'<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีประวัติเบิกอัตโนมัติ — อนุมัติแผนถังหรือแผนป้อนสีใน Time Table</td></tr>')
   +'</tbody></table></div>';
 }
 
