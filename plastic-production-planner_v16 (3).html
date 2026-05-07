@@ -4564,16 +4564,13 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <div class="tabs">
     <div class="tab active" onclick="switchTab(this,'tab-mold-list')">🔩 รายการแม่พิมพ์</div>
-    <div class="tab" id="tab-btn-mold-ledger" onclick="switchTab(this,'tab-mold-ledger');moldLedgerInitForm('');renderMoldLedger()">📋 เบิก–รับ & ประวัติซ่อม</div>
+    <div class="tab" id="tab-btn-mold-ledger" onclick="switchTab(this,'tab-mold-ledger');loadMoldLedger();moldLedgerInitForm('');renderMoldLedger()">📋 เบิก–รับ & ประวัติซ่อม</div>
     <div class="tab" onclick="switchTab(this,'tab-mold-prep');renderMoldPrepPlan()">📅 แผนเตรียมแม่พิมพ์</div>
     <div class="tab" onclick="switchTab(this,'tab-mold-maint');renderMaintenancePlan()">🔧 แผนซ่อมบำรุง</div>
   </div>
   <!-- Tab: List -->
   <div id="tab-mold-list">
-    <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>รหัสแม่พิมพ์</th><th>ชื่องาน</th><th>Cavity</th><th>Shot สะสม</th><th>Shot PM ถัดไป</th><th>% ถึง PM</th><th>PM ล่าสุด</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
-      <tbody id="molds-tbody"></tbody>
-    </table></div></div>
+    <div id="molds-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:14px;padding:4px 0"></div>
   </div>
   <!-- Tab: เบิก–รับ / ซ่อม / เวลารับส่ง -->
   <div id="tab-mold-ledger" style="display:none">
@@ -4648,7 +4645,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div style="font-size:13px;font-weight:600">ประวัติย้อนหลัง</div>
       <div class="flex gap-2" style="flex-wrap:wrap">
         <select id="moldld-filter-mold" onchange="renderMoldLedger()" style="min-width:160px;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)"><option value="">ทุกแม่พิมพ์</option></select>
-        <input type="month" id="moldld-filter-month" onchange="renderMoldLedger()" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+        <input type="month" id="moldld-filter-month" title="เว้นว่างเพื่อดูทุกเดือน" onchange="renderMoldLedger()" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="var e=document.getElementById('moldld-filter-month');if(e)e.value='';renderMoldLedger();">ทุกเดือน</button>
       </div>
     </div>
     <div class="card"><div class="tbl-wrap"><table>
@@ -7411,7 +7409,67 @@ function loadMoldLedger(){
 function saveMoldLedger(){
   try{ localStorage.setItem('_moldLedger', JSON.stringify(moldLedger)); }catch(e){}
 }
+/** รวม PCS จาก F-PD-I007 เป็น shot ต่อรหัสแม่พิมพ์: floor(sum(pcs)/cavity) และรายละเอียดย้อนหลับต่อ Lot/Order */
+function moldAggregateShotsFromDailyReports(){
+  var dr = (typeof dailyReports !== 'undefined' && dailyReports) ? dailyReports : {};
+  var byCode = {};
+  Object.keys(dr).forEach(function(key){
+    var rpt = dr[key];
+    if(!rpt || !rpt.rows || !rpt.rows.length) return;
+    var j = ((typeof jobs !== 'undefined' && jobs) ? jobs : []).find(function(jj){ return jj.name===rpt.jobName; }) || {};
+    var code = String(rpt.moldCode || j.moldCode || '').trim();
+    if(!code) return;
+    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code; });
+    var cavR = Math.max(1,
+      parseInt(moldRow&&(moldRow.cavity||moldRow.cav),10)||
+      parseInt(j&&j.cavity,10)||1);
+    var pcs = 0;
+    rpt.rows.forEach(function(row){ pcs += Math.max(0, parseInt(row.produced,10)||0); });
+    if(pcs<=0) return;
+    var shotsSlice = Math.floor(pcs/cavR);
+    if(!byCode[code]) byCode[code]={ pieces:0, breakdown:[], _cavHint:cavR };
+    byCode[code].pieces += pcs;
+    byCode[code].breakdown.push({
+      rptKey:key, date:rpt.date||'', machine:rpt.machine||'', orderNo:String(rpt.orderNo||''), lotNo:String(rpt.lotNo||''),
+      jobName:String(rpt.jobName||''), pieces:pcs, cav:cavR, shots:shotsSlice });
+  });
+  Object.keys(byCode).forEach(function(code){
+    var o = byCode[code];
+    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code; });
+    var cav = Math.max(1,
+      parseInt(moldRow&&(moldRow.cavity||moldRow.cav),10)||
+      (o.breakdown.length ? o.breakdown[0].cav : 1));
+    o._cavUsed = cav;
+    o.shots = Math.floor(o.pieces / cav);
+    o.breakdown.sort(function(a,b){ return String(b.date).localeCompare(String(a.date)); });
+  });
+  return byCode;
+}
+function moldApplyDailyShotsToMoldDB(){
+  var agg = moldAggregateShotsFromDailyReports();
+  window._moldDailyShotAgg = agg;
+  (MOLD_DB||[]).forEach(function(m){
+    if(!m || !m.code) return;
+    var a = agg[m.code];
+    var fromDaily = a ? Math.max(0, Math.floor(Number(a.shots)||0)) : 0;
+    if(m.shotOffsetBeforeRpt===undefined || m.shotOffsetBeforeRpt===null || m.shotOffsetBeforeRpt===''){
+      var stored = Math.max(0, Math.round(Number(m.totalShot)||0));
+      m.shotOffsetBeforeRpt = Math.max(0, stored-fromDaily);
+    }
+    var off = Math.round(Number(m.shotOffsetBeforeRpt)||0);
+    if(isNaN(off)) off=0;
+    m.shotOffsetBeforeRpt = off;
+    m.shotFromDailyReports = fromDaily;
+    var total = Math.max(0, off+fromDaily);
+    var pmShot = Number(m.pmInterval||m.pmShot)||500000;
+    if(isNaN(pmShot)||pmShot<=0) pmShot=500000;
+    m.totalShot = total;
+    _moldApplyShotStatus(m,total,pmShot);
+  });
+  try{ saveMoldDB(); }catch(e){}
+}
 function syncMoldDataFromMoldDB(){
+  if(typeof moldApplyDailyShotsToMoldDB==='function') moldApplyDailyShotsToMoldDB();
   moldData = (MOLD_DB||[]).map(function(m){
     var shot = (m.totalShot!=null&&m.totalShot!=='')?Number(m.totalShot):Number(m.shot)||0;
     if(isNaN(shot)) shot=0;
@@ -7421,6 +7479,7 @@ function syncMoldDataFromMoldDB(){
       code: m.code||'',
       jobName: m.name||m.jobName||'',
       cav: m.cavity||m.cav||1,
+      shotFromDaily:m.shotFromDailyReports!=null?Number(m.shotFromDailyReports):0,
       shot: shot,
       pmShot: pmShot,
       lastPm: m.lastPm||'',
@@ -7949,6 +8008,7 @@ function goBackMenu(){
 // MOLD REGISTRY JS — renderMoldRegistry, moldregEdit, moldregSave
 // ════════════════════════════════════════════════════════════════
 function renderMoldRegistry(){
+  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
   var tbody = document.getElementById('moldreg-tbody');
   var summaryEl = document.getElementById('moldreg-summary');
   if(!tbody) return;
@@ -7988,7 +8048,8 @@ function renderMoldRegistry(){
       +'<td style="padding:9px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(m.name||m.jobName||'')+'">'+((m.name||m.jobName||'').substring(0,22)||'—')+'</td>'
       +'<td style="padding:9px 8px;text-align:center;font-weight:600">'+(m.cavity||'—')+'</td>'
       +'<td style="padding:9px 8px;color:var(--text2)">'+(m.material||'—')+'</td>'
-      +'<td style="padding:9px 8px;text-align:center;font-weight:600;color:#79c0ff">'+((m.totalShot||0).toLocaleString())+'</td>'
+      +'<td style="padding:9px 8px;text-align:center;font-weight:600;color:#79c0ff">'+((m.totalShot||0).toLocaleString())
+        +'<div style="font-size:9px;color:var(--text3);font-weight:600">I007 '+((m.shotFromDailyReports!=null?Number(m.shotFromDailyReports):0).toLocaleString())+'</div></td>'
       +'<td style="padding:9px 8px;text-align:center;color:var(--text3)">'+((m.pmInterval||500000).toLocaleString())+'</td>'
       +'<td style="padding:9px 8px">'+(m.assignMachine?('<span style="background:var(--bg3);padding:2px 7px;border-radius:5px;font-size:11px">'+m.assignMachine+'</span>'):'—')+'</td>'
       +'<td style="padding:9px 8px;min-width:100px">'
@@ -8008,14 +8069,29 @@ function renderMoldRegistry(){
   if(!list.length) tbody.innerHTML='<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--text3)">ยังไม่มีข้อมูลแม่พิมพ์</td></tr>';
 }
 
+function moldregEditRefreshShots(){
+  var sfd=document.getElementById('moldedit-shotFromDaily'); var offEl=document.getElementById('moldedit-shotOffset'); var tot=document.getElementById('moldedit-totalShot');
+  if(!tot) return;
+  var a=Math.max(0,parseInt(sfd&&sfd.value,10)||0); var b=Math.max(0,parseInt(offEl&&offEl.value,10)||0);
+  tot.value=String(a+b);
+}
+
 function moldregEdit(id){
+  if(typeof moldApplyDailyShotsToMoldDB==='function') moldApplyDailyShotsToMoldDB();
   var m = id ? MOLD_DB.find(function(x){return x.id===id;}) : null;
   var el = function(eid){ return document.getElementById('moldedit-'+eid); };
   document.getElementById('moldedit-title').textContent = m ? '🔧 '+m.code+' — แก้ไข' : '+ เพิ่มแม่พิมพ์ใหม่';
-  ['id','code','name','customer','cavity','runner','material','weightKg','assignMachine','pmInterval','totalShot','location','mfgYear','mfgBy','remark'].forEach(function(f){
+  ['id','code','name','customer','cavity','runner','material','weightKg','assignMachine','pmInterval','location','mfgYear','mfgBy','remark'].forEach(function(f){
     if(el(f)) el(f).value = m ? (m[f]!==undefined ? m[f] : '') : '';
   });
   if(el('status')) el('status').value = m ? (m.status||'ปกติ') : 'ปกติ';
+  var agg=window._moldDailyShotAgg||{};
+  var fromDaily = m ? Math.max(0,Math.round(Number(typeof m.shotFromDailyReports==='number' ? m.shotFromDailyReports : ((agg[m.code]||{}).shots||0)))) : 0;
+  if(document.getElementById('moldedit-shotFromDaily')) document.getElementById('moldedit-shotFromDaily').value=String(fromDaily);
+  var offExisting=m&&(m.shotOffsetBeforeRpt!=null&&m.shotOffsetBeforeRpt!==''&&!isNaN(Number(m.shotOffsetBeforeRpt)))?Math.max(0,Math.round(Number(m.shotOffsetBeforeRpt)||0)):0;
+  if(m&&document.getElementById('moldedit-shotOffset')) document.getElementById('moldedit-shotOffset').value=String(offExisting);
+  if(!m){ if(document.getElementById('moldedit-shotFromDaily')) document.getElementById('moldedit-shotFromDaily').value='0'; if(document.getElementById('moldedit-shotOffset')) document.getElementById('moldedit-shotOffset').value='0'; }
+  moldregEditRefreshShots();
   // Populate job selector
   var jobSel = document.getElementById('moldedit-name');
   if(jobSel && jobSel.tagName==='SELECT'){
@@ -8041,17 +8117,24 @@ function moldregSave(){
   var el = function(eid){ return document.getElementById('moldedit-'+eid)?.value?.trim()||''; };
   var code = el('code'); if(!code){ if(typeof _infoToast==="function") _infoToast('กรุณากรอกรหัสแม่พิมพ์'); return; }
   var id   = el('id')||('M'+String(Date.now()).slice(-6));
+  var agg=moldAggregateShotsFromDailyReports();
+  window._moldDailyShotAgg=agg;
+  var fromDaily=Math.max(0,Math.floor(Number((agg[code]||{}).shots)||0));
+  var offset=Math.max(0,parseInt(document.getElementById('moldedit-shotOffset')?.value,10)||0);
+  var totalShot=offset+fromDaily;
   var obj = {
     id:id, code:code, name:el('name'), jobName:el('name'), customer:el('customer'),
     cavity:parseInt(el('cavity'))||1, runner:el('runner')||'2-plate', material:el('material')||'S45C',
     weightKg:el('weightKg'), assignMachine:el('assignMachine'),
-    pmInterval:parseInt(el('pmInterval'))||500000, totalShot:parseInt(el('totalShot'))||0,
+    pmInterval:parseInt(el('pmInterval'))||500000, shotOffsetBeforeRpt:offset, shotFromDailyReports:fromDaily, totalShot:totalShot,
     status:document.getElementById('moldedit-status')?.value||'ปกติ',
     location:el('location'), mfgYear:el('mfgYear'), mfgBy:el('mfgBy'), remark:el('remark'),
     updatedAt:new Date().toISOString().split('T')[0]
   };
+  var pmS=Math.max(1,Number(obj.pmInterval)||500000);
+  _moldApplyShotStatus(obj,totalShot,pmS);
   var idx2 = MOLD_DB.findIndex(function(m){return m.id===id;});
-  if(idx2>=0) MOLD_DB[idx2]=obj; else MOLD_DB.push(obj);
+  if(idx2>=0) MOLD_DB[idx2]=Object.assign({}, MOLD_DB[idx2], obj); else MOLD_DB.push(obj);
   saveMoldDB();
   initMoldDB(); // sync moldData
   closeModal('modal-mold-edit');
@@ -9427,16 +9510,7 @@ function mregExportCSV(){
 // MOLD REGISTRY JS
 // ════════════════════════════════════════════════════════════════
 function moldregAdd(){
-  document.getElementById('moldedit-id').value = '';
-  document.getElementById('moldedit-title').textContent = '🔧 เพิ่มแม่พิมพ์ใหม่';
-  ['code','name','material','maker','year','remark'].forEach(function(f){ var el=document.getElementById('moldedit-'+f); if(el) el.value=''; });
-  ['cavity','weight','shotwt','shot','pminterval'].forEach(function(f){ var el=document.getElementById('moldedit-'+f); if(el) el.value=''; });
-  document.getElementById('moldedit-runner').value='cold';
-  document.getElementById('moldedit-lastpm').value='';
-  // Populate machine selector
-  var msel=document.getElementById('moldedit-machine');
-  if(msel){ msel.innerHTML='<option value="">— เลือกเครื่อง —</option>'+MACHINES.map(function(m){return '<option value="'+m.id+'">'+m.id+' ('+m.ton+'T)</option>';}).join(''); }
-  openModal('modal-mold-edit');
+  moldregEdit(null);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -9870,6 +9944,44 @@ function _orderWorkGroup(o){
   if(mt==='assembly') return 'assembly';
   if(mt&&mt!=='injection') return 'secondary';
   return 'injection';
+}
+
+/** แปลงช่องเครื่องจาก Order/TT ให้ตรง id ใน MACHINES (กันหลุดไลน์ประกอบเพราะเก็บเป็น I001 หรือข้อความยาว) */
+function ttNormalizeMachineId(raw){
+  var s = String(raw||'').trim();
+  if(!s) return '';
+  var first = s.split(/\s+/)[0];
+  if(typeof MACHINES==='undefined' || !MACHINES.length) return first;
+  var ex = MACHINES.find(function(mm){ return String(mm.id)===s || String(mm.id)===first; });
+  if(ex) return String(ex.id);
+  ex = MACHINES.find(function(mm){
+    return s.indexOf(String(mm.id))===0 || first.indexOf(String(mm.id))===0;
+  });
+  if(ex) return String(ex.id);
+  return first;
+}
+function ttMachineWorkGroup(machId){
+  var tok = String(machId||'').trim().split(/\s+/)[0];
+  var m = (typeof MACHINES!=='undefined') ? MACHINES.find(function(mm){ return String(mm.id)===tok; }) : null;
+  if(!m) return 'injection';
+  var mt = String(m.machineType||'injection').toLowerCase();
+  if(mt==='assembly') return 'assembly';
+  if(mt==='injection') return 'injection';
+  return 'secondary';
+}
+/** เลือกเครื่องแรกที่ว่างในกลุ่มงาน (ประกอบ/ไลน์รอง/ฉีด) */
+function ttPickDefaultMachineForWorkGroup(wg, excludeIds){
+  excludeIds = excludeIds || [];
+  var pool = (MACHINES||[]).filter(function(mm){
+    var mt = String(mm.machineType||'injection').toLowerCase();
+    if(wg==='assembly') return mt==='assembly';
+    if(wg==='secondary') return mt==='secondary' || (mt!=='injection' && mt!=='assembly');
+    return mt==='injection' || !mm.machineType;
+  });
+  if(!pool.length) return '';
+  var avail = pool.filter(function(mm){ return excludeIds.indexOf(mm.id) < 0; });
+  var pick = (avail.length ? avail : pool)[0];
+  return pick ? String(pick.id) : '';
 }
 
 function jobregOnWorkGroupChange(v){
@@ -14692,13 +14804,15 @@ function importToTT(orderNo){
   const prodDate=o.startDate||today;
   if(!ttData[prodDate]) ttData[prodDate]=[];
 
+  const orderWg = typeof _orderWorkGroup==='function' ? _orderWorkGroup(o) : 'injection';
+
   // ── Use machine from Order (ใช้เครื่องที่ระบุใน Order เป็นหลัก) ──────────────────
-  let assignedMach = o.machine||''; // เครื่องที่เลือกไว้ใน Order
+  let assignedMach = ttNormalizeMachineId(o.machine||'');
   
-  // ถ้าไม่มีเครื่องใน Order ให้ลอง auto-assign จาก Machine Group
+  // ถ้าไม่มีเครื่องใน Order ให้ลอง auto-assign จาก Machine Group (เฉพาะงานฉีด)
   if(!assignedMach){
     const usedMachines = ttData[prodDate].map(x=>x.machine);
-    const groupResult  = mgFindBestMachine(o.jobName, usedMachines);
+    const groupResult  = orderWg==='injection' ? mgFindBestMachine(o.jobName, usedMachines) : null;
     
     if(groupResult){
       assignedMach = groupResult.machId;
@@ -14707,15 +14821,37 @@ function importToTT(orderNo){
         _toast('🔗 จาก Group "'+groupResult.groupName+'" → เครื่อง '+assignedMach+' (ลำดับที่ '+(groupResult.priority+1)+')');
       }
     } else {
-      // ถ้ายังไม่มี ให้เลือก I001 เป็น default
-      assignedMach = 'I001';
-      o.machine = assignedMach;
-      if(typeof _toast==='function'){
-        _toast('⚠️ ยังไม่ระบุเครื่อง ใช้ I001 เป็น default');
+      assignedMach = ttPickDefaultMachineForWorkGroup(orderWg, usedMachines);
+      if(!assignedMach && orderWg==='injection'){
+        assignedMach = 'I001';
+      }
+      if(assignedMach){
+        o.machine = assignedMach;
+        if(typeof _toast==='function'){
+          _toast(orderWg==='injection'
+            ? '⚠️ ยังไม่ระบุเครื่อง ใช้ '+assignedMach+' เป็น default'
+            : '🔗 งานไลน์ประกอบ/รอง → กำหนดเครื่อง '+assignedMach+' อัตโนมัติ');
+        }
+      } else {
+        if(typeof _toast==='function'){
+          _toast('⚠️ ยังไม่มีเครื่องประเภท '+orderWg+' ในระบบ — ไปเพิ่มที่ทะเบียนเครื่องจักรก่อน');
+        }
+        return;
       }
     }
   } else {
-    // มีเครื่องใน Order แล้ว ใช้เครื่องนั้น
+    const mwg = typeof ttMachineWorkGroup==='function' ? ttMachineWorkGroup(assignedMach) : 'injection';
+    if((orderWg==='assembly'||orderWg==='secondary') && mwg==='injection'){
+      const usedMachines = ttData[prodDate].map(x=>x.machine);
+      const alt = ttPickDefaultMachineForWorkGroup(orderWg, usedMachines);
+      if(alt){
+        assignedMach = alt;
+        o.machine = alt;
+        if(typeof _toast==='function'){
+          _toast('🔗 งานไลน์ประกอบ: เปลี่ยนเครื่องเป็น '+alt+' (ไม่ใช้เครื่องฉีด)');
+        }
+      }
+    }
     if(typeof _toast==='function'){
       _toast('✓ ใช้เครื่อง '+assignedMach+' ตามที่ระบุใน Order');
     }
@@ -20877,8 +21013,9 @@ function renderApprovalLog(){
   const search=(document.getElementById('approval-log-search')?.value||'').toLowerCase();
   let logs=(approvalLog||[]).filter(a=>!search||a.label?.toLowerCase().includes(search)||a.by?.toLowerCase().includes(search)||a.key?.includes(search));
   tbody.innerHTML=logs.slice(0,50).map(a=>{
-    const badge=a.action==='approved'?'badge-green':'badge-red';
-    const label=a.action==='approved'?'✅ อนุมัติ':'❌ ปฏิเสธ';
+    var okAct = a.action==='approved' || a.action==='อนุมัติแล้ว';
+    const badge=okAct?'badge-green':'badge-red';
+    const label=okAct?'✅ อนุมัติ':'❌ ปฏิเสธ';
     return `<tr>
       <td class="mono" style="font-size:11px">${a.date} ${a.time||''}</td>
       <td style="font-size:12px">${a.label||a.key}</td>
@@ -20960,36 +21097,59 @@ function renderDelivery(){
 }
 
 // ===================== MOLDS =====================
+function _moldCardEsc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
 function renderMolds(){
-  const tbody=document.getElementById('molds-tbody');
-  if(!tbody) return;
+  var tgt=document.getElementById('molds-cards');
+  if(!tgt) return;
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
-  tbody.innerHTML=(moldData.length?moldData.slice(0,30):[]).map(m=>{
-    const pmDen=Math.max(1,m.pmShot||1);
-    const pct=Math.min(100,Math.round(m.shot/pmDen*100));
-    const nextPm=((Math.ceil(m.shot/pmDen)*pmDen)).toLocaleString();
-    const badge=m.status==='ต้องทำ PM'?'badge-red':m.status==='เฝ้าระวัง'?'badge-yellow':'badge-green';
-    const codeAttr=String(m.code||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'');
-    return `<tr>
-      <td class="mono" style="font-size:12px">${m.code}</td>
-      <td style="font-size:12px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.jobName}</td>
-      <td class="mono">${m.cav}</td>
-      <td class="mono">${m.shot.toLocaleString()}</td>
-      <td class="mono">${nextPm}</td>
-      <td style="min-width:100px">
-        <div class="flex items-center gap-2">
-          <div class="progress" style="flex:1"><div class="progress-fill" style="width:${pct}%;background:${pct>=90?'var(--red)':pct>=70?'var(--yellow)':'var(--green)'}"></div></div>
-          <span class="mono" style="font-size:11px">${pct}%</span>
-        </div>
-      </td>
-      <td class="mono" style="font-size:12px">${m.lastPm}</td>
-      <td><span class="badge ${badge}">${m.status}</span></td>
-      <td style="white-space:nowrap">
-        <button type="button" class="btn btn-secondary btn-sm" data-code="${codeAttr}" onclick="updateMoldShot(this.getAttribute('data-code'))">+Shot</button>
-        <button type="button" class="btn btn-secondary btn-sm" data-code="${codeAttr}" onclick="moldLedgerOpenTab(this.getAttribute('data-code'))" title="เบิก–รับ / ซ่อม">📋</button>
-      </td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:24px">ยังไม่มีแม่พิมพ์ — บันทึกที่ <b>ทะเบียนแม่พิมพ์</b> จะแสดงที่นี่อัตโนมัติ</td></tr>';
+  var agg=(typeof window._moldDailyShotAgg==='object'&&window._moldDailyShotAgg)?window._moldDailyShotAgg:{};
+  if(!moldData.length){
+    tgt.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text3)">ยังไม่มีแม่พิมพ์ — บันทึกที่ <b>ทะเบียนแม่พิมพ์</b> จะแสดงที่นี่อัตโนมัติ</div>';
+    return;
+  }
+  tgt.innerHTML=moldData.map(function(m){
+    var pmDen=Math.max(1,m.pmShot||1);
+    var shot=Math.max(0,Math.round(Number(m.shot)||0));
+    var pct=Math.min(100,Math.round(shot/pmDen*100));
+    var nextTier=pmDen*Math.max(1,Math.floor(shot/pmDen)+1);
+    var remain=Math.max(0,nextTier-shot);
+    var nextPm=nextTier.toLocaleString();
+    var near=pct>=85;
+    var codeAttr=String(m.code||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var br=(agg[m.code]&&agg[m.code].breakdown)?agg[m.code].breakdown:[];
+    var brHtml=br.slice(0,12).map(function(b){
+      return '<tr><td class="mono" style="padding:4px;font-size:10px">'+_moldCardEsc((b.date||'').substring(0,10))+'</td><td style="padding:4px;font-size:10px">'+_moldCardEsc(b.machine)+'</td><td class="mono" style="padding:4px;font-size:10px">'+_moldCardEsc(b.lotNo||'—')+'</td>'+
+        '<td class="mono" style="padding:4px;text-align:right;font-size:10px">'+Math.max(0,parseInt(b.pieces||0)||0).toLocaleString()+'</td><td class="mono" style="padding:4px;text-align:right;font-size:10px;color:#79c0ff">'+Math.max(0,parseInt(b.shots||0)||0).toLocaleString()+'</td></tr>';
+    }).join('');
+    var badgeCls=m.status==='ต้องทำ PM'?'badge-red':m.status==='เฝ้าระวัง'?'badge-yellow':'badge-green';
+    var fromD=m.shotFromDaily!=null?Math.max(0,Math.round(Number(m.shotFromDaily))):Math.max(0,Math.round(Number((agg[m.code]||{}).shots)||0));
+    var off=Math.max(0,shot-fromD);
+    return ''
+      +'<div class="card" style="padding:12px 14px;border-radius:12px;display:flex;flex-direction:column;gap:10px;'+(near?'outline:2px solid rgba(248,81,73,0.45);':'')+(pct>=95?'outline:2px solid rgba(248,81,73,0.75);':'')+'">'
+      +'<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'
+        +'<div><div style="font-size:10px;color:var(--text3);font-weight:700">แม่พิมพ์</div><div class="mono" style="font-size:15px;font-weight:800;color:var(--text)">'+(m.code||'')+'</div>'
+        +'<div style="font-size:11px;color:var(--text2);max-width:220px;line-height:1.25;margin-top:2px">'+(m.jobName||'—').substring(0,48)+(m.jobName&&m.jobName.length>48?'…':'')+'</div></div>'
+        +'<span class="badge '+badgeCls+'" style="white-space:nowrap">'+(near?'⚠ ':'')+m.status+'</span></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">'
+        +'<div><span style="color:var(--text3)">Shot สะสม</span><div class="mono" style="font-size:17px;font-weight:800;color:#79c0ff">'+shot.toLocaleString()+'</div></div>'
+        +'<div><span style="color:var(--text3)">รอบ PM ถัดไป · %</span><div class="mono" style="font-size:13px;font-weight:700">'+nextPm+' <span style="color:var(--text3);font-weight:600">'+pct+'%</span></div></div>'
+        +'<div><span style="color:var(--text3)">จากรายงาน I007</span><div class="mono" style="font-size:14px;font-weight:700">'+fromD.toLocaleString()+'</div></div>'
+        +'<div><span style="color:var(--text3)">Shot ฐาน</span><div class="mono" style="font-size:13px">'+off.toLocaleString()+'</div></div></div>'
+      +(near?'<div style="font-size:11px;color:#f85149;font-weight:700;padding:8px;background:rgba(248,81,73,0.08);border-radius:8px">ใกล้ถึงรอบ PM — เหลือประมาณ '+remain.toLocaleString()+' shot ถึง '+nextPm+'</div>':'')
+      +'<div class="progress" style="height:8px;margin-top:-2px"><div class="progress-fill" style="width:'+pct+'%;background:'+(pct>=90?'var(--red)':pct>=70?'var(--yellow)':'var(--green)')+'"></div></div>'
+      +'<details style="font-size:11px;color:var(--text2)"><summary style="cursor:pointer;font-weight:600;color:#79c0ff">รายการจากรายงานผลิต (Lot / ชิ้น / Shot)</summary>'
+        +(brHtml?'<div class="tbl-wrap" style="margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr>'
+        +'<th style="padding:4px;color:var(--text3);text-align:left">วัน</th><th style="padding:4px;color:var(--text3);text-align:left">เครื่อง</th><th style="padding:4px;color:var(--text3);text-align:left">Lot</th>'
+        +'<th style="padding:4px;color:var(--text3);text-align:right">pcs</th><th style="padding:4px;color:var(--text3);text-align:right">shot</th></tr></thead><tbody>'+brHtml+'</tbody></table></div>'
+        :'<div style="margin-top:6px;color:var(--text3)">— ยังไม่มีรายงานที่ผูกรหัสแม่พิมพ์นี้</div>')
+      +'</details>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto">'
+        +'<button type="button" class="btn btn-secondary btn-sm" onclick="updateMoldShot(\''+codeAttr+'\')">+ Shot ฐาน</button>'
+        +'<button type="button" class="btn btn-secondary btn-sm" onclick="moldLedgerOpenTab(\''+codeAttr+'\')" title="เบิก–รับ / ซ่อม">📋 ประวัติ</button>'
+      +'</div></div>';
+  }).join('');
 }
 function _moldDbRowByCode(code){
   return (MOLD_DB||[]).find(function(x){ return x.code===code; })||null;
@@ -20997,23 +21157,33 @@ function _moldDbRowByCode(code){
 function _moldApplyShotStatus(dbRow, shot, pmShot){
   if(!dbRow) return;
   dbRow.totalShot=shot;
+  var skip=['เลิกใช้','ซ่อม'].indexOf(dbRow.status)>=0;
+  if(skip) dbRow.updatedAt=new Date().toISOString().split('T')[0];
+  if(skip) return;
   if(shot>=pmShot){ dbRow.status='ต้องทำ PM'; }
   else if(pmShot>0&&shot/pmShot>=0.7) dbRow.status='เฝ้าระวัง';
-  else if(dbRow.status!=='ซ่อม') dbRow.status='ปกติ';
+  else dbRow.status='ปกติ';
   dbRow.updatedAt=new Date().toISOString().split('T')[0];
 }
 function updateMoldShot(code){
-  if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
-  const m=moldData.find(x=>x.code===code);
-  if(!m) return;
-  const add=parseInt(prompt(`เพิ่ม Shot สำหรับ ${code}\nShot ปัจจุบัน: ${m.shot.toLocaleString()}\nเพิ่มกี่ shot:`),10);
-  if(isNaN(add)) return;
-  m.shot+=add;
-  if(m.shot>=m.pmShot){ m.status='ต้องทำ PM'; if(typeof _infoToast==="function") _infoToast(`⚠ แม่พิมพ์ ${code} ถึงกำหนด PM แล้ว (${m.shot.toLocaleString()} shot)`); else console.warn(`⚠ แม่พิมพ์ ${code} ถึงกำหนด PM แล้ว (${m.shot.toLocaleString()} shot)`); }
-  else if(m.pmShot>0&&m.shot/m.pmShot>=0.7) m.status='เฝ้าระวัง';
-  else m.status='ปกติ';
   var db=_moldDbRowByCode(code);
-  if(db){ _moldApplyShotStatus(db,m.shot,m.pmShot); saveMoldDB(); }
+  if(!db){ if(typeof _infoToast==='function') _infoToast('ไม่พบแม่พิมพ์ '+code); return; }
+  var agg=moldAggregateShotsFromDailyReports();
+  window._moldDailyShotAgg = agg;
+  var fromDaily=Math.floor(Number((agg[code]||{}).shots)||0);
+  if(db.shotOffsetBeforeRpt===undefined||db.shotOffsetBeforeRpt===null||db.shotOffsetBeforeRpt===''){
+    var st = Math.max(0,Math.round(Number(db.totalShot)||0));
+    db.shotOffsetBeforeRpt=Math.max(0,st-fromDaily);
+  }
+  var curTot=Math.max(0,Math.round(Number(db.shotOffsetBeforeRpt)||0)+fromDaily);
+  var pmShot=Math.max(1,Number(db.pmInterval||db.pmShot)||500000);
+  const add=parseInt(prompt(`เพิ่ม Shot ฐาน (นอกระบบรายงาน) — ${code}\nรวมปัจจุบัน: ${curTot.toLocaleString()} (จากรายงาน ${fromDaily.toLocaleString()} + ฐาน ${Math.round(Number(db.shotOffsetBeforeRpt)||0).toLocaleString()})\nเพิ่มที่ฐานกี่ shot:`),10);
+  if(isNaN(add)||add===0) return;
+  db.shotOffsetBeforeRpt=Math.round(Number(db.shotOffsetBeforeRpt)||0)+add;
+  var total=Math.max(0,Math.round(Number(db.shotOffsetBeforeRpt))+fromDaily);
+  _moldApplyShotStatus(db,total,pmShot);
+  syncMoldDataFromMoldDB();
+  if(total>=pmShot){ if(typeof _infoToast==="function") _infoToast(`⚠ แม่พิมพ์ ${code} ถึงกำหนด PM (${total.toLocaleString()} shot)`); }
   renderMolds();
 }
 function saveMold(){
@@ -21024,16 +21194,23 @@ function saveMold(){
   const jobName=document.getElementById('mold-job').value||code;
   const cav=parseInt(document.getElementById('mold-cav').value,10)||1;
   const pmList=document.getElementById('mold-pm-list').value||'';
-  var st=shot/pmShot>=0.9?'ต้องทำ PM':shot/pmShot>=0.7?'เฝ้าระวัง':'ปกติ';
+  var agg=moldAggregateShotsFromDailyReports();
+  window._moldDailyShotAgg=agg;
+  var fromDaily=Math.floor(Number((agg[code]||{}).shots)||0);
+  var offset=Math.max(0,Math.round(shot-fromDaily));
+  var total=offset+fromDaily;
+  var st=total/pmShot>=0.9?'ต้องทำ PM':total/pmShot>=0.7?'เฝ้าระวัง':'ปกติ';
   var existing=MOLD_DB.find(function(x){ return x.code===code; });
   if(existing){
     existing.jobName=jobName; existing.name=jobName; existing.cavity=cav;
-    existing.pmInterval=pmShot; existing.totalShot=shot; existing.remark=pmList;
+    existing.pmInterval=pmShot; existing.shotOffsetBeforeRpt=offset; existing.shotFromDailyReports=fromDaily;
+    existing.totalShot=total; existing.remark=pmList;
     existing.status=st; existing.updatedAt=new Date().toISOString().split('T')[0];
   } else {
     MOLD_DB.push({
       id:'M'+String(Date.now()).slice(-8), code:code, name:jobName, jobName:jobName,
-      cavity:cav, pmInterval:pmShot, totalShot:shot, remark:pmList, status:st,
+      cavity:cav, pmInterval:pmShot, shotOffsetBeforeRpt:offset, shotFromDailyReports:fromDaily,
+      totalShot:total, remark:pmList, status:st,
       customer:'', material:'S45C', assignMachine:'', location:'',
       updatedAt:new Date().toISOString().split('T')[0]
     });
@@ -21053,6 +21230,7 @@ function moldLedgerOpenTab(code){
   if(typeof showPage==='function') showPage('molds');
   var btn=document.getElementById('tab-btn-mold-ledger');
   if(btn&&typeof switchTab==='function') switchTab(btn,'tab-mold-ledger');
+  loadMoldLedger();
   if(typeof moldLedgerInitForm==='function') moldLedgerInitForm(code||'');
   if(typeof renderMoldLedger==='function') renderMoldLedger();
 }
@@ -21118,6 +21296,7 @@ function _moldLedgerEsc(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 }
 function renderMoldLedger(){
+  loadMoldLedger();
   var tbody=document.getElementById('mold-ledger-tbody');
   if(!tbody) return;
   var moldF=(document.getElementById('moldld-filter-mold')&&document.getElementById('moldld-filter-mold').value)||'';
@@ -23687,6 +23866,11 @@ function saveDailyRpt(){
   if(typeof _saveDailyRptExtra==='function') _saveDailyRptExtra();
   // ── Persist dailyReports to localStorage ──
   try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
+  if(typeof moldApplyDailyShotsToMoldDB==='function'){
+    moldApplyDailyShotsToMoldDB();
+    if(document.getElementById('page-molds')?.classList?.contains('active')&&typeof renderMolds==='function') renderMolds();
+    if(document.getElementById('page-moldregistry')?.classList?.contains('active')&&typeof renderMoldRegistry==='function') renderMoldRegistry();
+  }
   // ── Sync orders.produced from all dailyReports for this order ──
   if(rpt.orderNo){
     var _ord = orders.find(function(o){ return o.orderNo===rpt.orderNo; });
@@ -30488,6 +30672,18 @@ function quickOpenPMChecklist(pmId){
 // ===================== APPROVAL SYSTEM =====================
 let approvals = {};
 let approvalLog = [];
+const APPROVAL_LOG_LS_KEY = '_approvalLogV1';
+function saveApprovalLog(){
+  try{ localStorage.setItem(APPROVAL_LOG_LS_KEY, JSON.stringify(approvalLog||[])); }catch(e){}
+}
+function loadApprovalLog(){
+  try{
+    var raw = localStorage.getItem(APPROVAL_LOG_LS_KEY);
+    if(!raw) return;
+    var arr = JSON.parse(raw);
+    if(Array.isArray(arr)) approvalLog = arr;
+  }catch(e){}
+}
 
 function openApproval(key, label, callbackFn){
   document.getElementById('approval-key').value=key;
@@ -30557,9 +30753,28 @@ function doApproval(action){
       :`<span class="badge badge-red">✗ ปฏิเสธ: ${note}</span>`;
   } else if(key.startsWith('ap-')){
     const apId=key.replace('ap-','');
-    const ap=actionPlans.find(x=>x.id===apId);
-    if(ap){ ap.approvalStatus=action; if(action==='approved'&&ap.status!=='ปิด'){ ap.status='ปิด'; ap.closedDate=new Date().toISOString().split('T')[0]; } }
-    renderActionPlan();
+    const procDoc=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs.find(x=>x.id===apId):null;
+    if(procDoc){
+      procDoc.status = action==='approved' ? 'อนุมัติแล้ว' : 'ปฏิเสธ';
+      procDoc.approvedBy = by;
+      if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
+      if(typeof renderApprovalProcList==='function') renderApprovalProcList();
+      if(!approvalLog) approvalLog=[];
+      approvalLog.unshift({
+        key:'proc-'+procDoc.id,
+        label:'ใบอนุมัติกระบวนการ '+procDoc.docNo+' — '+(procDoc.jobName||''),
+        action: action,
+        by: by,
+        note: note||'',
+        date:new Date().toISOString().split('T')[0],
+        time:new Date().toTimeString().slice(0,5)
+      });
+      if(typeof saveApprovalLog==='function') saveApprovalLog();
+    } else {
+      const ap=actionPlans.find(x=>x.id===apId);
+      if(ap){ ap.approvalStatus=action; if(action==='approved'&&ap.status!=='ปิด'){ ap.status='ปิด'; ap.closedDate=new Date().toISOString().split('T')[0]; } }
+      renderActionPlan();
+    }
   } else if(key.startsWith('emp-leave-')){
     const empId=key.replace('emp-leave-','');
     const emp=employees.find(e=>e.id===empId);
@@ -30590,6 +30805,7 @@ function doApproval(action){
   // Add to approval log
   if(!approvalLog) approvalLog=[];
   approvalLog.unshift({key,label:document.getElementById('approval-modal-title')?.textContent||key,action,by,note,date:new Date().toISOString().split('T')[0],time:new Date().toTimeString().slice(0,5)});
+  if(typeof saveApprovalLog==='function') saveApprovalLog();
   if(typeof _toast==='function'){
     _toast(`${action==='approved'?'✅ อนุมัติ':'❌ ปฏิเสธ'}เรียบร้อย โดย: ${by}`);
   } else {
@@ -31956,6 +32172,7 @@ function addToApprovalLog(key, label, by, action){
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().slice(0,5),
   });
+  if(typeof saveApprovalLog==='function') saveApprovalLog();
 }
 
 function renderApprovalProcList(){
@@ -32108,6 +32325,7 @@ function openApprovalProcDetail(id){
     apCalcProduction(_o, _j);
     const _panel=document.getElementById('ap-calc-panel');
     if(_panel) _panel.style.display='';
+    if(typeof apHydrateProdRowsFromDailyReport==='function' && _o.orderNo) apHydrateProdRowsFromDailyReport(_o);
   }
   // Refresh sign boxes for this doc
   setTimeout(apRefreshSignBoxes, 50);
@@ -32147,10 +32365,22 @@ function apBuildApOrderBomMap(orderNo, jobInput){
   if(o.orderNo)  sf('ap-orderno',  o.orderNo);
   sf('ap-lotno',    o.lotNo    || '');
   sf('ap-customer', o.customer || j.customer || '');
-  sf('ap-machine',  o.machine  || '');
+  var machNorm = (typeof ttNormalizeMachineId==='function') ? ttNormalizeMachineId(o.machine||'') : String(o.machine||'').trim().split(/\s+/)[0];
+  sf('ap-machine',  machNorm || o.machine || j.machine || '');
   if(j.cav)      sf('ap-cavity',   j.cav + ' Cavity');
   if(j.wt)       sf('ap-weight',   j.wt);
   if(j.moldCode) sf('ap-moldno',   j.moldCode);
+  if(j.moldCode && typeof MOLD_REGISTRY!=='undefined' && MOLD_REGISTRY.length){
+    var mr = MOLD_REGISTRY.find(function(m){
+      return String(m.code||m.id||m.moldNo||'')===String(j.moldCode);
+    });
+    if(mr){
+      if(mr.machine && (!fields['ap-machine'] || !String(fields['ap-machine']).trim()))
+        sf('ap-machine', String(mr.machine));
+      if(mr.cavity && !fields['ap-cavity'])
+        sf('ap-cavity', String(mr.cavity).indexOf('Cavity')>=0 ? mr.cavity : mr.cavity+' Cavity');
+    }
+  }
 
   const mixParts = [];
   if(j.plastic)  mixParts.push(j.plastic + (j.grade?' ('+j.grade+')':''));
@@ -32261,6 +32491,7 @@ function apOnOrderChange(){
   apApplyBomMapToDom(bom);
 
   apCalcProduction(bom.o, bom.j);
+  if(typeof apHydrateProdRowsFromDailyReport==='function') apHydrateProdRowsFromDailyReport(bom.o);
   const panel = document.getElementById('ap-calc-panel');
   if(panel) panel.style.display = '';
   const badge = document.getElementById('ap-bom-calc-badge');
@@ -32270,6 +32501,50 @@ function apOnOrderChange(){
     setTimeout(()=>{ badge.style.display='none'; },5000);
   }
   setTimeout(function(){ apRefreshLS(bom.jobName); }, 200);
+}
+
+/** ดึงยอดผลิตจาก F-PD-I007 (dailyReports) ไปกรอกหมวด 10 อัตโนมัติ */
+function apSumDailyReportRows(rpt){
+  if(!rpt||!Array.isArray(rpt.rows)) return {total:0,ok:0,ng:0};
+  var tp=0,tn=0;
+  rpt.rows.forEach(function(r){ tp += (+r.produced||0); tn += (+r.ng||0); });
+  return {total:tp, ok:Math.max(0,tp-tn), ng:tn};
+}
+function apHydrateProdRowsFromDailyReport(o){
+  if(!o||!o.orderNo||typeof dailyReports==='undefined') return;
+  var mach = typeof ttNormalizeMachineId==='function' ? ttNormalizeMachineId(o.machine||'') : String(o.machine||'').split(/\s+/)[0];
+  var matches=[];
+  Object.keys(dailyReports).forEach(function(k){
+    var r=dailyReports[k];
+    if(!r||r.orderNo!==o.orderNo) return;
+    if(mach && k.indexOf(mach+'_')!==0) return;
+    matches.push({k:k,r:r});
+  });
+  if(!matches.length){
+    Object.keys(dailyReports).forEach(function(k){
+      var r=dailyReports[k];
+      if(r&&r.orderNo===o.orderNo) matches.push({k:k,r:r});
+    });
+  }
+  if(!matches.length) return;
+  matches.sort(function(a,b){ return a.k.localeCompare(b.k); });
+  matches.slice(0,8).forEach(function(m,ix){
+    var r=m.r, suf=ix+1, sum=apSumDailyReportRows(r);
+    var dateStr = r.date||'';
+    if(!dateStr){
+      var parts=m.k.split('_');
+      if(parts.length>=2 && /^\d{4}-\d{2}-\d{2}$/.test(parts[1])) dateStr=parts[1];
+    }
+    var dEl=document.getElementById('ap-prod-'+suf+'-date');
+    if(dEl&&!dEl.value) dEl.value=dateStr;
+    var okEl=document.getElementById('ap-prod-'+suf+'-ok');
+    if(okEl&&(okEl.value===''||okEl.value==='0')) okEl.value=String(sum.ok);
+    var ngEl=document.getElementById('ap-prod-'+suf+'-ng');
+    if(ngEl&&(ngEl.value===''||ngEl.value==='0')) ngEl.value=String(sum.ng);
+    var totEl=document.getElementById('ap-prod-'+suf+'-total');
+    if(totEl&&(totEl.value===''||totEl.value==='0')) totEl.value=String(sum.total);
+    if(typeof apCalcNGpct==='function') apCalcNGpct(suf);
+  });
 }
 
 /** สร้างใบอนุมัติให้ทุก Order ที่ยังไม่มีใบ (นำเข้า Excel / ข้อมูลเก่า / หลังโหลดระบบ) */
@@ -32608,6 +32883,11 @@ function saveApprovalProc(){
   const id = document.getElementById('ap-doc-id').value;
   const d  = approvalProcDocs.find(x=>x.id===id);
   if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบข้อมูล'); return; }
+  const prevStatus = d.status;
+  var rad = document.querySelector('input[name="ap-status-radio"]:checked');
+  var stFromUi = rad ? rad.value : (document.getElementById('ap-status')?.value||'รออนุมัติ');
+  var hid = document.getElementById('ap-status');
+  if(hid) hid.value = stFromUi;
   d.machine  = document.getElementById('ap-machine').value;
   d.jobName  = document.getElementById('ap-jobname').value;
   d.orderNo  = document.getElementById('ap-orderno').value;
@@ -32616,8 +32896,10 @@ function saveApprovalProc(){
   d.moldNo   = document.getElementById('ap-moldno').value;
   d.cavity   = document.getElementById('ap-cavity').value;
   d.weight   = document.getElementById('ap-weight').value;
-  d.status   = document.getElementById('ap-status')?.value||'รออนุมัติ';
-  if(d.status==='อนุมัติแล้ว' && AUTH) d.approvedBy = AUTH.name;
+  d.status   = stFromUi;
+  if(d.status==='อนุมัติแล้ว'){
+    d.approvedBy = (AUTH && AUTH.name) ? AUTH.name : (d.approvedBy && d.approvedBy!=='-' ? d.approvedBy : '—');
+  }
   // Save all ap-input fields — including radio buttons and checkboxes
   d.data = {};
   document.querySelectorAll('[id^="ap-"]').forEach(el=>{
@@ -32641,6 +32923,20 @@ function saveApprovalProc(){
   if(ox) d.apWorkGroup = _orderWorkGroup(ox);
   d.apCalcSnapshot = apCaptureApCalcSnapshot();
   saveApprovalProcDocs();
+  if(prevStatus!==d.status && (d.status==='อนุมัติแล้ว'||d.status==='ปฏิเสธ')){
+    if(!approvalLog) approvalLog=[];
+    approvalLog.unshift({
+      key:'proc-'+d.id,
+      label:'ใบอนุมัติกระบวนการ '+d.docNo+' — '+(d.jobName||''),
+      action: d.status==='อนุมัติแล้ว' ? 'approved' : 'rejected',
+      by: d.approvedBy||((AUTH&&AUTH.name)||'—'),
+      note: '',
+      date:new Date().toISOString().split('T')[0],
+      time:new Date().toTimeString().slice(0,5)
+    });
+    if(typeof saveApprovalLog==='function') saveApprovalLog();
+    if(typeof renderApprovalLog==='function') renderApprovalLog();
+  }
   renderApprovalProcList();
   if(typeof _infoToast==="function") _infoToast('✅ บันทึกใบอนุมัติเรียบร้อย');
 }
@@ -32669,6 +32965,7 @@ function printApprovalProcDoc(docId){
     if(fid==='ap-moldno') return d.moldNo||'';
     if(fid==='ap-cavity') return d.cavity||'';
     if(fid==='ap-weight') return d.weight||'';
+    if(fid==='ap-status') return d.status||'';
     return d?.data?.[fid] || '';
   };
   const fv = function(fid){
@@ -32764,6 +33061,48 @@ function printApprovalProcDoc(docId){
     
   </tr></thead>`;
 
+  const oForPrint = orders.find(x=>x.orderNo===d.orderNo)||{};
+  var pq = fv('ap-qty-override');
+  if(!String(pq||'').trim()) pq = fv('ap-qty');
+  if(!String(pq||'').trim() && oForPrint.qty!=null) pq = String(oForPrint.qty);
+  const printOrderQty = pq||'';
+  function apPrintIdxSet(prefix, suffixRegex){
+    var idxs=new Set();
+    for(var k in (d.data||{})){
+      var m=k.match(suffixRegex);
+      if(m) idxs.add(+m[1]);
+    }
+    if(useLive){
+      document.querySelectorAll('[id^="'+prefix+'"]').forEach(function(el){
+        if(!el.id) return;
+        var m=el.id.match(suffixRegex);
+        if(m) idxs.add(+m[1]);
+      });
+    }
+    return idxs;
+  }
+  var prodIdxs=apPrintIdxSet('ap-prod-',/^ap-prod-(\d+)-/);
+  if(!prodIdxs.size) [1,2,3].forEach(function(n){ prodIdxs.add(n); });
+  const prodRowsHtml=Array.from(prodIdxs).sort(function(a,b){return a-b;}).map(function(n){
+    var cells=[fv('ap-prod-'+n+'-date'),fv('ap-prod-'+n+'-shift'),fv('ap-prod-'+n+'-start'),fv('ap-prod-'+n+'-end'),fv('ap-prod-'+n+'-total'),fv('ap-prod-'+n+'-ok'),fv('ap-prod-'+n+'-ng'),fv('ap-prod-'+n+'-defect'),fv('ap-prod-'+n+'-fix'),fv('ap-prod-'+n+'-by')];
+    if(!cells.some(function(x){ return String(x||'').trim()!==''; }) && n>3) return '';
+    return '<tr><td style="font-size:7pt">'+cells[0]+'</td><td style="font-size:7pt">'+cells[1]+'</td><td style="font-size:7pt">'+cells[2]+'</td><td style="font-size:7pt">'+cells[3]+'</td><td style="text-align:right;font-size:7pt">'+cells[4]+'</td><td style="text-align:right;font-size:7pt;color:#1a6b2f">'+cells[5]+'</td><td style="text-align:right;font-size:7pt;color:#b91c1c">'+cells[6]+'</td><td style="font-size:7pt">'+cells[7]+'</td><td style="font-size:7pt">'+cells[8]+'</td><td style="font-size:7pt">'+cells[9]+'</td></tr>';
+  }).filter(Boolean).join('');
+  var fixIdxs=apPrintIdxSet('ap-fix-',/^ap-fix-(\d+)-/);
+  if(!fixIdxs.size) [1,2,3].forEach(function(n){ fixIdxs.add(n); });
+  const fixRowsHtml=Array.from(fixIdxs).sort(function(a,b){return a-b;}).map(function(n){
+    var cells=[fv('ap-fix-'+n+'-dt'),fv('ap-fix-'+n+'-issue'),fv('ap-fix-'+n+'-ng'),fv('ap-fix-'+n+'-cause'),fv('ap-fix-'+n+'-action'),fv('ap-fix-'+n+'-result'),fv('ap-fix-'+n+'-by'),fv('ap-fix-'+n+'-chk')];
+    if(!cells.some(function(x){ return String(x||'').trim()!==''; }) && n>3) return '';
+    return '<tr><td style="font-size:7pt">'+cells[0]+'</td><td style="font-size:7pt;text-align:left">'+cells[1]+'</td><td style="text-align:right;font-size:7pt">'+cells[2]+'</td><td style="font-size:7pt;text-align:left">'+cells[3]+'</td><td style="font-size:7pt;text-align:left">'+cells[4]+'</td><td style="font-size:7pt">'+cells[5]+'</td><td style="font-size:7pt">'+cells[6]+'</td><td style="font-size:7pt">'+cells[7]+'</td></tr>';
+  }).filter(Boolean).join('');
+  var matIdxs=apPrintIdxSet('ap-mat-',/^ap-mat-(\d+)-/);
+  if(!matIdxs.size) [1,2,3].forEach(function(n){ matIdxs.add(n); });
+  const matRowsHtml=Array.from(matIdxs).sort(function(a,b){return a-b;}).map(function(n){
+    var cells=[fv('ap-mat-'+n+'-date'),fv('ap-mat-'+n+'-batch'),fv('ap-mat-'+n+'-grade'),fv('ap-mat-'+n+'-open'),fv('ap-mat-'+n+'-used'),fv('ap-mat-'+n+'-ret'),fv('ap-mat-'+n+'-mb'),fv('ap-mat-'+n+'-mb-kg'),fv('ap-mat-'+n+'-regrind'),fv('ap-mat-'+n+'-by')];
+    if(!cells.some(function(x){ return String(x||'').trim()!==''; }) && n>3) return '';
+    return '<tr><td style="font-size:7pt">'+cells[0]+'</td><td style="font-size:7pt;text-align:left">'+cells[1]+'</td><td style="font-size:7pt">'+cells[2]+'</td><td style="text-align:right;font-size:7pt">'+cells[3]+'</td><td style="text-align:right;font-size:7pt">'+cells[4]+'</td><td style="text-align:right;font-size:7pt">'+cells[5]+'</td><td style="font-size:7pt">'+cells[6]+'</td><td style="text-align:right;font-size:7pt">'+cells[7]+'</td><td style="text-align:right;font-size:7pt">'+cells[8]+'</td><td style="font-size:7pt">'+cells[9]+'</td></tr>';
+  }).filter(Boolean).join('');
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -32799,10 +33138,11 @@ function printApprovalProcDoc(docId){
     <div class="ic" style="flex:1.2"><span class="lbl">หมายเลขเครื่อง</span>${machine}</div>
     <div class="ic" style="flex:2.5"><span class="lbl">ชื่องาน</span>${jobName}</div>
     <div class="ic"><span class="lbl">Lot No.</span>${lotNo}</div>
-    <div class="ic"><span class="lbl">จำนวนสั่ง (ชิ้น)</span>${fv('ap-qty')||''}</div>
+    <div class="ic"><span class="lbl">จำนวนสั่ง (ชิ้น)</span>${printOrderQty}</div>
     <div class="ic"><span class="lbl">จำนวนผลิตรวมเผื่อเสีย</span>${fv('ap-qty-total')||''}</div>
   </div>
   <div class="ir">
+    <div class="ic" style="flex:1.5"><span class="lbl">สถานะใบอนุมัติ</span>${(fv('ap-status')||d.status||'').toString()}</div>
     <div class="ic" style="flex:2"><span class="lbl">ลูกค้า</span>${customer}</div>
     <div class="ic"><span class="lbl">จำนวน Cavity</span>${cavity}</div>
     <div class="ic"><span class="lbl">จำนวน Cavity ที่อุด</span>${fv('ap-cavity-block')||''}</div>
@@ -33015,6 +33355,29 @@ function printApprovalProcDoc(docId){
     <tr><td style="text-align:left">3.3 ไม่มีป้ายสติ๊กเกอร์งานเดิม (พนักงาน)</td><td style="text-align:center;width:28px">☐</td><td style="text-align:center;width:30px">☐</td><td></td></tr>
 
   </tbody></table>
+
+  <div class="sec-h pb">10. บันทึกการผลิตประจำวัน (ดี / เสีย) — ดึงจากใบรายงานการผลิต / ฟอร์ม</div>
+  <table style="font-size:7pt;table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#cdd8ea">
+    <th>วันที่</th><th>กะ</th><th>เริ่ม</th><th>จบ</th><th>รวม</th><th>OK</th><th>NG</th><th style="text-align:left">อาการ</th><th style="text-align:left">แก้ไข</th><th>ผู้บันทึก</th>
+  </tr></thead><tbody>${prodRowsHtml||'<tr><td colspan="10" style="font-size:7pt;color:#666">—</td></tr>'}</tbody></table>
+
+  <div class="sec-h">11. บันทึกการปรับแก้ไขปัญหาระหว่างกระบวนการ</div>
+  <table style="font-size:7pt;table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#cdd8ea">
+    <th>วันที่/เวลา</th><th style="text-align:left">ปัญหา</th><th>ชิ้นเสีย</th><th style="text-align:left">สาเหตุ</th><th style="text-align:left">การแก้ไข</th><th>ผล</th><th>ผู้แก้</th><th>ผู้ตรวจ</th>
+  </tr></thead><tbody>${fixRowsHtml||'<tr><td colspan="8" style="font-size:7pt;color:#666">—</td></tr>'}</tbody></table>
+
+  <div class="sec-h">12. บันทึกการใช้กล่อง ถุง และบรรจุภัณฑ์</div>
+  <table style="font-size:7pt;width:100%;margin-bottom:4px"><tbody>
+    <tr><td style="text-align:left;font-weight:700;width:22%">กล่อง No.</td><td style="text-align:left">${fv('ap-pkg-box-no')}</td><td style="font-weight:700">จำนวนกล่อง</td><td>${fv('ap-pkg-box-qty')}</td><td style="font-weight:700">ชิ้น/กล่อง</td><td>${fv('ap-pkg-pcs-box')}</td></tr>
+    <tr><td style="text-align:left;font-weight:700">ถุง No.</td><td style="text-align:left">${fv('ap-pkg-bag-no')}</td><td style="font-weight:700">จำนวนถุง</td><td>${fv('ap-pkg-bag-qty')}</td><td style="font-weight:700">ชิ้น/ถุง</td><td>${fv('ap-pkg-pcs-bag')}</td></tr>
+    <tr><td style="text-align:left;font-weight:700">ลัง No.</td><td style="text-align:left">${fv('ap-pkg-ctn-no')}</td><td style="font-weight:700">จำนวนลัง</td><td>${fv('ap-pkg-ctn-qty')}</td><td style="font-weight:700">ชิ้น/ลัง</td><td>${fv('ap-pkg-pcs-ctn')}</td></tr>
+    <tr><td colspan="6" style="text-align:left"><span style="font-weight:700">หมายเหตุ:</span> ${fv('ap-pkg-note')}</td></tr>
+  </tbody></table>
+
+  <div class="sec-h">13. บันทึกการใช้เม็ดพลาสติกประจำวัน</div>
+  <table style="font-size:7pt;table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#cdd8ea">
+    <th>วันที่</th><th style="text-align:left">Batch / วัตถุดิบ</th><th>เกรด</th><th>เปิด kg</th><th>ใช้ kg</th><th>คืน kg</th><th>MB</th><th>MB kg</th><th>Regrind</th><th>ผู้เบิก</th>
+  </tr></thead><tbody>${matRowsHtml||'<tr><td colspan="10" style="font-size:7pt;color:#666">—</td></tr>'}</tbody></table>
 
   <!-- ═══ SIGNATURES ═══ -->
   <div class="sign-grid">
@@ -37094,6 +37457,7 @@ function masterInit(){
 
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
   loadOrders();             // orders
+  if(typeof loadApprovalLog==='function') loadApprovalLog();
   if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
   if(typeof apBackfillApprovalDocsFromOrders==='function') apBackfillApprovalDocsFromOrders();
   if(typeof loadFgStock==='function') loadFgStock();
@@ -38289,7 +38653,7 @@ const TPP_CONFIG = {
     },
     renderRecord: (r)=>({
       main:`${r.code} — ${r.jobName}`,
-      sub:`Cavity: ${r.cav} | Shot: ${(r.shot||0).toLocaleString()} | PM ถัดไป: ${r.pmShot?.toLocaleString()||'-'} shot`,
+      sub:`Cavity: ${r.cav} | Shot: ${(r.shot||0).toLocaleString()} · I007: ${((r.shotFromDaily)||0).toLocaleString()} | PM ณ ${(r.pmShot||0).toLocaleString()} shot`,
       badge:r.status,
       id:r.code,
     }),
@@ -38297,8 +38661,8 @@ const TPP_CONFIG = {
       const r=moldData.find(m=>m.code===sel[0]); if(!r) return [];
       return [
         {l:'รหัสแม่พิมพ์',v:r.code},{l:'ชื่องาน',v:r.jobName},{l:'Cavity',v:r.cav},
-        {l:'Shot สะสม',v:(r.shot||0).toLocaleString()},{l:'Shot PM ถัดไป',v:(r.pmShot||0).toLocaleString()},
-        {l:'PM ล่าสุด',v:r.lastPm||'-'},{l:'สถานะ',v:r.status},
+        {l:'Shot สะสม',v:(r.shot||0).toLocaleString()},{l:'จากรายงาน I007',v:((r.shotFromDaily)||0).toLocaleString()},
+        {l:'PM ทุก (shot)',v:(r.pmShot||0).toLocaleString()},{l:'PM ล่าสุด',v:r.lastPm||'-'},{l:'สถานะ',v:r.status},
       ];
     },
     printSelected: (sel)=>{ sel.forEach(code=>printMoldDoc(code)); },
@@ -47317,17 +47681,23 @@ function approvalProcDelete(id){
           <select id="moldedit-assignMachine" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"><option>— ไม่ระบุ —</option></select></div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">PM ทุก (shot)</label>
           <input id="moldedit-pmInterval" type="number" placeholder="500000" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">Shot ปัจจุบัน</label>
-          <input id="moldedit-totalShot" type="number" placeholder="0" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">Shot จากรายงานผลิต (อัตโนมัติ)</label>
+          <input id="moldedit-shotFromDaily" type="number" placeholder="0" readonly style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:6px;font-size:12px;box-sizing:border-box" title="สะสมจาก F-PD-I007 ตาม pcs÷cavity"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">Shot ฐาน (ปรับมือ · ก่อนหน้า/ยกเข้ามือ)</label>
+          <input id="moldedit-shotOffset" type="number" placeholder="0" oninput="moldregEditRefreshShots()" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box" title="ยอด shot ที่ไม่ได้มาจากรายงานในระบบ หรือปรับแก้"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">Shot สะสมรวม</label>
+          <input id="moldedit-totalShot" type="number" placeholder="0" readonly style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border2);color:#79c0ff;border-radius:6px;font-size:13px;font-weight:700;box-sizing:border-box"></div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:10px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:10px">
       <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">สถานะ</label>
         <select id="moldedit-status" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box">
           <option>ปกติ</option><option>เฝ้าระวัง</option><option>ต้องทำ PM</option><option>ซ่อม</option><option>เลิกใช้</option></select></div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ที่จัดเก็บ</label>
         <input id="moldedit-location" placeholder="ชั้น A / ชั้น B" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-      <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ผู้ผลิต / ปีผลิต</label>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ปีผลิต</label>
+        <input id="moldedit-mfgYear" placeholder="เช่น 2020" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ผู้ผลิตแม่พิมพ์</label>
         <input id="moldedit-mfgBy" placeholder="ผู้ผลิต" style="width:100%;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
     </div>
     <div style="margin-top:10px"><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">หมายเหตุ</label>
@@ -47423,112 +47793,6 @@ function approvalProcDelete(id){
   </div>
 </div>
 
-
-<!-- ═══ REGISTRY MODALS (global, outside page divs) ═══ -->
-
-<div id="modal-mold-edit" class="modal-overlay">
-  <div class="modal" style="min-width:660px;max-width:94vw;max-height:92vh;overflow-y:auto">
-    <div class="modal-header">
-      <div class="modal-title" id="moldedit-title">🔧 เพิ่ม/แก้ไขแม่พิมพ์</div>
-      <button class="modal-close" onclick="closeModal('modal-mold-edit')">✕</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 0">
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">รหัส Mold (Code) *</label>
-          <input id="moldedit-code" placeholder="เช่น 3-K306WAE-4Cav" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ชื่องาน</label>
-          <input id="moldedit-name" placeholder="ชื่อ Part / งาน" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">จำนวน Cavity</label>
-            <input id="moldedit-cavity" type="number" min="1" placeholder="4" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ระบบ Runner</label>
-            <select id="moldedit-runner" style="width:100%;padding:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box">
-              <option value="cold">Cold Runner</option><option value="hot">Hot Runner</option><option value="3plate">3-Plate</option>
-            </select></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">วัสดุ Steel</label>
-            <input id="moldedit-material" placeholder="P20, S50C, S55C..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">น้ำหนักแม่พิมพ์ (kg)</label>
-            <input id="moldedit-weight" type="number" step="0.1" placeholder="12.5" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        </div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ผู้ผลิตแม่พิมพ์ (Maker)</label>
-          <input id="moldedit-maker" placeholder="Thai Mold, Pitsanu..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">เครื่องจักรที่ใช้</label>
-          <select id="moldedit-machine" style="width:100%;padding:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box">
-            <option value="">— เลือกเครื่อง —</option>
-          </select></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">น้ำหนักชิ้นงาน (g)</label>
-            <input id="moldedit-shotwt" type="number" step="0.01" placeholder="8.2" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ปีที่ผลิต</label>
-            <input id="moldedit-year" placeholder="2020" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">Shot ปัจจุบัน</label>
-            <input id="moldedit-shot" type="number" placeholder="98000" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">PM ทุกกี่ Shot</label>
-            <input id="moldedit-pminterval" type="number" placeholder="150000" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        </div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">วัน PM ล่าสุด</label>
-          <input id="moldedit-lastpm" type="date" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">หมายเหตุ</label>
-          <textarea id="moldedit-remark" rows="2" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box"></textarea></div>
-      </div>
-    </div>
-    <input type="hidden" id="moldedit-id">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-      <button class="btn btn-secondary" onclick="closeModal('modal-mold-edit')">ยกเลิก</button>
-      <button onclick="moldregSave()" style="padding:8px 22px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<div id="modal-cust-edit" class="modal-overlay">
-  <div class="modal" style="min-width:600px;max-width:92vw;max-height:92vh;overflow-y:auto">
-    <div class="modal-header">
-      <div class="modal-title" id="custedit-title">🏢 เพิ่ม/แก้ไขลูกค้า</div>
-      <button class="modal-close" onclick="closeModal('modal-cust-edit')">✕</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:4px 0">
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">รหัสลูกค้า (Code) *</label>
-          <input id="custedit-code" placeholder="GRNSV, JNGL..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ชื่อบริษัท (ไทย) *</label>
-          <input id="custedit-name" placeholder="กรีนสวิลล์" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ชื่อบริษัท (อังกฤษ)</label>
-          <input id="custedit-nameen" placeholder="Greenswell Co.,Ltd." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ผู้ติดต่อ</label>
-          <input id="custedit-contact" placeholder="คุณสมศรี" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">เบอร์โทร</label>
-          <input id="custedit-phone" placeholder="02-111-2222" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">อีเมล</label>
-          <input id="custedit-email" type="email" placeholder="order@company.com" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">เลขประจำตัวผู้เสียภาษี</label>
-          <input id="custedit-taxid" placeholder="0105XXXXXXXXXX" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">เครดิต (วัน)</label>
-          <input id="custedit-credit" type="number" placeholder="30" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">สถานะ</label>
-          <select id="custedit-status" style="width:100%;padding:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box">
-            <option value="active">🟢 Active</option><option value="inactive">🔴 Inactive</option>
-          </select></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">ที่อยู่</label>
-          <textarea id="custedit-address" rows="2" placeholder="ที่อยู่บริษัท" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;resize:vertical;box-sizing:border-box"></textarea></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600;display:block;margin-bottom:3px">หมายเหตุ</label>
-          <input id="custedit-remark" placeholder="..." style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;box-sizing:border-box"></div>
-      </div>
-    </div>
-    <input type="hidden" id="custedit-id">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-      <button class="btn btn-secondary" onclick="closeModal('modal-cust-edit')">ยกเลิก</button>
-      <button onclick="custregSave()" style="padding:8px 22px;background:var(--accent);border:none;border-radius:7px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 บันทึก</button>
-    </div>
-  </div>
-</div>
 
 <div id="modal-mach-edit" class="modal-overlay">
   <div class="modal" style="min-width:620px;max-width:92vw;max-height:92vh;overflow-y:auto">
