@@ -19001,17 +19001,9 @@ var _DASH_WIDGETS = [
   {id:'condtoday', label:'🌡️ Condition วันนี้',         fn:'dashWidgetCondToday'},
 ];
 
-const LINE_SUMMARY_MENU_DEFS = [
-  {id:'orders', label:'📋 Orders'},
-  {id:'mix', label:'🧪 แผนผสมเม็ด'},
-  {id:'rawmat', label:'📦 วัตถุดิบ'},
-  {id:'machines', label:'⚙️ สถานะเครื่อง'},
-  {id:'eff', label:'📈 EFF'},
-  {id:'maintenance', label:'🔩 แผน PM'},
-  {id:'ng', label:'🔴 NG & Defect'},
-  {id:'actionplan', label:'📌 Action Plan'},
-  {id:'delivery', label:'🚚 ส่งมอบ'},
-];
+const LINE_SUMMARY_MENU_DEFS = (_DASH_WIDGETS||[]).map(function(w){
+  return {id:w.id, label:w.label};
+});
 
 const LINE_SUMMARY_MENUS_LS_KEY = '_lineSummaryMenus';
 let _lineSummaryMenus = JSON.parse(localStorage.getItem(LINE_SUMMARY_MENUS_LS_KEY)||'null') || ['orders','machines','ng','mix','maintenance'];
@@ -19057,11 +19049,8 @@ function lineSummarySelectMenus(all){
 }
 
 function lineSummaryApplyDashboardWidgets(){
-  var map = {
-    orders:'orders', mix:'mix', rawmat:'rawmat', machines:'machines',
-    eff:'eff', maintenance:'maintenance', ng:'ng', actionplan:'actionplan', delivery:'delivery'
-  };
-  var picked = (_dashActiveWidgets||[]).map(function(id){ return map[id]; }).filter(Boolean);
+  var validIds = new Set((LINE_SUMMARY_MENU_DEFS||[]).map(function(m){ return m.id; }));
+  var picked = (_dashActiveWidgets||[]).filter(function(id){ return validIds.has(id); });
   if(!picked.length){
     if(typeof _infoToast==='function') _infoToast('ไม่พบ widget ที่แมพได้ — ใช้ชุดเดิม');
     return;
@@ -20097,7 +20086,9 @@ function dashWidgetEFF(){
   var byMachine={};
   rpts.forEach(function(r){
     var m=r.machine||'ไม่ระบุเครื่อง';
-    if(!byMachine[m]) byMachine[m]={ok:0,target:0};
+    if(!byMachine[m]) byMachine[m]={ok:0,target:0,jobs:{}};
+    var jName=(r.jobName||'').trim()||'ไม่ระบุงาน';
+    byMachine[m].jobs[jName]=(byMachine[m].jobs[jName]||0)+1;
     (r.rows||[]).forEach(function(row){
       var prod=Number(row.produced||0), ng=Number(row.ng||0), tgt=Number(row.target||0);
       byMachine[m].ok+=Math.max(0,prod-ng);
@@ -20107,7 +20098,12 @@ function dashWidgetEFF(){
   var items=Object.entries(byMachine).map(function(en){
     var m=en[0], v=en[1];
     var eff=v.target>0?Math.min(100,(v.ok/v.target*100)):0;
-    return {machine:m, eff:eff};
+    var topJob='ไม่ระบุงาน';
+    var topCnt=-1;
+    Object.entries(v.jobs||{}).forEach(function(j){
+      if((j[1]||0)>topCnt){ topCnt=j[1]||0; topJob=j[0]||'ไม่ระบุงาน'; }
+    });
+    return {machine:m, eff:eff, job:topJob};
   }).filter(function(x){ return x.eff>0; }).sort(function(a,b){ return b.eff-a.eff; });
   var targetEff=typeof _dashFindKpiTarget==='function'?_dashFindKpiTarget('eff',85):85;
   var avg=items.length?items.reduce(function(s,x){ return s+x.eff; },0)/items.length:0;
@@ -20119,7 +20115,10 @@ function dashWidgetEFF(){
   html+=items.slice(0,6).map(function(x){
     var col=x.eff>=targetEff?'#3fb950':(x.eff>=targetEff-10?'#e3b341':'#f85149');
     return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">'
-      +'<div style="flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+x.machine+'</div>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+x.machine+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+x.job+'</div>'
+      +'</div>'
       +'<div style="font-family:monospace;font-weight:800;color:'+col+'">'+x.eff.toFixed(1)+'%</div>'
     +'</div>';
   }).join('');
