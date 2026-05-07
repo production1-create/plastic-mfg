@@ -33564,7 +33564,7 @@ function apTemplateByWorkGroup(wg){
   return (wg==='assembly' || wg==='secondary' || wg==='postprocess') ? 'assembly-line' : 'injection';
 }
 function apTemplateLabel(t){
-  return t==='assembly-line' ? 'ไลน์ประกอบ (3 หน้า)' : 'เครื่องฉีด (F-PD-I008)';
+  return t==='assembly-line' ? 'ไลน์ประกอบ' : 'เครื่องฉีด (F-PD-I008)';
 }
 function apToggleTemplateUI(t){
   var inj=document.getElementById('ap-injection-form');
@@ -33589,20 +33589,81 @@ function apEnsureAssemblyRows(){
   }
   var b2=document.getElementById('al2-body');
   if(b2 && !b2.children.length){
-    var topics=['การยืนยันข้อมูลงาน','ความพร้อมอุปกรณ์/เครื่องมือ','ความพร้อมพื้นที่ผลิต','ความพร้อม WI/Condition/Q-Point','ความปลอดภัยหน้างาน'];
     var h2='';
-    for(var j=1;j<=10;j++){
-      h2+='<tr><td><input id="al2-topic-'+j+'" value="'+(topics[j-1]||'')+'"></td><td><input id="al2-pass-'+j+'"></td><td><input id="al2-fail-'+j+'"></td><td><input id="al2-checker-'+j+'"></td><td><input id="al2-approver-'+j+'"></td></tr>';
+    for(var j=1;j<=14;j++){
+      h2+='<tr>'
+        +'<td><input id="al2-date-'+j+'" type="date"></td>'
+        +'<td><input id="al2-step-'+j+'" placeholder="ประกอบ/สีเก็บ/เป่าชิ้นงานบรรจุ"></td>'
+        +'<td><input id="al2-a-'+j+'"></td><td><input id="al2-b-'+j+'"></td><td><input id="al2-c-'+j+'"></td>'
+        +'<td><input id="al2-d-'+j+'"></td><td><input id="al2-e-'+j+'"></td><td><input id="al2-f-'+j+'"></td><td><input id="al2-g-'+j+'"></td>'
+        +'<td><input id="al2-checker-'+j+'"></td><td><input id="al2-approver-'+j+'"></td>'
+      +'</tr>';
     }
     b2.innerHTML=h2;
+  }
+  var b2c=document.getElementById('al2-ccp-body');
+  if(b2c && !b2c.children.length){
+    var ccpLeft2=['1. การยืนยันข้อมูลงาน, งานซื้อ งานแก้ไขในใบรายงานการผลิต','2. ความสะอาด และ 3. การจัดเก็บ',' - เครื่องชั่ง',' - โต๊ะทำงาน',' - Limited Sample'];
+    var ccpRight2=[' - พื้น',' - อุปกรณ์ / เครื่องมือ',' - Limited Sample','4. ทบทวนใบป้ายชิ้นงาน, วัตถุดิบ, บรรจุภัณฑ์ ตามมาตรฐานของฉลาก',''];
+    var h2c='';
+    for(var v=1;v<=5;v++){
+      h2c+='<tr>'
+        +'<td><input id="al2-ccpL-topic-'+v+'" value="'+(ccpLeft2[v-1]||'')+'"></td>'
+        +'<td><input id="al2-ccpL-pass-'+v+'"></td><td><input id="al2-ccpL-fail-'+v+'"></td><td><input id="al2-ccpL-checker-'+v+'"></td><td><input id="al2-ccpL-approver-'+v+'"></td>'
+        +'<td><input id="al2-ccpR-topic-'+v+'" value="'+(ccpRight2[v-1]||'')+'"></td>'
+        +'<td><input id="al2-ccpR-pass-'+v+'"></td><td><input id="al2-ccpR-fail-'+v+'"></td><td><input id="al2-ccpR-checker-'+v+'"></td><td><input id="al2-ccpR-approver-'+v+'"></td>'
+      +'</tr>';
+    }
+    b2c.innerHTML=h2c;
   }
   var b3=document.getElementById('al3-body');
   if(b3 && !b3.children.length){
     var h3='';
-    for(var k=1;k<=8;k++){
-      h3+='<tr><td><input id="al3-mat-'+k+'" placeholder="ชื่อวัตถุดิบ / Batch"></td><td><input id="al3-matqty-'+k+'"></td><td><input id="al3-result-'+k+'"></td><td><input id="al3-checker-'+k+'"></td><td><input id="al3-approver-'+k+'"></td></tr>';
+    for(var k=1;k<=5;k++){
+      h3+='<tr>'
+        +'<td><input id="al3-matL-'+k+'" placeholder="รายการ"></td>'
+        +'<td><input id="al3-batchL-'+k+'" placeholder="Batch"></td>'
+        +'<td><input id="al3-qtyL-'+k+'" placeholder="จำนวน"></td>'
+        +'<td style="text-align:center">'+k+'</td>'
+        +'<td><input id="al3-matR-'+k+'" placeholder="รายการคงเหลือ"></td>'
+        +'<td><input id="al3-batchR-'+k+'" placeholder="Batch"></td>'
+        +'<td><input id="al3-qtyR-'+k+'" placeholder="จำนวน"></td>'
+      +'</tr>';
     }
     b3.innerHTML=h3;
+  }
+  var b4=document.getElementById('al3-ccp-body');
+  if(b4 && !b4.children.length){
+    var ccpLeft=['การยืนยันข้อมูลงาน, งานซื้อ','ความสะอาด และ 3. การจัดเก็บ','เครื่องชั่ง','โต๊ะทำงาน','Limited Sample'];
+    var ccpRight=['พื้น','อุปกรณ์ / เครื่องมือ','Limited Sample','ทบทวนการปฎิบัติงาน,วัตถุดิบ, บรรจุภัณฑ์ ตามมาตรฐานฉลาก'];
+    var h4='';
+    for(var n=1;n<=5;n++){
+      h4+='<tr>'
+        +'<td><input id="al3-ccpL-topic-'+n+'" value="'+(ccpLeft[n-1]||'')+'"></td>'
+        +'<td><input id="al3-ccpL-pass-'+n+'"></td><td><input id="al3-ccpL-fail-'+n+'"></td><td><input id="al3-ccpL-checker-'+n+'"></td><td><input id="al3-ccpL-approver-'+n+'"></td>'
+        +'<td><input id="al3-ccpR-topic-'+n+'" value="'+(ccpRight[n-1]||'')+'"></td>'
+        +'<td><input id="al3-ccpR-pass-'+n+'"></td><td><input id="al3-ccpR-fail-'+n+'"></td><td><input id="al3-ccpR-checker-'+n+'"></td><td><input id="al3-ccpR-approver-'+n+'"></td>'
+      +'</tr>';
+    }
+    b4.innerHTML=h4;
+  }
+  var b5=document.getElementById('al3-verify-body');
+  if(b5 && !b5.children.length){
+    var vv=['เครื่องสั่นพ็าน','เครื่องพ่นอากาศ','เครื่องอัดลม','เครื่องซีลฝา','เครื่องปรับเก็บ','เครื่องลำเลียงของ'];
+    var std=['ลม, Timer','ลม,Timer,อุณหภูมิ','ลม, Timer','ลม, Timer','ลม,หน่วยเวลา,ของเหลว,สารกึ่งร้อน','ลม,อุณหภูมิ'];
+    var h5='';
+    for(var z=1;z<=6;z++){
+      h5+='<tr><td style="text-align:center">'+z+'</td><td><input id="al3-v-item-'+z+'" value="'+(vv[z-1]||'')+'"></td><td><input id="al3-v-std-'+z+'" value="'+(std[z-1]||'')+'"></td><td><input id="al3-v-rec-'+z+'"></td><td><input id="al3-v-checker-'+z+'"></td><td><input id="al3-v-approver-'+z+'"></td></tr>';
+    }
+    b5.innerHTML=h5;
+  }
+  var b6=document.getElementById('al3-change-body');
+  if(b6 && !b6.children.length){
+    var h6='';
+    for(var q=1;q<=6;q++){
+      h6+='<tr><td><input id="al3-ch-date-'+q+'" type="date"></td><td><input id="al3-ch-step-'+q+'"></td><td><input id="al3-ch-prob-'+q+'"></td><td><input id="al3-ch-cause-'+q+'"></td><td><input id="al3-ch-fix-'+q+'"></td><td><input id="al3-ch-owner-'+q+'"></td><td><input id="al3-ch-apv-'+q+'"></td></tr>';
+    }
+    b6.innerHTML=h6;
   }
 }
 
@@ -34043,14 +34104,53 @@ function apOnOrderChange(){
   var setA=function(id,val){ var el=document.getElementById(id); if(el && !String(el.value||'').trim()) el.value=val||''; };
   setA('apa-jobname', o.jobName||bom.jobName||'');
   setA('apa-orderno', o.orderNo||'');
+  setA('apa-po', o.poNo||o.po||'');
   setA('apa-lotno', o.lotNo||'');
   setA('apa-customer', o.customer||'');
-  setA('al3-customer', o.customer||'');
+  setA('apa-order-qty', o.qty||'');
   setA('apa-date', new Date().toISOString().split('T')[0]);
   if(document.getElementById('ap-form-type')?.value==='assembly-line'){
     var g = (typeof _orderWorkGroup==='function') ? _orderWorkGroup(o) : '';
     var p = document.getElementById('apa-process-type');
     if(p && !p.value) p.value = (g==='secondary') ? 'ไลน์รอง' : 'ประกอบ';
+    var j = bom.j||{};
+    var today = new Date().toISOString().split('T')[0];
+    // หน้า 2: เติมวันที่/ขั้นตอนพื้นฐานจากโฟลว์ประกอบ
+    var steps = ['ประกอบ','สีเก็บ','เป่าชิ้นงานบรรจุ'];
+    for(var si=1; si<=3; si++){
+      setA('al2-date-'+si, today);
+      setA('al2-step-'+si, steps[si-1]||'');
+    }
+    // หน้า 3: เติมรายการวัตถุดิบจาก BOM/ทะเบียนงานอัตโนมัติ
+    var mats = [];
+    if(Array.isArray(j.mixIngredients)){
+      j.mixIngredients.forEach(function(it){
+        if(!it) return;
+        var nm = it.material || it.name || it.code || '';
+        var qty = it.qty || it.percent || it.ratio || '';
+        if(String(nm||'').trim()) mats.push({name:String(nm), qty:String(qty||'')});
+      });
+    }
+    if(!mats.length && (j.plastic || j.mb || j.additive)){
+      if(j.plastic) mats.push({name:String(j.plastic)+(j.grade?(' '+j.grade):''), qty:''});
+      if(j.mb) mats.push({name:'MB '+String(j.mb), qty:(j.mbRatio?String(j.mbRatio)+' g/kg':'')});
+      if(j.additive) mats.push({name:String(j.additive), qty:String(j.additiveRatio||'')});
+    }
+    for(var mi=1; mi<=5; mi++){
+      var row = mats[mi-1] || {};
+      setA('al3-matL-'+mi, row.name||'');
+      setA('al3-qtyL-'+mi, row.qty||'');
+    }
+    setA('al3-batchL-1', o.matBatch || j._matBatch || '');
+    setA('al3-batchL-2', o.mbBatch || '');
+    if(j.packingStd){
+      setA('al3-matL-4', 'ถุงบรรจุ');
+      setA('al3-qtyL-4', j.packingStd.pcsBag || '');
+      setA('al3-matL-5', 'กล่อง/ลัง');
+      setA('al3-qtyL-5', j.packingStd.pcsBox || j.packingStd.boxCtn || '');
+    }
+    // ค่าในหัวตารางหน้าที่ 3
+    setA('al3-qty', o.produced||o.qty||'');
   }
 
   apCalcProduction(o, bom.j);
@@ -35177,18 +35277,34 @@ function apPrintAssemblyLineDoc(docId){
   ${(function(){var out='';for(var i=1;i<=12;i++){out+=`<tr class="line"><td>${fv('al1-date-'+i)}</td><td>${fv('al1-step-'+i)}</td><td>${fv('al1-a-'+i)}</td><td>${fv('al1-b-'+i)}</td><td>${fv('al1-c-'+i)}</td><td>${fv('al1-d-'+i)}</td><td>${fv('al1-e-'+i)}</td><td>${fv('al1-f-'+i)}</td><td>${fv('al1-g-'+i)}</td><td>${fv('al1-checker-'+i)}</td><td>${fv('al1-approver-'+i)}</td></tr>`;} return out;})()}
   </tbody></table>
   <div class="pb"></div>
-  <div class="h"><div class="t" style="font-size:18px">การตรวจสอบก่อนการผลิต</div><div class="sub">F-PD-I095 Rev.01</div></div>
-  <table><tr><th>หัวข้อการตรวจสอบ</th><th style="width:70px">ผ่าน</th><th style="width:70px">ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
-  ${(function(){var out='';for(var i=1;i<=10;i++){out+=`<tr class="line"><td>${fv('al2-topic-'+i)}</td><td>${fv('al2-pass-'+i)}</td><td>${fv('al2-fail-'+i)}</td><td>${fv('al2-checker-'+i)}</td><td>${fv('al2-approver-'+i)}</td></tr>`;} return out;})()}
-  </table>
-  <div style="margin-top:6px" class="small">หมายเหตุ: ${fv('al2-note')||''}</div>
+  <div class="h"><div class="t" style="font-size:18px">การตรวจสอบก่อนการผลิต</div><div class="sub">F-PD-I095 Rev.01 (2/2)</div></div>
+  <table><thead><tr><th>วันที่</th><th>ขั้นตอน</th><th colspan="7">จุดตรวจภายใน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
+  <tr><th></th><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th></th><th></th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=14;i++){out+=`<tr class="line"><td>${fv('al2-date-'+i)}</td><td>${fv('al2-step-'+i)}</td><td>${fv('al2-a-'+i)}</td><td>${fv('al2-b-'+i)}</td><td>${fv('al2-c-'+i)}</td><td>${fv('al2-d-'+i)}</td><td>${fv('al2-e-'+i)}</td><td>${fv('al2-f-'+i)}</td><td>${fv('al2-g-'+i)}</td><td>${fv('al2-checker-'+i)}</td><td>${fv('al2-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
+  <div style="margin-top:8px;font-weight:700">การเช็คก่อนทำการผลิตเข้าหัวหน้างานทั้ง CCP2-D</div>
+  <table style="margin-top:4px"><thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=5;i++){out+=`<tr class="line"><td>${fv('al2-ccpL-topic-'+i)}</td><td>${fv('al2-ccpL-pass-'+i)}</td><td>${fv('al2-ccpL-fail-'+i)}</td><td>${fv('al2-ccpL-checker-'+i)}</td><td>${fv('al2-ccpL-approver-'+i)}</td><td>${fv('al2-ccpR-topic-'+i)}</td><td>${fv('al2-ccpR-pass-'+i)}</td><td>${fv('al2-ccpR-fail-'+i)}</td><td>${fv('al2-ccpR-checker-'+i)}</td><td>${fv('al2-ccpR-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
   <div class="pb"></div>
   <div class="h"><div class="t" style="font-size:18px">บันทึกกระบวนการไลน์กึ่งอัตโนมัติ</div><div class="sub">F-PD-I095 Rev.81</div></div>
-  <table><tr><td>PO: ${fv('al3-po')||''}</td><td>ผู้ว่าจ้าง: ${fv('al3-customer')||d.customer||''}</td><td>จำนวนที่ผลิต: ${fv('al3-qty')||''}</td></tr></table>
-  <table style="margin-top:6px"><thead><tr><th>วัสดุ / Batch</th><th>จำนวน</th><th>ผลตรวจ</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
-  ${(function(){var out='';for(var i=1;i<=8;i++){out+=`<tr class="line"><td>${fv('al3-mat-'+i)}</td><td>${fv('al3-matqty-'+i)}</td><td>${fv('al3-result-'+i)}</td><td>${fv('al3-checker-'+i)}</td><td>${fv('al3-approver-'+i)}</td></tr>`;} return out;})()}
+  <table><tr><td>PO: ${fv('apa-po')||''}</td><td>ลูกค้า: ${fv('apa-customer')||d.customer||''}</td><td>Lot: ${fv('apa-lotno')||d.lotNo||''}</td><td>จำนวนที่สั่งผลิต: ${fv('apa-order-qty')||''}</td><td>จำนวนที่ผลิต: ${fv('al3-qty')||''}</td></tr></table>
+  <table style="margin-top:6px"><thead><tr><th colspan="4">วัตถุดิบ/ชิ้นงานบรรจุภัณฑ์</th><th colspan="3">วัตถุดิบคงเหลือจากงานลูกค้าเดิม</th></tr>
+  <tr><th>รายการ</th><th>Batch</th><th>จำนวน</th><th>#</th><th>รายการ</th><th>Batch</th><th>จำนวน</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=5;i++){out+=`<tr class="line"><td>${fv('al3-matL-'+i)}</td><td>${fv('al3-batchL-'+i)}</td><td>${fv('al3-qtyL-'+i)}</td><td>${i}</td><td>${fv('al3-matR-'+i)}</td><td>${fv('al3-batchR-'+i)}</td><td>${fv('al3-qtyR-'+i)}</td></tr>`;} return out;})()}
   </tbody></table>
-  <div style="margin-top:8px" class="small">การปรับเปลี่ยนระหว่างการผลิต: ${fv('al3-change')||''}</div>
+  <div style="margin-top:8px;font-weight:700">การเช็คก่อนทำการผลิตเข้าหัวหน้างานทั้ง CCP2-D</div>
+  <table style="margin-top:4px"><thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=5;i++){out+=`<tr class="line"><td>${fv('al3-ccpL-topic-'+i)}</td><td>${fv('al3-ccpL-pass-'+i)}</td><td>${fv('al3-ccpL-fail-'+i)}</td><td>${fv('al3-ccpL-checker-'+i)}</td><td>${fv('al3-ccpL-approver-'+i)}</td><td>${fv('al3-ccpR-topic-'+i)}</td><td>${fv('al3-ccpR-pass-'+i)}</td><td>${fv('al3-ccpR-fail-'+i)}</td><td>${fv('al3-ccpR-checker-'+i)}</td><td>${fv('al3-ccpR-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
+  <div style="margin-top:8px;font-weight:700">การตรวจสอบก่อนการผลิต</div>
+  <table style="margin-top:4px"><thead><tr><th>ลำดับ</th><th>หัวข้อการตรวจสอบ</th><th>ค่ามาตรฐาน</th><th>บันทึกการตรวจสอบ</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=6;i++){out+=`<tr class="line"><td>${i}</td><td>${fv('al3-v-item-'+i)}</td><td>${fv('al3-v-std-'+i)}</td><td>${fv('al3-v-rec-'+i)}</td><td>${fv('al3-v-checker-'+i)}</td><td>${fv('al3-v-approver-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
+  <div style="margin-top:8px;font-weight:700">การปรับเปลี่ยนระหว่างการทำงาน</div>
+  <table style="margin-top:4px"><thead><tr><th>วันที่</th><th>ขั้นตอน</th><th>ปัญหา</th><th>สาเหตุ</th><th>วิธีแก้ไข</th><th>ผู้แก้ไข</th><th>ผู้อนุมัติ</th></tr></thead><tbody>
+  ${(function(){var out='';for(var i=1;i<=6;i++){out+=`<tr class="line"><td>${fv('al3-ch-date-'+i)}</td><td>${fv('al3-ch-step-'+i)}</td><td>${fv('al3-ch-prob-'+i)}</td><td>${fv('al3-ch-cause-'+i)}</td><td>${fv('al3-ch-fix-'+i)}</td><td>${fv('al3-ch-owner-'+i)}</td><td>${fv('al3-ch-apv-'+i)}</td></tr>`;} return out;})()}
+  </tbody></table>
   </body></html>`;
   if(typeof safePrint==='function') safePrint(html, 'F-PD-I095 / N013 ไลน์ประกอบ');
   else { var w=window.open('','_blank'); w.document.write(html); w.document.close(); }
@@ -44541,7 +44657,7 @@ function _clRenderChart(){
           <div class="form-label">รูปแบบใบอนุมัติ</div>
           <select id="ap-form-type" onchange="approvalProcOnFormTypeChange(this.value)">
             <option value="injection">🏭 เครื่องฉีด (F-PD-I008)</option>
-            <option value="assembly-line">🧩 ไลน์ประกอบ (3 หน้า)</option>
+            <option value="assembly-line">🧩 ไลน์ประกอบ</option>
           </select>
         </div>
         <div class="form-group" style="margin:0">
@@ -45113,13 +45229,16 @@ function _clRenderChart(){
 
     </div>
     <div id="ap-assembly-form" class="card mb-3" style="display:none">
-      <div class="card-title">🧩 ใบอนุมัติกระบวนการไลน์ประกอบ (3 หน้า)</div>
+      <div class="card-title">🧩 ใบอนุมัติกระบวนการไลน์ประกอบ</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:10px">
         <div><div class="form-label">วันที่เอกสาร</div><input type="date" id="apa-date"></div>
         <div><div class="form-label">ชื่องาน</div><input id="apa-jobname"></div>
         <div><div class="form-label">Order No.</div><input id="apa-orderno"></div>
+        <div><div class="form-label">PO</div><input id="apa-po"></div>
         <div><div class="form-label">Lot No.</div><input id="apa-lotno"></div>
         <div><div class="form-label">ลูกค้า</div><input id="apa-customer"></div>
+        <div><div class="form-label">จำนวนที่สั่งผลิต</div><input id="apa-order-qty"></div>
+        <div><div class="form-label">จำนวนที่ผลิต</div><input id="al3-qty"></div>
         <div><div class="form-label">ประเภทกระบวนการ</div><input id="apa-process-type" placeholder="ประกอบ/สกรีน/พ่น"></div>
       </div>
       <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:8px 0">หน้า 1: ใบรายงานการผลิต (F-PD-N013)</div>
@@ -45128,22 +45247,37 @@ function _clRenderChart(){
         <tbody id="al1-body"></tbody>
       </table></div>
       <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:12px 0 8px">หน้า 2: การตรวจสอบก่อนการผลิต (F-PD-I095 Rev.01)</div>
-      <div style="overflow:auto"><table style="min-width:760px">
-        <thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead>
+      <div style="overflow:auto"><table style="min-width:1100px">
+        <thead><tr><th>วันที่</th><th>ขั้นตอน</th><th colspan="7">จุดตรวจภายใน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <thead><tr><th></th><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th></th><th></th></tr></thead>
         <tbody id="al2-body"></tbody>
       </table></div>
-      <div style="margin-top:6px"><input id="al2-note" placeholder="หมายเหตุหน้า 2"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:10px 0 6px">การเช็คก่อนทำการผลิตเข้าหัวหน้างานทั้ง CCP2-D</div>
+      <div style="overflow:auto"><table style="min-width:980px">
+        <thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al2-ccp-body"></tbody>
+      </table></div>
       <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:12px 0 8px">หน้า 3: บันทึกกระบวนการไลน์กึ่งอัตโนมัติ (F-PD-I095 Rev.81)</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:8px">
-        <div><div class="form-label">PO</div><input id="al3-po"></div>
-        <div><div class="form-label">ลูกค้า</div><input id="al3-customer"></div>
-        <div><div class="form-label">จำนวนที่ผลิต</div><input id="al3-qty"></div>
-      </div>
-      <div style="overflow:auto"><table style="min-width:760px">
-        <thead><tr><th>วัสดุ / Batch</th><th>จำนวน</th><th>ผลตรวจ</th><th>ผู้ตรวจ</th><th>ผู้อนุมัติ</th></tr></thead>
+      <div style="overflow:auto"><table style="min-width:980px">
+        <thead><tr><th colspan="4">วัตถุดิบ/ชิ้นงานบรรจุภัณฑ์</th><th colspan="3">วัตถุดิบคงเหลือจากงานลูกค้าเดิม</th></tr></thead>
+        <thead><tr><th>รายการ</th><th>Batch</th><th>จำนวน</th><th> </th><th>รายการ</th><th>Batch</th><th>จำนวน</th></tr></thead>
         <tbody id="al3-body"></tbody>
       </table></div>
-      <div style="margin-top:6px"><input id="al3-change" placeholder="การปรับเปลี่ยนระหว่างการผลิต"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:10px 0 6px">การเช็คก่อนทำการผลิตเข้าหัวหน้างานทั้ง CCP2-D</div>
+      <div style="overflow:auto"><table style="min-width:980px">
+        <thead><tr><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th><th>หัวข้อการตรวจสอบ</th><th>ผ่าน</th><th>ไม่ผ่าน</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al3-ccp-body"></tbody>
+      </table></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:10px 0 6px">การตรวจสอบก่อนการผลิต</div>
+      <div style="overflow:auto"><table style="min-width:900px">
+        <thead><tr><th>ลำดับ</th><th>หัวข้อการตรวจสอบ</th><th>ค่ามาตรฐาน</th><th>บันทึกการตรวจสอบ</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al3-verify-body"></tbody>
+      </table></div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent2);margin:10px 0 6px">การปรับเปลี่ยนระหว่างการทำงาน</div>
+      <div style="overflow:auto"><table style="min-width:900px">
+        <thead><tr><th>วันที่</th><th>ขั้นตอน</th><th>ปัญหา</th><th>สาเหตุ</th><th>วิธีแก้ไข</th><th>ผู้แก้ไข</th><th>ผู้อนุมัติ</th></tr></thead>
+        <tbody id="al3-change-body"></tbody>
+      </table></div>
     </div>
     <!-- Sign section -->
       <div style="margin-bottom:16px">
