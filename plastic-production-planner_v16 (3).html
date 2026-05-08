@@ -448,6 +448,7 @@ select option { background: var(--bg3); }
 .mat-AS { background: rgba(57,197,207,0.2); color: var(--as); border-left: 3px solid var(--as); }
 .mat-ABS { background: rgba(240,136,62,0.2); color: var(--abs); border-left: 3px solid var(--abs); }
 .mat-PC { background: rgba(255,123,114,0.2); color: var(--pc); border-left: 3px solid var(--pc); }
+.mat-none { background: rgba(110,118,129,0.12); color: var(--text3); border-left: 3px solid var(--border); }
 /* PROGRESS BAR */
 .progress { background: var(--bg4); border-radius: 4px; height: 6px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
@@ -3032,6 +3033,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
       <select style="max-width:140px" onchange="filterBomMat(this.value)">
         <option value="">ทุกเม็ด</option>
+        <option value="__NO_PLASTIC__">ไม่มีเม็ด (งานประกอบ)</option>
         <option>PP</option><option>LDPE</option><option>HDPE</option><option>POM</option>
         <option>NY6</option><option>AS</option><option>ABS</option><option>PC</option>
       </select>
@@ -7172,7 +7174,7 @@ function jobsMergeFromJobRegistry(){
       machine: jr.machine||'',
       ton: +(jr.ton||0)||0,
       customer: jr.customer||'',
-      plastic: jr.plastic||'PP',
+      plastic: (jr.plastic!=null&&String(jr.plastic).trim()!=='')?String(jr.plastic).trim():'',
       grade: jr.grade||'',
       mb: (jr.mb&&jr.mb!==''&&jr.mb!=='-'?jr.mb:'-'),
       mbRatio: jr.mbRatio||0,
@@ -7184,6 +7186,7 @@ function jobsMergeFromJobRegistry(){
       jobType: wg==='assembly'?'assembly':(wg==='secondary'?'secondary':'injection')
     };
     if(jr.processDetail) patch.processDetail = jr.processDetail;
+    if(Array.isArray(jr.mixIngredients)&&jr.mixIngredients.length) patch.mixIngredients=jr.mixIngredients;
     var hasPack=(parseInt(jr.packingQty,10)||0)>0||(jr.packingUnit&&String(jr.packingUnit).trim()!=='');
     if(hasPack){
       var pq=parseInt(jr.packingQty,10)||0;
@@ -9023,11 +9026,12 @@ function bomJobAutoFill(){
   setVal('bom-cav',    cavInit||j.cav);
   setVal('bom-eff',    j.eff||j.effTarget||j.efficiency);
   bomSetWorkGroupFromJob(j);
-  if(!bomIsAssemblyWorkGroupSelected()) setVal('bom-ton', j.ton);
-  setVal('bom-plastic',j.plastic);
+  if(!bomIsAssemblyWorkGroupSelected())   setVal('bom-ton', j.ton);
+  var pEl=document.getElementById('bom-plastic');
+  if(pEl) pEl.value=(j.plastic!=null&&String(j.plastic).trim()!=='')?j.plastic:'';
   setVal('bom-grade',  j.grade);
-  setVal('bom-mb',     j.mb&&j.mb!=='-'?j.mb:'');
-  setVal('bom-mb-ratio',j.mbRatio);
+  var mbE=document.getElementById('bom-mb'); if(mbE) mbE.value=j.mb&&j.mb!=='-'?j.mb:'';
+  var mrE=document.getElementById('bom-mb-ratio'); if(mrE) mrE.value=(j.mb&&j.mb!=='-'&&j.mbRatio)?j.mbRatio:'';
   setVal('bom-customer',j.customer);
   setVal('bom-process', j.processList||j.process);
   setVal('bom-wt',     j.wt);
@@ -10224,7 +10228,7 @@ function jobregEdit(id){
   document.getElementById('je-name').value=j.name||'';
   document.getElementById('je-plastic').value=j.plastic||'';
   document.getElementById('je-grade').value=j.grade||'';
-  document.getElementById('je-mb').value=j.mb||'';
+  document.getElementById('je-mb').value=(j.mb&&j.mb!=='-')?j.mb:'';
   document.getElementById('je-mbratio').value=j.mbRatio||'';
   document.getElementById('je-cavity').value=j.cavity||'';
   document.getElementById('je-ct').value=j.cycleTime||'';
@@ -10269,6 +10273,7 @@ function jeOnPlasticChange(){
   var plastic=document.getElementById('je-plastic')?.value||'';
   var gradeEl=document.getElementById('je-grade');
   var infoEl=document.getElementById('je-rawmat-info');
+  if(!plastic&&gradeEl) gradeEl.value='';
 
   // Find in rawmat registry
   var reg=(typeof RAWMAT_REGISTRY!=='undefined')?RAWMAT_REGISTRY.find(function(r){return r.code===plastic;}):null;
@@ -10308,7 +10313,7 @@ function jeMachineChange(){
 function jePopulatePlasticFromRegistry(){
   var sel=document.getElementById('je-plastic'); if(!sel) return;
   var current=sel.value;
-  sel.innerHTML='<option value="">-- เลือกเม็ดพลาสติก --</option>';
+  sel.innerHTML='<option value="">ไม่มีเม็ดพลาสติก (งานประกอบ / ไม่ใช้เม็ด)</option>';
   // From RAWMAT_REGISTRY first
   var added=new Set();
   if(typeof RAWMAT_REGISTRY!=='undefined'){
@@ -10394,6 +10399,12 @@ function jeMBSearch(q){
       +(c.ratio?'<span style="font-size:10px;color:var(--text3)">'+c.ratio+' g/kg</span>':'')
     +'</div>';
   }).join('');
+}
+
+function jeClearMB(){
+  var mbEl=document.getElementById('je-mb'); if(mbEl) mbEl.value='';
+  var rEl=document.getElementById('je-mbratio'); if(rEl) rEl.value='';
+  var dl=document.getElementById('je-mb-list'); if(dl) dl.style.display='none';
 }
 
 function jeMBSelect(code){
@@ -10525,13 +10536,15 @@ function jobregSave(){
   var ct=parseFloat(document.getElementById('je-ct').value)||0;
   var eff=parseInt(document.getElementById('je-eff').value)||85;
   var tgt=parseInt(document.getElementById('je-target').value)||(ct>0&&cav>0?Math.floor(3600/ct*cav*(eff/100)):0);
+  var pl=(document.getElementById('je-plastic').value||'').trim();
+  var gr=pl?(document.getElementById('je-grade').value||'').trim():'';
   var obj={id:id,name:name,customer:custName,customerId:custObj?custObj.id:'',
     machine:document.getElementById('je-machine').value,
     ton:parseInt(MACHINES.find(function(m){return m.id===document.getElementById('je-machine').value;})?.ton||0),
-    plastic:document.getElementById('je-plastic').value.trim(),
-    grade:document.getElementById('je-grade').value.trim(),
+    plastic:pl,
+    grade:gr,
     mb:document.getElementById('je-mb').value.trim()||'-',
-    mbRatio:parseFloat(document.getElementById('je-mbratio').value)||0,
+    mbRatio:(function(){ var m=document.getElementById('je-mb').value.trim(); return m?parseFloat(document.getElementById('je-mbratio').value)||0:0; })(),
     cavity:cav,cycleTime:ct,efficiency:eff,targetPerHr:tgt,
     process:document.getElementById('je-process').value.trim(),
     processDetail:document.getElementById('je-process-detail')?document.getElementById('je-process-detail').value.trim():'',
@@ -12480,7 +12493,7 @@ function renderRawmatBOM(){
     return '<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
       +'<td style="padding:8px 12px;font-weight:600;color:var(--text);font-size:11px">'+j.name+'</td>'
       +'<td style="padding:8px;text-align:center;font-weight:700;color:var(--accent2)">'+(j.machine||'—')+'</td>'
-      +'<td style="padding:8px;text-align:center"><span class="badge mat-'+(j.plastic||'')+'">'+( j.plastic||'—')+'</span></td>'
+      +'<td style="padding:8px;text-align:center"><span class="badge mat-'+(j.plastic&&String(j.plastic).trim()?j.plastic:'none')+'">'+( j.plastic&&String(j.plastic).trim()?j.plastic:'—')+'</span></td>'
       +'<td style="padding:8px;font-size:11px;color:var(--text3)">'+(j.grade||'—')+'</td>'
       +'<td style="padding:8px;text-align:center;font-size:11px;color:#d2a8ff">'+(j.mb&&j.mb!=='-'?j.mb:'—')+'</td>'
       +'<td style="padding:8px;text-align:center;font-size:11px">'+(j.mbRatio?j.mbRatio+'%':'—')+'</td>'
@@ -12495,7 +12508,7 @@ function renderRawmatBOM(){
 function rmEditBOM(jobName){
   var j=jobs.find(function(x){return x.name===jobName;})||{}; if(!j) return;
   var currentGrade=j.grade||'';
-  var matCode=j.plastic||'PP';
+  var matCode=(j.plastic!=null&&String(j.plastic).trim()!=='')?j.plastic:'';
   var reg=RAWMAT_REGISTRY.find(function(r){return r.code===matCode;})||null;
   var gradesArr=reg&&reg.grades&&reg.grades.length?reg.grades:[currentGrade||''];
   var gradeOptions=gradesArr.map(function(g){return '<option value="'+g+'"'+(g===currentGrade?' selected':'')+'>'+g+'</option>';}).join('');
@@ -12597,10 +12610,10 @@ function bomeSave(jobName){
   var j=jobs.find(function(x){return x.name===jobName;}); if(!j) return;
   // Material
   j.grade=document.getElementById('bome-grade').value||document.getElementById('bome-grade').options[document.getElementById('bome-grade').selectedIndex]?.text||'';
-  j.plastic=document.getElementById('bome-mat').value||j.plastic;
+  j.plastic=(document.getElementById('bome-mat').value||'').trim();
   j.wt=parseFloat(document.getElementById('bome-wt').value)||j.wt||0;
-  j.mb=document.getElementById('bome-mb').value||'-';
-  j.mbRatio=parseFloat(document.getElementById('bome-mbratio').value)||0;
+  j.mb=(document.getElementById('bome-mb').value||'').trim()||'-';
+  j.mbRatio=(j.mb&&j.mb!=='-')?parseFloat(document.getElementById('bome-mbratio').value)||0:0;
   j.regrindPct=parseFloat(document.getElementById('bome-regrind').value)||0;
   j.runnerWt=parseFloat(document.getElementById('bome-runner-wt')?.value)||0;
   // Cost BOM Std
@@ -12724,7 +12737,8 @@ function renderForecast(){
       var regrindPct=incRegrind?(j.regrindPct||0):0;
       var netKgHr=kgHr*(1-regrindPct/100);
       var totalKg=netKgHr*hoursPerDay*days;
-      var mat=j.plastic||'PP';
+      var mat=(j.plastic!=null&&String(j.plastic).trim()!=='')?String(j.plastic).trim():'';
+      if(!mat) return;
       if(!matDemand[mat]) matDemand[mat]={need:0,jobs:[],grade:j.grade||''};
       matDemand[mat].need+=totalKg;
       matDemand[mat].jobs.push({name:jobName.substring(0,28),kgHr:netKgHr,totalKg:totalKg,grade:j.grade||''});
@@ -15174,6 +15188,7 @@ function mixUpsertPlanFromTTEntry(en, ttProdDate, order){
     plasticKg:plasticKg, mbKg:mbKg, weight:+(plasticKg+mbKg).toFixed(3),
     dayPcs:dayPcs,
     mixer:'', mixMethod:j.mixMethod||'tank', tankSize:j.tankSize||50, tankMixTime:j.tankMixTime||30,
+    mixIngredients:(Array.isArray(j.mixIngredients)&&j.mixIngredients.length)?j.mixIngredients.map(function(x){return Object.assign({},x);}):[],
     status:'รอผสม', autoCreated:true, stockChecked:false, reserved:false
   };
   if(idx>=0){
@@ -15236,6 +15251,7 @@ function mixUpsertFeederPlanFromTTEntry(en, ttProdDate, order){
     mb:j.mb, mbRatio:j.mbRatio||0,
     plasticKgPerDay:plasticKg, mbKgPerDay:mbKg, dayPcs:dayPcs,
     feederCode:j.feederCode||'',
+    mixIngredients:(Array.isArray(j.mixIngredients)&&j.mixIngredients.length)?j.mixIngredients.map(function(x){return Object.assign({},x);}):[],
     status:'รอเดินงาน', autoCreated:true, stockIssued:false
   };
   if(idx>=0){
@@ -16186,7 +16202,7 @@ function ttQASave(machine,date,popup){
   const orderNo=document.getElementById('tt-qa-order')?.value||'MANUAL';
   const job=jobs.find(j=>j.name===jName||j.name.includes(jName));
   if(!ttData[date]) ttData[date]=[];
-  ttData[date].push({machine,jobName:jName,lot,qty,plastic:job?.plastic||'PP',orderNo,date});
+  ttData[date].push({machine,jobName:jName,lot,qty,plastic:job&&job.plastic?job.plastic:'',orderNo,date});
   if(popup) popup.remove(); else document.getElementById('tt-quick-add')?.remove();
   renderTT();
 }
@@ -16213,7 +16229,10 @@ function ttOpenDailyRpt(machine, date, orderNo){
 function renderBom(filter='',matFilter=''){
   let list=jobs;
   if(filter) list=list.filter(j=>j.name.toLowerCase().includes(filter.toLowerCase()));
-  if(matFilter) list=list.filter(j=>j.plastic===matFilter);
+  if(matFilter) list=list.filter(function(j){
+    if(matFilter==='__NO_PLASTIC__') return !(j.plastic&&String(j.plastic).trim());
+    return j.plastic===matFilter;
+  });
   const tbody=document.getElementById('bom-tbody');
   tbody.innerHTML=list.map((j,i)=>{
     const pk=j.packingStd||{};
@@ -16299,7 +16318,7 @@ function renderBom(filter='',matFilter=''){
       +'<td class="mono" style="text-align:center">'+tonCell+'</td>'
       +'<td style="text-align:center;white-space:nowrap"><span style="font-size:11px;font-weight:700;color:'+brandCol+'">'+machBrand+'</span></td>'
       +'<td style="font-size:11px;color:var(--text2);white-space:nowrap">'+machModel+'</td>'
-      +'<td><span class="badge mat-'+j.plastic+'">'+j.plastic+'</span></td>'
+      +'<td><span class="badge mat-'+(j.plastic&&String(j.plastic).trim()?j.plastic:'none')+'">'+(j.plastic&&String(j.plastic).trim()?j.plastic:'—')+'</span></td>'
       +'<td style="font-size:12px">'+(j.grade||'-')+'</td>'
       +'<td style="font-size:12px">'
         +mbBadge
@@ -16345,8 +16364,8 @@ function editBom(i){
   sv('bom-eff',       j.eff||100);
   sv('bom-customer',  j.customer||'');
   sv('bom-wt',        j.wt||'');
-  sv('bom-mb-ratio',  j.mbRatio||0);
   sv('bom-mb',        j.mb&&j.mb!=='-'?j.mb:'');
+  sv('bom-mb-ratio',  (j.mb&&j.mb!=='-'&&(j.mbRatio!=null&&j.mbRatio!==''))?j.mbRatio:'');
   // Restore mixing method
   var mmVal = j.mixMethod||'none';
   var mmEl = document.querySelector('input[name="bom-mix-method"][value="'+mmVal+'"]');
@@ -16358,7 +16377,7 @@ function editBom(i){
   sv('bom-selling-price', j.sellingPrice||'');
   // Plastic select
   var plasticEl=document.getElementById('bom-plastic');
-  if(plasticEl&&j.plastic) plasticEl.value=j.plastic;
+  if(plasticEl) plasticEl.value=j.plastic||'';
   sv('bom-grade',     j.grade||'');
   // Runner & Regrind
   sv('bom-runner-wt',    j.runnerWt||'');
@@ -16428,6 +16447,11 @@ function saveBom(){
   var _cavBom=parseInt(document.getElementById('bom-cav')?.value)||1;
   var _ctPiece=parseFloat(document.getElementById('bom-ct')?.value);
   var _ctShotOut=(_ctPiece>0&&isFinite(_ctPiece))?bomCtShotFromPiece(_ctPiece,_cavBom):30;
+  var _mixM=(document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none';
+  var _mbRaw=(document.getElementById('bom-mb')?.value||'').trim();
+  var _pl=(document.getElementById('bom-plastic')?.value||'').trim();
+  var _mbFinal=(_mixM==='none'||!_mbRaw)?'-':_mbRaw;
+  var _mbRatioFinal=(_mbFinal==='-'||_mixM==='none')?0:(parseFloat(document.getElementById('bom-mb-ratio')?.value)||0);
   const data={
     name,
     moldCode:(document.getElementById('bom-mold')?.value||'').trim(),
@@ -16441,12 +16465,12 @@ function saveBom(){
       var t=parseInt(document.getElementById('bom-ton')?.value,10);
       return (isNaN(t)||t<=0)?80:t;
     })(),
-    plastic:document.getElementById('bom-plastic')?.value||'PP',
+    plastic:_pl,
     grade:  document.getElementById('bom-grade')?.value||'',
-    mb:     document.getElementById('bom-mb')?.value||'',
-    mbRatio:parseFloat(document.getElementById('bom-mb-ratio')?.value)||0,
+    mb:     _mbFinal,
+    mbRatio:_mbRatioFinal,
     // Mixing method
-    mixMethod: (document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none',
+    mixMethod: _mixM,
     feederCode: document.getElementById('bom-feeder-id')?.value||'',
     feederRate: 0,
     feederGPerShot: (function(){
@@ -16456,7 +16480,7 @@ function saveBom(){
         cav:parseInt(document.getElementById('bom-cav')?.value,10)||1,
         wt:parseFloat(document.getElementById('bom-wt')?.value)||0,
         runnerWt:parseFloat(document.getElementById('bom-runner-wt')?.value)||0,
-        mbRatio:parseFloat(document.getElementById('bom-mb-ratio')?.value)||0
+        mbRatio:_mbRatioFinal
       });
     })(),
     tankSize:   parseFloat(document.getElementById('bom-tank-size')?.value)||0,
@@ -16823,8 +16847,10 @@ function bomCalcRegrind(){
 // ── Upgrade bomEstimateCost with per-step process cost ────────
 function _bomFullEstimate(){
   var wt=parseFloat(document.getElementById('bom-wt')?.value)||0;
-  var plastic=document.getElementById('bom-plastic')?.value||'PP';
-  var mbRatio=parseFloat(document.getElementById('bom-mb-ratio')?.value)||0;
+  var plastic=(document.getElementById('bom-plastic')?.value||'').trim();
+  var mixM=(document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none';
+  var mbRaw=(document.getElementById('bom-mb')?.value||'').trim();
+  var mbRatio=(mixM==='none'||!mbRaw)?0:(parseFloat(document.getElementById('bom-mb-ratio')?.value)||0);
   var cav=parseInt(document.getElementById('bom-cav')?.value)||1;
   var ct=parseFloat(document.getElementById('bom-ct')?.value)||0;
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
@@ -16839,8 +16865,8 @@ function _bomFullEstimate(){
 
   // ── Material cost (works without CT) ──
   var matKgPc=wt/1000;
-  var mbKgPc=matKgPc*(mbRatio/1000);
-  var matPr=(cs.matPricePerKg&&cs.matPricePerKg[plastic])||50;
+  var mbKgPc=(plastic&&(mixM!=='none')&&mbRaw)?matKgPc*(mbRatio/1000):0;
+  var matPr=plastic?((cs.matPricePerKg&&cs.matPricePerKg[plastic])||50):0;
   var mbPr=cs.mbPricePerKg||180;
   var matCostPc=matKgPc*matPr;
   var mbCostPc=mbKgPc*mbPr;
@@ -16984,6 +17010,11 @@ function bomClearForm(){
   var bfs=document.getElementById('bom-feeder-shot-line');
   if(bfs) bfs.innerHTML='<span style="color:var(--text3)">—</span>';
   var bfr=document.getElementById('bom-feeder-rate'); if(bfr) bfr.value='';
+  var pel=document.getElementById('bom-plastic');
+  if(pel){
+    if(wgel&&wgel.value==='assembly') pel.value='';
+    else pel.value='PP';
+  }
   // Process steps will be inited by openAddBomModal after modal opens
 }
 
@@ -17035,8 +17066,8 @@ function bomSelectJob(name){
   sv('bom-cav',        cavInit||j.cav);
   sv('bom-eff',        j.eff||j.effTarget||j.efficiency||100);
   sv('bom-grade',      j.grade);
-  sv('bom-mb',         j.mb&&j.mb!=='-'?j.mb:'');
-  sv('bom-mb-ratio',   j.mbRatio);
+  var mbEl2=document.getElementById('bom-mb'); if(mbEl2) mbEl2.value=j.mb&&j.mb!=='-'?j.mb:'';
+  var mrEl2=document.getElementById('bom-mb-ratio'); if(mrEl2) mrEl2.value=(j.mb&&j.mb!=='-'&&j.mbRatio)?j.mbRatio:'';
   sv('bom-customer',   j.customer);
   sv('bom-process',    j.processList||j.process);
   sv('bom-wt',         j.wt);
@@ -17051,7 +17082,7 @@ function bomSelectJob(name){
   sv('bom-labor-rate',   j.laborRate||'');
   // Plastic select
   var plasticEl=document.getElementById('bom-plastic');
-  if(plasticEl&&j.plastic){plasticEl.value=j.plastic;}
+  if(plasticEl) plasticEl.value=(j.plastic!=null&&String(j.plastic).trim()!=='')?j.plastic:'';
   // Packing
   if(j.packingStd||j.packBox||j.packBagPcs){
     var pk=j.packingStd||{};
@@ -17111,10 +17142,10 @@ function bomCalcTarget(){
 
 function bomFillGrade(){
   var plastic=document.getElementById('bom-plastic')?.value||'';
-  if(!plastic) return;
+  var gradeEl=document.getElementById('bom-grade');
+  if(!plastic){ if(gradeEl) gradeEl.value=''; return; }
   var reg=(typeof RAWMAT_REGISTRY!=='undefined')?RAWMAT_REGISTRY.find(function(r){return r.code===plastic;}):null;
   if(reg&&reg.grades&&reg.grades.length){
-    var gradeEl=document.getElementById('bom-grade');
     if(gradeEl&&!gradeEl.value) gradeEl.value=reg.grades[0];
   }
 }
@@ -17150,8 +17181,10 @@ function bomUpdateCtnCalc(){
 
 function _bomCalcEstimate(){
   var wt=parseFloat(document.getElementById('bom-wt')?.value)||0;
-  var plastic=document.getElementById('bom-plastic')?.value||'PP';
-  var mbRatio=parseFloat(document.getElementById('bom-mb-ratio')?.value)||0;
+  var plastic=(document.getElementById('bom-plastic')?.value||'').trim();
+  var mixM=(document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none';
+  var mbRaw=(document.getElementById('bom-mb')?.value||'').trim();
+  var mbRatio=(mixM==='none'||!mbRaw)?0:(parseFloat(document.getElementById('bom-mb-ratio')?.value)||0);
   var cav=parseInt(document.getElementById('bom-cav')?.value)||1;
   var ct=parseFloat(document.getElementById('bom-ct')?.value)||30;
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
@@ -17160,8 +17193,8 @@ function _bomCalcEstimate(){
   var tgtHr=3600/ct*(eff/100);
   if(tgtHr<=0) return null;
   var matKgPerPc=wt/1000;
-  var mbKgPerPc=matKgPerPc*(mbRatio/1000);
-  var matPr=(cs.matPricePerKg&&cs.matPricePerKg[plastic])||50;
+  var mbKgPerPc=(plastic&&(mixM!=='none')&&mbRaw)?matKgPerPc*(mbRatio/1000):0;
+  var matPr=plastic?((cs.matPricePerKg&&cs.matPricePerKg[plastic])||50):0;
   var mbPr=cs.mbPricePerKg||180;
   var matCostPc=matKgPerPc*matPr+mbKgPerPc*mbPr;
   var labCostHr=(cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20)+(typeof costExtraHrPerHr==='function'?costExtraHrPerHr():0);
@@ -17260,6 +17293,11 @@ function bomUpdateFeederShotDisplay(){
 // ── Mixing method toggle ──────────────────────────────────────
 function bomMixMethodChange(){
   var val = document.querySelector('input[name="bom-mix-method"]:checked')?.value||'none';
+  if(val==='none'){
+    var _mb=document.getElementById('bom-mb'); if(_mb) _mb.value='';
+    var _mr=document.getElementById('bom-mb-ratio'); if(_mr) _mr.value='';
+    if(typeof bomEstimateCost==='function') bomEstimateCost();
+  }
   var feederPanel = document.getElementById('bom-mix-feeder-info');
   var tankPanel   = document.getElementById('bom-mix-tank-info');
   var hint        = document.getElementById('bom-mix-method-hint');
@@ -17422,32 +17460,50 @@ function mixResolvePlasticUsageRows(p, totalPlasticKg){
   var rows=[];
   if(!(qtyTotal>0)) return rows;
   var j=mixResolveJobForPlan(p);
-  var ing=(j&&Array.isArray(j.mixIngredients)?j.mixIngredients:[]).filter(function(m){
+  var ingSrc=[];
+  if(p&&Array.isArray(p.mixIngredients)&&p.mixIngredients.length) ingSrc=p.mixIngredients;
+  else if(j&&Array.isArray(j.mixIngredients)) ingSrc=j.mixIngredients;
+  var ing=ingSrc.filter(function(m){
     var code=String(m&&m.code||'').trim();
     var pct=parseFloat(m&&m.pct)||0;
     return !!code && pct>0;
   });
+  var gradeFall=String((p&&p.grade)||(j&&j.grade)||'').trim();
+  var plFall=String((p&&p.plastic)||(j&&j.plastic)||'').trim();
   if(!ing.length){
-    var mat=mixResolveRawMatCode(p.plastic);
-    if(mat) rows.push({material:mat, qty:qtyTotal, grade:p.grade||''});
+    var mat=mixResolveRawMatCode(plFall);
+    var mk=mat||plFall;
+    if(mk) rows.push({material:mk, qty:qtyTotal, grade:gradeFall});
     return rows;
   }
   var sumPct=ing.reduce(function(s,m){ return s+(parseFloat(m.pct)||0); },0);
   if(!(sumPct>0)){
-    var mat2=mixResolveRawMatCode(p.plastic);
-    if(mat2) rows.push({material:mat2, qty:qtyTotal, grade:p.grade||''});
+    var mat2=mixResolveRawMatCode(plFall);
+    var mk2=mat2||plFall;
+    if(mk2) rows.push({material:mk2, qty:qtyTotal, grade:gradeFall});
     return rows;
   }
-  var rem=qtyTotal;
   var priIdx=ing.findIndex(function(m){ return !!m.primary; });
   if(priIdx<0) priIdx=0;
-  ing.forEach(function(m,idx){
-    var q=(idx===priIdx) ? rem : +(qtyTotal*(parseFloat(m.pct)||0)/sumPct).toFixed(4);
-    if(idx===priIdx){ q=+Math.max(0, rem).toFixed(4); }
-    rem=+(rem-q).toFixed(4);
-    rows.push({material:mixResolveRawMatCode(String(m.code||'').trim()), qty:Math.max(0,q), grade:String(m.grade||p.grade||'').trim()});
-  });
-  return rows.filter(function(r){ return r.material && r.qty>0; });
+  var alloc=new Array(ing.length);
+  var sumNonPri=0;
+  for(var ii=0;ii<ing.length;ii++){
+    if(ii===priIdx){ alloc[ii]=0; continue; }
+    var part=+(qtyTotal*(parseFloat(ing[ii].pct)||0)/sumPct).toFixed(4);
+    alloc[ii]=part;
+    sumNonPri+=part;
+  }
+  alloc[priIdx]=Math.max(0,+(qtyTotal-sumNonPri).toFixed(4));
+  for(var iy=0;iy<ing.length;iy++){
+    var rawCode=String(ing[iy].code||'').trim();
+    var resolved=mixResolveRawMatCode(rawCode);
+    var matKey=(resolved||rawCode).trim();
+    var q=Math.max(0,parseFloat(alloc[iy])||0);
+    if(!matKey||!(q>0)) continue;
+    var gStr=String(ing[iy].grade||gradeFall||'').trim();
+    rows.push({material:matKey, qty:q, grade:gStr});
+  }
+  return rows;
 }
 
 function mixFormatUsageFormula(rows){
@@ -43054,6 +43110,7 @@ function _clRenderChart(){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
       <div class="form-group" style="margin:0"><div class="form-label">เม็ดพลาสติก</div>
         <select id="bom-plastic" onchange="bomFillGrade();bomEstimateCost()" style="width:100%">
+          <option value="">ไม่มีเม็ดพลาสติก (งานประกอบ / ไม่ใช้เม็ด)</option>
           <option>PP</option><option>LDPE</option><option>HDPE</option><option>LLDPE</option>
           <option>POM</option><option>NY6</option><option>NY66</option><option>AS</option>
           <option>ABS</option><option>PC</option><option>PC/ABS</option><option>TPE</option>
@@ -49991,7 +50048,7 @@ function approvalProcDelete(id){
         <div class="form-group" style="margin:0">
           <div class="form-label">เม็ดพลาสติก</div>
           <select id="je-plastic" onchange="jeOnPlasticChange()" style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
-            <option value="">-- เลือก --</option>
+            <option value="">ไม่มีเม็ดพลาสติก (โหลดจากทะเบียนเม็ด)</option>
           </select>
         </div>
 
@@ -50009,11 +50066,15 @@ function approvalProcDelete(id){
         <!-- สี / MB -->
         <div class="form-group" style="margin:0">
           <div class="form-label">สี / Masterbatch</div>
-          <div style="position:relative">
+          <div style="display:flex;gap:6px;align-items:flex-start">
+          <div style="position:relative;flex:1">
             <input id="je-mb" placeholder="🎨 ค้นหาสี..." autocomplete="off"
               oninput="jeMBSearch(this.value)" onfocus="jeMBSearch(this.value||' ')"
               style="width:100%;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;box-sizing:border-box">
             <div id="je-mb-list" style="display:none;position:absolute;top:calc(100%+2px);left:0;right:0;z-index:9999;background:var(--bg2);border:1px solid var(--border);border-radius:8px;max-height:160px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,0.4)"></div>
+          </div>
+          <button type="button" onclick="jeClearMB()" title="ไม่ใช้สี / ไม่ใช้ Masterbatch"
+            style="flex-shrink:0;padding:9px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:7px;font-size:11px;cursor:pointer;white-space:nowrap;font-family:inherit">ไม่มีสี</button>
           </div>
         </div>
 
