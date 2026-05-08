@@ -1285,6 +1285,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 15C --><div class="nav-item" onclick="showPage('order-await',this)"><span class="nav-icon">📦</span><span class="nav-seq">15C</span> Order ผลิตจบ — รอส่ง</div>
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
     <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this)"><span class="nav-icon">📅</span><span class="nav-seq">17</span> แผนการผลิต (Time Table)</div>
+    <!-- 16B --> <div class="nav-item" onclick="showPage('setup',this)"><span class="nav-icon">🛠️</span><span class="nav-seq">17B</span> Setup Planning</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -6322,6 +6323,43 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
 
 
 <!-- ========== ACTION PLAN ========== -->
+<div class="page" id="page-setup">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="page-title">🛠️ Setup Planning</div>
+        <div class="page-sub">ดึงจาก Time Table อัตโนมัติ · จัดคิวตามเครื่อง · ระบุช่าง/สาเหตุ/4M</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="setupSyncFromTT()">🔄 ดึงจาก Time Table</button>
+        <button class="btn btn-primary btn-sm" onclick="setupSaveData();renderSetupPage()">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
+    <div class="card" style="padding:10px"><div class="kpi-label">ทั้งหมด</div><div id="setup-kpi-total" class="kpi-value" style="font-size:24px">0</div></div>
+    <div class="card" style="padding:10px"><div class="kpi-label">Done</div><div id="setup-kpi-done" class="kpi-value" style="font-size:24px;color:#3fb950">0</div></div>
+    <div class="card" style="padding:10px"><div class="kpi-label">Pending</div><div id="setup-kpi-pending" class="kpi-value" style="font-size:24px;color:#79c0ff">0</div></div>
+    <div class="card" style="padding:10px"><div class="kpi-label">Fail</div><div id="setup-kpi-fail" class="kpi-value" style="font-size:24px;color:#f85149">0</div></div>
+    <div class="card" style="padding:10px"><div class="kpi-label">ไม่ตามเป้า</div><div id="setup-kpi-offtarget" class="kpi-value" style="font-size:24px;color:#ff7b00">0</div></div>
+  </div>
+
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>เครื่อง</th><th>Order</th><th>งาน</th><th>วันที่ผลิต</th><th>เริ่ม Setup</th><th>จบตามแผน</th><th>เวลา(นาที)</th>
+            <th>ช่าง Setup</th><th>สถานะ</th><th>จบจริง</th><th>สาเหตุ/จุดเสีย</th><th>4M</th><th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="setup-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="page" id="page-actionplan">
   <div class="page-header">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -7217,6 +7255,213 @@ try{
 }catch(e){
   console.error('Error loading ttData:', e);
 }
+let setupPlans = [];
+const SETUP_STORAGE_KEY = '_setupPlans';
+function setupLoadData(){
+  try{
+    var s = localStorage.getItem(SETUP_STORAGE_KEY);
+    if(s){
+      var p = JSON.parse(s);
+      if(Array.isArray(p)) setupPlans = p;
+    }
+  }catch(e){ setupPlans = []; }
+}
+function setupSaveData(){
+  try{ localStorage.setItem(SETUP_STORAGE_KEY, JSON.stringify(setupPlans||[])); }catch(e){}
+}
+setupLoadData();
+
+function setupGetOrderSummariesFromTT(){
+  var byKey = {};
+  Object.keys(ttData||{}).forEach(function(dateStr){
+    (ttData[dateStr]||[]).forEach(function(en){
+      if(!en || !en.machine || !en.orderNo) return;
+      var key = en.machine + '|' + en.orderNo;
+      if(!byKey[key]){
+        byKey[key] = {
+          key:key,
+          machine:en.machine,
+          orderNo:en.orderNo,
+          jobName:en.jobName||'',
+          plastic:en.plastic||'',
+          firstDate:dateStr,
+          lastDate:dateStr
+        };
+      }
+      if(dateStr < byKey[key].firstDate) byKey[key].firstDate = dateStr;
+      if(dateStr > byKey[key].lastDate) byKey[key].lastDate = dateStr;
+    });
+  });
+  var list = Object.values(byKey);
+  list.sort(function(a,b){
+    if(a.machine !== b.machine) return String(a.machine).localeCompare(String(b.machine));
+    return String(a.firstDate).localeCompare(String(b.firstDate));
+  });
+  return list;
+}
+
+function setupEstimateMinutes(cur, prev){
+  var mins = 20;
+  if(!prev) mins += 10;
+  if(prev && prev.jobName !== cur.jobName) mins += 45;
+  if(prev && prev.plastic !== cur.plastic) mins += 25;
+  return mins;
+}
+
+function setupDateWithTime(dateStr, hhmm){
+  var t = hhmm || '08:00';
+  return String(dateStr||'') + 'T' + t;
+}
+
+function setupShiftMinutes(dtLocal, delta){
+  var d = new Date(dtLocal);
+  if(isNaN(d.getTime())) return dtLocal;
+  d.setMinutes(d.getMinutes() + delta);
+  return d.toISOString().slice(0,16);
+}
+
+function setupSyncFromTT(quiet){
+  var rows = setupGetOrderSummariesFromTT();
+  var prevByMachine = {};
+  var existing = {};
+  (setupPlans||[]).forEach(function(s){
+    if(!s) return;
+    existing[s.setupKey] = s;
+  });
+  var next = rows.map(function(r){
+    var prev = prevByMachine[r.machine] || null;
+    var mins = setupEstimateMinutes(r, prev);
+    var endPlan = setupDateWithTime(r.firstDate, '08:00');
+    var startPlan = setupShiftMinutes(endPlan, -mins);
+    var key = r.machine + '|' + r.orderNo + '|' + r.firstDate;
+    var old = existing[key] || {};
+    var item = Object.assign({}, old, {
+      setupKey:key,
+      machine:r.machine,
+      orderNo:r.orderNo,
+      jobName:r.jobName,
+      plastic:r.plastic,
+      prodDate:r.firstDate,
+      setupStartPlan:startPlan,
+      setupEndPlan:endPlan,
+      setupMinutes:mins,
+      status:old.status||'pending',
+      technician:old.technician||'',
+      actualEnd:old.actualEnd||'',
+      failPoint:old.failPoint||'',
+      failReason:old.failReason||'',
+      m4:old.m4||''
+    });
+    prevByMachine[r.machine] = r;
+    return item;
+  });
+  setupPlans = next;
+  setupSaveData();
+  if(!quiet && typeof _toast==='function') _toast('✅ ดึงแผน Setup จาก Time Table แล้ว ' + next.length + ' รายการ');
+  if(typeof setupPushFailedToActionPlan==='function') setupPushFailedToActionPlan();
+  if(window._currentPage==='setup') renderSetupPage();
+}
+
+function setupIsOffTarget(s){
+  if(!s) return false;
+  if(s.status === 'failed') return true;
+  if(s.actualEnd && s.setupEndPlan) return s.actualEnd > s.setupEndPlan;
+  return false;
+}
+
+function setupStatusBadge(st){
+  if(st==='done') return '<span class="badge badge-green">Done</span>';
+  if(st==='failed') return '<span class="badge badge-red">Fail</span>';
+  return '<span class="badge badge-yellow">Pending</span>';
+}
+
+function setupUpdateField(idx, field, val){
+  if(!setupPlans[idx]) return;
+  setupPlans[idx][field] = val;
+  setupSaveData();
+  if(field==='status' || field==='actualEnd' || field==='failReason' || field==='m4' || field==='failPoint'){
+    setupPushFailedToActionPlan();
+  }
+  renderSetupPage();
+}
+
+function renderSetupPage(){
+  if(!Array.isArray(setupPlans) || !setupPlans.length) setupSyncFromTT(true);
+  var tb = document.getElementById('setup-tbody');
+  if(!tb) return;
+  var list = (setupPlans||[]).slice().sort(function(a,b){
+    var ae = String(a.setupEndPlan||'');
+    var be = String(b.setupEndPlan||'');
+    if(ae !== be) return ae.localeCompare(be);
+    if(a.machine !== b.machine) return String(a.machine).localeCompare(String(b.machine));
+    return String(a.orderNo||'').localeCompare(String(b.orderNo||''));
+  });
+  tb.innerHTML = list.map(function(s){
+    var idx = setupPlans.findIndex(function(x){ return x.setupKey===s.setupKey; });
+    var off = setupIsOffTarget(s);
+    return '<tr>'
+      +'<td class="mono">'+(s.machine||'-')+'</td>'
+      +'<td class="mono">'+(s.orderNo||'-')+'</td>'
+      +'<td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(s.jobName||'-')+'</td>'
+      +'<td class="mono">'+(s.prodDate||'-')+'</td>'
+      +'<td class="mono">'+(s.setupStartPlan||'-')+'</td>'
+      +'<td class="mono">'+(s.setupEndPlan||'-')+'</td>'
+      +'<td class="mono">'+(s.setupMinutes||0)+'</td>'
+      +'<td><input value="'+(s.technician||'')+'" placeholder="ชื่อช่าง" onchange="setupUpdateField('+idx+',\'technician\',this.value)" style="min-width:120px"></td>'
+      +'<td><select onchange="setupUpdateField('+idx+',\'status\',this.value)"><option value="pending" '+(s.status==='pending'?'selected':'')+'>pending</option><option value="done" '+(s.status==='done'?'selected':'')+'>done</option><option value="failed" '+(s.status==='failed'?'selected':'')+'>failed</option></select></td>'
+      +'<td><input type="datetime-local" value="'+(s.actualEnd||'')+'" onchange="setupUpdateField('+idx+',\'actualEnd\',this.value)"></td>'
+      +'<td><input value="'+(s.failPoint||'')+'" placeholder="เช่น mold / machine" onchange="setupUpdateField('+idx+',\'failPoint\',this.value)"><input value="'+(s.failReason||'')+'" placeholder="เหตุผล setup ไม่ได้" onchange="setupUpdateField('+idx+',\'failReason\',this.value)" style="margin-top:4px"></td>'
+      +'<td><select onchange="setupUpdateField('+idx+',\'m4\',this.value)"><option value="" '+(!s.m4?'selected':'')+'>-</option><option value="Man" '+(s.m4==='Man'?'selected':'')+'>Man</option><option value="Machine" '+(s.m4==='Machine'?'selected':'')+'>Machine</option><option value="Material" '+(s.m4==='Material'?'selected':'')+'>Material</option><option value="Method" '+(s.m4==='Method'?'selected':'')+'>Method</option></select></td>'
+      +'<td>'+setupStatusBadge(s.status)+(off?'<div style="font-size:10px;color:#ff7b00;margin-top:3px">off target</div>':'')+'</td>'
+      +'</tr>';
+  }).join('');
+  var total = list.length;
+  var done = list.filter(function(s){ return s.status==='done'; }).length;
+  var fail = list.filter(function(s){ return s.status==='failed'; }).length;
+  var pending = total - done - fail;
+  var offt = list.filter(setupIsOffTarget).length;
+  var m = {
+    'setup-kpi-total':total,
+    'setup-kpi-done':done,
+    'setup-kpi-pending':pending,
+    'setup-kpi-fail':fail,
+    'setup-kpi-offtarget':offt
+  };
+  Object.keys(m).forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent = String(m[id]); });
+}
+
+function setupPushFailedToActionPlan(){
+  if(typeof actionPlans==='undefined' || !Array.isArray(actionPlans)) return;
+  var today = new Date().toISOString().split('T')[0];
+  var due = new Date(today+'T12:00:00'); due.setDate(due.getDate()+3);
+  var dueStr = due.toISOString().split('T')[0];
+  (setupPlans||[]).forEach(function(s){
+    if(!setupIsOffTarget(s)) return;
+    var key = 'setup_'+(s.setupKey||'');
+    var exists = actionPlans.some(function(ap){
+      return ap && ap.autoKey===key && ap.status!=='ปิด' && ap.status!=='เสร็จสิ้น';
+    });
+    if(exists) return;
+    actionPlans.unshift({
+      id:'AP-SETUP-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*1000),
+      date:today,
+      machine:s.machine||'',
+      category:'เครื่องขัดข้อง',
+      priority:'สูง',
+      status:'เปิด',
+      issue:'[Auto Setup] Setup ไม่ตามเป้า: '+(s.orderNo||'')+' '+(s.jobName||'')+' / '+(s.failReason||'ไม่ระบุ'),
+      rootCause:s.failPoint||'',
+      action:'วิเคราะห์ 4M: '+(s.m4||'-'),
+      responsible:s.technician||'',
+      dueDate:dueStr,
+      orderNo:s.orderNo||'',
+      attachedLot:'',
+      autoKey:key,
+      autoSource:'setup_off_target'
+    });
+  });
+  if(typeof saveAPData==='function') saveAPData();
+}
 function saveOrders(){ try{ localStorage.setItem('_orders', JSON.stringify(orders)); }catch(e){} }
 function loadOrders(){ try{ var d=localStorage.getItem('_orders'); if(d){ var saved=JSON.parse(d); saved.forEach(function(r){ if(!orders.find(function(o){return o.orderNo===r.orderNo;})) orders.unshift(r); }); } }catch(e){} }
 var otRequests = [];
@@ -7686,6 +7931,7 @@ var _navMenuList = [
   // การผลิต
   {id:'orders',       label:'Order (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'order แผน ฉีด injection ผลิต', workGroup:'injection'},
   {id:'orders',       label:'Order (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'order ประกอบ assembly สกรีน พ่น ไลน์รอง secondary', workGroup:'postprocess'},
+  {id:'setup',        label:'Setup Planning',            icon:'🛠️', group:'🏭 การผลิต',     keywords:'setup set up เตรียมเครื่อง ช่าง 4M'},
   {id:'order-await',  label:'Order ผลิตจบ — รอส่ง',    icon:'📦', group:'🏭 การผลิต',     keywords:'order พร้อมส่ง รอส่ง ผลิตครบ'},
   {id:'customers',    label:'ทะเบียนลูกค้า',           icon:'🏢', group:'🏭 การผลิต',     keywords:'ลูกค้า customer'},
   {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
@@ -15095,6 +15341,7 @@ function importToTT(orderNo){
   o.status='กำลังผลิต';
   autoCreateMoldPrep(o);
   autoCreateMixPlan(o, prodDate);
+  if(typeof setupSyncFromTT==='function') setupSyncFromTT(true);
   saveOrders();
   if(typeof _toast==='function') _toast('✅ นำ Order '+orderNo+' → TT ('+daysNeeded+' วัน) เครื่อง '+assignedMach);
   renderOrdersTable();
@@ -15132,6 +15379,7 @@ function deleteTTEntry(machine, date, orderNo){
       order.status = 'รอผลิต';
       saveOrders();
     }
+    if(typeof setupSyncFromTT==='function') setupSyncFromTT(true);
 
     if(typeof _toast==='function') _toast('🗑️ ลบ '+orderNo+' ออกจาก TT แล้ว ('+deletedCount+' รายการ)');
     renderTT();
@@ -19248,6 +19496,7 @@ var _DASH_WIDGETS = [
   {id:'nocond',    label:'⚠️ Condition ยังไม่บันทึก',    fn:'dashWidgetNoCond'},
   {id:'closeloop', label:'♻️ Close Loop วันนี้',          fn:'dashWidgetCloseLoop'},
   {id:'actionplan',label:'📌 Action Plan ค้างดำเนินการ', fn:'dashWidgetActionPlan'},
+  {id:'setup',     label:'🛠️ Setup ไม่ตามเป้า',          fn:'dashWidgetSetup'},
   {id:'top10ng',   label:'🏆 Top 10 PPM สูงสุด',         fn:'dashWidgetTop10NG'},
   {id:'top10oee',  label:'📉 Top 10 OEE ต่ำสุด',         fn:'dashWidgetTop10OEE'},
   {id:'apprqueue', label:'✅ ใบอนุมัติกระบวนการค้าง',   fn:'dashWidgetApprovalQueue'},
@@ -19262,7 +19511,7 @@ function lineSummaryMenuDefs(){
 }
 
 const LINE_SUMMARY_MENUS_LS_KEY = '_lineSummaryMenus';
-let _lineSummaryMenus = JSON.parse(localStorage.getItem(LINE_SUMMARY_MENUS_LS_KEY)||'null') || ['orders','machines','ng','mix','maintenance'];
+let _lineSummaryMenus = JSON.parse(localStorage.getItem(LINE_SUMMARY_MENUS_LS_KEY)||'null') || ['orders','machines','ng','mix','maintenance','setup'];
 
 function lineSummarySaveMenus(){
   try{ localStorage.setItem(LINE_SUMMARY_MENUS_LS_KEY, JSON.stringify(_lineSummaryMenus||[])); }catch(e){}
@@ -19356,6 +19605,18 @@ function lineSummaryCollectTopIssues(menuId, dateStr, topN){
     Object.entries(byStatus).forEach(function(en){
       issues.push({title:'แผนผสม: '+en[0], count:en[1], detail:'วันที่ '+(dateOnly||'-')});
     });
+  }
+  if(menuId==='setup'){
+    var fails=(setupPlans||[]).filter(function(s){ return s && s.status==='failed'; });
+    if(fails.length) issues.push({title:'Setup failed', count:fails.length, detail:'ต้องระบุสาเหตุและ 4M'});
+    var late=(setupPlans||[]).filter(function(s){ return s && setupIsOffTarget(s); });
+    if(late.length) issues.push({title:'Setup ไม่ตามเป้า', count:late.length, detail:'fail หรือจบจริงช้ากว่าแผน'});
+    var by4m={};
+    (setupPlans||[]).forEach(function(s){
+      if(!s || !setupIsOffTarget(s) || !s.m4) return;
+      by4m[s.m4]=(by4m[s.m4]||0)+1;
+    });
+    Object.keys(by4m).forEach(function(k){ issues.push({title:'4M: '+k, count:by4m[k], detail:'ประวัติความล่าช้า setup'}); });
   }
 
   if(menuId==='rawmat'){
@@ -19550,7 +19811,7 @@ function lineSummaryInitPage(){
   lineSummaryBuildText();
 }
 
-var _dashActiveWidgets = JSON.parse(localStorage.getItem('_dashWidgets')||'null') || ['rawmat','orders','machines','kpi'];
+var _dashActiveWidgets = JSON.parse(localStorage.getItem('_dashWidgets')||'null') || ['rawmat','orders','machines','kpi','setup'];
 
 function dashEditWidgets(){
   var picker=document.getElementById('dash-widget-picker');
@@ -20737,6 +20998,30 @@ function dashWidgetActionPlan(){
   return _dashWidgetCard('📌 Action Plan ค้างดำเนินการ',html,
     overdue.length>0?'<span style="background:rgba(248,81,73,0.15);color:#f85149;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">⚠️ เกินกำหนด '+overdue.length+'</span>':
     open.length>0?'<span style="background:rgba(56,139,253,0.15);color:#388bfd;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+open.length+' รายการ</span>':'');
+}
+
+function dashWidgetSetup(){
+  var list=(setupPlans||[]);
+  var off=list.filter(function(s){ return setupIsOffTarget(s); });
+  var fail=list.filter(function(s){ return s && s.status==='failed'; });
+  var pending=list.filter(function(s){ return s && s.status==='pending'; });
+  var by4m={};
+  off.forEach(function(s){ if(s && s.m4) by4m[s.m4]=(by4m[s.m4]||0)+1; });
+  var html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px">'
+    +'<div style="background:rgba(56,139,253,0.08);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#79c0ff">'+pending.length+'</div><div style="font-size:9px;color:var(--text3)">Pending</div></div>'
+    +'<div style="background:rgba(248,81,73,0.12);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f85149">'+fail.length+'</div><div style="font-size:9px;color:var(--text3)">Fail</div></div>'
+    +'<div style="background:rgba(255,123,0,0.12);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#ff7b00">'+off.length+'</div><div style="font-size:9px;color:var(--text3)">Off target</div></div>'
+  +'</div>';
+  var rows=off.slice(0,5);
+  html += rows.length ? rows.map(function(s){
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-size:11px;font-weight:700">'+(s.machine||'-')+' · '+(s.orderNo||'-')+'</div>'
+      +'<div style="font-size:10px;color:var(--text3)">'+(s.failReason||'ไม่ระบุสาเหตุ')+' | '+(s.failPoint||'-')+' | 4M: '+(s.m4||'-')+'</div>'
+    +'</div>';
+  }).join('') : '<div style="color:#3fb950;font-size:12px;text-align:center;padding:12px">✅ Setup ตามเป้าหมาย</div>';
+  var m4txt = Object.keys(by4m).map(function(k){ return k+':'+by4m[k]; }).join(' · ') || 'ยังไม่ระบุ 4M';
+  return _dashWidgetCard('🛠️ Setup ไม่ตามเป้า',html,
+    '<span style="background:rgba(255,123,0,0.15);color:#ff7b00;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+m4txt+'</span>');
 }
 
 
@@ -29106,6 +29391,10 @@ function renderPage(id){
     var _hord = document.getElementById('tt-hours-per-day');
     if(_htt && _hord && _hord.value) _htt.value = _hord.value;
     renderTT();
+  }
+  else if(id==='setup'){
+    setupSyncFromTT(true);
+    renderSetupPage();
   }
   else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
   else if(id==='dc') dcRender();
@@ -39444,6 +39733,7 @@ const ALL_PAGES = [
   {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',      icon:'✅', section:'การผลิต'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot แล้ว', icon:'✅', section:'การผลิต'},
   {id:'timetable',    label:'Time Table',              icon:'📅', section:'การผลิต'},
+  {id:'setup',        label:'Setup Planning',          icon:'🛠️', section:'การผลิต'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
   {id:'rawmat',       label:'วัตถุดิบ & Batch',          icon:'📦', section:'วัตถุดิบ'},
@@ -39509,7 +39799,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','bom','mixing','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','bom','mixing','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -51384,6 +51674,7 @@ window.HOME_PAGES = [
   { id:'prep', icon:'🏭', label:'เตรียมการผลิต', items:[
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
     {id:'mixing',       icon:'🧪', label:'แผนผสมเม็ด',            color:'#0f2010', seq:19},
+    {id:'setup',        icon:'🛠️', label:'Setup Planning',        color:'#0f1d20', seq:'17B'},
     {id:'molds',        icon:'🔧', label:'แม่พิมพ์ & PM',         color:'#201010', seq:20},
     {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#e3f2fd', seq:'21A', workGroup:'injection'},
     {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#fff3e0', seq:'21B', workGroup:'postprocess'},
