@@ -9974,7 +9974,9 @@ function exportRegrindXL(){
 function exportMixXL(){
   var rows=[['ID','วันที่','เวลา','งาน','Order No.','Lot','เม็ดพลาสติก','เกรด','MB','MB Ratio','เม็ด (kg)','MB (kg)','รวม (kg)','วันผลิต','สถานะ']];
   mixPlans.forEach(function(p){
-    rows.push([p.id,p.date,p.time||'',p.jobName,p.orderNo||'',p.lotNo||'',p.plastic||'',p.grade||'',p.mb||'',p.mbRatio||0,p.plasticKg||p.weight||0,p.mbKg||0,(p.plasticKg||p.weight||0)+(p.mbKg||0),p.prodDate||'',p.status]);
+    var ppKg=mixPlanPlasticNeedKg(p);
+    var mbKg=mixPlanMbNeedKg(p);
+    rows.push([p.id,p.date,p.time||'',p.jobName,p.orderNo||'',p.lotNo||'',p.plastic||'',p.grade||'',p.mb||'',p.mbRatio||0,ppKg,mbKg,ppKg+mbKg,p.prodDate||'',p.status]);
   });
   _exportXLSX([{name:'แผนผสมเม็ด',data:rows}],'mix_plans');
 }
@@ -18475,8 +18477,29 @@ function mixResolvePlasticUsageRows(p, totalPlasticKg){
 }
 
 function mixPlanPlasticNeedRows(p){
-  var pq=Math.max(0,parseFloat((p&&p.plasticKg!=null)?p.plasticKg:(p&&p.weight||0))||0);
+  var pq=mixPlanPlasticNeedKg(p);
   return mixResolvePlasticUsageRows(p,pq);
+}
+
+function mixPlanPlasticNeedKg(p){
+  var j=mixResolveJobForPlan(p);
+  var ratio=mixGetEffectiveMbRatio(p);
+  var wt=jobEffectiveWtPerPc(j,0);
+  var dayPcs=Math.max(0,parseFloat((p&&p.dayPcs!=null)?p.dayPcs:0)||0);
+  var totalKg=0;
+  if(dayPcs>0 && wt>0){
+    totalKg=(dayPcs*wt)/1000;
+  }else{
+    var ord=(orders||[]).find(function(o){ return String(o.orderNo||'')===String((p&&p.orderNo)||''); });
+    var remain=ord?Math.max(0,(parseFloat(ord.qty)||0)-(parseFloat(ord.produced)||0)):0;
+    if(remain>0 && wt>0) totalKg=(remain*wt)/1000;
+  }
+  if(!(totalKg>0)){
+    totalKg=Math.max(0,parseFloat((p&&p.weight!=null)?p.weight:(p&&p.plasticKg||0))||0);
+  }
+  if(!(totalKg>0)) return 0;
+  var mbKg=(ratio>0)?(totalKg*ratio/1000):0;
+  return Math.max(0, +(totalKg-mbKg).toFixed(4));
 }
 
 function mixGetEffectiveMbRatio(p){
@@ -18487,7 +18510,7 @@ function mixGetEffectiveMbRatio(p){
 }
 
 function mixPlanMbNeedKg(p){
-  var pq=Math.max(0,parseFloat((p&&p.plasticKg!=null)?p.plasticKg:(p&&p.weight||0))||0);
+  var pq=mixPlanPlasticNeedKg(p);
   var ratio=mixGetEffectiveMbRatio(p);
   if(!(pq>0) || !(ratio>0)) return 0;
   return +(pq*ratio/1000).toFixed(4);
@@ -18687,7 +18710,7 @@ function mixExecuteStockIssueForPlan(planId, opts){
     if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนผสมถังก่อน จึงจะเบิกสต็อกอัตโนมัติ');
     return;
   }
-  var pq=Math.max(0, parseFloat(p.plasticKg||p.weight||0)||0);
+  var pq=mixPlanPlasticNeedKg(p);
   var mq=mixPlanMbNeedKg(p);
   var plasticRows=mixResolvePlasticUsageRows(p,pq);
   if(plasticRows.length){
@@ -19169,6 +19192,7 @@ function renderMixTable(){
     var mat = p.plastic||'PP';
     var needRows = mixPlanPlasticNeedRows(p);
     var needKg = needRows.reduce(function(s,r){ return s+(parseFloat(r.qty)||0); },0);
+    var mbNeed = mixPlanMbNeedKg(p);
     var hasEnough = needRows.length ? needRows.every(function(r){
       var m=r.material||'';
       return getAvailableQty(m)>=Math.max(0,parseFloat(r.qty)||0);
@@ -19226,9 +19250,9 @@ function renderMixTable(){
         +'<br><span style="background:rgba(227,179,65,0.12);color:#e3b341;border-radius:4px;padding:1px 5px;font-size:9px">🪣 ถังผสม</span>'
       +'</td>'
       +'<td style="padding:8px;text-align:center">'
-        +'<div style="font-size:11px"><span style="color:var(--text3)">เม็ด:</span> <b style="color:#3fb950">'+(p.plasticKg||p.weight||0).toFixed(1)+' kg</b></div>'
-        +(p.mbKg>0?'<div style="font-size:11px"><span style="color:var(--text3)">MB:</span> <b style="color:#e3b341">'+p.mbKg.toFixed(2)+' kg</b></div>':'')
-        +'<div style="font-size:10px;color:#79c0ff;font-weight:700">รวม: '+((p.plasticKg||p.weight||0)+(p.mbKg||0)).toFixed(1)+' kg</div>'
+        +'<div style="font-size:11px"><span style="color:var(--text3)">เม็ด:</span> <b style="color:#3fb950">'+needKg.toFixed(1)+' kg</b></div>'
+        +(mbNeed>0?'<div style="font-size:11px"><span style="color:var(--text3)">MB:</span> <b style="color:#e3b341">'+mbNeed.toFixed(2)+' kg</b></div>':'')
+        +'<div style="font-size:10px;color:#79c0ff;font-weight:700">รวม: '+(needKg+mbNeed).toFixed(1)+' kg</div>'
       +'</td>'
       +'<td style="padding:8px;text-align:center"><span style="font-size:11px;font-weight:700;color:'+stockCol+'">'+stockLabel+'</span></td>'
       +'<td style="padding:8px;text-align:center;font-size:11px;color:var(--text3)">'+(p.prodDate||'—')+'</td>'
@@ -19491,7 +19515,11 @@ function mixConfirmSingle(mixId, mat){
   var key = mixId+'_'+mat;
   if(!rawMatReservations[key]){
     var p = mixPlans.find(function(x){ return x.id===mixId; });
-    var need = p ? (p.plasticKg||p.weight||0) : 0;
+    var need = 0;
+    if(p){
+      var row=mixPlanPlasticNeedRows(p).find(function(r){ return r.material===mat; });
+      need=row?Math.max(0,parseFloat(row.qty)||0):0;
+    }
     rawMatReservations[key]={material:mat,qty:need,status:'confirmed',reservedAt:new Date().toISOString(),mixId:mixId};
   } else rawMatReservations[key].status='confirmed';
   var p2=mixPlans.find(function(x){return x.id===mixId;});
@@ -19643,10 +19671,11 @@ function renderMixingTT(){
       if(plans.length){
         plans.forEach(function(p){
           var col=p.status==='ผสมแล้ว'?'#3fb950':p.status==='จองวัตถุดิบแล้ว'?'#e3b341':p.status==='ขาดวัตถุดิบ'?'#f85149':'#ffa657';
+          var ppKg=mixPlanPlasticNeedKg(p);
           html+='<div style="background:rgba(0,0,0,0.15);border-left:3px solid '+col+';padding:4px 6px;border-radius:4px;margin-bottom:3px;font-size:10px">'
             +'<div style="font-weight:800;color:var(--accent2);font-family:monospace;font-size:9px">'+(p.machine||'—')+'</div>'
             +'<div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">'+p.jobName+'</div>'
-            +'<div style="color:var(--text3)">'+p.plastic+' · '+(p.plasticKg||p.weight||0).toFixed(1)+' kg</div>'
+            +'<div style="color:var(--text3)">'+p.plastic+' · '+ppKg.toFixed(1)+' kg</div>'
             +(p.ttProdDate?'<div style="font-size:9px;color:#79c0ff">ผลิต TT: '+p.ttProdDate+'</div>':'')
             +'<span class="badge '+(p.status==='ผสมแล้ว'?'badge-green':p.status==='จองวัตถุดิบแล้ว'?'badge-yellow':'badge-orange')+'" style="font-size:9px">'+p.status+'</span>'
           +'</div>';
@@ -19754,7 +19783,8 @@ function renderMixDispatchTab(){
   }
   var opts=mixPlans.filter(function(p){ return p.status==='ผสมแล้ว'; }).map(function(p){
     var vid=String(p.id).replace(/&/g,'').replace(/"/g,'').replace(/'/g,'');
-    return '<option value="'+vid+'">'+(p.date||'')+' | '+(p.machine||'—')+' | '+(p.jobName||'')+' | '+(p.orderNo||'')+' | '+(+(p.plasticKg||0)+(p.mbKg||0)).toFixed(1)+' kg</option>';
+    var ppKg=mixPlanPlasticNeedKg(p), mbKg=mixPlanMbNeedKg(p);
+    return '<option value="'+vid+'">'+(p.date||'')+' | '+(p.machine||'—')+' | '+(p.jobName||'')+' | '+(p.orderNo||'')+' | '+(ppKg+mbKg).toFixed(1)+' kg</option>';
   }).join('');
   root.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">'
     +'<span style="font-size:12px;font-weight:700">ประวัติการจัดส่ง</span>'
@@ -19852,7 +19882,10 @@ function mixSaveDispatchRecord(){
   var batch=(document.getElementById('mix-dispatch-batch')||{}).value||'';
   var note=(document.getElementById('mix-dispatch-note')||{}).value||'';
   if(!d){ if(typeof _toast==='function') _toast('⚠️ ระบุวันที่ส่ง'); return; }
-  if(!isFinite(kg)||kg<=0) kg=+(+(p.plasticKg||0)+(p.mbKg||0)).toFixed(2);
+  if(!isFinite(kg)||kg<=0){
+    var ppKg=mixPlanPlasticNeedKg(p), mbKg=mixPlanMbNeedKg(p);
+    kg=+(ppKg+mbKg).toFixed(2);
+  }
   var bagsOut = (bagsRaw===''||bagsRaw==null) ? '' : (isFinite(bags)&&bags>=0 ? bags : '');
   mixDispatchHistory.unshift({
     id:'MD-'+Date.now(),
@@ -28164,8 +28197,8 @@ function printMixingPlan(mixId){
   </tr></thead><tbody>
   ${list.map(p=>{
     const ratio  = p.mbRatio||p.ratio||0;
-    const ppKg   = p.plasticKg||p.weight||0;
-    const mbKg   = p.mbKg||0;
+    const ppKg   = mixPlanPlasticNeedKg(p);
+    const mbKg   = mixPlanMbNeedKg(p);
     const totKg  = ppKg+mbKg;
     return `<tr>
     <td>${p.date}<br><small>${p.time||''}</small></td>
