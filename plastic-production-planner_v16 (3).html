@@ -17432,17 +17432,20 @@ function saveBom(){
     // 4-ingredient mixing formula
     mixIngredients: (typeof bomGetMixIngredients==='function') ? bomGetMixIngredients() : []
   };
-  data.target=(_ctPiece>0&&isFinite(_ctPiece))
-    ? Math.floor(3600/_ctPiece*data.eff/100)
-    : Math.floor((data.cav>0&&data.ct>0)?data.cav/data.ct*3600*data.eff/100:0);
+  data.target=(data.cav>0&&data.ct>0)
+    ? Math.floor((3600/data.ct)*data.cav*(data.eff/100))
+    : 0;
   if(idx>=0) jobs[idx]={...jobs[idx],...data};
   else jobs.push(data);
   
   // Save jobs to localStorage
-  try{
-    localStorage.setItem('_jobs', JSON.stringify(jobs));
-  }catch(e){
-    console.error('Error saving jobs:', e);
+  if(typeof persistJobs==='function') persistJobs();
+  else{
+    try{
+      localStorage.setItem('_jobs', JSON.stringify(jobs));
+    }catch(e){
+      console.error('Error saving jobs:', e);
+    }
   }
   
   // Sync JOB_REGISTRY
