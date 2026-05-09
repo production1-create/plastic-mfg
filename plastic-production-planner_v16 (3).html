@@ -22419,6 +22419,61 @@ function fgOpenOrderForLowStock(jobName){
   if(typeof fillJobInfo==='function') fillJobInfo();
   if(typeof _toast==='function') _toast('📋 กรอก Order แล้วกดบันทึก — จะไปหน้าใบอนุมัติกระบวนการ (รออนุมัติ)');
 }
+function fgNormalizeLotCode(l){
+  var s=String(l==null?'':l).trim();
+  if(!s||s==='-'||s==='—') return '';
+  var up=s.replace(/\s+/g,'').toUpperCase();
+  if(up==='NO-LOT'||up==='ADJ-LOT') return '';
+  return s;
+}
+function fgOrdersAllForFgJob(jobName){
+  var jn=String(jobName||'').trim();
+  if(!jn)return [];
+  var arr=(typeof orders!=='undefined'&&orders)?orders:[];
+  return arr.filter(function(o){
+    return o && String(o.jobName||'')===jn && fgNormalizeLotCode(o.lotNo);
+  });
+}
+function fgOrdersLotsFifoSorted(jobName){
+  var list=fgOrdersAllForFgJob(jobName).slice().sort(function(a,b){
+    var sa=String(a.startDate||a.dueDate||'');
+    var sb=String(b.startDate||b.dueDate||'');
+    var c=sa.localeCompare(sb);
+    if(c!==0) return c;
+    var la=fgNormalizeLotCode(a.lotNo), lb=fgNormalizeLotCode(b.lotNo);
+    return la.localeCompare(lb);
+  });
+  return list;
+}
+function fgResolveLotFromOrderWindow(jobName, row){
+  var list=fgOrdersLotsFifoSorted(jobName);
+  if(!list.length) return '';
+  var d=(row&&row.date)?String(row.date).trim():new Date().toISOString().split('T')[0];
+  function inPlanWindow(o){
+    var sd=String(o.startDate||'').trim();
+    var dd=String(o.dueDate||d).trim();
+    if(dd&&d>dd) return false;
+    if(sd&&d<sd) return false;
+    return true;
+  }
+  var i, pick=null;
+  for(i=0;i<list.length;i++){ if(inPlanWindow(list[i])){ pick=list[i]; break; } }
+  if(pick) return fgNormalizeLotCode(pick.lotNo);
+  var best=null, bestSd='';
+  for(i=0;i<list.length;i++){
+    var o=list[i]; var anchor=String(o.startDate||o.dueDate||'').trim();
+    if(!anchor) continue;
+    if(anchor<=d && anchor>=bestSd){ bestSd=anchor; best=o; }
+  }
+  if(best) return fgNormalizeLotCode(best.lotNo);
+  return fgNormalizeLotCode(list[0].lotNo);
+}
+/** Lot จากรายการ ledger: ถ้าระบุ Lot ในเอกสารแล้วใช้นั้น; ถ้าเป็น ADJ-LOT/ว่าง → ผูกกับ Lot จาก Order + วันที่รายการ */
+function fgEffectiveLedgerLot(jobName, row){
+  var base=fgNormalizeLotCode(row&&row.lot);
+  if(base) return base;
+  return fgResolveLotFromOrderWindow(jobName, row)||'';
+}
 function fgGetLotBalances(jobName){
   var rows=(fgLedger&&fgLedger[jobName])?fgLedger[jobName].slice():[];
   rows.sort(function(a,b){
@@ -22429,7 +22484,7 @@ function fgGetLotBalances(jobName){
   var lots={};
   var fifo=[];
   function ensureLot(lot, row){
-    var key=String(lot||'').trim();
+    var key=String(fgNormalizeLotCode(lot)||'').trim();
     if(!key || key==='-' || key==='—') return null;
     if(!lots[key]){
       lots[key]={lot:key, qty:0, firstAt:(row?.date||''), lastAt:(row?.date||'')};
@@ -22454,34 +22509,45 @@ function fgGetLotBalances(jobName){
   rows.forEach(function(r){
     if(!r) return;
     var t=String(r.type||'');
-    var qty=Math.round(Math.abs(Number(r.qty)||0));
-    if(!qty) return;
-    var lot=ensureLot(r.lot, r);
+    var diffAdj=t==='adj'?Math.round(Number(r.qty)||0):0;
+    var qtyMove=Math.round(Math.abs(Number(r.qty)||0));
+    if(t==='adj'){ if(!diffAdj) return; }
+    else if(!qtyMove) return;
+
+    function pickLotBucket(){
+      var eff=fgEffectiveLedgerLot(jobName,r);
+      if(eff)return ensureLot(eff,r);
+      var w=fgResolveLotFromOrderWindow(jobName,r);
+      if(w)return ensureLot(w,r);
+      var o=fgStock[jobName]; var ml=o?fgNormalizeLotCode(o.lastLot):'';
+      if(ml)return ensureLot(ml,r);
+      return null;
+    }
     if(t==='in'){
-      var lk=lot||ensureLot('NO-LOT', r);
-      if(lk) lots[lk].qty+=qty;
+      var lk=pickLotBucket();
+      if(lk) lots[lk].qty+=qtyMove;
       return;
     }
     if(t==='out'){
-      if(lot && lots[lot] && lots[lot].qty>0){
-        var use=Math.min(lots[lot].qty, qty);
-        lots[lot].qty-=use;
-        qty-=use;
+      var need=qtyMove;
+      var lkO=pickLotBucket();
+      if(lkO && lots[lkO] && lots[lkO].qty>0){
+        var u=Math.min(lots[lkO].qty, need);
+        lots[lkO].qty-=u; need-=u;
       }
-      if(qty>0) consumeFifo(qty);
+      if(need>0) consumeFifo(need);
       return;
     }
     if(t==='adj'){
-      var diff=Math.round(Number(r.qty)||0);
-      if(diff>0){
-        var ap=lot||ensureLot('ADJ-LOT', r);
-        if(ap) lots[ap].qty+=diff;
-      } else if(diff<0){
-        var dec=Math.abs(diff);
-        if(lot && lots[lot] && lots[lot].qty>0){
-          var use2=Math.min(lots[lot].qty, dec);
-          lots[lot].qty-=use2;
-          dec-=use2;
+      var lkA=pickLotBucket();
+      if(diffAdj>0){
+        if(lkA) lots[lkA].qty+=diffAdj;
+      } else {
+        var dec=Math.abs(diffAdj);
+        if(lkA && lots[lkA] && lots[lkA].qty>0){
+          var u2=Math.min(lots[lkA].qty, dec);
+          lots[lkA].qty-=u2;
+          dec-=u2;
         }
         if(dec>0) consumeFifo(dec);
       }
@@ -22499,17 +22565,43 @@ function fgLotMiniHtml(jobName, maxRows){
       +_fgEscHtml(x.lot)+' <span style="color:var(--text3)">('+Number(x.qty||0).toLocaleString()+')</span></div>';
   }).join('');
 }
+function fgLotListMergedForJob(jobName){
+  var lots=fgGetLotBalances(jobName).slice();
+  var ord=fgOrdersLotsFifoSorted(jobName); var seen={};
+  lots.forEach(function(x){ if(x&&x.lot) seen[x.lot]=true; });
+  ord.forEach(function(o){
+    var l=fgNormalizeLotCode(o&&o.lotNo);
+    if(!l||seen[l])return;
+    seen[l]=true; lots.push({lot:l, qty:0, firstAt:String(o.startDate||o.dueDate||'')});
+  });
+  lots.sort(function(a,b){ return String(a.firstAt||'').localeCompare(String(b.firstAt||'')); });
+  return lots;
+}
+function fgRefreshSiLotSelect(){
+  var job=(document.getElementById('si-job')||{}).value||'';
+  var sel=document.getElementById('si-lot-order');
+  if(!sel) return;
+  var list=fgOrdersLotsFifoSorted(job);
+  sel.innerHTML='<option value="">— เลือก Lot จาก Order —</option>'+list.map(function(o){
+    var l=fgNormalizeLotCode(o.lotNo); if(!l) return '';
+    var esc=l.replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
+    var due=o.dueDate||'—';
+    return '<option value="'+esc+'">'+_fgEscHtml(l)+' · งวดส่ง '+_fgEscHtml(String(due))+'</option>';
+  }).join('');
+  sel.onchange=function(){ var m=document.getElementById('si-lot-manual'); if(m)m.value=''; };
+}
 function fgRefreshOutLotUI(){
   var job=(document.getElementById('so-job')||{}).value||'';
   var sel=document.getElementById('so-lot');
   var hint=document.getElementById('so-fifo-hint');
   if(!sel) return;
-  var lots=fgGetLotBalances(job);
-  var first=lots[0]||null;
-  sel.innerHTML='<option value="">-- เลือก Lot ที่จะจ่าย --</option>'+lots.map(function(x){
-    var esc=_fgEscHtml(x.lot);
-    return '<option value="'+esc+'">'+esc+' ('+Number(x.qty||0).toLocaleString()+')</option>';
-  }).join('');
+  var lots=fgLotListMergedForJob(job);
+  var positive=lots.filter(function(x){ return (x.qty||0)>0; });
+  var first=positive[0]||null;
+  sel.innerHTML='<option value="">-- เลือก Lot ที่จะจ่าย --</option>'
+    +lots.map(function(x){ var esc=_fgEscHtml(x.lot); var q=Number(x.qty||0);
+      return '<option value="'+esc+'">'+esc+(q>0?' ('+q.toLocaleString()+')':' (0)')+'</option>';
+    }).join('');
   if(first) sel.value=first.lot;
   if(hint){
     if(!job) hint.innerHTML='ℹ️ เลือกงานก่อน เพื่อแสดง Lot คงเหลือ';
@@ -22612,7 +22704,7 @@ function renderFgLedger(){
     <td class="mono" style="font-size:12px">${r.date}</td>
     <td class="mono" style="font-size:11px">${r.time||'--:--'}</td>
     <td style="font-size:12px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.jobName||jobFilter}</td>
-    <td class="mono" style="font-size:11px">${r.lot||'-'}</td>
+    <td class="mono" style="font-size:11px">${(()=>{var jn=r.jobName||jobFilter||''; try{var d=fgEffectiveLedgerLot(jn,r)||'-'; return _fgEscHtml(String(d));}catch(e){return _fgEscHtml(String(r.lot||'-'));}})()}</td>
     <td>${typeBadge}</td>
     <td class="mono" style="font-weight:600;color:${qtyColor}">${isAdj?'':`<span style="font-size:9px;opacity:0.5;margin-right:3px">${isIn?'F-PD-I004':'F-PD-I005'}</span>`}${qtySign}${qtyDisplay}</td>
     <td class="mono" style="font-size:11px">${r.ref||'-'}</td>
@@ -22628,9 +22720,12 @@ function exportFgLedger(){ if(typeof _infoToast==="function") _infoToast('Export
 function doStockIn(){
   const name=document.getElementById('si-job').value;
   const qty=parseInt(document.getElementById('si-qty').value)||0;
-  const lot=document.getElementById('si-lot').value||'LOT-'+Date.now().toString().slice(-4);
+  var lotPick=(document.getElementById('si-lot-order')?.value||'').trim();
+  var lotManual=(document.getElementById('si-lot-manual')?.value||'').trim();
+  var lot=fgNormalizeLotCode(lotManual||lotPick||'');
   const date=document.getElementById('si-date')?.value||new Date().toISOString().split('T')[0];
   if(!name||!qty){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือกงานและระบุจำนวน'); return; }
+  if(!lot){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก Lot จาก Order หรือพิมพ์เลข Lot ที่รับเข้า'); return; }
   if(!fgStock[name]) fgStock[name]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
   if(fgStock[name]){fgStock[name].qty+=qty;fgStock[name].lastIn=qty;fgStock[name].lastLot=lot;}
   if(!fgLedger[name]) fgLedger[name]=[];
@@ -22646,9 +22741,10 @@ function doStockOut(){
   const date=document.getElementById('so-date')?.value||new Date().toISOString().split('T')[0];
   if(!name||!qty){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือกงานและระบุจำนวน'); return; }
   if(!lot){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก Lot ที่ต้องการจ่ายออก'); return; }
-  var lots=fgGetLotBalances(name);
-  var lotObj=lots.find(function(x){ return x.lot===lot; })||null;
-  var fifoFirst=lots[0]||null;
+  var lotsMerged=fgLotListMergedForJob(name);
+  var positive=lotsMerged.filter(function(x){ return (x.qty||0)>0; });
+  var lotObj=positive.find(function(x){ return x.lot===lot; })||null;
+  var fifoFirst=positive[0]||null;
   if(!lotObj){ if(typeof _infoToast==="function") _infoToast('Lot ที่เลือกไม่มีคงเหลือ'); return; }
   if((lotObj.qty||0)<qty){ if(typeof _infoToast==="function") _infoToast('Lot '+lot+' คงเหลือ '+Number(lotObj.qty||0).toLocaleString()+' ชิ้น ไม่พอจ่าย'); return; }
   if(fifoFirst && fifoFirst.lot!==lot && typeof _infoToast==="function"){
@@ -23148,9 +23244,10 @@ function openModal(id){
   }
   if(id==='modal-stock-in'){
     const siJob=document.getElementById('si-job');
-    if(siJob&&siJob.options.length<=1){
-      siJob.innerHTML='<option value="">-- เลือกงาน --</option>'+Object.keys(fgStock).map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join('');
-    }
+    if(siJob){ siJob.innerHTML='<option value="">-- เลือกงาน --</option>'+Object.keys(fgStock).map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join(''); siJob.onchange=function(){ if(typeof fgRefreshSiLotSelect==='function') fgRefreshSiLotSelect(); }; }
+    const siMan=document.getElementById('si-lot-manual');
+    if(siMan){ siMan.value=''; siMan.oninput=function(){ var ls=document.getElementById('si-lot-order'); if(ls&&this.value.trim()) ls.value=''; }; }
+    if(typeof fgRefreshSiLotSelect==='function') fgRefreshSiLotSelect();
     const siDate=document.getElementById('si-date');
     if(siDate&&!siDate.value) siDate.value=today;
   }
@@ -44434,7 +44531,10 @@ function _clRenderChart(){
   <div class="modal-header"><div class="modal-title">📥 เบิกเข้า FG Stock</div><button class="modal-close" onclick="closeModal('modal-stock-in')">✕</button></div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">ชื่องาน</div><select id="si-job"><option>-- เลือก --</option></select></div>
-    <div class="form-group"><div class="form-label">Lot No.</div><input type="text" id="si-lot"></div>
+    <div class="form-group"><div class="form-label">Lot จาก Order *</div><select id="si-lot-order" style="width:100%"><option value="">— เลือกชื่องานก่อน —</option></select></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group" style="grid-column:1/-1"><div class="form-label">หรือพิมพ์เลข Lot ตรง (ถ้าไม่เลือกด้านบน)</div><input type="text" id="si-lot-manual" placeholder="เช่น 26W0117064"></div>
   </div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">จำนวน (ชิ้น)</div><input type="number" id="si-qty"></div>
@@ -50336,17 +50436,20 @@ function fgAdjOnJobChange(){
   if(el) el.textContent=cur.toLocaleString();
   var lotSel=document.getElementById('fgadj-lot');
   if(lotSel){
-    var lots=fgGetLotBalances(job);
+    var lots=fgLotListMergedForJob(job);
+    var positive=lots.filter(function(x){ return (x.qty||0)>0; });
     lotSel.innerHTML='<option value="">-- เลือก Lot --</option>'+lots.map(function(x){
-      return '<option value="'+_fgEscHtml(x.lot)+'">'+_fgEscHtml(x.lot)+' ('+Number(x.qty||0).toLocaleString()+')</option>';
+      var q=Number(x.qty||0);
+      return '<option value="'+_fgEscHtml(x.lot)+'">'+_fgEscHtml(x.lot)+' ('+q.toLocaleString()+')</option>';
     }).join('');
-    if(lots[0]) lotSel.value=lots[0].lot;
+    if(positive[0]) lotSel.value=positive[0].lot;
     lotSel.onchange=function(){
       var nm=(document.getElementById('fgadj-job')||{}).value||'';
       var picked=this.value||'';
       var one=fgGetLotBalances(nm).find(function(x){ return x.lot===picked; })||null;
+      var qty=one?Number(one.qty||0):0;
       var qel=document.getElementById('fgadj-lot-qty');
-      if(qel) qel.textContent=one?Number(one.qty||0).toLocaleString()+' ชิ้น':'—';
+      if(qel) qel.textContent=qty.toLocaleString()+' ชิ้น';
     };
     lotSel.onchange();
   }
