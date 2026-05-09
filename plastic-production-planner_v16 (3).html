@@ -18343,18 +18343,41 @@ function mixNormKey(v){
 }
 
 function mixResolveJobForPlan(p){
+  function pickFromRegistry(name){
+    var raw=String(name||'').trim();
+    if(!raw || typeof JOB_REGISTRY==='undefined' || !Array.isArray(JOB_REGISTRY)) return null;
+    var nrm=_normalizeText(raw), col=jobNameCollapseSpaces(raw);
+    return JOB_REGISTRY.find(function(jr){
+      if(!jr) return false;
+      var nm=String(jr.name||'');
+      return nm===raw || _normalizeText(nm)===nrm || jobNameCollapseSpaces(nm)===col;
+    })||null;
+  }
+  function mergeJob(base, reg){
+    if(!base && !reg) return null;
+    if(!base) return Object.assign({},reg);
+    if(!reg) return Object.assign({},base);
+    var out=Object.assign({},base,reg);
+    if(Array.isArray(reg.mixIngredients)&&reg.mixIngredients.length) out.mixIngredients=reg.mixIngredients;
+    else if(Array.isArray(base.mixIngredients)&&base.mixIngredients.length) out.mixIngredients=base.mixIngredients;
+    return out;
+  }
   var orderNo=String(p&&p.orderNo||'').trim();
   if(orderNo){
     var o=(orders||[]).find(function(x){ return x && String(x.orderNo||'').trim()===orderNo; });
     if(o){
       var jByOrder=(jobs||[]).find(function(jj){ return jj && _normalizeText(jj.name)===_normalizeText(o.jobName); });
-      if(jByOrder) return jByOrder;
+      var jrByOrder=pickFromRegistry(o.jobName);
+      if(jByOrder||jrByOrder) return mergeJob(jByOrder,jrByOrder);
     }
   }
   var jByName=(jobs||[]).find(function(jj){ return jj && _normalizeText(jj.name)===_normalizeText(p&&p.jobName); });
-  if(jByName) return jByName;
+  var jrByName=pickFromRegistry(p&&p.jobName);
+  if(jByName||jrByName) return mergeJob(jByName,jrByName);
   var nk=mixNormKey(p&&p.jobName);
-  return (jobs||[]).find(function(jj){ return mixNormKey(jj&&jj.name)===nk; })||null;
+  var jFuzzy=(jobs||[]).find(function(jj){ return mixNormKey(jj&&jj.name)===nk; })||null;
+  if(jFuzzy||jrByName) return mergeJob(jFuzzy,jrByName);
+  return null;
 }
 
 function mixResolveRawMatCode(matLike){
@@ -18991,7 +19014,17 @@ function mixRenderKPI(){
 // ── Alert Banner ──────────────────────────────────────────────────
 function mixRenderAlerts(){
   var el = document.getElementById('mix-alert-banner'); if(!el) return;
-  var alerts = [];
+  var agg={};
+  function upsertShort(mat, need, avail, source){
+    if(!mat) return;
+    var short=Math.max(0,(need||0)-(avail||0));
+    if(!(short>0)) return;
+    if(!agg[mat]) agg[mat]={mat:mat, need:0, avail:0, short:0, jobs:[]};
+    agg[mat].need += (need||0);
+    agg[mat].avail = Math.min(agg[mat].avail===0?(avail||0):agg[mat].avail, (avail||0));
+    agg[mat].short += short;
+    if(source && agg[mat].jobs.indexOf(source)<0) agg[mat].jobs.push(source);
+  }
   // Check each mix plan's material
   mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
     var rows=mixPlanPlasticNeedRows(p);
@@ -18999,18 +19032,33 @@ function mixRenderAlerts(){
       var mat=r.material; if(!mat) return;
       var need=Math.max(0,parseFloat(r.qty)||0);
       var avail=getAvailableQty(mat);
-      if(avail < need){
-        alerts.push({type:'danger', msg:'<b>'+mat+'</b> ไม่พอ — ต้องการ '+need.toFixed(1)+' kg มีอยู่ '+avail.toFixed(1)+' kg (แผน: '+p.jobName+')', mat:mat, shortfall:need-avail});
-      }
+      upsertShort(mat, need, avail, p.jobName||p.id);
     });
+    var mbNeed=mixPlanMbNeedKg(p);
+    if(mbNeed>0 && p.mb && p.mb!=='-'){
+      var mbKey=mixResolveMbStockKey(p.mb);
+      var mbAvail=(mbKey&&mbStock&&mbStock[mbKey])?parseFloat(mbStock[mbKey].qty)||0:0;
+      upsertShort('MB:'+String(mbKey||p.mb), mbNeed, mbAvail, p.jobName||p.id);
+    }
   });
   // Low stock after reservations
+  var alerts=[];
   Object.keys(rawMatStock).forEach(function(mat){
     var avail = getAvailableQty(mat);
     var min   = rawMatStock[mat].min || 0;
-    if(avail < min && !alerts.find(function(a){ return a.mat===mat; })){
+    if(avail < min && !agg[mat]){
       alerts.push({type:'warn', msg:'<b>'+mat+'</b> ต่ำกว่า Min — มีอยู่ '+avail.toFixed(0)+' kg (ขั้นต่ำ '+min+' kg)', mat:mat, shortfall:min-avail});
     }
+  });
+  Object.keys(agg).forEach(function(k){
+    var a=agg[k];
+    alerts.push({
+      type:'danger',
+      mat:k,
+      shortfall:a.short,
+      msg:'<b>'+k+'</b> ขาดรวม '+a.short.toFixed(1)+' kg · ต้องใช้ '+a.need.toFixed(1)+' kg · มีใช้ได้ '+a.avail.toFixed(1)+' kg'
+        +(a.jobs.length?' <span style="color:var(--text3)">('+a.jobs.slice(0,3).join(', ')+(a.jobs.length>3?' +'+(a.jobs.length-3):'')+')</span>':'')
+    });
   });
   if(!alerts.length){ el.innerHTML=''; return; }
   el.innerHTML = '<div style="background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.3);border-radius:8px;padding:10px 14px">'
@@ -19262,8 +19310,7 @@ function renderMixStockGrid(){
     if(!ap||!ap.status) return 'pending';
     return ap.status;
   }
-  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px">'
-    +Object.values(matMap).map(function(m){
+  var cards = Object.values(matMap).map(function(m){
       var mat=m.mat;
       var stock=(rawMatStock[mat]&&rawMatStock[mat].qty)||0;
       var reserved=getReservedQty(mat);
@@ -19332,8 +19379,45 @@ function renderMixStockGrid(){
           +'</div>'
         +'</div>'
       +'</div>';
-    }).join('')
-  +'</div>';
+    });
+  // MB summary cards
+  var mbMap={};
+  mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว' && p.mb; }).forEach(function(p){
+    var mbNeed=mixPlanMbNeedKg(p);
+    if(!(mbNeed>0)) return;
+    var key=mixResolveMbStockKey(p.mb)||String(p.mb).trim();
+    if(!mbMap[key]) mbMap[key]={code:key, label:p.mb||key, need:0, plans:[]};
+    mbMap[key].need += mbNeed;
+    mbMap[key].plans.push({job:p.jobName||'-', lot:p.lotNo||'-', need:mbNeed, ap:(approvals['mixing-'+p.id]||{}).status||'pending'});
+  });
+  Object.keys(mbMap).forEach(function(k){
+    var m=mbMap[k];
+    var avail=(mbStock&&mbStock[m.code])?parseFloat(mbStock[m.code].qty)||0:0;
+    var ok=avail>=m.need;
+    cards.push(
+      '<div style="background:var(--bg3);border:1px solid '+(ok?'rgba(227,179,65,.35)':'rgba(248,81,73,.35)')+';border-radius:10px;padding:12px">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+          +'<span style="padding:2px 8px;border-radius:999px;background:rgba(227,179,65,.16);border:1px solid rgba(227,179,65,.35);color:#e3b341;font-size:10px;font-weight:700">MB '+m.code+'</span>'
+          +(ok?'<span style="font-size:10px;color:#3fb950;font-weight:700">เพียงพอ</span>':'<span style="font-size:10px;color:#f85149;font-weight:700">ไม่พอ</span>')
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">MB Stock</div><div class="mono" style="font-size:13px;color:#79c0ff;font-weight:700">'+avail.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">ต้องใช้</div><div class="mono" style="font-size:13px;color:#ffa657;font-weight:700">'+m.need.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">คงเหลือ</div><div class="mono" style="font-size:13px;color:'+(ok?'#3fb950':'#f85149')+';font-weight:700">'+(avail-m.need).toFixed(1)+'</div></div>'
+        +'</div>'
+        +'<div style="font-size:10px;color:#e3b341;font-weight:700;margin-bottom:4px">รายการงานที่ต้องตัด MB ('+m.plans.length+')</div>'
+        +(m.plans.slice(0,8).map(function(x){
+          var st=x.ap==='approved'?'อนุมัติแล้ว':'รออนุมัติ';
+          return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
+            +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text2)">'+x.job+' | Lot '+x.lot+'</span>'
+            +'<span class="mono" style="color:#e3b341">'+x.need.toFixed(2)+'kg</span>'
+            +'<span style="color:'+(x.ap==='approved'?'#3fb950':'#e3b341')+'">'+st+'</span>'
+          +'</div>';
+        }).join('')||'<div style="font-size:10px;color:var(--text3)">—</div>')
+      +'</div>'
+    );
+  });
+  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px">'+cards.join('')+'</div>';
 }
 
 // ── Reservation functions ─────────────────────────────────────────
