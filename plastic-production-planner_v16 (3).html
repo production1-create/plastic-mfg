@@ -17467,6 +17467,10 @@ function saveBom(){
     }
     if(typeof saveJobRegistry==='function') saveJobRegistry();
   }
+  // รีซิงก์แผนผสมจาก TT ให้ใช้สูตร BOM ล่าสุดทันที (สัดส่วนเม็ด + MB ratio)
+  if(typeof mixRebuildFromTT==='function') mixRebuildFromTT({merge:true});
+  if(typeof renderMixing==='function') renderMixing();
+  if(typeof renderRawmatLedger==='function') renderRawmatLedger();
   closeModal('modal-add-bom');
   renderBom();
   if(bomUnitCost>0&&typeof _toast==='function'){
@@ -18387,8 +18391,9 @@ function mixResolvePlasticUsageRows(p, totalPlasticKg){
   if(!(qtyTotal>0)) return rows;
   var j=mixResolveJobForPlan(p);
   var ingSrc=[];
-  if(p&&Array.isArray(p.mixIngredients)&&p.mixIngredients.length) ingSrc=p.mixIngredients;
-  else if(j&&Array.isArray(j.mixIngredients)) ingSrc=j.mixIngredients;
+  // ใช้สูตร BOM ล่าสุดจาก jobs ก่อน เพื่อให้แก้ BOM แล้วทุกหน้าคิดสัดส่วนตรงกัน
+  if(j&&Array.isArray(j.mixIngredients)&&j.mixIngredients.length) ingSrc=j.mixIngredients;
+  else if(p&&Array.isArray(p.mixIngredients)&&p.mixIngredients.length) ingSrc=p.mixIngredients;
   var ing=ingSrc.filter(function(m){
     var code=String(m&&m.code||'').trim();
     var pct=parseFloat(m&&m.pct)||0;
@@ -18430,6 +18435,25 @@ function mixResolvePlasticUsageRows(p, totalPlasticKg){
     rows.push({material:matKey, qty:q, grade:gStr});
   }
   return rows;
+}
+
+function mixPlanPlasticNeedRows(p){
+  var pq=Math.max(0,parseFloat((p&&p.plasticKg!=null)?p.plasticKg:(p&&p.weight||0))||0);
+  return mixResolvePlasticUsageRows(p,pq);
+}
+
+function mixGetEffectiveMbRatio(p){
+  var j=mixResolveJobForPlan(p);
+  var jr=parseFloat(j&&j.mbRatio)||0;
+  if(jr>0) return jr;
+  return parseFloat(p&&p.mbRatio)||0;
+}
+
+function mixPlanMbNeedKg(p){
+  var pq=Math.max(0,parseFloat((p&&p.plasticKg!=null)?p.plasticKg:(p&&p.weight||0))||0);
+  var ratio=mixGetEffectiveMbRatio(p);
+  if(!(pq>0) || !(ratio>0)) return 0;
+  return +(pq*ratio/1000).toFixed(4);
 }
 
 function mixFormatUsageFormula(rows){
@@ -18627,7 +18651,7 @@ function mixExecuteStockIssueForPlan(planId, opts){
     return;
   }
   var pq=Math.max(0, parseFloat(p.plasticKg||p.weight||0)||0);
-  var mq=Math.max(0, parseFloat(p.mbKg||0)||0);
+  var mq=mixPlanMbNeedKg(p);
   var plasticRows=mixResolvePlasticUsageRows(p,pq);
   if(plasticRows.length){
     plasticRows.forEach(function(r){
@@ -18715,7 +18739,12 @@ function mixExecuteFeederStockIssue(planId, opts){
     return;
   }
   var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
-  var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+  var mq=(function(){
+    var j=mixResolveJobForPlan(p);
+    var ratio=parseFloat(j&&j.mbRatio)||parseFloat(p.mbRatio)||0;
+    if(!(ratio>0) || !(pq>0)) return 0;
+    return +(pq*ratio/1000).toFixed(4);
+  })();
   var plasticRows=mixResolvePlasticUsageRows(p,pq);
   var plasticRmLots='—';
   var plasticFormula='—';
@@ -18965,12 +18994,15 @@ function mixRenderAlerts(){
   var alerts = [];
   // Check each mix plan's material
   mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
-    var mat = p.plastic; if(!mat) return;
-    var need = p.plasticKg || p.weight || 0;
-    var avail = getAvailableQty(mat);
-    if(avail < need){
-      alerts.push({type:'danger', msg:'<b>'+mat+'</b> ไม่พอ — ต้องการ '+need.toFixed(1)+' kg มีอยู่ '+avail.toFixed(1)+' kg (แผน: '+p.jobName+')', mat:mat, shortfall:need-avail});
-    }
+    var rows=mixPlanPlasticNeedRows(p);
+    rows.forEach(function(r){
+      var mat=r.material; if(!mat) return;
+      var need=Math.max(0,parseFloat(r.qty)||0);
+      var avail=getAvailableQty(mat);
+      if(avail < need){
+        alerts.push({type:'danger', msg:'<b>'+mat+'</b> ไม่พอ — ต้องการ '+need.toFixed(1)+' kg มีอยู่ '+avail.toFixed(1)+' kg (แผน: '+p.jobName+')', mat:mat, shortfall:need-avail});
+      }
+    });
   });
   // Low stock after reservations
   Object.keys(rawMatStock).forEach(function(mat){
@@ -19072,11 +19104,21 @@ function renderMixTable(){
   }
   tbody.innerHTML = list.map(function(p){
     var mat = p.plastic||'PP';
-    var needKg = p.plasticKg || p.weight || 0;
-    var avail  = getAvailableQty(mat);
-    var hasEnough = avail >= needKg;
+    var needRows = mixPlanPlasticNeedRows(p);
+    var needKg = needRows.reduce(function(s,r){ return s+(parseFloat(r.qty)||0); },0);
+    var hasEnough = needRows.length ? needRows.every(function(r){
+      var m=r.material||'';
+      return getAvailableQty(m)>=Math.max(0,parseFloat(r.qty)||0);
+    }) : (getAvailableQty(mat)>=needKg);
+    var avail = hasEnough ? needKg : (needRows.find(function(r){
+      var m=r.material||'';
+      return getAvailableQty(m)<Math.max(0,parseFloat(r.qty)||0);
+    }) ? getAvailableQty((needRows.find(function(r){
+      var m=r.material||'';
+      return getAvailableQty(m)<Math.max(0,parseFloat(r.qty)||0);
+    }).material||'')) : getAvailableQty(mat));
     var stockCol  = hasEnough ? '#3fb950' : '#f85149';
-    var stockLabel= hasEnough ? ('✅ '+avail.toFixed(0)+' kg') : ('❌ ขาด '+(needKg-avail).toFixed(0)+' kg');
+    var stockLabel= hasEnough ? ('✅ สูตรผสมเพียงพอ') : ('❌ ขาดวัตถุดิบตามสูตร');
     var statusBadge = {
       'รอผสม':            'badge-yellow',
       'จองวัตถุดิบแล้ว':  'badge-green',
@@ -19086,16 +19128,18 @@ function renderMixTable(){
     }[p.status] || 'badge-yellow';
     var daysToMix = p.prodDate ? Math.round((new Date(p.date)-new Date())/(86400000)) : null;
     var urgency = daysToMix!==null ? (daysToMix<0?'<span style="color:#f85149;font-size:10px">⚠️ เลยกำหนด</span>':daysToMix===0?'<span style="color:#e3b341;font-size:10px">🔔 วันนี้</span>':daysToMix<=2?'<span style="color:#e3b341;font-size:10px">อีก '+daysToMix+' วัน</span>':'<span style="color:#3fb950;font-size:10px">อีก '+daysToMix+' วัน</span>') : '';
-    var reserveKey = String(p.id)+'_'+mat;
-    var resv = rawMatReservations[reserveKey];
+    var resvRows=needRows.map(function(r){ return rawMatReservations[String(p.id)+'_'+(r.material||'')]; }).filter(Boolean);
+    var hasPending=resvRows.some(function(x){ return x&&x.status==='pending'; });
+    var hasConfirmed=resvRows.length>0 && resvRows.every(function(x){ return x&&x.status==='confirmed'; });
+    var hasAny = resvRows.length>0;
     var resvBtn = '';
     if(p.status!=='ผสมแล้ว'){
-      if(!resv || resv.status==='cancelled'){
+      if(!hasAny){
         resvBtn='<button onclick="mixReserveOne(\''+p.id+'\')" style="padding:3px 8px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:5px;cursor:pointer;font-size:10px;font-weight:700">🔒 จอง</button>';
-      } else if(resv.status==='pending'){
+      } else if(hasPending){
         resvBtn='<button onclick="mixConfirmReserve(\''+p.id+'\')" style="padding:3px 8px;background:rgba(63,185,80,0.15);border:1px solid #3fb950;color:#3fb950;border-radius:5px;cursor:pointer;font-size:10px;font-weight:700">✅ ยืนยัน</button>'
           +'<button onclick="mixCancelReserve(\''+p.id+'\')" style="padding:3px 8px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px">✕</button>';
-      } else if(resv.status==='confirmed'){
+      } else if(hasConfirmed){
         resvBtn='<span style="font-size:10px;color:#3fb950;font-weight:700">🔒 จองแล้ว</span>'
           +'<button onclick="mixCancelReserve(\''+p.id+'\')" style="padding:2px 6px;background:none;border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:5px;cursor:pointer;font-size:9px;margin-left:3px">✕</button>';
       }
@@ -19198,88 +19242,94 @@ function mixAutoOneOrder(orderNo){
 // ── Render Stock Grid (reservation tab) ─────────────────────────
 function renderMixStockGrid(){
   var el = document.getElementById('mix-stock-grid'); if(!el) return;
-  // Group mix plans by material
   var matMap = {};
   mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
-    var mat = p.plastic||'PP';
-    if(!matMap[mat]) matMap[mat]={ mat:mat, plans:[], totalNeed:0 };
-    matMap[mat].plans.push(p);
-    matMap[mat].totalNeed += (p.plasticKg || p.weight || 0);
-  });
-  // Also include MB
-  mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว' && p.mb && p.mbKg>0; }).forEach(function(p){
-    var mat = 'MB:'+p.mb;
-    if(!matMap[mat]) matMap[mat]={ mat:mat, plans:[], totalNeed:0, isMB:true };
-    matMap[mat].plans.push(p);
-    matMap[mat].totalNeed += p.mbKg;
+    mixPlanPlasticNeedRows(p).forEach(function(r){
+      var mat=r.material||'';
+      if(!mat) return;
+      if(!matMap[mat]) matMap[mat]={ mat:mat, plans:[], totalNeed:0, planNeedById:{} };
+      if(!matMap[mat].planNeedById[p.id]) matMap[mat].plans.push(p);
+      matMap[mat].planNeedById[p.id]=(matMap[mat].planNeedById[p.id]||0)+(parseFloat(r.qty)||0);
+      matMap[mat].totalNeed += (parseFloat(r.qty)||0);
+    });
   });
   if(!Object.keys(matMap).length){
     el.innerHTML='<div style="text-align:center;padding:30px;color:var(--text3)">ยังไม่มีแผนผสมที่รอดำเนินการ</div>';
     return;
   }
-  el.innerHTML='<div style="display:flex;flex-direction:column;gap:10px">'
+  function approvalStateForPlan(p){
+    var ap=approvals['mixing-'+p.id];
+    if(!ap||!ap.status) return 'pending';
+    return ap.status;
+  }
+  el.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px">'
     +Object.values(matMap).map(function(m){
-      var matCode = m.isMB ? m.mat.replace('MB:','') : m.mat;
-      var rawCode = m.isMB ? null : m.mat;
-      var stock   = rawCode ? (rawMatStock[rawCode]?.qty||0) : 0;
-      var reserved= rawCode ? getReservedQty(rawCode) : 0;
-      var avail   = rawCode ? getAvailableQty(rawCode) : 0;
-      var need    = m.totalNeed;
-      var ok      = avail >= need;
-      var pct     = stock>0 ? Math.min(100, Math.round(avail/stock*100)) : 0;
-      var borderCol = ok ? 'var(--border)' : 'rgba(248,81,73,0.4)';
-      return '<div style="background:var(--bg3);border:1px solid '+borderCol+';border-radius:10px;padding:14px">'
-        // Header
-        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'
-          +'<span class="badge mat-'+m.mat.replace('MB:','')+'" style="font-size:13px;padding:3px 10px">'+m.mat+'</span>'
-          +(ok?'<span style="padding:3px 10px;background:rgba(63,185,80,0.15);border-radius:8px;font-size:11px;color:#3fb950;font-weight:700">✅ เพียงพอ</span>':'<span style="padding:3px 10px;background:rgba(248,81,73,0.15);border-radius:8px;font-size:11px;color:#f85149;font-weight:700">❌ ไม่เพียงพอ</span>')
-          +'<span style="font-size:11px;color:var(--text3)">ใช้ใน '+m.plans.length+' แผน</span>'
+      var mat=m.mat;
+      var stock=(rawMatStock[mat]&&rawMatStock[mat].qty)||0;
+      var reserved=getReservedQty(mat);
+      var avail=getAvailableQty(mat);
+      var need=m.totalNeed;
+      var ok=avail>=need;
+      var reservePct=stock>0?Math.min(100,Math.round((reserved/stock)*100)):0;
+      var usePct=stock>0?Math.min(100,Math.round((need/stock)*100)):0;
+
+      var planRows=m.plans.map(function(p){
+        var needKg=(m.planNeedById&&m.planNeedById[p.id])?m.planNeedById[p.id]:0;
+        var key=p.id+'_'+mat;
+        var resv=rawMatReservations[key];
+        var resvStatus=resv?resv.status:'none';
+        var apState=approvalStateForPlan(p);
+        return {p:p, needKg:needKg, key:key, resvStatus:resvStatus, apState:apState};
+      });
+      var waitApproval=planRows.filter(function(x){ return x.resvStatus==='confirmed' && x.apState!=='approved'; });
+      var waitingReserve=planRows.filter(function(x){ return x.resvStatus==='pending'; });
+      var approvedReady=planRows.filter(function(x){ return x.resvStatus==='confirmed' && x.apState==='approved'; });
+
+      var statBadge=ok
+        ? '<span style="padding:2px 8px;background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.35);border-radius:999px;color:#3fb950;font-size:10px;font-weight:700">เพียงพอ</span>'
+        : '<span style="padding:2px 8px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.35);border-radius:999px;color:#f85149;font-size:10px;font-weight:700">ไม่พอ</span>';
+
+      return '<div style="background:var(--bg3);border:1px solid '+(ok?'var(--border)':'rgba(248,81,73,.35)')+';border-radius:10px;padding:12px">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+          +'<span class="badge mat-'+mat+'" style="font-size:12px">'+mat+'</span>'
+          +statBadge
+          +'<span style="font-size:10px;color:var(--text3)">'+m.plans.length+' งาน</span>'
           +'<div style="margin-left:auto;display:flex;gap:6px">'
-            +(rawCode&&ok?'<button onclick="mixReserveMat(\''+rawCode+'\')" style="padding:4px 12px;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🔒 จองทั้งหมด</button>':'')
-            +(!ok&&rawCode?'<button onclick="rmOpenPRFor(\''+rawCode+'\')" style="padding:4px 12px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">🛒 สั่งซื้อ</button>':'')
+            +(ok?'<button onclick="mixReserveMat(\''+mat+'\')" style="padding:3px 10px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700">🔒 จองทั้งหมด</button>':'')
+            +(!ok?'<button onclick="rmOpenPRFor(\''+mat+'\')" style="padding:3px 10px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);color:#f85149;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700">🛒 สั่งซื้อ</button>':'')
           +'</div>'
         +'</div>'
-        // Stock bars
-        +(rawCode?'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">'
-          +[
-            {label:'สต็อกทั้งหมด', val:stock,    col:'#79c0ff'},
-            {label:'จองแล้ว',      val:reserved, col:'#e3b341'},
-            {label:'คงเหลือ',      val:avail,    col:ok?'#3fb950':'#f85149'},
-            {label:'ต้องการ',      val:need,     col:'#ffa657'},
-          ].map(function(s){
-            return '<div style="background:var(--bg2);border-radius:6px;padding:8px;text-align:center">'
-              +'<div style="font-size:9px;color:var(--text3);margin-bottom:2px">'+s.label+'</div>'
-              +'<div style="font-size:16px;font-weight:800;font-family:monospace;color:'+s.col+'">'+s.val.toFixed(1)+'</div>'
-              +'<div style="font-size:9px;color:var(--text3)">kg</div>'
-            +'</div>';
-          }).join('')
+        +'<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">Stock</div><div class="mono" style="font-size:13px;color:#79c0ff;font-weight:700">'+stock.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">จอง</div><div class="mono" style="font-size:13px;color:#e3b341;font-weight:700">'+reserved.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">คงเหลือ</div><div class="mono" style="font-size:13px;color:'+(ok?'#3fb950':'#f85149')+';font-weight:700">'+avail.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">ต้องใช้</div><div class="mono" style="font-size:13px;color:#ffa657;font-weight:700">'+need.toFixed(1)+'</div></div>'
+        +'</div>'
+        +'<div style="height:7px;background:var(--bg4);border-radius:5px;overflow:hidden;margin-bottom:10px;position:relative">'
+          +'<div style="position:absolute;left:0;top:0;height:100%;width:'+reservePct+'%;background:#e3b341"></div>'
+          +'<div style="position:absolute;left:0;top:0;height:100%;width:'+usePct+'%;background:'+(ok?'rgba(63,185,80,.55)':'rgba(248,81,73,.55)')+'"></div>'
+        +'</div>'
+        +'<div style="display:grid;grid-template-columns:1fr;gap:6px">'
+          +'<div style="background:var(--bg2);border:1px dashed rgba(227,179,65,.35);border-radius:7px;padding:7px">'
+            +'<div style="font-size:10px;color:#e3b341;font-weight:700;margin-bottom:4px">⏳ จองแล้ว รออนุมัติ ('+waitApproval.length+')</div>'
+            +(waitApproval.length?waitApproval.map(function(x){
+              return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
+                +'<span style="color:var(--text2);font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(x.p.jobName||'-')+' | '+(x.p.lotNo||'-')+'</span>'
+                +'<span class="mono" style="color:#e3b341">'+x.needKg.toFixed(1)+'kg</span>'
+              +'</div>';
+            }).join(''):'<div style="font-size:10px;color:var(--text3)">—</div>')
           +'</div>'
-          // Stock bar
-          +'<div style="height:8px;background:var(--bg4);border-radius:4px;margin-bottom:10px;overflow:hidden;position:relative">'
-            +'<div style="width:'+Math.min(100,Math.round(reserved/stock*100||0))+'%;height:100%;background:#e3b341;border-radius:4px;position:absolute;left:0"></div>'
-            +'<div style="width:'+pct+'%;height:100%;background:'+(ok?'#3fb950':'#f85149')+';border-radius:4px;position:absolute;left:'+Math.min(100,Math.round(reserved/stock*100||0))+'%"></div>'
-            +(need/stock<=1?'<div style="width:2px;height:100%;background:#ffa657;position:absolute;left:'+Math.min(98,Math.round(need/stock*100))+'%"></div>':'')
+          +'<div style="background:var(--bg2);border:1px dashed rgba(121,192,255,.35);border-radius:7px;padding:7px">'
+            +'<div style="font-size:10px;color:#79c0ff;font-weight:700;margin-bottom:4px">🧾 งานที่ถูกจองทั้งหมด ('+planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).length+')</div>'
+            +(planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).length?planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).map(function(x){
+              var st=x.resvStatus==='pending'?'รอยืนยัน':'จองแล้ว';
+              return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
+                +'<span style="color:var(--text2);font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(x.p.jobName||'-')+' | Lot '+(x.p.lotNo||'-')+'</span>'
+                +'<span class="mono" style="color:var(--text3)">'+x.needKg.toFixed(1)+'kg</span>'
+                +'<span style="color:'+(st==='จองแล้ว'?'#3fb950':'#e3b341')+'">'+st+'</span>'
+              +'</div>';
+            }).join(''):'<div style="font-size:10px;color:var(--text3)">ยังไม่มีรายการจอง</div>')
           +'</div>'
-        :'')
-        // Plan list
-        +'<div style="font-size:10px;color:var(--text3);font-weight:700;margin-bottom:5px">แผนผสมที่ใช้วัตถุดิบนี้:</div>'
-        +'<div style="display:flex;flex-direction:column;gap:4px">'
-        +m.plans.map(function(p){
-          var rKey = p.id+'_'+(rawCode||m.mat);
-          var resv = rawMatReservations[rKey];
-          var rStatus = resv ? resv.status : 'none';
-          var rBadge = rStatus==='confirmed'?'<span style="font-size:10px;color:#3fb950;font-weight:700">🔒 จองแล้ว</span>'
-            :rStatus==='pending'?'<span style="font-size:10px;color:#e3b341">⏳ รอยืนยัน</span>':'';
-          var planNeed = rawCode ? (p.plasticKg||p.weight||0) : p.mbKg||0;
-          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg2);border-radius:5px;font-size:11px">'
-            +'<span style="color:var(--accent2);font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.jobName+'</span>'
-            +'<span class="mono" style="color:var(--text3)">'+planNeed.toFixed(1)+' kg</span>'
-            +'<span class="mono" style="color:var(--text3);font-size:10px">'+p.date+'</span>'
-            +(rBadge?rBadge:'')
-            +(rStatus!=='confirmed'&&rawCode?'<button onclick="mixConfirmSingle(\''+p.id+'\',\''+rawCode+'\')" style="padding:2px 6px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:4px;cursor:pointer;font-size:9px">✅ ยืนยัน</button>':'')
-            +(rStatus==='confirmed'?'<button onclick="mixCancelSingle(\''+p.id+'\',\''+rawCode+'\')" style="padding:2px 5px;background:none;border:1px solid rgba(248,81,73,0.3);color:#f85149;border-radius:4px;cursor:pointer;font-size:9px">✕</button>':'')
-          +'</div>';
-        }).join('')
         +'</div>'
       +'</div>';
     }).join('')
@@ -19289,24 +19339,31 @@ function renderMixStockGrid(){
 // ── Reservation functions ─────────────────────────────────────────
 function mixReserveOne(mixId){
   var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
-  var mat = p.plastic; if(!mat) return;
-  var key = mixId+'_'+mat;
-  var need = p.plasticKg || p.weight || 0;
-  var avail = getAvailableQty(mat);
-  if(avail < need){
-    // แจ้งเตือนแทน confirm — ยังจองต่อได้แต่แจ้งว่าสต็อกไม่พอ
-    if(typeof _toast==='function') _toast('⚠️ สต็อก '+mat+' ไม่เพียงพอ — ต้องการ '+need.toFixed(1)+' kg มีอยู่ '+avail.toFixed(1)+' kg (จองแล้วแต่รอเติมสต็อก)');
-  }
-  rawMatReservations[key] = { material:mat, qty:need, status:'pending', reservedAt:new Date().toISOString(), mixId:mixId };
+  var rows=mixPlanPlasticNeedRows(p);
+  if(!rows.length) return;
+  rows.forEach(function(r){
+    var mat=r.material; if(!mat) return;
+    var need=Math.max(0,parseFloat(r.qty)||0);
+    var key = mixId+'_'+mat;
+    var avail = getAvailableQty(mat);
+    if(avail < need && typeof _toast==='function'){
+      _toast('⚠️ สต็อก '+mat+' ไม่เพียงพอ — ต้องการ '+need.toFixed(1)+' kg มีอยู่ '+avail.toFixed(1)+' kg (จองแล้วแต่รอเติมสต็อก)');
+    }
+    rawMatReservations[key] = { material:mat, qty:need, status:'pending', reservedAt:new Date().toISOString(), mixId:mixId };
+  });
   saveReservations();
-  if(typeof _toast==='function') _toast('⏳ จอง '+mat+' '+need.toFixed(1)+' kg — รอยืนยัน');
+  if(typeof _toast==='function') _toast('⏳ จองวัตถุดิบตามสูตร '+rows.length+' รายการ — รอยืนยัน');
   renderMixTable(); mixRenderAlerts();
 }
 
 function mixConfirmReserve(mixId){
   var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
-  var key = mixId+'_'+p.plastic;
-  if(rawMatReservations[key]) rawMatReservations[key].status='confirmed';
+  var rows=mixPlanPlasticNeedRows(p);
+  rows.forEach(function(r){
+    var mat=r.material||''; if(!mat) return;
+    var key = mixId+'_'+mat;
+    if(rawMatReservations[key]) rawMatReservations[key].status='confirmed';
+  });
   p.status = 'จองวัตถุดิบแล้ว'; p.reserved = true;
   saveReservations();
   saveMixPlans();
@@ -19316,8 +19373,12 @@ function mixConfirmReserve(mixId){
 
 function mixCancelReserve(mixId){
   var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
-  var key = mixId+'_'+p.plastic;
-  if(rawMatReservations[key]) rawMatReservations[key].status='cancelled';
+  var rows=mixPlanPlasticNeedRows(p);
+  rows.forEach(function(r){
+    var mat=r.material||''; if(!mat) return;
+    var key = mixId+'_'+mat;
+    if(rawMatReservations[key]) rawMatReservations[key].status='cancelled';
+  });
   if(p.status==='จองวัตถุดิบแล้ว') p.status='รอผสม';
   p.reserved = false;
   saveReservations();
@@ -19350,10 +19411,15 @@ function mixCancelSingle(mixId, mat){
 function mixReserveAll(){
   var pending = mixPlans.filter(function(p){ return p.status==='รอผสม'; });
   pending.forEach(function(p){
-    var key = p.id+'_'+(p.plastic||'PP');
-    if(!rawMatReservations[key]||rawMatReservations[key].status==='cancelled'){
-      rawMatReservations[key]={material:p.plastic,qty:(p.plasticKg||p.weight||0),status:'pending',reservedAt:new Date().toISOString(),mixId:p.id};
-    }
+    var rows=mixPlanPlasticNeedRows(p);
+    rows.forEach(function(r){
+      var mat=r.material||'';
+      if(!mat) return;
+      var key = p.id+'_'+mat;
+      if(!rawMatReservations[key]||rawMatReservations[key].status==='cancelled'){
+        rawMatReservations[key]={material:mat,qty:Math.max(0,parseFloat(r.qty)||0),status:'pending',reservedAt:new Date().toISOString(),mixId:p.id};
+      }
+    });
   });
   saveReservations(); saveMixPlans(); renderMixTable(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('⏳ จอง '+pending.length+' รายการ — รอยืนยัน');
@@ -19361,8 +19427,13 @@ function mixReserveAll(){
 function mixConfirmAllReserve(){
   Object.values(rawMatReservations).forEach(function(r){ if(r.status==='pending') r.status='confirmed'; });
   mixPlans.forEach(function(p){
-    var key=p.id+'_'+(p.plastic||'');
-    if(rawMatReservations[key]&&rawMatReservations[key].status==='confirmed') p.status='จองวัตถุดิบแล้ว';
+    var rows=mixPlanPlasticNeedRows(p);
+    if(!rows.length) return;
+    var ok=rows.every(function(r){
+      var key=p.id+'_'+(r.material||'');
+      return rawMatReservations[key]&&rawMatReservations[key].status==='confirmed';
+    });
+    if(ok) p.status='จองวัตถุดิบแล้ว';
   });
   saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   if(typeof _toast==='function') _toast('✅ ยืนยันจองวัตถุดิบทั้งหมดแล้ว');
@@ -19376,11 +19447,16 @@ function mixCancelAllReserve(){
   });
 }
 function mixReserveMat(matCode){
-  var plans=mixPlans.filter(function(p){return p.plastic===matCode&&p.status!=='ผสมแล้ว';});
+  var plans=mixPlans.filter(function(p){
+    if(p.status==='ผสมแล้ว') return false;
+    return mixPlanPlasticNeedRows(p).some(function(r){ return r.material===matCode; });
+  });
   plans.forEach(function(p){
     var key=p.id+'_'+matCode;
+    var row=mixPlanPlasticNeedRows(p).find(function(r){ return r.material===matCode; });
+    var need=Math.max(0,parseFloat(row&&row.qty)||0);
     if(!rawMatReservations[key]||rawMatReservations[key].status==='cancelled'){
-      rawMatReservations[key]={material:matCode,qty:(p.plasticKg||p.weight||0),status:'confirmed',reservedAt:new Date().toISOString(),mixId:p.id};
+      rawMatReservations[key]={material:matCode,qty:need,status:'confirmed',reservedAt:new Date().toISOString(),mixId:p.id};
       p.status='จองวัตถุดิบแล้ว'; p.reserved=true;
     }
   });
@@ -19389,9 +19465,13 @@ function mixReserveMat(matCode){
 }
 function mixCheckAllStock(){
   mixPlans.filter(function(p){return p.status==='รอผสม';}).forEach(function(p){
-    var avail=getAvailableQty(p.plastic||'PP');
-    var need=p.plasticKg||p.weight||0;
-    if(avail<need) p.status='ขาดวัตถุดิบ';
+    var rows=mixPlanPlasticNeedRows(p);
+    var short=rows.some(function(r){
+      var need=Math.max(0,parseFloat(r.qty)||0);
+      var avail=getAvailableQty(r.material||'');
+      return avail<need;
+    });
+    if(short) p.status='ขาดวัตถุดิบ';
     p.stockChecked=true;
   });
   saveMixPlans();
