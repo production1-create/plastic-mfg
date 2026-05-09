@@ -9810,6 +9810,25 @@ function bomApplyMoldRegistryHints(){
     if(tonEl&&mton>0) tonEl.value=mton;
   }
 }
+function bomFindJobPreferRegistry(name){
+  var nm=String(name||'').trim();
+  if(!nm) return null;
+  var regList=(typeof JOB_REGISTRY!=='undefined'&&Array.isArray(JOB_REGISTRY))?JOB_REGISTRY:[];
+  var jobList=(typeof jobs!=='undefined'&&Array.isArray(jobs))?jobs:[];
+  var norm=(typeof _normalizeText==='function')?_normalizeText(nm):nm.toLowerCase();
+  var compact=(typeof jobNameCollapseSpaces==='function')?jobNameCollapseSpaces(nm):nm.replace(/\s+/g,'').toLowerCase();
+  var finder=function(arr){
+    return arr.find(function(x){
+      var xn=String((x&&x.name)||'').trim();
+      if(!xn) return false;
+      if(xn===nm) return true;
+      var xnorm=(typeof _normalizeText==='function')?_normalizeText(xn):xn.toLowerCase();
+      var xcompact=(typeof jobNameCollapseSpaces==='function')?jobNameCollapseSpaces(xn):xn.replace(/\s+/g,'').toLowerCase();
+      return xnorm===norm || xcompact===compact;
+    })||null;
+  };
+  return finder(regList)||finder(jobList)||null;
+}
 
 function bomJobAutoFill(){
   var nameEl=document.getElementById('bom-name');
@@ -9817,8 +9836,7 @@ function bomJobAutoFill(){
   var jName=nameEl.value.trim();
   if(!jName) return;
   if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
-  var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
-  var j=allJobs.find(function(x){return x.name===jName;});
+  var j=bomFindJobPreferRegistry(jName);
   if(!j) return;
   var ctShot=(j.cycleTime!=null&&j.cycleTime!=='')?parseFloat(j.cycleTime):parseFloat(j.ct||j.ctStd)||0;
   var cavInit=parseInt(j.cavity!=null&&j.cavity!==''?j.cavity:j.cav,10)||0;
@@ -17996,8 +18014,7 @@ function bomSearchJobs(q){
 
 function bomSelectJob(name){
   if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
-  var allJobs=[...jobs,...(typeof JOB_REGISTRY!=='undefined'?JOB_REGISTRY:[])];
-  var j=allJobs.find(function(x){return x.name===name;});
+  var j=bomFindJobPreferRegistry(name);
   if(!j) return;
   var ctShot=(j.cycleTime!=null&&j.cycleTime!=='')?parseFloat(j.cycleTime):parseFloat(j.ct||j.ctStd)||0;
   var cavInit=parseInt(j.cavity!=null&&j.cavity!==''?j.cavity:j.cav,10)||0;
