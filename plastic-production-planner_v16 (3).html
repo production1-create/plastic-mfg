@@ -3255,41 +3255,66 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <div style="font-size:10px;color:var(--text3)">ป้อน MB ที่คอเครื่องโดยตรง — ไม่ต้องผสมถัง</div>
         </div>
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="mix-feeder-filter-status" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+          <option value="">ทุกสถานะ</option>
+          <option value="รอเดินงาน">⏳ รอเดินงาน</option>
+          <option value="เบิกแล้ว">✅ เบิกแล้ว</option>
+        </select>
+        <input type="date" id="mix-feeder-filter-date" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px" title="กรองวันผลิต (TT)">
         <select id="mix-feeder-filter-machine" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกเครื่อง</option>
         </select>
         <select id="mix-feeder-filter-feeder" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกเครื่องป้อนสี</option>
         </select>
+        <button type="button" onclick="mixRebuildFromTT({merge:true});renderMixFeeder()" style="padding:5px 10px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit" title="ดึงแผนป้อนสีจาก Time Table">📅 ซิงค์ TT</button>
       </div>
     </div>
     <!-- Feeder Summary -->
     <div id="mix-feeder-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)"></div>
-    <!-- Feeder Table -->
+    <!-- Feeder Table (รูปแบบใกล้เคียงแผนผสมถัง — จาก mixFeederPlans) -->
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead>
-          <tr style="background:var(--bg3);border-bottom:2px solid var(--border)">
-            <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600;white-space:nowrap">ชื่องาน / Order</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ดพลาสติก</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สี MB</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB ต่อ 1 shot</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600" title="จาก TT / เป้าเครื่อง">เป้า pcs/วัน</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ด kg/วัน</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB kg/วัน</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องป้อนสี</th>
+          <tr style="background:var(--bg3)">
+            <th style="padding:9px 12px;text-align:left;color:var(--text3);font-weight:600">วันผลิต (TT)</th>
+            <th style="padding:9px 8px;text-align:left;color:var(--text3);font-weight:600">Order / งาน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">ช่วงเวลา</th>
             <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เครื่องฉีด</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">วันผลิต</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB ที่ต้องใช้</th>
-            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สต็อก MB</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">เม็ดพลาสติก</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">MB / สัดส่วน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">ปริมาณ / เป้าวัน</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สต็อกเม็ด+MB</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">สถานะ</th>
+            <th style="padding:9px 8px;text-align:center;color:var(--text3);font-weight:600">จัดการ</th>
           </tr>
         </thead>
         <tbody id="mix-feeder-tbody">
-          <tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text3)">กด Tab นี้เพื่อโหลดข้อมูลเครื่องป้อนสี</td></tr>
+          <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text3)">กด Tab นี้เพื่อโหลดแผนป้อนสีจาก TT</td></tr>
         </tbody>
       </table>
     </div>
+    <details id="mix-feeder-order-fallback" style="margin:12px 16px;display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text2)">📋 Order ที่ยังไม่มีจาก TT — ดูจากงานอย่างเดียว (สำรอง)</summary>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr style="background:var(--bg4)">
+              <th style="padding:8px;text-align:left">ชื่องาน / Order</th>
+              <th style="padding:8px;text-align:center">เม็ด</th>
+              <th style="padding:8px;text-align:center">MB</th>
+              <th style="padding:8px;text-align:center">เม็ด kg/วัน</th>
+              <th style="padding:8px;text-align:center">MB kg/วัน</th>
+              <th style="padding:8px;text-align:center">เครื่องป้อนสี</th>
+              <th style="padding:8px;text-align:center">เครื่องฉีด</th>
+              <th style="padding:8px;text-align:center">สต็อก MB</th>
+            </tr>
+          </thead>
+          <tbody id="mix-feeder-fallback-tbody"></tbody>
+        </table>
+      </div>
+    </details>
   </div>
 
   <div id="mix-tab-auto" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
@@ -18302,6 +18327,9 @@ function bomMixMethodChange(){
 // MIXING PLAN — SMART LINKED SYSTEM
 // ════════════════════════════════════════════════════════════════
 var _mixCurrentTab = 'plan';
+var _mixStockDetailCache = { plastic:{}, mb:{} };
+var _mixStockDetailKind = '';
+var _mixStockDetailCode = '';
 
 function mixFeederDailyFromJob(o,j){
   if(!j) return {dayPcs:0,plasticKg:0,mbKg:0};
@@ -18914,62 +18942,110 @@ function renderMixing(){
   else if(_mixCurrentTab==='dispatch') renderMixDispatchTab();
 }
 
-// ── Render Feeder Tab ─────────────────────────────────────────
+function mixMarkFeederMixed(id){
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id); }); if(!p) return;
+  var ak='mixfeeder-'+p.id;
+  var ap=approvals[ak];
+  if(!ap || ap.status!=='approved'){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องกด "ขออนุมัติ" และให้ผู้อนุมัติก่อน — ระบบจะเบิกเม็ด/MB รายวันหลังอนุมัติ');
+    return;
+  }
+  if(p.stockIssued){
+    if(typeof _toast==='function') _toast('✅ เบิกสต็อกรายวันตามช่องนี้แล้ว');
+    return;
+  }
+  mixExecuteFeederStockIssue(p.id,{by:p.mixer||'ยืนยันป้อนสี'});
+}
+
+function mixFeederDeletePlan(id){
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id); }); if(!p) return;
+  _confirmDel('🗑 ลบแผนป้อนสี: <b>'+(p.jobName||id)+'</b><br>วันผลิต (TT): '+(p.ttProdDate||'—'), function(){
+    var idx=mixFeederPlans.findIndex(function(x){ return String(x.id)===String(id); });
+    if(idx>=0) mixFeederPlans.splice(idx,1);
+    saveMixFeederPlans();
+    renderMixFeeder(); mixRenderAlerts();
+    if(typeof _toast==='function') _toast('🗑 ลบแผนป้อนสีแล้ว');
+  });
+}
+
+// ── Render Feeder Tab (จัดตามวันผลิต TT + ปุ่มเหมือนแผนถัง) ────────
 function renderMixFeeder(){
   var tbody = document.getElementById('mix-feeder-tbody'); if(!tbody) return;
+  var fb=document.getElementById('mix-feeder-fallback-tbody');
+  var det=document.getElementById('mix-feeder-order-fallback');
+  var statusF = document.getElementById('mix-feeder-filter-status')?.value||'';
+  var dateF   = document.getElementById('mix-feeder-filter-date')?.value||'';
   var machF   = document.getElementById('mix-feeder-filter-machine')?.value||'';
   var feederF = document.getElementById('mix-feeder-filter-feeder')?.value||'';
 
-  // Populate machine filter
+  function esc(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
   var mSel = document.getElementById('mix-feeder-filter-machine');
-  if(mSel && mSel.options.length<=1){
-    var machs=[...new Set(jobs.filter(function(j){return j.mixMethod==='feeder';}).map(function(j){return j.machine;}).filter(Boolean))].sort();
-    machs.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;mSel.appendChild(o);});
+  if(mSel){
+    var curM=machF;
+    var machSet=new Set();
+    jobs.filter(function(j){ return j.mixMethod==='feeder'; }).forEach(function(j){ if(j.machine) machSet.add(j.machine); });
+    mixFeederPlans.forEach(function(p){ if(p.machine) machSet.add(p.machine); });
+    var machs=[...machSet].sort();
+    mSel.innerHTML='<option value="">ทุกเครื่อง</option>'+machs.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
+    if(curM && machs.indexOf(curM)>=0) mSel.value=curM;
+    machF=mSel.value||'';
   }
-  // Populate feeder filter
   var fSel = document.getElementById('mix-feeder-filter-feeder');
   if(fSel && fSel.options.length<=1){
-    (FEEDER_REGISTRY||[]).forEach(function(f){var o=document.createElement('option');o.value=f.code||f.id;o.textContent=f.name+' ('+f.code+')';fSel.appendChild(o);});
+    (FEEDER_REGISTRY||[]).forEach(function(f){
+      var o=document.createElement('option'); o.value=f.code||f.id; o.textContent=f.name+' ('+f.code+')'; fSel.appendChild(o);
+    });
   }
 
-  // Get jobs that use feeder method
-  var feederJobs = jobs.filter(function(j){
-    if(j.mixMethod!=='feeder') return false;
+  var feederJobsAll = jobs.filter(function(j){
+    return j.mixMethod==='feeder' && j.mb && j.mb!=='-' && j.mbRatio>0;
+  });
+  var feederJobs = feederJobsAll.filter(function(j){
     if(machF && j.machine!==machF) return false;
     if(feederF && j.feederCode!==feederF) return false;
-    return j.mb && j.mb!=='-' && j.mbRatio>0;
+    return true;
   });
 
-  // Get active orders for these jobs
-  var rows=[];
-  feederJobs.forEach(function(j){
-    var activeOrders = orders.filter(function(o){return o.jobName===j.name && o.status!=='ส่งแล้ว' && o.status!=='ยกเลิก';});
-    var feeder = FEEDER_REGISTRY.find(function(f){return (f.code||f.id)===j.feederCode;}) || null;
-    if(activeOrders.length){
-      activeOrders.forEach(function(o){
-        var mbKg = +(jobMbKgForFeederOrder(o,j)||0).toFixed(4);
-        var totalKg = (o.qty||0)*jobEffectiveWtPerPc(j,5)/1000;
-        // Check MB stock
-        var mbStock = batchMbStock.filter(function(b){return b.colorName===j.mb||b.batchNo===j.mb;});
-        var mbAvail = mbStock.reduce(function(s,b){return s+(b.weightLeft||0);},0);
-        rows.push({j,o,feeder,mbKg,mbAvail,totalKg});
-      });
-    } else {
-      rows.push({j,o:null,feeder,mbKg:0,mbAvail:0,totalKg:0});
-    }
+  var list=mixFeederPlans.filter(function(p){
+    if(statusF && p.status!==statusF) return false;
+    var prodD=p.ttProdDate||p.prodDate||p.date||'';
+    if(dateF && prodD!==dateF) return false;
+    if(machF && String(p.machine||'')!==machF) return false;
+    if(feederF && String(p.feederCode||'')!==feederF) return false;
+    return true;
+  });
+  list=list.slice().sort(function(a,b){
+    var da=(a.ttProdDate||a.date||''), db=(b.ttProdDate||b.date||'');
+    if(da!==db) return da<db?-1:da>db?1:0;
+    var ta=String(a.time||'08:00'), tb=String(b.time||'08:00');
+    return ta<tb?-1:ta>tb?1:0;
   });
 
-  // Summary
   var summEl = document.getElementById('mix-feeder-summary');
   if(summEl){
-    var totalFJobs = feederJobs.length;
-    var totalFeederTypes = [...new Set(feederJobs.map(function(j){return j.feederCode;}).filter(Boolean))].length;
-    var lowMB = rows.filter(function(r){return r.mbKg>0 && r.mbAvail<r.mbKg;}).length;
+    var waitCt=mixFeederPlans.filter(function(p){ return p.status==='รอเดินงาน'; }).length;
+    var doneCt=mixFeederPlans.filter(function(p){ return p.status==='เบิกแล้ว'; }).length;
+    var lowCt=list.filter(function(p){
+      var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
+      var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+      var j=mixResolveJobForPlan(p);
+      if(!(mq>0) && j && pq>0) mq=+(pq*(parseFloat(j.mbRatio)||parseFloat(p.mbRatio)||0)/1000).toFixed(4);
+      var needRows=mixResolvePlasticUsageRows(p,pq);
+      var plOk=needRows.length?needRows.every(function(r){
+        return getAvailableQty(r.material||'')>=Math.max(0,parseFloat(r.qty)||0);
+      }):(getAvailableQty(p.plastic||'')>=pq);
+      var mbKey=p.mb?mixResolveMbStockKey(p.mb):'';
+      var mbAvail=(mbKey&&typeof mbStock!=='undefined'&&mbStock[mbKey])?parseFloat(mbStock[mbKey].qty)||0:0;
+      var mbOk=!mq||mbAvail+1e-6>=mq;
+      return !(plOk&&mbOk);
+    }).length;
     summEl.innerHTML=[
-      {icon:'⚙️',label:'งานใช้ Feeder',val:totalFJobs,col:'#79c0ff',bg:'rgba(121,192,255,0.08)',bd:'rgba(121,192,255,0.3)'},
-      {icon:'🔌',label:'เครื่องป้อนสีที่ใช้',val:totalFeederTypes,col:'#56d364',bg:'rgba(86,211,100,0.08)',bd:'rgba(86,211,100,0.3)'},
-      {icon:'🎨',label:'Order ที่มีงาน',val:rows.filter(function(r){return r.o;}).length,col:'#d2a8ff',bg:'rgba(210,168,255,0.08)',bd:'rgba(210,168,255,0.3)'},
-      {icon:'⚠️',label:'MB สต็อกไม่พอ',val:lowMB,col:lowMB?'#f85149':'#3fb950',bg:lowMB?'rgba(248,81,73,0.08)':'rgba(63,185,80,0.08)',bd:lowMB?'rgba(248,81,73,0.3)':'rgba(63,185,80,0.3)'},
+      {icon:'📋',label:'แผนป้อนสีจาก TT',val:mixFeederPlans.length,col:'#79c0ff',bg:'rgba(121,192,255,0.08)',bd:'rgba(121,192,255,0.3)'},
+      {icon:'⏳',label:'รอเดินงาน',val:waitCt,col:'#e3b341',bg:'rgba(227,179,65,0.08)',bd:'rgba(227,179,65,0.28)'},
+      {icon:'✅',label:'เบิกแล้ว',val:doneCt,col:'#3fb950',bg:'rgba(63,185,80,0.08)',bd:'rgba(63,185,80,0.28)'},
+      {icon:'⚙️',label:'งาน Feeder (BOM)',val:feederJobsAll.length,col:'#d2a8ff',bg:'rgba(210,168,255,0.08)',bd:'rgba(210,168,255,0.3)'},
+      {icon:'⚠️',label:'เม็ด/MB ไม่พอ (ตามตัวกรอง)',val:lowCt,col:lowCt?'#f85149':'#3fb950',bg:lowCt?'rgba(248,81,73,0.08)':'rgba(63,185,80,0.08)',bd:lowCt?'rgba(248,81,73,0.3)':'rgba(63,185,80,0.3)'},
     ].map(function(c){
       return '<div style="background:'+c.bg+';border:1px solid '+c.bd+';border-radius:9px;padding:10px 14px;text-align:center">'
         +'<div style="font-size:18px;margin-bottom:3px">'+c.icon+'</div>'
@@ -18979,66 +19055,115 @@ function renderMixFeeder(){
     }).join('');
   }
 
-  if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3)">'
-      +'<div style="font-size:32px;margin-bottom:8px">⚙️</div>'
-      +'<div>ยังไม่มีงานที่ตั้งค่าใช้เครื่องป้อนสี</div>'
-      +'<div style="font-size:11px;margin-top:4px;color:var(--text3)">ไปที่ BOM → แก้ไขงาน → เลือก "⚙️ เครื่องป้อนสี (Auto Feeder)"</div>'
+  if(list.length){
+    var lastG='';
+    var html=[];
+    list.forEach(function(p){
+      var g=p.ttProdDate||p.prodDate||p.date||'—';
+      if(g!==lastG){
+        lastG=g;
+        var daysTo = g!=='—' ? Math.round((new Date(g+'T12:00:00')-new Date())/(86400000)) : null;
+        var urg = daysTo!==null && !isNaN(daysTo)
+          ? (daysTo<0?'<span style="color:#f85149;font-size:10px;margin-left:8px">⚠️ เลยกำหนด</span>':daysTo===0?'<span style="color:#e3b341;font-size:10px;margin-left:8px">🔔 วันนี้</span>':daysTo<=2?'<span style="color:#e3b341;font-size:10px;margin-left:8px">อีก '+daysTo+' วัน</span>':'<span style="color:#3fb950;font-size:10px;margin-left:8px">อีก '+daysTo+' วัน</span>')
+          : '';
+        html.push('<tr style="background:var(--bg4)"><td colspan="10" style="padding:7px 12px;font-size:11px;font-weight:800;color:var(--accent2);border-bottom:1px solid var(--border)">📅 วันผลิต (TT) '+g+urg+'</td></tr>');
+      }
+      var j=mixResolveJobForPlan(p);
+      var mat=p.plastic||(j&&j.plastic)||'PP';
+      var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
+      var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+      if(!(mq>0) && j && pq>0) mq=+(pq*(parseFloat(j.mbRatio)||parseFloat(p.mbRatio)||0)/1000).toFixed(4);
+      var needRows=mixResolvePlasticUsageRows(p,pq);
+      var hasEnough=needRows.length?needRows.every(function(r){
+        return getAvailableQty(r.material||'')>=Math.max(0,parseFloat(r.qty)||0);
+      }):(getAvailableQty(mat)>=pq);
+      var mbKey=p.mb?mixResolveMbStockKey(p.mb):'';
+      var mbAvail=(mbKey&&typeof mbStock!=='undefined'&&mbStock[mbKey])?parseFloat(mbStock[mbKey].qty)||0:0;
+      var mbOk=!mq||mbAvail+1e-6>=mq;
+      var stockCol=(hasEnough&&mbOk)?'#3fb950':'#f85149';
+      var stockLabel=(hasEnough&&mbOk)?'✅ เม็ด+MB พอต่อวัน':'❌ ตรวจสูตร/สต็อก';
+      var statusBadge={
+        'รอเดินงาน':'badge-yellow',
+        'เบิกแล้ว':'badge-green'
+      }[p.status]||'badge-yellow';
+      var feeder=FEEDER_REGISTRY&&FEEDER_REGISTRY.find(function(f){ return (f.code||f.id)===p.feederCode; });
+      var approveLabel='อนุมัติแผนป้อนสี: '+(p.jobName||'');
+      var pid=esc(p.id);
+      html.push('<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
+        +'<td style="padding:8px 12px"><span class="mono" style="font-size:11px;font-weight:700">'+(p.ttProdDate||p.date||'—')+'</span>'
+          +(p.time?'<div style="font-size:9px;color:var(--text3)">ช่อง '+p.time+'</div>':'')
+        +'</td>'
+        +'<td style="padding:8px"><div style="font-size:11px;font-weight:600;color:var(--text)">'+(p.jobName||'—')+'</div>'
+          +'<div style="font-size:10px;color:var(--text3)">'+(p.orderNo||'')+(p.lotNo?' | Lot: '+p.lotNo:'')+'</div>'
+          +(p.dayPcs?'<div style="font-size:9px;color:#79c0ff;font-weight:700">เป้า/วัน: '+Number(p.dayPcs).toLocaleString()+' ชิ้น</div>':'')
+        +'</td>'
+        +'<td style="padding:8px;text-align:center;font-family:monospace;font-size:11px">'+(p.time||'—')+'</td>'
+        +'<td style="padding:8px;text-align:center;font-weight:700;color:#79c0ff;font-family:monospace">'+(p.machine||'—')+'</td>'
+        +'<td style="padding:8px;text-align:center"><span class="badge mat-'+mat+'">'+mat+'</span>'
+          +((p.grade||(j&&j.grade))?'<div style="font-size:9px;color:var(--text3)">'+(p.grade||(j&&j.grade))+'</div>':'')
+        +'</td>'
+        +'<td style="padding:8px;text-align:center;font-size:11px">'+(p.mb||'—')
+          +((p.mbRatio||(j&&j.mbRatio))?'<br><span style="color:#e3b341;font-size:10px">'+(p.mbRatio||(j&&j.mbRatio))+' g/kg</span>':'')
+          +'<br><span style="background:rgba(86,211,100,0.12);color:#56d364;border-radius:4px;padding:1px 5px;font-size:9px">⚙️ ป้อนสี</span>'
+        +'</td>'
+        +'<td style="padding:8px;text-align:center">'
+          +'<div style="font-size:11px"><span style="color:var(--text3)">เม็ด/วัน:</span> <b style="color:#3fb950">'+pq.toFixed(2)+' kg</b></div>'
+          +(mq>0?'<div style="font-size:11px"><span style="color:var(--text3)">MB/วัน:</span> <b style="color:#e3b341">'+mq.toFixed(3)+' kg</b></div>':'')
+          +(feeder?'<div style="font-size:9px;color:#56d364;margin-top:2px">'+feeder.name+'</div>':(p.feederCode?'<div style="font-size:9px;color:#e3b341">'+p.feederCode+'</div>':'<div style="font-size:9px;color:var(--text3)">ยังไม่ระบุป้อนสี</div>'))
+        +'</td>'
+        +'<td style="padding:8px;text-align:center"><span style="font-size:11px;font-weight:700;color:'+stockCol+'">'+stockLabel+'</span></td>'
+        +'<td style="padding:8px;text-align:center"><span class="badge '+statusBadge+'" style="font-size:10px">'+(p.status||'—')+'</span></td>'
+        +'<td style="padding:8px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
+          +(p.status!=='เบิกแล้ว'?'<button type="button" onclick="mixMarkFeederMixed(\''+pid+'\')" style="padding:3px 8px;background:rgba(57,197,207,0.12);border:1px solid rgba(57,197,207,0.3);color:var(--cyan);border-radius:5px;cursor:pointer;font-size:10px;font-family:inherit">✓ ผสม/เบิก</button>':'')
+          +((typeof getApprovalBadge==='function')?getApprovalBadge('mixfeeder-'+p.id, approveLabel):'')
+          +'<button type="button" onclick="mixFeederDeletePlan(\''+pid+'\')" style="'+_DEL_BTN+'">🗑</button>'
+        +'</td>'
+      +'</tr>');
+    });
+    tbody.innerHTML=html.join('');
+  } else {
+    tbody.innerHTML='<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text3)">'
+      +'<div style="font-size:28px;margin-bottom:8px">📅</div>'
+      +'<div>ไม่มีแผนป้อนสีในเงื่อนไขนี้</div>'
+      +'<div style="font-size:11px;margin-top:6px;color:var(--text3)">กด <b>ซิงค์ TT</b> หรือปรับสถานะ / วันที่</div>'
     +'</td></tr>';
-    return;
   }
 
-  tbody.innerHTML = rows.map(function(r){
-    var j=r.j, o=r.o, feeder=r.feeder;
-    var daily = o ? mixFeederDailyFromJob(o,j) : {dayPcs:0,plasticKg:0,mbKg:0};
-    var mbOK = !r.mbKg || r.mbAvail>=r.mbKg;
-    var mbCol = mbOK?'#3fb950':'#f85149';
-    var mbLabel = r.mbKg>0
-      ? (mbOK?'✅ '+(r.mbAvail.toFixed(1))+' kg':'❌ ขาด '+(Math.max(0,r.mbKg-r.mbAvail).toFixed(2))+' kg')
-      : '—';
-    return '<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
-      // Job + Order
-      +'<td style="padding:9px 12px">'
-        +'<div style="font-size:12px;font-weight:700;color:var(--text)">'+j.name+'</div>'
-        +(o?'<div style="font-size:10px;color:var(--text3)">'+o.orderNo+' | Lot: '+(o.lotNo||'—')+'</div>':'<div style="font-size:10px;color:var(--text3)">ไม่มี Order</div>')
-      +'</td>'
-      // Plastic
-      +'<td style="padding:9px 8px;text-align:center"><span class="badge mat-'+j.plastic+'">'+j.plastic+'</span>'
-        +(j.grade?'<div style="font-size:9px;color:var(--text3)">'+j.grade+'</div>':'')
-      +'</td>'
-      // MB
-      +'<td style="padding:9px 8px;text-align:center">'
-        +'<span style="background:rgba(210,168,255,0.15);color:#d2a8ff;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700">'+j.mb+'</span>'
-        +'<div style="font-size:10px;color:#e3b341;margin-top:2px">'+j.mbRatio+' g/kg</div>'
-      +'</td>'
-      // Ratio + rate
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:var(--text2)">'
-        +(jobMbGramsPerShot(j)>0
-          ?'<div style="font-weight:700;color:#79c0ff">'+jobMbGramsPerShot(j).toFixed(4)+' g/shot</div>'
-            +'<div style="font-size:9px;color:var(--text3)">พลาสติก 1 shot '+jobPlasticShotGrams(j).toFixed(2)+' g</div>'
-          :'—')
-      +'</td>'
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#79c0ff;font-weight:700">'+(daily.dayPcs>0?Number(daily.dayPcs).toLocaleString():'—')+'</td>'
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#3fb950;font-weight:700">'+(daily.plasticKg>0?daily.plasticKg.toFixed(2):'—')+'</td>'
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">'+(daily.mbKg>0?daily.mbKg.toFixed(3):'—')+'</td>'
-      // Feeder machine
-      +'<td style="padding:9px 8px;text-align:center">'
-        +(feeder
-          ?'<div style="font-size:11px;font-weight:700;color:#56d364">'+feeder.name+'</div><div style="font-size:9px;color:var(--text3)">'+feeder.code+' | '+feeder.brand+'</div>'
-          :(j.feederCode?'<span style="color:#e3b341;font-size:11px">'+j.feederCode+'</span>':'<span style="color:var(--text3);font-size:11px">ยังไม่ระบุ</span>'))
-      +'</td>'
-      // Machine
-      +'<td style="padding:9px 8px;text-align:center;font-weight:700;color:#79c0ff;font-family:monospace">'+(o?o.machine:j.machine||'—')+'</td>'
-      // Prod date
-      +'<td style="padding:9px 8px;text-align:center;font-family:monospace;font-size:11px;color:var(--text2)">'+(o?o.startDate||o.dueDate||'—':'—')+'</td>'
-      // MB needed
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px">'
-        +(r.mbKg>0?'<span style="font-weight:700;color:#e3b341">'+r.mbKg.toFixed(3)+' kg</span>':'—')
-      +'</td>'
-      // Stock
-      +'<td style="padding:9px 8px;text-align:center;font-size:11px;font-weight:700;color:'+mbCol+'">'+mbLabel+'</td>'
-    +'</tr>';
-  }).join('');
+  if(det && fb){
+    if(!mixFeederPlans.length && feederJobsAll.length){
+      det.style.display='block';
+      var rows=[];
+      feederJobs.forEach(function(j){
+        var activeOrders = orders.filter(function(o){return o.jobName===j.name && o.status!=='ส่งแล้ว' && o.status!=='ยกเลิก';});
+        var feeder = FEEDER_REGISTRY.find(function(f){return (f.code||f.id)===j.feederCode;}) || null;
+        if(activeOrders.length){
+          activeOrders.forEach(function(o){
+            var daily = mixFeederDailyFromJob(o,j);
+            var mbStockB = batchMbStock.filter(function(b){return b.colorName===j.mb||b.batchNo===j.mb;});
+            var mbAvailB = mbStockB.reduce(function(s,b){return s+(b.weightLeft||0);},0);
+            var mbKg = +(jobMbKgForFeederOrder(o,j)||0).toFixed(4);
+            var mbOK = !mbKg || mbAvailB>=mbKg;
+            rows.push('<tr style="border-bottom:1px solid var(--border)">'
+              +'<td style="padding:8px"><b>'+j.name+'</b><div style="font-size:10px;color:var(--text3)">'+o.orderNo+' | Lot '+(o.lotNo||'—')+'</div></td>'
+              +'<td style="padding:8px;text-align:center"><span class="badge mat-'+j.plastic+'">'+j.plastic+'</span></td>'
+              +'<td style="padding:8px;text-align:center;font-size:10px">'+j.mb+'</td>'
+              +'<td style="padding:8px;text-align:center">'+(daily.plasticKg>0?daily.plasticKg.toFixed(2):'—')+'</td>'
+              +'<td style="padding:8px;text-align:center">'+(daily.mbKg>0?daily.mbKg.toFixed(3):'—')+'</td>'
+              +'<td style="padding:8px;text-align:center;font-size:10px">'+(feeder?feeder.name:(j.feederCode||'—'))+'</td>'
+              +'<td style="padding:8px;text-align:center;font-family:monospace">'+(o.machine||j.machine||'—')+'</td>'
+              +'<td style="padding:8px;text-align:center;font-size:10px;font-weight:700;color:'+(mbOK?'#3fb950':'#f85149')+'">'+(mbOK?'✅':'❌ ขาด')+'</td>'
+            +'</tr>');
+          });
+        } else {
+          rows.push('<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px"><b>'+j.name+'</b></td><td colspan="7" style="padding:8px;color:var(--text3)">ไม่มี Order — รอ TT หรือสร้าง Order</td></tr>');
+        }
+      });
+      fb.innerHTML=rows.length?rows.join(''):'<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--text3)">—</td></tr>';
+    } else {
+      det.style.display='none';
+      fb.innerHTML='';
+    }
+  }
 }
 
 // ── KPI Row ──────────────────────────────────────────────────────
@@ -19344,9 +19469,115 @@ function mixAutoOneOrder(orderNo){
   if(typeof _toast==='function') _toast('✅ อัปเดตแผนผสมสำหรับ '+orderNo+' แล้ว');
 }
 
+function mixStockEnsureModal(){
+  if(document.getElementById('mix-stock-detail-overlay')) return;
+  document.body.insertAdjacentHTML('beforeend',
+    '<div id="mix-stock-detail-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10050;align-items:center;justify-content:center;padding:16px;overflow-y:auto" onclick="if(event.target===this)mixStockHideDetailModal()">'
+    +'<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:12px;max-width:640px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45)" onclick="event.stopPropagation()">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)">'
+    +'<div id="mix-stock-detail-title" style="font-size:14px;font-weight:800;color:var(--text)">รายละเอียดการจอง</div>'
+    +'<button type="button" onclick="mixStockHideDetailModal()" style="padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-family:inherit">✕</button>'
+    +'</div>'
+    +'<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg3)">'
+    +'<input type="search" id="mix-stock-detail-search" placeholder="ค้นหา งาน · Order · Lot…" oninput="mixStockDetailFilter()" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box;font-family:inherit">'
+    +'</div>'
+    +'<div id="mix-stock-detail-list" style="padding:10px 14px;overflow-y:auto;flex:1"></div>'
+    +'</div></div>');
+}
+function mixStockHideDetailModal(){
+  var ov=document.getElementById('mix-stock-detail-overlay');
+  if(ov) ov.style.display='none';
+  window._mixStockDetailBlock=null;
+}
+function mixStockOpenDetail(kind, code){
+  mixStockEnsureModal();
+  var blk=_mixStockDetailCache[kind]&&_mixStockDetailCache[kind][code];
+  if(!blk){ if(typeof _infoToast==='function') _infoToast('ไม่พบข้อมูลการ์ด'); return; }
+  window._mixStockDetailKind=kind;
+  window._mixStockDetailCode=code;
+  window._mixStockDetailBlock=blk;
+  var t=document.getElementById('mix-stock-detail-title');
+  if(t) t.textContent=blk.title||'รายละเอียด';
+  var s=document.getElementById('mix-stock-detail-search'); if(s) s.value='';
+  mixStockDetailFilter();
+  document.getElementById('mix-stock-detail-overlay').style.display='flex';
+}
+function mixStockDetailFilter(){
+  var q=(document.getElementById('mix-stock-detail-search')?.value||'').trim().toLowerCase();
+  var blk=window._mixStockDetailBlock;
+  var list=document.getElementById('mix-stock-detail-list');
+  if(!blk||!list) return;
+  var rows=blk.rows||[];
+  var filt=!q?rows:rows.filter(function(x){
+    var s=((x.jobName||'')+' '+(x.orderNo||'')+' '+(x.lotNo||'')+' '+(x.p&&x.p.jobName||'')+' '+(x.p&&x.p.orderNo||'')+' '+(x.p&&x.p.lotNo||'')).toLowerCase();
+    return s.indexOf(q)>=0;
+  });
+  if(blk.kind==='plastic'){
+    list.innerHTML=filt.map(function(x){ return mixStockRenderPlasticLineHtml(x); }).join('')||'<div style="color:var(--text3);padding:12px;text-align:center">ไม่พบรายการ</div>';
+  }else{
+    list.innerHTML=filt.map(function(x){ return mixStockRenderMbLineHtml(x); }).join('')||'<div style="color:var(--text3);padding:12px;text-align:center">ไม่พบรายการ</div>';
+  }
+}
+function mixStockRenderPlasticLineHtml(x){
+  var p=x.p, mat=x.mat, needKg=x.needKg, key=x.key;
+  var resv=rawMatReservations[key];
+  var st=resv?resv.status:'none';
+  var resvQty=(resv&&(st==='pending'||st==='confirmed'))?(parseFloat(resv.qty)||0):0;
+  var stLabel=st==='confirmed'?'จองแล้ว':st==='pending'?'รอยืนยันจอง':st==='cancelled'?'ยกเลิกจอง':'ยังไม่จอง';
+  var mid=String(p.id).replace(/'/g,"\\'");
+  var matEsc=String(mat).replace(/'/g,"\\'");
+  var btn='';
+  if(st==='none'||st==='cancelled'){
+    btn='<button type="button" onclick="mixReservePendingSingle(\''+mid+'\',\''+matEsc+'\')" style="padding:2px 8px;font-size:9px;border-radius:5px;border:1px solid rgba(63,185,80,.4);background:rgba(63,185,80,.12);color:#3fb950;cursor:pointer;font-weight:700;font-family:inherit">🔒 จอง</button>';
+  }else if(st==='pending'){
+    btn='<button type="button" onclick="mixConfirmSingle(\''+mid+'\',\''+matEsc+'\')" style="padding:2px 8px;font-size:9px;border-radius:5px;border:1px solid #3fb950;background:rgba(63,185,80,.15);color:#3fb950;cursor:pointer;font-weight:700;font-family:inherit">✅ ยืนยัน</button>'
+      +'<button type="button" onclick="mixCancelSingle(\''+mid+'\',\''+matEsc+'\')" style="padding:2px 8px;font-size:9px;border-radius:5px;border:1px solid rgba(248,81,73,.35);background:rgba(248,81,73,.08);color:#f85149;cursor:pointer;font-family:inherit;margin-top:4px;width:100%">✕ ยกเลิก</button>';
+  }else if(st==='confirmed'){
+    btn='<button type="button" onclick="mixCancelSingle(\''+mid+'\',\''+matEsc+'\')" style="padding:2px 8px;font-size:9px;border-radius:5px;border:1px solid rgba(248,81,73,.35);background:rgba(248,81,73,.08);color:#f85149;cursor:pointer;font-family:inherit">✕ ยกเลิกจอง</button>';
+  }
+  return '<div class="mix-stock-line" style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)">'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+(p.jobName||'—')+'</div>'
+      +'<div style="font-size:9px;color:var(--text3)">Order: <span class="mono">'+(p.orderNo||'—')+'</span> · Lot: <span class="mono">'+(p.lotNo||'—')+'</span></div>'
+      +'<div style="font-size:9px;margin-top:3px;line-height:1.4"><span style="color:#ffa657;font-weight:700">ต้องการ '+needKg.toFixed(2)+' kg</span>'
+      +(resvQty>0?' · <span style="color:#e3b341">จองบันทึก '+resvQty.toFixed(2)+' kg</span>':'')
+      +' · <span style="color:'+(st==='confirmed'?'#3fb950':st==='pending'?'#e3b341':'var(--text3)')+';font-weight:600">'+stLabel+'</span></div>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;width:108px;flex-shrink:0">'+btn+'</div>'
+  +'</div>';
+}
+function mixStockRenderMbLineHtml(x){
+  var p=x.p, need=x.need||0;
+  var apLabel='อนุมัติแผนผสมถัง · '+(String(p.jobName||'').substring(0,22));
+  var badge=(typeof getApprovalBadge==='function')?getApprovalBadge('mixing-'+p.id, apLabel):'';
+  return '<div class="mix-stock-line" style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2)">'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+(p.jobName||'—')+'</div>'
+      +'<div style="font-size:9px;color:var(--text3)">Order: <span class="mono">'+(p.orderNo||'—')+'</span> · Lot: <span class="mono">'+(p.lotNo||'—')+'</span></div>'
+      +'<div style="font-size:9px;margin-top:3px;color:#e3b341;font-weight:700">ประมาณการ MB '+need.toFixed(2)+' kg <span style="color:var(--text3);font-weight:600">(ตามแผนถัง · ผู้อนุมัติก่อนเบิก)</span></div>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:148px;flex-shrink:0">'+badge+'</div>'
+  +'</div>';
+}
+function mixStockDetailRefreshIfOpen(){
+  var ov=document.getElementById('mix-stock-detail-overlay');
+  if(!ov||ov.style.display!=='flex') return;
+  var k=window._mixStockDetailKind, c=window._mixStockDetailCode;
+  if(!k) return;
+  var tab=_mixStockDetailCache[k];
+  if(!tab) return;
+  var blk=(c===0||c)?tab[c]:null;
+  if(!blk) return;
+  window._mixStockDetailBlock=blk;
+  mixStockDetailFilter();
+}
+
 // ── Render Stock Grid (reservation tab) ─────────────────────────
 function renderMixStockGrid(){
   var el = document.getElementById('mix-stock-grid'); if(!el) return;
+  _mixStockDetailCache={ plastic:{}, mb:{} };
+  function escAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+  var PREVIEW_MAX=7;
   var matMap = {};
   mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
     mixPlanPlasticNeedRows(p).forEach(function(r){
@@ -19376,7 +19607,6 @@ function renderMixStockGrid(){
       var ok=avail>=need;
       var reservePct=stock>0?Math.min(100,Math.round((reserved/stock)*100)):0;
       var usePct=stock>0?Math.min(100,Math.round((need/stock)*100)):0;
-
       var planRows=m.plans.map(function(p){
         var needKg=(m.planNeedById&&m.planNeedById[p.id])?m.planNeedById[p.id]:0;
         var key=p.id+'_'+mat;
@@ -19385,27 +19615,33 @@ function renderMixStockGrid(){
         var apState=approvalStateForPlan(p);
         return {p:p, needKg:needKg, key:key, resvStatus:resvStatus, apState:apState};
       });
-      var waitApproval=planRows.filter(function(x){ return x.resvStatus==='confirmed' && x.apState!=='approved'; });
-      var waitingReserve=planRows.filter(function(x){ return x.resvStatus==='pending'; });
-      var approvedReady=planRows.filter(function(x){ return x.resvStatus==='confirmed' && x.apState==='approved'; });
-
+      var waitApprovalCt=planRows.filter(function(x){ return x.resvStatus==='confirmed' && x.apState!=='approved'; }).length;
+      var slimRows=planRows.map(function(x){
+        return {kind:'plastic',p:x.p,mat:mat,needKg:x.needKg,key:x.key,jobName:x.p.jobName||'',orderNo:x.p.orderNo||'',lotNo:x.p.lotNo||''};
+      });
+      _mixStockDetailCache.plastic[mat]={ kind:'plastic', title:'เม็ด '+mat+' · รายการจองและ Lot', rows: slimRows.slice() };
+      var previewHtml=slimRows.slice(0,PREVIEW_MAX).map(function(x){ return mixStockRenderPlasticLineHtml(x); }).join('');
+      var more=slimRows.length-PREVIEW_MAX;
+      if(more>0){
+        previewHtml+='<button type="button" onclick="mixStockOpenDetail(\'plastic\',\''+escAttr(mat)+'\')" style="width:100%;margin-top:8px;padding:7px 10px;border-radius:7px;border:1px solid rgba(121,192,255,.45);background:rgba(121,192,255,.1);color:#79c0ff;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">📋 ดูทั้งหมดและค้นหา (+อีก '+more+' รายการ)</button>';
+      }
       var statBadge=ok
         ? '<span style="padding:2px 8px;background:rgba(63,185,80,.14);border:1px solid rgba(63,185,80,.35);border-radius:999px;color:#3fb950;font-size:10px;font-weight:700">เพียงพอ</span>'
         : '<span style="padding:2px 8px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.35);border-radius:999px;color:#f85149;font-size:10px;font-weight:700">ไม่พอ</span>';
-
       return '<div style="background:var(--bg3);border:1px solid '+(ok?'var(--border)':'rgba(248,81,73,.35)')+';border-radius:10px;padding:12px">'
         +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
           +'<span class="badge mat-'+mat+'" style="font-size:12px">'+mat+'</span>'
           +statBadge
-          +'<span style="font-size:10px;color:var(--text3)">'+m.plans.length+' งาน</span>'
-          +'<div style="margin-left:auto;display:flex;gap:6px">'
-            +(ok?'<button onclick="mixReserveMat(\''+mat+'\')" style="padding:3px 10px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700">🔒 จองทั้งหมด</button>':'')
-            +(!ok?'<button onclick="rmOpenPRFor(\''+mat+'\')" style="padding:3px 10px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);color:#f85149;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700">🛒 สั่งซื้อ</button>':'')
+          +'<span style="font-size:10px;color:var(--text3)">'+m.plans.length+' แผน</span>'
+          +(waitApprovalCt?'<span style="font-size:9px;color:#e3b341;font-weight:700">⏳ รออนุมัติ '+waitApprovalCt+' รายการ</span>':'')
+          +'<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">'
+            +(ok?'<button type="button" onclick="mixReserveMat(\''+escAttr(mat)+'\')" style="padding:3px 10px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;font-family:inherit">🔒 จองทั้งหมด</button>':'')
+            +(!ok?'<button type="button" onclick="rmOpenPRFor(\''+escAttr(mat)+'\')" style="padding:3px 10px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);color:#f85149;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;font-family:inherit">🛒 สั่งซื้อ</button>':'')
           +'</div>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px">'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">Stock</div><div class="mono" style="font-size:13px;color:#79c0ff;font-weight:700">'+stock.toFixed(1)+'</div></div>'
-          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">จอง</div><div class="mono" style="font-size:13px;color:#e3b341;font-weight:700">'+reserved.toFixed(1)+'</div></div>'
+          +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">จอง (ยืนยันแล้ว)</div><div class="mono" style="font-size:13px;color:#e3b341;font-weight:700">'+reserved.toFixed(1)+'</div></div>'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">คงเหลือ</div><div class="mono" style="font-size:13px;color:'+(ok?'#3fb950':'#f85149')+';font-weight:700">'+avail.toFixed(1)+'</div></div>'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">ต้องใช้</div><div class="mono" style="font-size:13px;color:#ffa657;font-weight:700">'+need.toFixed(1)+'</div></div>'
         +'</div>'
@@ -19413,27 +19649,9 @@ function renderMixStockGrid(){
           +'<div style="position:absolute;left:0;top:0;height:100%;width:'+reservePct+'%;background:#e3b341"></div>'
           +'<div style="position:absolute;left:0;top:0;height:100%;width:'+usePct+'%;background:'+(ok?'rgba(63,185,80,.55)':'rgba(248,81,73,.55)')+'"></div>'
         +'</div>'
-        +'<div style="display:grid;grid-template-columns:1fr;gap:6px">'
-          +'<div style="background:var(--bg2);border:1px dashed rgba(227,179,65,.35);border-radius:7px;padding:7px">'
-            +'<div style="font-size:10px;color:#e3b341;font-weight:700;margin-bottom:4px">⏳ จองแล้ว รออนุมัติ ('+waitApproval.length+')</div>'
-            +(waitApproval.length?waitApproval.map(function(x){
-              return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
-                +'<span style="color:var(--text2);font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(x.p.jobName||'-')+' | '+(x.p.lotNo||'-')+'</span>'
-                +'<span class="mono" style="color:#e3b341">'+x.needKg.toFixed(1)+'kg</span>'
-              +'</div>';
-            }).join(''):'<div style="font-size:10px;color:var(--text3)">—</div>')
-          +'</div>'
-          +'<div style="background:var(--bg2);border:1px dashed rgba(121,192,255,.35);border-radius:7px;padding:7px">'
-            +'<div style="font-size:10px;color:#79c0ff;font-weight:700;margin-bottom:4px">🧾 งานที่ถูกจองทั้งหมด ('+planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).length+')</div>'
-            +(planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).length?planRows.filter(function(x){return x.resvStatus!=="none"&&x.resvStatus!=="cancelled";}).map(function(x){
-              var st=x.resvStatus==='pending'?'รอยืนยัน':'จองแล้ว';
-              return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
-                +'<span style="color:var(--text2);font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(x.p.jobName||'-')+' | Lot '+(x.p.lotNo||'-')+'</span>'
-                +'<span class="mono" style="color:var(--text3)">'+x.needKg.toFixed(1)+'kg</span>'
-                +'<span style="color:'+(st==='จองแล้ว'?'#3fb950':'#e3b341')+'">'+st+'</span>'
-              +'</div>';
-            }).join(''):'<div style="font-size:10px;color:var(--text3)">ยังไม่มีรายการจอง</div>')
-          +'</div>'
+        +'<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px">'
+          +'<div style="font-size:10px;color:var(--text3);font-weight:800;margin-bottom:6px;letter-spacing:.02em">รายการ · Order · Lot · kg · จองรายแถว</div>'
+          +previewHtml
         +'</div>'
       +'</div>';
     });
@@ -19445,32 +19663,38 @@ function renderMixStockGrid(){
     var key=mixResolveMbStockKey(p.mb)||String(p.mb).trim();
     if(!mbMap[key]) mbMap[key]={code:key, label:p.mb||key, need:0, plans:[]};
     mbMap[key].need += mbNeed;
-    mbMap[key].plans.push({job:p.jobName||'-', lot:p.lotNo||'-', need:mbNeed, ap:(approvals['mixing-'+p.id]||{}).status||'pending'});
+    mbMap[key].plans.push({p:p, need:mbNeed});
   });
   Object.keys(mbMap).forEach(function(k){
     var m=mbMap[k];
     var avail=(mbStock&&mbStock[m.code])?parseFloat(mbStock[m.code].qty)||0:0;
     var ok=avail>=m.need;
+    var slimMb=m.plans.map(function(entry){
+      var pl=entry.p, nd=entry.need;
+      return {kind:'mb', p:pl, need:nd, jobName:pl.jobName||'', orderNo:pl.orderNo||'', lotNo:pl.lotNo||''};
+    });
+    _mixStockDetailCache.mb[m.code]={ kind:'mb', title:'MB '+m.code+' · งาน · Order · Lot · kg', rows: slimMb.slice() };
+    var previewMb=slimMb.slice(0,PREVIEW_MAX).map(function(x){ return mixStockRenderMbLineHtml(x); }).join('');
+    var moreMb=slimMb.length-PREVIEW_MAX;
+    if(moreMb>0){
+      previewMb+='<button type="button" onclick="mixStockOpenDetail(\'mb\',\''+escAttr(m.code)+'\')" style="width:100%;margin-top:8px;padding:7px 10px;border-radius:7px;border:1px solid rgba(121,192,255,.45);background:rgba(121,192,255,.1);color:#79c0ff;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit">📋 ดูทั้งหมดและค้นหา (+อีก '+moreMb+' รายการ)</button>';
+    }
     cards.push(
       '<div style="background:var(--bg3);border:1px solid '+(ok?'rgba(227,179,65,.35)':'rgba(248,81,73,.35)')+';border-radius:10px;padding:12px">'
-        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
           +'<span style="padding:2px 8px;border-radius:999px;background:rgba(227,179,65,.16);border:1px solid rgba(227,179,65,.35);color:#e3b341;font-size:10px;font-weight:700">MB '+m.code+'</span>'
           +(ok?'<span style="font-size:10px;color:#3fb950;font-weight:700">เพียงพอ</span>':'<span style="font-size:10px;color:#f85149;font-weight:700">ไม่พอ</span>')
+          +'<span style="font-size:10px;color:var(--text3)">'+m.plans.length+' แผนถัง</span>'
         +'</div>'
         +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">MB Stock</div><div class="mono" style="font-size:13px;color:#79c0ff;font-weight:700">'+avail.toFixed(1)+'</div></div>'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">ต้องใช้</div><div class="mono" style="font-size:13px;color:#ffa657;font-weight:700">'+m.need.toFixed(1)+'</div></div>'
           +'<div style="background:var(--bg2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:var(--text3)">คงเหลือ</div><div class="mono" style="font-size:13px;color:'+(ok?'#3fb950':'#f85149')+';font-weight:700">'+(avail-m.need).toFixed(1)+'</div></div>'
         +'</div>'
-        +'<div style="font-size:10px;color:#e3b341;font-weight:700;margin-bottom:4px">รายการงานที่ต้องตัด MB ('+m.plans.length+')</div>'
-        +(m.plans.slice(0,8).map(function(x){
-          var st=x.ap==='approved'?'อนุมัติแล้ว':'รออนุมัติ';
-          return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0">'
-            +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text2)">'+x.job+' | Lot '+x.lot+'</span>'
-            +'<span class="mono" style="color:#e3b341">'+x.need.toFixed(2)+'kg</span>'
-            +'<span style="color:'+(x.ap==='approved'?'#3fb950':'#e3b341')+'">'+st+'</span>'
-          +'</div>';
-        }).join('')||'<div style="font-size:10px;color:var(--text3)">—</div>')
+        +'<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px">'
+          +'<div style="font-size:10px;color:var(--text3);font-weight:800;margin-bottom:6px;letter-spacing:.02em">รายการ · Order · Lot · ขออนุมัติแผนถัง (ก่อนเบิก MB)</div>'
+          +previewMb
+        +'</div>'
       +'</div>'
     );
   });
@@ -19542,15 +19766,29 @@ function mixConfirmSingle(mixId, mat){
   var p2=mixPlans.find(function(x){return x.id===mixId;});
   if(p2&&p2.plastic===mat){p2.status='จองวัตถุดิบแล้ว';p2.reserved=true;}
   saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  mixStockDetailRefreshIfOpen();
   if(typeof _toast==='function') _toast('✅ ยืนยันจอง '+mat+' แล้ว');
 }
 function mixCancelSingle(mixId, mat){
   var key=mixId+'_'+mat;
   if(rawMatReservations[key]) rawMatReservations[key].status='cancelled';
-  var p=mixPlans.find(function(x){return x.id===mixId;});
+  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId); });
   if(p&&p.status==='จองวัตถุดิบแล้ว'){p.status='รอผสม';p.reserved=false;}
   saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  mixStockDetailRefreshIfOpen();
   if(typeof _toast==='function') _toast('✕ ยกเลิกการจอง '+mat);
+}
+
+function mixReservePendingSingle(mixId, mat){
+  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId); }); if(!p) return;
+  var row=mixPlanPlasticNeedRows(p).find(function(r){ return r.material===mat; });
+  var need=row?Math.max(0,parseFloat(row.qty)||0):0;
+  var key=mixId+'_'+mat;
+  rawMatReservations[key]={material:mat,qty:need,status:'pending',reservedAt:new Date().toISOString(),mixId:mixId};
+  saveReservations();
+  renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
+  mixStockDetailRefreshIfOpen();
+  if(typeof _toast==='function') _toast('🔒 จอง '+mat+' รายการนี้แล้ว — รอยืนยัน');
 }
 
 function mixReserveAll(){
