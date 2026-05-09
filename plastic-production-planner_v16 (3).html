@@ -1286,6 +1286,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
     <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this)"><span class="nav-icon">📅</span><span class="nav-seq">17</span> แผนการผลิต (Time Table)</div>
     <!-- 16B --> <div class="nav-item" onclick="showPage('setup',this)"><span class="nav-icon">🛠️</span><span class="nav-seq">17B</span> Setup Planning</div>
+    <!-- 16C --> <div class="nav-item" onclick="showPage('setup-tt',this)"><span class="nav-icon">📆</span><span class="nav-seq">17C</span> Setup Time Table</div>
+    <!-- 16D --> <div class="nav-item" onclick="showPage('setup-std',this)"><span class="nav-icon">📏</span><span class="nav-seq">17D</span> STD SET UP</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -6331,6 +6333,8 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div class="page-sub">ดึงจาก Time Table อัตโนมัติ · จัดคิวตามเครื่อง · ระบุช่าง/สาเหตุ/4M</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('setup-tt',null)">📆 Setup Time Table</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('setup-std',null)">📏 STD SET UP</button>
         <button class="btn btn-secondary btn-sm" onclick="setupSyncFromTT()">🔄 ดึงจาก Time Table</button>
         <button class="btn btn-primary btn-sm" onclick="setupSaveData();renderSetupPage()">💾 บันทึก</button>
       </div>
@@ -6350,12 +6354,96 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <table>
         <thead>
           <tr>
-            <th>เครื่อง</th><th>Order</th><th>งาน</th><th>วันที่ผลิต</th><th>เริ่ม Setup</th><th>จบตามแผน</th><th>เวลา(นาที)</th>
-            <th>ช่าง Setup</th><th>สถานะ</th><th>จบจริง</th><th>สาเหตุ/จุดเสีย</th><th>4M</th><th>จัดการ</th>
+            <th>เครื่อง</th><th>Order</th><th>งาน</th><th>วันผลิต (TT)</th><th>วันเตรียม (Prep)</th><th>เริ่ม Setup (แผน)</th><th>จบ Setup (แผน)</th><th>เวลา(นาที)</th>
+            <th>ช่าง Setup</th><th>สถานะ</th><th>เริ่มจริง</th><th>จบจริง</th><th>สาเหตุ/จุดเสีย</th><th>4M</th><th>จัดการ</th>
           </tr>
         </thead>
         <tbody id="setup-tbody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="page-setup-tt">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="page-title">📆 Setup Time Table</div>
+        <div class="page-sub">เห็นชัดว่า <strong>วันไหนต้องเตรียม (Prep)</strong> · <strong>วันไหน setup ตามแผน</strong> · <strong>วัน/เวลา setup จริง</strong> (เทียบกับวันผลิตใน TT)</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px">เริ่มต้นช่วง
+          <input type="date" id="setup-tt-anchor" onchange="renderSetupTT()" style="width:auto;padding:6px 10px">
+        </label>
+        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px">จำนวนวัน
+          <input type="number" id="setup-tt-days" min="1" max="10" value="3" onchange="renderSetupTT()" style="width:64px;padding:6px 8px">
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setupSyncFromTT();renderSetupTT()">🔄 ซิงก์จาก TT</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('setup',null)">🛠️ Setup Planning</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="padding:10px 14px;margin-bottom:10px;font-size:11px;color:var(--text3)">
+    <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px"><span style="width:10px;height:10px;background:#e3b341;border-radius:2px"></span> เตรียม (Prep)</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;margin-right:12px"><span style="width:10px;height:10px;background:#388bfd;border-radius:2px"></span> Setup ตามแผน</span>
+    <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;background:#3fb950;border-radius:2px"></span> Setup จริง</span>
+  </div>
+  <div class="card"><div class="tbl-wrap" style="overflow-x:auto"><table id="setup-tt-table" style="font-size:11px;min-width:720px"><thead id="setup-tt-thead"></thead><tbody id="setup-tt-tbody"></tbody></table></div></div>
+  <div class="card" style="margin-top:12px;padding:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <div class="card-title" style="margin:0">📊 Gantt Setup (ชั่วโมงละเอียด)</div>
+      <div style="font-size:11px;color:var(--text3)">แถวต่อเครื่อง · แสดงคิว Prep/Plan/Actual เพื่อช่วยจัดคิวช่าง</div>
+    </div>
+    <div id="setup-gantt-wrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg3)"></div>
+  </div>
+</div>
+
+<div class="page" id="page-setup-std">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="page-title">📏 STD SET UP</div>
+        <div class="page-sub">มาตรฐานขั้นตอน · เวลาแต่ละขั้น · จำนวนคน · ประวัติผู้ที่เคย setup งานนี้</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('setup',null)">🛠️ Setup Planning</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="setupStdSaveCurrent()">💾 บันทึกมาตรฐาน</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="padding:14px;margin-bottom:12px">
+    <div class="form-row" style="align-items:flex-end">
+      <div style="flex:1;min-width:200px">
+        <div class="form-label">เลือกงาน (Job)</div>
+        <select id="setup-std-job" onchange="setupStdLoadEditor()" style="width:100%"></select>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <div class="form-label">รหัสแม่พิมพ์ (ถ้ามี)</div>
+        <input id="setup-std-mold" placeholder="Mold code">
+      </div>
+      <div style="min-width:140px">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setupStdAddStepRow()">+ เพิ่มขั้นตอน</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text3)">ถ้ามี STD ระบบจะใช้ <strong>ผลรวมเวลาขั้นตอน</strong> แทนการประมาณเวลา setup ตอนดึงจาก Time Table</div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="margin-bottom:8px">ขั้นตอน Setup</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>#</th><th>ชื่อขั้นตอน</th><th>เวลา (นาที)</th><th>คน</th><th></th></tr></thead>
+      <tbody id="setup-std-steps-tbody"></tbody>
+    </table></div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <span id="setup-std-step-sum" style="font-size:12px;font-weight:700;color:var(--accent2)"></span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-title" style="margin-bottom:8px">ประวัติผู้ที่เคย setup งานนี้</div>
+    <div id="setup-std-history" style="font-size:12px;color:var(--text2);max-height:220px;overflow-y:auto"></div>
+    <div class="form-row" style="margin-top:10px;align-items:flex-end">
+      <div style="flex:1"><div class="form-label">เพิ่มชื่อด้วยมือ (ถ้าไม่ได้มาจาก Planning)</div><input id="setup-std-history-name" placeholder="ชื่อช่าง / ทีม"></div>
+      <div style="min-width:120px"><div class="form-label">Order (ถ้ามี)</div><input id="setup-std-history-ord" placeholder="ORD-..."></div>
+      <div><button type="button" class="btn btn-green btn-sm" onclick="setupStdPushManualHistory()">+ บันทึก</button></div>
     </div>
   </div>
 </div>
@@ -7271,6 +7359,61 @@ function setupSaveData(){
 }
 setupLoadData();
 
+function setupCalendarMinusOne(isoYmd){
+  if(!isoYmd) return '';
+  var d = new Date(String(isoYmd).slice(0,10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+function setupTTDatePart(v){ return String(v||'').slice(0,10); }
+
+var setupStdJobs = [];
+var SETUP_STD_STORAGE_KEY = '_setupStdJobs';
+function setupStdLoad(){
+  try{
+    var r = localStorage.getItem(SETUP_STD_STORAGE_KEY);
+    if(r){
+      var j = JSON.parse(r);
+      if(Array.isArray(j)) setupStdJobs = j;
+    }
+  }catch(e){ setupStdJobs = []; }
+}
+function setupStdSave(){
+  try{ localStorage.setItem(SETUP_STD_STORAGE_KEY, JSON.stringify(setupStdJobs||[])); }catch(e){}
+}
+setupStdLoad();
+function setupStdGetByJob(jobName){
+  var n = String(jobName||'').trim();
+  if(!n) return null;
+  return (setupStdJobs||[]).find(function(x){ return x && String(x.jobName).trim()===n; }) || null;
+}
+function setupStdTotalMinutes(jobName){
+  var st = setupStdGetByJob(jobName);
+  if(!st || !Array.isArray(st.steps)) return 0;
+  return st.steps.reduce(function(s, row){ return s + (parseFloat(String(row.minutes))||0); }, 0);
+}
+function setupStdAppendHistory(jobName, rec){
+  var n = String(jobName||'').trim();
+  if(!n || !rec) return;
+  var nm = String(rec.name||'').trim();
+  if(!nm) return;
+  var st = setupStdGetByJob(n);
+  if(!st){
+    st = { jobName:n, moldCode:'', steps:[], history:[] };
+    setupStdJobs.push(st);
+  }
+  if(!Array.isArray(st.history)) st.history = [];
+  st.history.unshift({
+    name:nm,
+    at: rec.at || new Date().toISOString().slice(0,16),
+    orderNo: rec.orderNo||'',
+    machine: rec.machine||''
+  });
+  if(st.history.length > 80) st.history.length = 80;
+  setupStdSave();
+}
+
 function setupGetOrderSummariesFromTT(){
   var byKey = {};
   Object.keys(ttData||{}).forEach(function(dateStr){
@@ -7331,10 +7474,13 @@ function setupSyncFromTT(quiet){
   var next = rows.map(function(r){
     var prev = prevByMachine[r.machine] || null;
     var mins = setupEstimateMinutes(r, prev);
+    var stdM = setupStdTotalMinutes(r.jobName);
+    if(stdM > 0) mins = stdM;
     var endPlan = setupDateWithTime(r.firstDate, '08:00');
     var startPlan = setupShiftMinutes(endPlan, -mins);
     var key = r.machine + '|' + r.orderNo + '|' + r.firstDate;
     var old = existing[key] || {};
+    var prepDefault = setupCalendarMinusOne(r.firstDate);
     var item = Object.assign({}, old, {
       setupKey:key,
       machine:r.machine,
@@ -7342,11 +7488,13 @@ function setupSyncFromTT(quiet){
       jobName:r.jobName,
       plastic:r.plastic,
       prodDate:r.firstDate,
+      prepPlanDate: (old.prepPlanDate && String(old.prepPlanDate).trim()) ? old.prepPlanDate : prepDefault,
       setupStartPlan:startPlan,
       setupEndPlan:endPlan,
       setupMinutes:mins,
       status:old.status||'pending',
       technician:old.technician||'',
+      actualStart:old.actualStart||'',
       actualEnd:old.actualEnd||'',
       failPoint:old.failPoint||'',
       failReason:old.failReason||'',
@@ -7360,6 +7508,7 @@ function setupSyncFromTT(quiet){
   if(!quiet && typeof _toast==='function') _toast('✅ ดึงแผน Setup จาก Time Table แล้ว ' + next.length + ' รายการ');
   if(typeof setupPushFailedToActionPlan==='function') setupPushFailedToActionPlan();
   if(window._currentPage==='setup') renderSetupPage();
+  else if(window._currentPage==='setup-tt') renderSetupTT();
 }
 
 function setupIsOffTarget(s){
@@ -7377,12 +7526,23 @@ function setupStatusBadge(st){
 
 function setupUpdateField(idx, field, val){
   if(!setupPlans[idx]) return;
+  var prevStatus = setupPlans[idx].status;
   setupPlans[idx][field] = val;
   setupSaveData();
+  if(field==='status' && val==='done' && prevStatus !== 'done'){
+    setupStdAppendHistory(setupPlans[idx].jobName, {
+      name: setupPlans[idx].technician,
+      orderNo: setupPlans[idx].orderNo,
+      machine: setupPlans[idx].machine,
+      at: new Date().toISOString().slice(0,16)
+    });
+    if(window._currentPage==='setup-std') setupStdLoadEditor();
+  }
   if(field==='status' || field==='actualEnd' || field==='failReason' || field==='m4' || field==='failPoint'){
     setupPushFailedToActionPlan();
   }
-  renderSetupPage();
+  if(window._currentPage==='setup') renderSetupPage();
+  else if(window._currentPage==='setup-tt') renderSetupTT();
 }
 
 function renderSetupPage(){
@@ -7404,11 +7564,13 @@ function renderSetupPage(){
       +'<td class="mono">'+(s.orderNo||'-')+'</td>'
       +'<td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(s.jobName||'-')+'</td>'
       +'<td class="mono">'+(s.prodDate||'-')+'</td>'
+      +'<td><input type="date" value="'+(s.prepPlanDate||'')+'" onchange="setupUpdateField('+idx+',\'prepPlanDate\',this.value)" style="min-width:130px"></td>'
       +'<td class="mono">'+(s.setupStartPlan||'-')+'</td>'
       +'<td class="mono">'+(s.setupEndPlan||'-')+'</td>'
       +'<td class="mono">'+(s.setupMinutes||0)+'</td>'
       +'<td><input value="'+(s.technician||'')+'" placeholder="ชื่อช่าง" onchange="setupUpdateField('+idx+',\'technician\',this.value)" style="min-width:120px"></td>'
       +'<td><select onchange="setupUpdateField('+idx+',\'status\',this.value)"><option value="pending" '+(s.status==='pending'?'selected':'')+'>pending</option><option value="done" '+(s.status==='done'?'selected':'')+'>done</option><option value="failed" '+(s.status==='failed'?'selected':'')+'>failed</option></select></td>'
+      +'<td><input type="datetime-local" value="'+(s.actualStart||'')+'" onchange="setupUpdateField('+idx+',\'actualStart\',this.value)"></td>'
       +'<td><input type="datetime-local" value="'+(s.actualEnd||'')+'" onchange="setupUpdateField('+idx+',\'actualEnd\',this.value)"></td>'
       +'<td><input value="'+(s.failPoint||'')+'" placeholder="เช่น mold / machine" onchange="setupUpdateField('+idx+',\'failPoint\',this.value)"><input value="'+(s.failReason||'')+'" placeholder="เหตุผล setup ไม่ได้" onchange="setupUpdateField('+idx+',\'failReason\',this.value)" style="margin-top:4px"></td>'
       +'<td><select onchange="setupUpdateField('+idx+',\'m4\',this.value)"><option value="" '+(!s.m4?'selected':'')+'>-</option><option value="Man" '+(s.m4==='Man'?'selected':'')+'>Man</option><option value="Machine" '+(s.m4==='Machine'?'selected':'')+'>Machine</option><option value="Material" '+(s.m4==='Material'?'selected':'')+'>Material</option><option value="Method" '+(s.m4==='Method'?'selected':'')+'>Method</option></select></td>'
@@ -7462,6 +7624,271 @@ function setupPushFailedToActionPlan(){
   });
   if(typeof saveAPData==='function') saveAPData();
 }
+
+function setupTTAnchorDate(){
+  var el = document.getElementById('setup-tt-anchor');
+  if(el && !el.value) el.value = new Date().toISOString().split('T')[0];
+  return el ? el.value : new Date().toISOString().split('T')[0];
+}
+function setupTTAddDays(ymd, n){
+  var d = new Date(String(ymd).slice(0,10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return String(ymd).slice(0,10);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+function setupTTWeekShort(ds){
+  var w = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  try{ return w[new Date(String(ds).slice(0,10) + 'T12:00:00').getDay()] || ''; }catch(e){ return ''; }
+}
+function setupTTCellHtml(machine, dateStr){
+  if(machine === '—') return '';
+  var hits = (setupPlans||[]).filter(function(s){
+    if(!s || s.machine !== machine) return false;
+    if((s.prepPlanDate || '') === dateStr) return true;
+    if(setupTTDatePart(s.setupStartPlan) === dateStr) return true;
+    if(setupTTDatePart(s.setupEndPlan) === dateStr) return true;
+    if(setupTTDatePart(s.actualStart) === dateStr) return true;
+    if(setupTTDatePart(s.actualEnd) === dateStr) return true;
+    if((s.prodDate || '') === dateStr) return true;
+    return false;
+  });
+  if(!hits.length) return '<span style="color:var(--text3)">·</span>';
+  var seen = {};
+  return hits.map(function(s){
+    var k = s.setupKey || (s.orderNo + '|' + dateStr);
+    if(seen[k]) return '';
+    seen[k] = 1;
+    var bits = [];
+    if((s.prepPlanDate || '') === dateStr){
+      bits.push('<div style="margin:2px 0;padding:4px 5px;border-left:3px solid #e3b341;background:rgba(227,179,65,0.12);border-radius:3px;line-height:1.35">🟡 เตรียม (Prep)<br><span class="mono">' + (s.orderNo || '') + '</span> · ' + (s.jobName || '').substring(0, 18) + '</div>');
+    }
+    if(setupTTDatePart(s.setupStartPlan) === dateStr || setupTTDatePart(s.setupEndPlan) === dateStr || (s.prodDate || '') === dateStr){
+      var t0 = (s.setupStartPlan || '').slice(11, 16) || '—';
+      var t1 = (s.setupEndPlan || '').slice(11, 16) || '—';
+      bits.push('<div style="margin:2px 0;padding:4px 5px;border-left:3px solid #388bfd;background:rgba(56,139,253,0.12);border-radius:3px;line-height:1.35">🔵 Setup แผน ' + t0 + '–' + t1 + '<br><span class="mono">' + (s.orderNo || '') + '</span> · ผลิต ' + (s.prodDate || '') + '</div>');
+    }
+    if(setupTTDatePart(s.actualStart) === dateStr || setupTTDatePart(s.actualEnd) === dateStr){
+      var a0 = (s.actualStart || '').slice(11, 16) || '—';
+      var a1 = (s.actualEnd || '').slice(11, 16) || '—';
+      bits.push('<div style="margin:2px 0;padding:4px 5px;border-left:3px solid #3fb950;background:rgba(63,185,80,0.12);border-radius:3px;line-height:1.35">🟢 Setup จริง ' + a0 + '–' + a1 + '<br><span class="mono">' + (s.orderNo || '') + '</span> · ' + (s.technician || '—') + '</div>');
+    }
+    return bits.join('');
+  }).join('');
+}
+function renderSetupTT(){
+  if(!Array.isArray(setupPlans) || !setupPlans.length) setupSyncFromTT(true);
+  var thead = document.getElementById('setup-tt-thead');
+  var tbody = document.getElementById('setup-tt-tbody');
+  if(!thead || !tbody) return;
+  var anchor = setupTTAnchorDate();
+  var dInp = document.getElementById('setup-tt-days');
+  var dayCount = Math.max(1, Math.min(10, parseInt((dInp&&dInp.value)||'3',10)||3));
+  if(dInp) dInp.value = String(dayCount);
+  var dates = [];
+  for(var di = 0; di < dayCount; di++) dates.push(setupTTAddDays(anchor, di));
+  thead.innerHTML = '<tr><th style="min-width:76px;background:var(--bg3);position:sticky;left:0;z-index:1">เครื่อง</th>'
+    + dates.map(function(ds){
+      return '<th style="min-width:128px;background:var(--bg3);font-size:10px;white-space:nowrap">' + ds + '<br><span style="color:var(--text3);font-weight:500">' + setupTTWeekShort(ds) + '</span></th>';
+    }).join('') + '</tr>';
+  var machSet = {};
+  (setupPlans || []).forEach(function(s){ if(s && s.machine) machSet[s.machine] = 1; });
+  var machines = Object.keys(machSet).sort();
+  if(!machines.length){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3)">ยังไม่มีแผน Setup — กด «ซิงก์จาก TT» หรือไปที่ Setup Planning</td></tr>';
+    return;
+  }
+  tbody.innerHTML = machines.map(function(m){
+    return '<tr><td class="mono" style="font-weight:700;background:var(--bg3);position:sticky;left:0;z-index:1;border-right:1px solid var(--border)">' + m + '</td>'
+      + dates.map(function(ds){
+        return '<td style="vertical-align:top;padding:4px 3px;font-size:10px;border-left:1px solid var(--border)">' + setupTTCellHtml(m, ds) + '</td>';
+      }).join('') + '</tr>';
+  }).join('');
+  renderSetupGantt(anchor, dayCount);
+}
+
+function setupDateHourToMs(dateStr, hh, mm){
+  var h = Math.max(0, Math.min(23, parseInt(hh, 10)||0));
+  var m = Math.max(0, Math.min(59, parseInt(mm, 10)||0));
+  var d = new Date(String(dateStr||'').slice(0,10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return NaN;
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+}
+function setupIsoToMs(iso){
+  if(!iso) return NaN;
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? NaN : d.getTime();
+}
+function setupBarHtml(leftPct, widthPct, color, text){
+  leftPct = Math.max(0, Math.min(100, leftPct));
+  widthPct = Math.max(0.5, Math.min(100 - leftPct, widthPct));
+  return '<div title="'+(text||'').replace(/"/g,'&quot;')+'" style="position:absolute;left:'+leftPct+'%;width:'+widthPct+'%;top:4px;height:16px;background:'+color+';border-radius:4px;opacity:.95;border:1px solid rgba(255,255,255,.25)"></div>';
+}
+function renderSetupGantt(anchor, dayCount){
+  var wrap = document.getElementById('setup-gantt-wrap');
+  if(!wrap) return;
+  var startMs = setupDateHourToMs(anchor, 0, 0);
+  var endMs = setupDateHourToMs(setupTTAddDays(anchor, dayCount), 0, 0);
+  if(!isFinite(startMs) || !isFinite(endMs) || endMs<=startMs){
+    wrap.innerHTML = '<div style="padding:14px;color:var(--text3)">ไม่สามารถสร้างช่วงเวลา Gantt ได้</div>';
+    return;
+  }
+  var totalMin = (endMs - startMs) / 60000;
+  var machines = Array.from(new Set((setupPlans||[]).map(function(s){ return s && s.machine; }).filter(Boolean))).sort();
+  if(!machines.length){
+    wrap.innerHTML = '<div style="padding:14px;color:var(--text3)">ยังไม่มีข้อมูล setup</div>';
+    return;
+  }
+  var hourCols = [];
+  for(var t = startMs; t < endMs; t += 3600000){
+    var hh = new Date(t).getHours();
+    var dd = new Date(t).toISOString().slice(5,10);
+    hourCols.push('<div style="position:absolute;left:'+(((t-startMs)/60000)/totalMin*100)+'%;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.08)"><span style="position:absolute;top:2px;left:2px;font-size:9px;color:var(--text3)">'+dd+' '+String(hh).padStart(2,'0')+':00</span></div>');
+  }
+  var body = machines.map(function(m){
+    var bars = [];
+    (setupPlans||[]).filter(function(s){ return s && s.machine===m; }).forEach(function(s){
+      var prepDate = s.prepPlanDate || '';
+      var prepStart = setupDateHourToMs(prepDate, 6, 0);
+      var prepEnd = setupDateHourToMs(prepDate, 8, 0);
+      var p0 = setupIsoToMs(s.setupStartPlan), p1 = setupIsoToMs(s.setupEndPlan);
+      var a0 = setupIsoToMs(s.actualStart), a1 = setupIsoToMs(s.actualEnd);
+      function addBar(ms0, ms1, color, label){
+        if(!isFinite(ms0) || !isFinite(ms1) || ms1<=ms0) return;
+        if(ms1<=startMs || ms0>=endMs) return;
+        var x0 = ((Math.max(ms0,startMs)-startMs)/60000)/totalMin*100;
+        var x1 = ((Math.min(ms1,endMs)-startMs)/60000)/totalMin*100;
+        bars.push(setupBarHtml(x0, x1-x0, color, (s.orderNo||'')+' '+label+' · '+(s.technician||'—')));
+      }
+      addBar(prepStart, prepEnd, '#e3b341', 'Prep');
+      addBar(p0, p1, '#388bfd', 'Plan');
+      addBar(a0, a1, '#3fb950', 'Actual');
+    });
+    return '<div style="display:grid;grid-template-columns:100px 1fr;min-height:24px;border-top:1px solid var(--border)">'
+      +'<div class="mono" style="padding:4px 6px;font-size:11px;background:var(--bg2);border-right:1px solid var(--border)">'+m+'</div>'
+      +'<div style="position:relative;min-height:24px">'+bars.join('')+'</div>'
+    +'</div>';
+  }).join('');
+  wrap.innerHTML = '<div style="min-width:980px">'
+    +'<div style="display:grid;grid-template-columns:100px 1fr;background:var(--bg2);border-bottom:1px solid var(--border)">'
+      +'<div style="padding:6px;font-size:10px;color:var(--text3);border-right:1px solid var(--border)">Machine</div>'
+      +'<div style="position:relative;height:24px">'+hourCols.join('')+'</div>'
+    +'</div>'
+    + body
+  +'</div>';
+}
+
+function setupStdPopulateJobSelect(){
+  var sel = document.getElementById('setup-std-job');
+  if(!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">— เลือกงาน —</option>';
+  var names = [];
+  (typeof jobs !== 'undefined' && Array.isArray(jobs) ? jobs : []).forEach(function(j){ if(j && j.name) names.push(j.name); });
+  [...new Set(names)].sort().forEach(function(n){
+    var o = document.createElement('option');
+    o.value = n;
+    o.textContent = n;
+    sel.appendChild(o);
+  });
+  if(cur && [...sel.options].some(function(op){ return op.value === cur; })) sel.value = cur;
+}
+function setupStdCollectSteps(){
+  var tb = document.getElementById('setup-std-steps-tbody');
+  if(!tb) return [];
+  var out = [];
+  tb.querySelectorAll('tr').forEach(function(tr){
+    var inp = tr.querySelectorAll('input');
+    if(inp.length >= 3){
+      out.push({
+        name: (inp[0].value || '').trim(),
+        minutes: parseFloat(String(inp[1].value)) || 0,
+        people: parseInt(inp[2].value, 10) || 0
+      });
+    }
+  });
+  return out.filter(function(r){ return r.name || r.minutes > 0 || r.people > 0; });
+}
+function setupStdUpdateSum(){
+  var cur = setupStdCollectSteps();
+  var t = cur.reduce(function(s, r){ return s + (parseFloat(String(r.minutes)) || 0); }, 0);
+  var pmax = cur.reduce(function(s, r){ return Math.max(s, parseInt(r.people, 10) || 0); }, 0);
+  var el = document.getElementById('setup-std-step-sum');
+  if(el) el.textContent = 'รวมเวลา ' + t + ' นาที · คนสูงสุดต่อขั้น ' + pmax + ' คน · จำนวนขั้น ' + cur.length;
+}
+function setupStdRenderStepsRows(steps){
+  var tb = document.getElementById('setup-std-steps-tbody');
+  if(!tb) return;
+  var rows = (steps && steps.length) ? steps : [{ name: '', minutes: '', people: '' }];
+  tb.innerHTML = rows.map(function(r, i){
+    return '<tr><td class="mono">' + (i + 1) + '</td>'
+      + '<td><input value="' + (r.name || '').replace(/"/g, '&quot;') + '" onchange="setupStdUpdateSum()" style="width:100%"></td>'
+      + '<td><input type="number" min="0" step="1" value="' + (r.minutes !== undefined && r.minutes !== '' ? r.minutes : '') + '" onchange="setupStdUpdateSum()" style="width:88px"></td>'
+      + '<td><input type="number" min="0" step="1" value="' + (r.people !== undefined && r.people !== '' ? r.people : '') + '" onchange="setupStdUpdateSum()" style="width:64px"></td>'
+      + '<td><button type="button" class="btn btn-red btn-sm" onclick="setupStdRemoveStep(' + i + ')">✕</button></td></tr>';
+  }).join('');
+  setupStdUpdateSum();
+}
+function setupStdRemoveStep(i){
+  var cur = setupStdCollectSteps();
+  cur.splice(i, 1);
+  setupStdRenderStepsRows(cur.length ? cur : [{ name: '', minutes: '', people: '' }]);
+}
+function setupStdAddStepRow(){
+  var cur = setupStdCollectSteps();
+  cur.push({ name: '', minutes: '', people: '' });
+  setupStdRenderStepsRows(cur);
+}
+function setupStdRenderHistory(st){
+  var div = document.getElementById('setup-std-history');
+  if(!div) return;
+  var h = (st && Array.isArray(st.history)) ? st.history : [];
+  if(!h.length){
+    div.innerHTML = '<span style="color:var(--text3)">ยังไม่มีประวัติ (จะเพิ่มเมื่อกด Done ใน Setup Planning หรือกรอกด้านล่าง)</span>';
+    return;
+  }
+  div.innerHTML = h.slice(0, 50).map(function(x){
+    return '<div style="padding:5px 0;border-bottom:1px solid var(--border)"><b>' + (x.name || '—') + '</b> · ' + (x.at || '') + ' · Order <span class="mono">' + (x.orderNo || '—') + '</span> · ' + (x.machine || '') + '</div>';
+  }).join('');
+}
+function setupStdLoadEditor(){
+  setupStdPopulateJobSelect();
+  var job = (document.getElementById('setup-std-job') || {}).value || '';
+  var st = setupStdGetByJob(job);
+  var moldEl = document.getElementById('setup-std-mold');
+  if(moldEl) moldEl.value = st ? (st.moldCode || '') : '';
+  setupStdRenderStepsRows(st && st.steps ? st.steps : []);
+  setupStdRenderHistory(st);
+}
+function setupStdSaveCurrent(){
+  var job = (document.getElementById('setup-std-job') || {}).value || '';
+  if(!job){ if(typeof _infoToast === 'function') _infoToast('เลือกงานก่อน'); return; }
+  var mold = (document.getElementById('setup-std-mold') || {}).value || '';
+  var steps = setupStdCollectSteps();
+  var st = setupStdGetByJob(job);
+  if(!st){
+    st = { jobName: job, moldCode: mold, steps: steps, history: [] };
+    setupStdJobs.push(st);
+  } else {
+    st.moldCode = mold;
+    st.steps = steps;
+  }
+  setupStdSave();
+  if(typeof _toast === 'function') _toast('✅ บันทึก STD SET UP แล้ว');
+}
+function setupStdPushManualHistory(){
+  var job = (document.getElementById('setup-std-job') || {}).value || '';
+  var nm = (document.getElementById('setup-std-history-name') || {}).value || '';
+  var ord = (document.getElementById('setup-std-history-ord') || {}).value || '';
+  if(!job || !String(nm).trim()){ if(typeof _infoToast === 'function') _infoToast('เลือกงานและกรอกชื่อ'); return; }
+  setupStdAppendHistory(job, { name: nm.trim(), orderNo: ord, machine: '', at: new Date().toISOString().slice(0, 16) });
+  var h1 = document.getElementById('setup-std-history-name');
+  var h2 = document.getElementById('setup-std-history-ord');
+  if(h1) h1.value = '';
+  if(h2) h2.value = '';
+  setupStdLoadEditor();
+}
+
 function saveOrders(){ try{ localStorage.setItem('_orders', JSON.stringify(orders)); }catch(e){} }
 function loadOrders(){ try{ var d=localStorage.getItem('_orders'); if(d){ var saved=JSON.parse(d); saved.forEach(function(r){ if(!orders.find(function(o){return o.orderNo===r.orderNo;})) orders.unshift(r); }); } }catch(e){} }
 var otRequests = [];
@@ -7932,6 +8359,8 @@ var _navMenuList = [
   {id:'orders',       label:'Order (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'order แผน ฉีด injection ผลิต', workGroup:'injection'},
   {id:'orders',       label:'Order (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'order ประกอบ assembly สกรีน พ่น ไลน์รอง secondary', workGroup:'postprocess'},
   {id:'setup',        label:'Setup Planning',            icon:'🛠️', group:'🏭 การผลิต',     keywords:'setup set up เตรียมเครื่อง ช่าง 4M'},
+  {id:'setup-tt',     label:'Setup Time Table',          icon:'📆', group:'🏭 การผลิต',     keywords:'setup timetable ปฏิทิน เตรียม setup วันไหน'},
+  {id:'setup-std',    label:'STD SET UP',                icon:'📏', group:'🏭 การผลิต',     keywords:'std setup ขั้นตอน เวลาแต่ละขั้น คนที่เคยทำ'},
   {id:'order-await',  label:'Order ผลิตจบ — รอส่ง',    icon:'📦', group:'🏭 การผลิต',     keywords:'order พร้อมส่ง รอส่ง ผลิตครบ'},
   {id:'customers',    label:'ทะเบียนลูกค้า',           icon:'🏢', group:'🏭 การผลิต',     keywords:'ลูกค้า customer'},
   {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
@@ -29396,6 +29825,13 @@ function renderPage(id){
     setupSyncFromTT(true);
     renderSetupPage();
   }
+  else if(id==='setup-tt'){
+    setupSyncFromTT(true);
+    renderSetupTT();
+  }
+  else if(id==='setup-std'){
+    setupStdLoadEditor();
+  }
   else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
   else if(id==='dc') dcRender();
   else if(id==='qrtrack'){ qrtRender(); }
@@ -39734,6 +40170,8 @@ const ALL_PAGES = [
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot แล้ว', icon:'✅', section:'การผลิต'},
   {id:'timetable',    label:'Time Table',              icon:'📅', section:'การผลิต'},
   {id:'setup',        label:'Setup Planning',          icon:'🛠️', section:'การผลิต'},
+  {id:'setup-tt',     label:'Setup Time Table',        icon:'📆', section:'การผลิต'},
+  {id:'setup-std',    label:'STD SET UP',              icon:'📏', section:'การผลิต'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
   {id:'rawmat',       label:'วัตถุดิบ & Batch',          icon:'📦', section:'วัตถุดิบ'},
@@ -39799,7 +40237,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','bom','mixing','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','mixing','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -39807,13 +40245,13 @@ const ROLES = {
   operator: {
     label:'พนักงานฉีด', color:'#3fb950', bg:'rgba(63,185,80,0.15)',
     desc:'บันทึกผลผลิตประจำวัน และ Condition เท่านั้น',
-    pages:['dashboard','line-summary','dailyrpt','hourlyboard','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','setup']
+    pages:['dashboard','line-summary','dailyrpt','hourlyboard','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','setup','setup-tt','setup-std']
   },
   qc: {
     label:'QC', color:'#388bfd', bg:'rgba(56,139,253,0.15)',
     desc:'ดู/แก้ Condition, รายงานคุณภาพ, สอบกลับ',
     pages:['dashboard','line-summary','dailyrpt','hourlyboard','nganalysis','costanalysis','condstd','conddaily','condcompare',
-           'traceability','bom','actionplan','approvallog','approvaldocs','setup',
+           'traceability','bom','actionplan','approvallog','approvaldocs','setup','setup-tt','setup-std',
            'specregistry','qcspecs','limitsample',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch']
   },
@@ -51670,6 +52108,8 @@ window.HOME_PAGES = [
     {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', seq:'15C'},
     {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', seq:16},
     {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', seq:17},
+    {id:'setup-tt',     icon:'📆', label:'Setup Time Table',     color:'#10202a', seq:'17C'},
+    {id:'setup-std',    icon:'📏', label:'STD SET UP',           color:'#2a2010', seq:'17D'},
   ]},
   { id:'prep', icon:'🏭', label:'เตรียมการผลิต', items:[
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
