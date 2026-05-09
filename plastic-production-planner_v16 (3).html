@@ -41355,18 +41355,21 @@ function loadUsers(){
   try {
     const raw = localStorage.getItem(USER_STORE_KEY);
     if(raw){
-      const u = JSON.parse(raw);
+      let u = JSON.parse(raw);
       if(u && u.length){
+        // Skip soft-deleted tombstones used for cross-machine sync of deletes/renames
+        u = u.filter(x => x && x.username && !x._deleted);
         // Merge: ensure every user has at least the pages their role grants
         const rolePages = (role) => (ROLES[role]?.pages || []);
         u.forEach(user => {
+          if(!Array.isArray(user.pages)) user.pages = [];
           const rp = rolePages(user.role);
           // Add any role pages not yet in user's list (new features)
           rp.forEach(p => { if(!user.pages.includes(p)) user.pages.push(p); });
           if(user.pages.includes('approvalproc') && !user.pages.includes('approvalproc-done'))
             user.pages.push('approvalproc-done');
         });
-        return u;
+        if(u.length) return u;
       }
     }
   } catch(e){}
@@ -41735,10 +41738,26 @@ function renderAdminPage(){
 
   // User list
   const list = document.getElementById('admin-user-list');
+  const isAdminViewer = !!(AUTH && AUTH.role === 'admin');
   if(list){
-    list.innerHTML = users.map(u=>{
+    const escapeAttr = (s) => String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const headerHtml = isAdminViewer
+      ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+           <button id="admin-pwd-toggle-all" type="button" class="btn btn-secondary btn-sm" onclick="toggleAllAdminPwds()">👁 แสดง Password ทั้งหมด</button>
+         </div>`
+      : '';
+    list.innerHTML = headerHtml + users.map(u=>{
       const role = ROLES[u.role]||ROLES.operator;
       const isSelf = AUTH&&AUTH.username===u.username;
+      const pwdRow = isAdminViewer ? `
+            <div class="pwd-row" style="font-size:11px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="color:var(--text3)">🔑 Password:</span>
+              <span class="mono pwd-mask" data-pwd="${escapeAttr(u.password||'')}" data-shown="0"
+                    style="background:var(--bg3);padding:2px 8px;border-radius:4px;letter-spacing:1px;min-width:70px;display:inline-block;text-align:center">••••••••</span>
+              <button type="button" class="pwd-toggle-btn"
+                      style="padding:2px 8px;font-size:10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:#388bfd;border-radius:4px;cursor:pointer;font-family:inherit"
+                      onclick="toggleAdminPwdView(this)">👁 แสดง</button>
+            </div>` : '';
       return `<div class="user-row-card">
         <div class="user-avatar-lg" style="background:${role.bg};color:${role.color}">${u.avatar||'👤'}</div>
         <div style="flex:1;min-width:0">
@@ -41749,6 +41768,7 @@ function renderAdminPage(){
             <span class="mono" style="background:var(--bg3);padding:1px 6px;border-radius:4px">@${u.username}</span>
             &nbsp;·&nbsp; ${u.dept||'-'}
           </div>
+          ${pwdRow}
           <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <span style="background:${role.bg};border:1px solid ${role.color}40;color:${role.color};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">${role.label}</span>
             <span style="font-size:10px;color:var(--text3)">${(u.pages||[]).length} หน้าที่เข้าถึงได้</span>
@@ -41802,6 +41822,7 @@ function openAddUserModal(){
   if(usEl) usEl.disabled = false;
   document.getElementById('au-role').value = 'operator';
   document.getElementById('au-edit-username').value = '';
+  try { resetAuPasswordVisibility(); } catch(_){ }
   presetRolePerms();
   openModal('modal-add-user');
 }
@@ -41810,13 +41831,17 @@ function editUser(username){
   const u = loadUsers().find(x=>x.username===username);
   if(!u) return;
   document.getElementById('add-user-modal-title').textContent = '✏️ แก้ไข: '+u.name;
-  document.getElementById('au-username').value = u.username;
-  document.getElementById('au-username').disabled = true;
+  const usEl = document.getElementById('au-username');
+  usEl.value = u.username;
+  // Allow username editing on existing accounts (rename support)
+  usEl.disabled = false;
   document.getElementById('au-name').value = u.name;
   document.getElementById('au-password').value = u.password;
   document.getElementById('au-dept').value = u.dept||'';
   document.getElementById('au-role').value = u.role;
   document.getElementById('au-edit-username').value = u.username;
+  // Reset password visibility to hidden whenever the modal opens
+  try { resetAuPasswordVisibility(); } catch(_){ }
   buildPermToggles(u.pages||[]);
   openModal('modal-add-user');
 }
@@ -41849,26 +41874,104 @@ function saveUser(){
   const dept     = (document.getElementById('au-dept').value||'').trim();
 
   if(!username||!name){ if(typeof _infoToast==="function") _infoToast('กรุณากรอก Username และชื่อ'); return; }
+  if(!/^[a-z0-9._-]{2,32}$/i.test(username)){ if(typeof _infoToast==="function") _infoToast('Username ต้องเป็นตัวอักษร a-z, 0-9, จุด/ขีดล่าง/ขีดกลาง (2-32 ตัว)'); return; }
   if(password.length<4){ if(typeof _infoToast==="function") _infoToast('Password ต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
 
   const pages = [...document.querySelectorAll('#au-perm-toggles .perm-toggle.on')].map(el=>el.dataset.page);
   const users = loadUsers();
+  const usernameChanged = isEdit && username !== editUn;
+  const now = new Date().toISOString();
 
   if(isEdit){
     const idx = users.findIndex(x=>x.username===editUn);
     if(idx<0){ if(typeof _infoToast==="function") _infoToast('ไม่พบผู้ใช้'); return; }
-    users[idx] = {...users[idx], name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', updatedAt:new Date().toISOString()};
-    if(AUTH&&AUTH.username===editUn){ AUTH={...users[idx]}; applyPermissions(); updateSidebarUser(); }
+    if(usernameChanged && users.find(x=>x.username===username)){
+      if(typeof _infoToast==="function") _infoToast('Username "'+username+'" นี้มีอยู่แล้ว');
+      return;
+    }
+    users[idx] = {...users[idx], username, name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', updatedAt:now};
+    if(usernameChanged){
+      // Leave a tombstone so cross-machine sync knows to drop the old username
+      users.push({username:editUn, _deleted:true, _renamedTo:username, updatedAt:now});
+    }
+    if(AUTH&&AUTH.username===editUn){
+      AUTH={...users[idx]};
+      try { localStorage.setItem('_authUser', JSON.stringify(AUTH)); } catch(_){ }
+      applyPermissions();
+      updateSidebarUser();
+    }
   } else {
     if(users.find(x=>x.username===username)){ if(typeof _infoToast==="function") _infoToast('Username นี้มีอยู่แล้ว'); return; }
-    users.push({username, name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()});
+    users.push({username, name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', createdAt:now, updatedAt:now});
   }
 
   saveUsers(users);
   closeModal('modal-add-user');
   renderAdminPage();
   if(typeof buildLoginUserList==='function') buildLoginUserList();
-  if(typeof _toast==='function') _toast(isEdit?'✅ แก้ไขเรียบร้อย':'✅ เพิ่มผู้ใช้ใหม่เรียบร้อย');
+  if(typeof _toast==='function') _toast(isEdit?(usernameChanged?'✅ เปลี่ยน Username เรียบร้อย':'✅ แก้ไขเรียบร้อย'):'✅ เพิ่มผู้ใช้ใหม่เรียบร้อย');
+}
+
+// ── Password visibility helpers ────────────────────────────────────────────
+function toggleAuPasswordVisibility(){
+  const inp = document.getElementById('au-password');
+  const btn = document.getElementById('au-pwd-toggle');
+  if(!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  if(btn){
+    btn.textContent = show ? '🙈' : '👁';
+    btn.title = show ? 'ซ่อน Password' : 'แสดง Password';
+  }
+}
+function resetAuPasswordVisibility(){
+  const inp = document.getElementById('au-password');
+  const btn = document.getElementById('au-pwd-toggle');
+  if(inp) inp.type = 'password';
+  if(btn){ btn.textContent = '👁'; btn.title = 'แสดง Password'; }
+}
+function toggleAdminPwdView(btn){
+  if(!btn) return;
+  const wrap = btn.closest('.pwd-row');
+  if(!wrap) return;
+  const span = wrap.querySelector('.pwd-mask');
+  if(!span) return;
+  const shown = span.dataset.shown === '1';
+  if(shown){
+    span.textContent = '••••••••';
+    span.dataset.shown = '0';
+    btn.textContent = '👁 แสดง';
+  } else {
+    span.textContent = span.dataset.pwd || '';
+    span.dataset.shown = '1';
+    btn.textContent = '🙈 ซ่อน';
+  }
+}
+function toggleAllAdminPwds(){
+  const list = document.querySelectorAll('#admin-user-list .pwd-row');
+  if(!list.length) return;
+  // If any is hidden, reveal all; otherwise hide all
+  let anyHidden = false;
+  list.forEach(row => {
+    const sp = row.querySelector('.pwd-mask');
+    if(sp && sp.dataset.shown !== '1') anyHidden = true;
+  });
+  list.forEach(row => {
+    const sp = row.querySelector('.pwd-mask');
+    const bt = row.querySelector('.pwd-toggle-btn');
+    if(!sp || !bt) return;
+    if(anyHidden){
+      sp.textContent = sp.dataset.pwd || '';
+      sp.dataset.shown = '1';
+      bt.textContent = '🙈 ซ่อน';
+    } else {
+      sp.textContent = '••••••••';
+      sp.dataset.shown = '0';
+      bt.textContent = '👁 แสดง';
+    }
+  });
+  const allBtn = document.getElementById('admin-pwd-toggle-all');
+  if(allBtn) allBtn.textContent = anyHidden ? '🙈 ซ่อน Password ทั้งหมด' : '👁 แสดง Password ทั้งหมด';
 }
 
 function deleteUser(username){
@@ -47380,7 +47483,12 @@ function _clRenderChart(){
   <div class="form-row">
     <div class="form-group">
       <div class="form-label">Password</div>
-      <input type="password" id="au-password" placeholder="อย่างน้อย 4 ตัวอักษร">
+      <div style="position:relative;display:flex;align-items:center">
+        <input type="password" id="au-password" placeholder="อย่างน้อย 4 ตัวอักษร" autocomplete="new-password" style="flex:1;padding-right:42px">
+        <button type="button" id="au-pwd-toggle" onclick="toggleAuPasswordVisibility()"
+                title="แสดง Password" aria-label="แสดง/ซ่อน Password"
+                style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:4px 8px;line-height:1">👁</button>
+      </div>
     </div>
     <div class="form-group">
       <div class="form-label">Role</div>

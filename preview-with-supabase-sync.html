@@ -270,6 +270,10 @@
       const b = safeJsonParse(remoteStr, []);
       if (!Array.isArray(a) || !Array.isArray(b)) return localStr || remoteStr || "";
       const byUser = {};
+      // Note: entries with `_deleted: true` are tombstones used for cross-machine
+      // sync of user deletes / renames. We KEEP them in the merged value so other
+      // machines learn about the removal; consumers (loadUsers in the app) filter
+      // them out of the visible list.
       [...b, ...a].forEach((u) => {
         if (!u || !u.username) return;
         const prev = byUser[u.username];
@@ -281,7 +285,13 @@
         const tp = toTs(prev.updatedAt || prev.createdAt);
         if (tu > tp) byUser[u.username] = u;
         else if (tu < tp) byUser[u.username] = prev;
-        else byUser[u.username] = Object.assign({}, prev, u);
+        else {
+          // Equal timestamps: a tombstone always wins so a delete/rename is
+          // not silently undone by a stale concurrent edit.
+          if (u._deleted && !prev._deleted) byUser[u.username] = u;
+          else if (prev._deleted && !u._deleted) byUser[u.username] = prev;
+          else byUser[u.username] = Object.assign({}, prev, u);
+        }
       });
       return JSON.stringify(Object.values(byUser));
     }
