@@ -11929,6 +11929,7 @@ function _renderRawmatOld(){
 function renderRawmatLedger(){
   var tbody=document.getElementById('rawmat-ledger-tbody'); if(!tbody) return;
   var scope=document.getElementById('led-scope')?.value||'all';
+  if((scope==='mb'||scope==='all') && typeof rmRecomputeMbLedgerBalances==='function') rmRecomputeMbLedgerBalances();
   var mat=document.getElementById('led-material')?.value||'';
   var month=document.getElementById('led-month')?.value||'';
   var typeF=document.getElementById('led-type-filter')?.value||'';
@@ -18368,6 +18369,97 @@ function mixResolveMbCodeStrict(mbValue){
   return '';
 }
 
+/** คีย์สำหรับตัด mbStock / บันทึก mbLedger — คลาย match ชื่อยาวๆ กับ mbColors.name */
+function mixResolveMbStockKey(mbValue){
+  var k=mixResolveMbCodeStrict(mbValue);
+  if(k) return k;
+  var raw=String(mbValue||'').trim();
+  if(!raw) return '';
+  var nk=mixNormKey(raw);
+  var ckeys=Object.keys(mbColors||{});
+  for(var i=0;i<ckeys.length;i++){
+    var ck=ckeys[i], inf=mbColors[ck]||{};
+    var ku=mixNormKey(ck), nm=mixNormKey(inf.name||'');
+    if(!nk) break;
+    if(nk===ku||nk===nm) return ck;
+    if(nm&&(nm.indexOf(nk)>=0||nk.indexOf(nm)>=0)) return ck;
+    if(ku&&(ku.indexOf(nk)>=0||nk.indexOf(ku)>=0)) return ck;
+  }
+  if(typeof mbStock!=='undefined'){
+    var sk=Object.keys(mbStock||{}).find(function(x){
+      var xu=mixNormKey(x);
+      return nk&&(xu===nk||xu.indexOf(nk)>=0||nk.indexOf(xu)>=0);
+    });
+    if(sk) return sk;
+  }
+  return raw;
+}
+
+/** รหัสใน rawMatStock ที่เป็นทะเบียน mb_color/additive และตรงกับชื่อสีจากแผนผสม */
+function mixResolveRawmatMbKeys(mbLabel){
+  var raw=String(mbLabel||'').trim();
+  if(!raw) return [];
+  var nk=mixNormKey(raw);
+  var out=[], seen={};
+  (RAWMAT_REGISTRY||[]).forEach(function(reg){
+    if(!reg||!reg.code) return;
+    if(reg.category!=='mb_color' && reg.category!=='additive') return;
+    var code=reg.code;
+    if(typeof rawMatStock!=='undefined' && !rawMatStock[code]) return;
+    var hit=nk===mixNormKey(code)||nk===mixNormKey(reg.name||'')||nk===mixNormKey(reg.nameEn||'')
+      ||raw===code||String(reg.name||'').trim()===raw;
+    if(hit && !seen[code]){ seen[code]=1; out.push(code); }
+  });
+  return out;
+}
+
+function mixSyncMbWithdrawalToRawmatStock(mbLabel, mq){
+  var q=Math.max(0,+parseFloat(mq)||0);
+  if(q<=0) return;
+  var keys=mixResolveRawmatMbKeys(mbLabel);
+  if(!keys.length) return;
+  var k0=keys[0];
+  if(typeof rawMatStock==='undefined') return;
+  if(!rawMatStock[k0]) rawMatStock[k0]={qty:0,min:0,max:9999,grade:''};
+  rawMatStock[k0].qty=+Math.max(0,(rawMatStock[k0].qty||0)-q).toFixed(3);
+  if(typeof saveRawMatStock==='function') saveRawMatStock();
+}
+
+function mbLedgerRowDeltaForRun(r){
+  if(!r) return 0;
+  var t=String(r.type||'');
+  var q=Math.abs(Number(r.qty)||0);
+  if(t==='in') return q;
+  if(t==='out') return -q;
+  if(t==='adj') return Number(r.qty)||0;
+  return 0;
+}
+
+/** ซ่อม balance ใน mbLedger ให้สะสมตามลำดับเวลา (แก้รายการเก่าที่ balance=0) */
+function rmRecomputeMbLedgerBalances(){
+  if(!Array.isArray(mbLedger)||!mbLedger.length) return;
+  var byCode={};
+  mbLedger.forEach(function(r){
+    var c=String(r&&r.code||'').trim();
+    if(!c) return;
+    if(!byCode[c]) byCode[c]=[];
+    byCode[c].push(r);
+  });
+  var touched=false;
+  Object.keys(byCode).forEach(function(c){
+    var arr=byCode[c].slice().sort(function(a,b){
+      return ((a.date||'')+' '+(a.time||'')).localeCompare((b.date||'')+' '+(b.time||''));
+    });
+    var run=0;
+    arr.forEach(function(r){
+      run+=mbLedgerRowDeltaForRun(r);
+      var nb=+run.toFixed(3);
+      if(Number(r.balance)!==nb){ r.balance=nb; touched=true; }
+    });
+  });
+  if(touched && typeof saveMbLedger==='function') saveMbLedger();
+}
+
 function mixExecuteStockIssueForPlan(planId, opts){
   opts=opts||{};
   var by=opts.by||'—';
@@ -18420,24 +18512,26 @@ function mixExecuteStockIssueForPlan(planId, opts){
 
   var mbRmLots='—';
   if(mq>0 && p.mb && p.mb!=='-'){
-    var code=mixResolveMbCodeStrict(p.mb);
-    if(code && typeof mbStock!=='undefined'){
-      if(!mbStock[code]) mbStock[code]={qty:0};
-      var have=mbStock[code].qty||0;
-      if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ (มี '+have.toFixed(3)+' ต้องการ '+mq.toFixed(3)+')');
-      mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
+    var stockKey=mixResolveMbStockKey(p.mb);
+    if(stockKey && typeof mbStock!=='undefined'){
+      if(!mbStock[stockKey]) mbStock[stockKey]={qty:0};
+      var have=mbStock[stockKey].qty||0;
+      if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+stockKey+' ไม่พอ (มี '+have.toFixed(3)+' ต้องการ '+mq.toFixed(3)+')');
+      mbStock[stockKey].qty=+Math.max(0,have-mq).toFixed(3);
       saveMbStock();
     }
-    var mbOnly=mixFefoDeductMbBatches(code||p.mb,mq);
+    mixSyncMbWithdrawalToRawmatStock(p.mb,mq);
+    var mbOnly=mixFefoDeductMbBatches(p.mb,mq);
     mbRmLots=mbOnly.labels.length?mbOnly.labels.join(', '):'—';
+    var balAfter=(stockKey&&typeof mbStock!=='undefined'&&mbStock[stockKey])?mbStock[stockKey].qty:0;
     mbLedger.unshift({
       _id:'MBX-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
-      code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกผสมถัง (อนุมัติ)',
-      balance:(code&&mbStock[code])?mbStock[code].qty:0, note:'แผน '+p.id, mbBatch:mbRmLots
+      code:stockKey||String(p.mb).trim(), job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกผสมถัง (อนุมัติ)',
+      balance:balAfter, note:'แผน '+p.id, mbBatch:mbRmLots
     });
     saveMbLedger();
   }
-  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbCodeStrict(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
+  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbStockKey(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
 
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
@@ -18496,24 +18590,26 @@ function mixExecuteFeederStockIssue(planId, opts){
   }
   var mbRmLots='—';
   if(mq>0 && p.mb && p.mb!=='-'){
-    var code=mixResolveMbCodeStrict(p.mb);
-    if(code && typeof mbStock!=='undefined'){
-      if(!mbStock[code]) mbStock[code]={qty:0};
-      var have=mbStock[code].qty||0;
-      if(have+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+code+' ไม่พอ');
-      mbStock[code].qty=+Math.max(0,have-mq).toFixed(3);
+    var stockKeyF=mixResolveMbStockKey(p.mb);
+    if(stockKeyF && typeof mbStock!=='undefined'){
+      if(!mbStock[stockKeyF]) mbStock[stockKeyF]={qty:0};
+      var haveF=mbStock[stockKeyF].qty||0;
+      if(haveF+1e-6<mq && typeof _infoToast==='function') _infoToast('⚠️ สต็อก MB '+stockKeyF+' ไม่พอ');
+      mbStock[stockKeyF].qty=+Math.max(0,haveF-mq).toFixed(3);
       saveMbStock();
     }
-    var mbO=mixFefoDeductMbBatches(code||p.mb,mq);
+    mixSyncMbWithdrawalToRawmatStock(p.mb,mq);
+    var mbO=mixFefoDeductMbBatches(p.mb,mq);
     mbRmLots=mbO.labels.length?mbO.labels.join(', '):'—';
+    var balF=(stockKeyF&&typeof mbStock!=='undefined'&&mbStock[stockKeyF])?mbStock[stockKeyF].qty:0;
     mbLedger.unshift({
       _id:'MBXF-'+Date.now(), date:new Date().toISOString().split('T')[0], time:new Date().toTimeString().slice(0,5), type:'out',
-      code:code||p.mb, job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกป้อนสีรายวัน (อนุมัติ)',
-      balance:(code&&mbStock[code])?mbStock[code].qty:0, note:p.ttProdDate+' · '+p.id, mbBatch:mbRmLots
+      code:stockKeyF||String(p.mb).trim(), job:p.jobName||'', lot:p.lotNo||'', qty:-mq, by:by, reason:'เบิกป้อนสีรายวัน (อนุมัติ)',
+      balance:balF, note:p.ttProdDate+' · '+p.id, mbBatch:mbRmLots
     });
     saveMbLedger();
   }
-  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbCodeStrict(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
+  var mbFormula=(mq>0&&p.mb&&p.mb!=='-')?((mixResolveMbStockKey(p.mb)||p.mb)+' '+Number(mq||0).toFixed(3)+' kg'):'—';
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
   p.status='เบิกแล้ว';
@@ -49704,6 +49800,7 @@ function mbRenderStock(){
 }
 
 function mbRenderLedger(){
+  if(typeof rmRecomputeMbLedgerBalances==='function') rmRecomputeMbLedgerBalances();
   var tbody=document.getElementById('mb-ledger-tbody');if(!tbody)return;
   var cf=document.getElementById('mb-led-code')?.value||'';
   var mf=document.getElementById('mb-led-month')?.value||'';
