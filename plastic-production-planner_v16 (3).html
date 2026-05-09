@@ -7252,6 +7252,17 @@ function persistJobs(){
     console.error('persistJobs:', e);
   }
 }
+/** น้ำหนักใช้งานจริง (g/ชิ้น) = น้ำหนักชิ้น + (Runner/Shot ÷ Cavity) */
+function jobEffectiveWtPerPc(job, fallbackG){
+  var j=job||{};
+  var base=parseFloat(j.wt); if(!(base>0)) base=0;
+  var cav=parseInt((j.cav!=null&&j.cav!=='')?j.cav:j.cavity,10); if(!(cav>0)) cav=1;
+  var runner=parseFloat(j.runnerWt); if(!(runner>0)) runner=0;
+  var eff=base + (runner/cav);
+  if(eff>0) return eff;
+  var fb=parseFloat(fallbackG);
+  return (fb>0)?fb:0;
+}
 /** หาแถวใน jobs[] จากชื่องาน (Order / TT / แผนผสม) แม้ชื่อต่างจากทะเบียนเล็กน้อย */
 function findJobByFlexibleName(jobName){
   var raw=String(jobName||'').trim();
@@ -9601,7 +9612,8 @@ function costAddAutoCalc(){
   if(!jName||!produced){_infoToast('⚠️ กรอกชื่องาน และจำนวนผลิตก่อน');return;}
   var j=jobs.find(function(x){return x.name===jName;});
   var cs=COST_SETTINGS||{electricPerHr:35,laborPerHr:45,machineDepHr:20,overheadPct:15,mbPricePerKg:180,matPricePerKg:{}};
-  var matKg=produced*(wt||j?.wt||5)/1000;
+  var wtEff=(wt>0)?wt:jobEffectiveWtPerPc(j,5);
+  var matKg=produced*wtEff/1000;
   var matPr=(cs.matPricePerKg&&cs.matPricePerKg[j?.plastic||'PP'])||50;
   var mbKg=j?matKg*(j.mbRatio||0)/1000:0;
   var matCost=matKg*matPr+mbKg*(cs.mbPricePerKg||180);
@@ -13332,9 +13344,10 @@ function renderRawmatBOM(){
   });
   tbody.innerHTML=list.slice(0,80).map(function(j){
     var kgHr=0;
-    if(j.cav&&j.ct&&j.wt){kgHr=Math.round(3600/j.ct*j.cav*j.wt/1000*10)/10;}
-    else if(j.target&&j.wt){kgHr=Math.round(j.target*j.wt/1000*10)/10;}
-    var kgPer1k=j.wt?Math.round(j.wt*1000/10)/100:0;
+    var wtEff=jobEffectiveWtPerPc(j,0);
+    if(j.cav&&j.ct&&wtEff>0){kgHr=Math.round(3600/j.ct*j.cav*wtEff/1000*10)/10;}
+    else if(j.target&&wtEff>0){kgHr=Math.round(j.target*wtEff/1000*10)/10;}
+    var kgPer1k=wtEff>0?Math.round(wtEff*1000/10)/100:0;
     var jobReg=JOB_REGISTRY?JOB_REGISTRY.find(function(jr){return jr.name===j.name;}):null;
     return '<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">'
       +'<td style="padding:8px 12px;font-weight:600;color:var(--text);font-size:11px">'+j.name+'</td>'
@@ -13576,8 +13589,9 @@ function renderForecast(){
     selectedJobs.forEach(function(jobName){
       var j=jobs.find(function(x){return x.name===jobName;})||{};
       var kgHr=0;
-      if(j.target&&j.wt) kgHr=j.target*j.wt/1000;
-      else if(j.cav&&j.ct&&j.wt) kgHr=3600/j.ct*j.cav*j.wt/1000;
+      var wtEff=jobEffectiveWtPerPc(j,0);
+      if(j.target&&wtEff>0) kgHr=j.target*wtEff/1000;
+      else if(j.cav&&j.ct&&wtEff>0) kgHr=3600/j.ct*j.cav*wtEff/1000;
       if(kgHr<=0) return;
       // Apply regrind reduction
       var regrindPct=incRegrind?(j.regrindPct||0):0;
@@ -16020,7 +16034,7 @@ function mixUpsertPlanFromTTEntry(en, ttProdDate, order){
     dayPcs = Math.round((j.target||0)*hp);
   }
   if(!dayPcs || dayPcs<=0) return;
-  var wt = j.wt || (typeof estimateWt==='function' ? estimateWt(j) : 5);
+  var wt = jobEffectiveWtPerPc(j, (typeof estimateWt==='function' ? estimateWt(j) : 5));
   var kgTotal = dayPcs * wt / 1000;
   var mbKg = hasMB ? +(kgTotal * (j.mbRatio||0) / 1000).toFixed(4) : 0;
   var plasticKg = Math.max(0.05, +(kgTotal - mbKg).toFixed(4));
@@ -16084,7 +16098,7 @@ function mixUpsertFeederPlanFromTTEntry(en, ttProdDate, order){
     dayPcs = Math.round((j.target||0)*hp);
   }
   if(!dayPcs || dayPcs<=0) return;
-  var wt = parseFloat(j.wt)||0;
+  var wt = jobEffectiveWtPerPc(j,0);
   if(!(wt>0)) return;
   var kgTotal = dayPcs * wt / 1000;
   var mbKg = +(kgTotal * (j.mbRatio||0) / 1000).toFixed(4);
@@ -18277,7 +18291,7 @@ function mixFeederDailyFromJob(o,j){
     var hp = (typeof ttGetHoursPerDay==='function') ? ttGetHoursPerDay() : 20;
     dayPcs = Math.round((j.target||0)*hp);
   }
-  var wt = parseFloat(j.wt)||0;
+  var wt = jobEffectiveWtPerPc(j,0);
   var plasticKg = (dayPcs>0 && wt>0) ? +(dayPcs*wt/1000).toFixed(4) : 0;
   var mbKg = (j.mbRatio>0 && plasticKg>0) ? +(plasticKg*(j.mbRatio/1000)).toFixed(4) : 0;
   return {dayPcs:dayPcs||0, plasticKg:plasticKg, mbKg:mbKg};
@@ -18894,7 +18908,7 @@ function renderMixFeeder(){
     if(activeOrders.length){
       activeOrders.forEach(function(o){
         var mbKg = +(jobMbKgForFeederOrder(o,j)||0).toFixed(4);
-        var totalKg = (o.qty||0)*(j.wt||5)/1000;
+        var totalKg = (o.qty||0)*jobEffectiveWtPerPc(j,5)/1000;
         // Check MB stock
         var mbStock = batchMbStock.filter(function(b){return b.colorName===j.mb||b.batchNo===j.mb;});
         var mbAvail = mbStock.reduce(function(s,b){return s+(b.weightLeft||0);},0);
@@ -19111,8 +19125,9 @@ function _autoCreateMixFromOrder(o){
   // Calculate kg needed
   var hoursPerDay = 20;
   var kgPerHr = 0;
-  if(j.target && j.wt) kgPerHr = j.target*j.wt/1000;
-  else if(j.cav && j.ct && j.wt) kgPerHr = 3600/j.ct*j.cav*j.wt/1000;
+  var wtEff = jobEffectiveWtPerPc(j,0);
+  if(j.target && wtEff>0) kgPerHr = j.target*wtEff/1000;
+  else if(j.cav && j.ct && wtEff>0) kgPerHr = 3600/j.ct*j.cav*wtEff/1000;
   // Estimate production days from order qty
   var prodDays = Math.max(1, Math.ceil((o.qty||0)/(j.target*hoursPerDay||1)));
   var totalKg = Math.max(kgPerHr*hoursPerDay*prodDays, 20);
@@ -19245,7 +19260,8 @@ function renderMixAutoList(){
       var daysLeft = prodDate!=='—' ? Math.round((new Date(prodDate)-new Date())/(86400000)) : null;
       var urgCol   = daysLeft!==null ? (daysLeft<0?'#f85149':daysLeft<=2?'#e3b341':'#3fb950') : '#8b949e';
       // Estimate kg
-      var kgPerHr=0; if(j.target&&j.wt) kgPerHr=j.target*j.wt/1000;
+      var wtEff=jobEffectiveWtPerPc(j,0);
+      var kgPerHr=0; if(j.target&&wtEff>0) kgPerHr=j.target*wtEff/1000;
       var estKg = Math.max(kgPerHr*20, 20);
       var matCode = j.plastic||'PP';
       var avail   = getAvailableQty(matCode);
@@ -19978,12 +19994,12 @@ function getStockDemandProfile(materialKey, kind){
     if(kind==='plastic'){
       var oPlastic=String(o.plastic||j.plastic||'').trim().toUpperCase();
       if(!oPlastic || oPlastic!==matKey) return;
-      var wtPerPc=parseFloat(j.wt)||0;
+      var wtPerPc=jobEffectiveWtPerPc(j,0);
       if(!(wtPerPc>0) || !(qty>0)) return;
       add=(wtPerPc*qty)/1000;
     }else if(kind==='mb_color'){
       if(!_mbMaterialMatchesStockCode(materialKey, j)) return;
-      var wt2=parseFloat(j.wt)||0;
+      var wt2=jobEffectiveWtPerPc(j,0);
       if(!(wt2>0) || !(qty>0)) return;
       var plasticKg=(wt2*qty)/1000;
       var info=(typeof mbColors!=='undefined')?mbColors[materialKey]:null;
@@ -29225,7 +29241,7 @@ function rptLoadMaterialFromBOM(){
   var mbEl=document.getElementById('rpt-mat-mb-code');if(mbEl)mbEl.textContent=j?.mbCode||j?.masterBatch||'—';
   if(j){
     var totalProd=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);
-    var bomKg=totalProd*(j.wt||5)/1000;
+    var bomKg=totalProd*jobEffectiveWtPerPc(j,5)/1000;
     var bomKgEl=document.getElementById('rpt-mat-bom-kg');if(bomKgEl)bomKgEl.textContent=bomKg.toFixed(2)+' kg';
     var priceEl=document.getElementById('rpt-mat-price');if(priceEl)priceEl.textContent=((cs.matPricePerKg&&cs.matPricePerKg[j.plastic])||50)+' ฿';
     var mbRatioEl=document.getElementById('rpt-mat-mb-ratio');if(mbRatioEl)mbRatioEl.textContent=(j.mbRatio||0)+' g/kg';
@@ -29244,7 +29260,7 @@ function rptCalcMaterial(){
   var j=jobs.find(function(jj){return jj.name===rpt.jobName;});
   if(!j){_infoToast('⚠️ ไม่พบ BOM');return;}
   var totalProd=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);
-  var bomKg=totalProd*(j.wt||5)/1000;var mbKg=bomKg*(j.mbRatio||0)/1000;
+  var bomKg=totalProd*jobEffectiveWtPerPc(j,5)/1000;var mbKg=bomKg*(j.mbRatio||0)/1000;
   var pkgEl=document.getElementById('rpt-mat-plastic-kg');if(pkgEl)pkgEl.value=bomKg.toFixed(2);
   var mbkgEl=document.getElementById('rpt-mat-mb-kg');if(mbkgEl)mbkgEl.value=mbKg.toFixed(3);
   rptUpdateMatCost();
@@ -29792,7 +29808,7 @@ function _renderCostOrderEstimates(){
     const j = jobs.find(jj=>jj.name===o.jobName)||{};
     const cs = COST_SETTINGS;
     const hrs = Math.ceil((o.qty/(j.target||500)));
-    const wtKg = o.qty*(j.wt||5)/1000;
+    const wtKg = o.qty*jobEffectiveWtPerPc(j,5)/1000;
     const matP = cs.matPricePerKg[j.plastic||'PP']||50;
     const matC = wtKg*matP;
     const mbC  = wtKg*(j.mbRatio||10)/1000*cs.mbPricePerKg;
@@ -29837,7 +29853,7 @@ function _renderCostOrderEstimates(){
     const j=jobs.find(jj=>jj.name===o.jobName)||{};
     const cs=COST_SETTINGS;
     const hrs=Math.ceil((o.qty/(j.target||500)));
-    const wtKg=o.qty*(j.wt||5)/1000;
+    const wtKg=o.qty*jobEffectiveWtPerPc(j,5)/1000;
     const matC=wtKg*(cs.matPricePerKg[j.plastic||'PP']||50);
     const mbC=wtKg*(j.mbRatio||10)/1000*cs.mbPricePerKg;
     const extraH2 = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
@@ -29930,7 +29946,7 @@ function _calcLotCost(rpt){
   // Total scheduled hours (all rows recorded)
   const schedHrs  = rpt.rows.filter(r=>r.produced>0||r.ltMins>0).length || runHrs;
   const okProd    = Math.max(0, totalProd - totalNg);
-  const wtPerPc   = j?.wt || 5;                     // g per piece
+  const wtPerPc   = jobEffectiveWtPerPc(j,5);       // g per piece (effective wt)
   // Material: actual production × weight (including NG — all consumed)
   const matKg     = totalProd * wtPerPc / 1000;
   // MB colour: matKg × ratio (g/kg) / 1000
@@ -36017,8 +36033,7 @@ function _apCalcMetrics(o, j, opts){
   const cav       = parseInt(j.cav, 10)   || 1;
   const ct        = parseFloat(j.ct)  || 0;
   const eff       = Math.max(1, parseFloat(j.eff) || 85);
-  const wt        = parseFloat(j.wt)  || 0;
-  const shotWt    = parseFloat(j._shotWt) || (wt * cav);
+  const shotWt    = parseFloat(j._shotWt) || jobPlasticShotGrams(j);
   const mbRatio   = parseFloat(j.mbRatio) || 0;
   const daysInPlan= opts.daysInPlan != null ? opts.daysInPlan : (parseInt(document.getElementById('ap-plan-days')?.value, 10)||1);
   const hrsPerDay = opts.hrsPerDay != null ? opts.hrsPerDay : (parseInt(document.getElementById('ap-hrs-day')?.value, 10)||20);
@@ -43071,7 +43086,7 @@ function openCostAnalysis(jobName, lotNo){
   const totalNg   = rpt ? rpt.rows.reduce((s,r)=>s+r.ng,0) : 0;
   const totalHrs  = rpt ? rpt.rows.filter(r=>r.produced>0).length
                         : (ord?.qty&&j?.target ? Math.ceil(ord.qty/j.target) : 0);
-  const wtPerPc   = j?.wt||5;
+  const wtPerPc   = jobEffectiveWtPerPc(j,5);
   const matUsedKg = totalProd * wtPerPc / 1000;
   const mbUsedKg  = j ? (matUsedKg*(j.mbRatio||0)/1000) : 0;
 
