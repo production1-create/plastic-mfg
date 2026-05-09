@@ -9771,19 +9771,17 @@ function robotBrandChange(){
 // ════════════════════════════════════════════════════════════════
 // 🧩  BOM — Auto-fill from Job Registry when name typed
 // ════════════════════════════════════════════════════════════════
-/** CT 1 shot (วินาที) → CT ต่อชิ้น (วินาที) สำหรับแสดงในฟอร์ม BOM */
+/** ฟอร์ม BOM ใช้ CT ต่อ 1 shot โดยตรง (วินาที/shot) */
 function bomCtPieceFromShot(ctShot,cav){
-  var c=parseInt(cav,10)||0; var cs=parseFloat(ctShot)||0;
+  var cs=parseFloat(ctShot)||0;
   if(cs<=0) return '';
-  if(c<=0) return String(cs);
-  return String(+(cs/c).toFixed(4));
+  return String(+cs.toFixed(4));
 }
-/** CT ต่อชิ้นในฟอร์ม BOM → เก็บใน jobs[] เป็น CT ต่อ 1 shot (วินาที) */
+/** ฟอร์ม BOM ใช้ CT ต่อ 1 shot โดยตรง (วินาที/shot) */
 function bomCtShotFromPiece(ctPiece,cav){
-  var c=parseInt(cav,10)||0; var cp=parseFloat(ctPiece)||0;
+  var cp=parseFloat(ctPiece)||0;
   if(cp<=0) return 0;
-  if(c<=0) return cp;
-  return +(cp*c).toFixed(6);
+  return +cp.toFixed(6);
 }
 /** ดึง cavity / ton จากทะเบียนแม่พิมพ์เมื่อมีรหัสใน BOM */
 function bomApplyMoldRegistryHints(){
@@ -9831,7 +9829,7 @@ function bomJobAutoFill(){
   bomApplyMoldRegistryHints();
   var cavAfter=parseInt(document.getElementById('bom-cav')?.value,10)||cavInit||1;
   var ctEl=document.getElementById('bom-ct');
-  if(ctEl&&ctShot>0) ctEl.value=bomCtPieceFromShot(ctShot,cavAfter);
+  if(ctEl&&ctShot>0) ctEl.value=String(+ctShot.toFixed(4));
   // Packing
   if(j.packBagPcs||j.packBox||j.packBagPcs){
     setVal('bom-pcs-box', j.packBoxPcs||j.packBagPcs);
@@ -17278,7 +17276,7 @@ function editBom(i){
   sv('bom-mold',      j.moldCode||j.mold||'');
   sv('bom-cav',       j.cav);
   var _bcav=parseInt(j.cav,10)||0; var _bctS=parseFloat(j.ct)||0;
-  sv('bom-ct',        (_bcav>0&&_bctS>0)?bomCtPieceFromShot(_bctS,_bcav):(_bctS||''));
+  sv('bom-ct',        (_bctS>0)?String(+_bctS.toFixed(4)):(_bctS||''));
   sv('bom-eff',       j.eff||100);
   sv('bom-customer',  j.customer||'');
   sv('bom-wt',        j.wt||'');
@@ -17363,8 +17361,8 @@ function saveBom(){
   var processNames=processSteps.map(function(s){return typeof s==='string'?s:s.name;});
 
   var _cavBom=parseInt(document.getElementById('bom-cav')?.value)||1;
-  var _ctPiece=parseFloat(document.getElementById('bom-ct')?.value);
-  var _ctShotOut=(_ctPiece>0&&isFinite(_ctPiece))?bomCtShotFromPiece(_ctPiece,_cavBom):30;
+  var _ctShot=parseFloat(document.getElementById('bom-ct')?.value);
+  var _ctShotOut=(_ctShot>0&&isFinite(_ctShot))?+_ctShot.toFixed(6):30;
   var _mixM=(document.querySelector('input[name="bom-mix-method"]:checked')?.value)||'none';
   var _mbRaw=(document.getElementById('bom-mb')?.value||'').trim();
   var _pl=(document.getElementById('bom-plastic')?.value||'').trim();
@@ -17791,8 +17789,8 @@ function _bomFullEstimate(){
   var regrindSavePc=regrindPerPc>0?(regrindPerPc/1000)*(matPr*0.3):0;
   var netMatPc=Math.max(0,matCostPc+mbCostPc-regrindSavePc);
 
-  // ── Labor cost (requires CT) — ct ในฟอร์ม BOM = วินาที/ชิ้น (CT shot ÷ CAV) ──
-  var mainTgtHr=(ct>0)?3600/ct*(eff/100):0;
+  // ── Labor cost (requires CT) — ct ในฟอร์ม BOM = วินาที/shot ──
+  var mainTgtHr=(ct>0)?(3600/ct)*cav*(eff/100):0;
   var laborPerHr=laborRateOverride>0?laborRateOverride:(cs.laborPerHr||45);
   var elecPerHr=cs.electricPerHr||35;
   var machPerHr=cs.machineDepHr||20;
@@ -18021,7 +18019,7 @@ function bomSelectJob(name){
   bomApplyMoldRegistryHints();
   var cavAfter=parseInt(document.getElementById('bom-cav')?.value,10)||cavInit||1;
   var ctEl=document.getElementById('bom-ct');
-  if(ctEl&&ctShot>0) ctEl.value=bomCtPieceFromShot(ctShot,cavAfter);
+  if(ctEl&&ctShot>0) ctEl.value=String(+ctShot.toFixed(4));
   bomFillGrade();
   // Show selected badge
   var badge=document.getElementById('bom-job-selected');
@@ -18052,11 +18050,13 @@ function bomSelectJob(name){
 
 function bomCalcTarget(){
   var ct=parseFloat(document.getElementById('bom-ct')?.value)||0;
+  var cav=parseInt(document.getElementById('bom-cav')?.value,10)||1;
+  if(cav<1) cav=1;
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
   var prev=document.getElementById('bom-target-preview');
   var calc=document.getElementById('bom-target-calc');
   if(ct>0&&prev&&calc){
-    var tgt=Math.floor(3600/ct*eff/100);
+    var tgt=Math.floor((3600/ct)*cav*(eff/100));
     calc.textContent=tgt.toLocaleString();
     prev.style.display='block';
   } else if(prev) prev.style.display='none';
@@ -18112,7 +18112,7 @@ function _bomCalcEstimate(){
   var eff=parseInt(document.getElementById('bom-eff')?.value)||100;
   if(!wt||!ct) return null;
   var cs=COST_SETTINGS||{electricPerHr:35,laborPerHr:45,machineDepHr:20,overheadPct:15,mbPricePerKg:180,matPricePerKg:{}};
-  var tgtHr=3600/ct*(eff/100);
+  var tgtHr=(3600/ct)*cav*(eff/100);
   if(tgtHr<=0) return null;
   var matKgPerPc=wt/1000;
   var mbKgPerPc=(plastic&&(mixM!=='none')&&mbRaw)?matKgPerPc*(mbRatio/1000):0;
@@ -44429,7 +44429,7 @@ function _clRenderChart(){
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
     <div class="form-group" style="margin:0"><div class="form-label">Cavity</div><input type="number" id="bom-cav" oninput="bomCalcTarget();bomEstimateCost();bomUpdateFeederShotDisplay()"></div>
-    <div class="form-group" style="margin:0"><div class="form-label">CT ต่อชิ้น (วินาที) = shot÷CAV</div><input type="number" id="bom-ct" step="0.01" oninput="bomCalcTarget();bomEstimateCost()"></div>
+    <div class="form-group" style="margin:0"><div class="form-label">CT ต่อช็อต (วินาที/shot)</div><input type="number" id="bom-ct" step="0.01" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0"><div class="form-label">EFF (%)</div><input type="number" id="bom-eff" value="100" oninput="bomCalcTarget();bomEstimateCost()"></div>
     <div class="form-group" style="margin:0" id="bom-ton-wrap"><div class="form-label">Ton เครื่อง</div><input type="number" id="bom-ton" placeholder="เช่น 80"></div>
   </div>
