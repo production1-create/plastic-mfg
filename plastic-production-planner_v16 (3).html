@@ -7028,12 +7028,33 @@ function saveFeederRegistry(){  try{localStorage.setItem('_feederRegistry',JSON.
 function saveCLEntries(){        try{localStorage.setItem('_clEntries',JSON.stringify(CL_ENTRIES));}catch(e){} }
 function saveCLBomConfig(){      try{localStorage.setItem('_clBomConfig',JSON.stringify(CL_BOM_CONFIG));}catch(e){} }
 
+/** ISO timestamp for Supabase multi-client merge (preview Phase 1) */
+function _pmfTouchUpdatedAt(rec){
+  try{
+    if(rec && typeof rec==='object' && !Array.isArray(rec)){
+      rec.updatedAt = new Date().toISOString();
+    }
+  }catch(_){}
+}
+/** Touch BOM config blob per job name */
+function _pmfTouchClBomJob(jobName){
+  try{
+    var k = String(jobName||'').trim();
+    if(!k || !CL_BOM_CONFIG[k]) return;
+    _pmfTouchUpdatedAt(CL_BOM_CONFIG[k]);
+  }catch(_){}
+}
+
 function getGrinderById(id){ return GRINDER_REGISTRY.find(function(g){return g.id===id;})||null; }
 function getGrinderByCode(code){ return GRINDER_REGISTRY.find(function(g){return g.code===code;})||null; }
 function getGrindersForZone(zoneId){ return GRINDER_REGISTRY.filter(function(g){return g.assignedZone===zoneId;}); }
 function getFeederForMachine(machId){ return FEEDER_REGISTRY.find(function(f){return f.assignedMachine===machId;})||null; }
 function getCLBomConfig(jobName){ return CL_BOM_CONFIG[jobName]||{useRegrind:false,maxRatio:0,grinderCode:'',plasticType:''}; }
-function setCLBomConfig(jobName, cfg){ CL_BOM_CONFIG[jobName]=Object.assign(getCLBomConfig(jobName),cfg); saveCLBomConfig(); }
+function setCLBomConfig(jobName, cfg){
+  CL_BOM_CONFIG[jobName]=Object.assign(getCLBomConfig(jobName),cfg);
+  _pmfTouchUpdatedAt(CL_BOM_CONFIG[jobName]);
+  saveCLBomConfig();
+}
 
 
 // ════════════════════════════════════════════════════════════════
@@ -11882,6 +11903,7 @@ function jobregSave(){
     : _jobInferWorkGroup(obj);
   obj.registryWorkGroup=regWg;
   var idx2=JOB_REGISTRY.findIndex(function(j){return j.id===id;});
+  _pmfTouchUpdatedAt(obj);
   if(idx2>=0) JOB_REGISTRY[idx2]=obj; else JOB_REGISTRY.push(obj);
   saveJobRegistry();
   // Sync back to jobs array for pages that use it
@@ -17976,6 +17998,7 @@ function saveBom(){
   data.target=(data.cav>0&&data.ct>0)
     ? Math.floor((3600/data.ct)*data.cav*(data.eff/100))
     : 0;
+  _pmfTouchUpdatedAt(data);
   if(idx>=0) jobs[idx]={...jobs[idx],...data};
   else jobs.push(data);
   
@@ -17998,6 +18021,7 @@ function saveBom(){
       JOB_REGISTRY[ri].cavity=data.cav;
       JOB_REGISTRY[ri].efficiency=data.eff;
       JOB_REGISTRY[ri].targetPerHr=data.target;
+      _pmfTouchUpdatedAt(JOB_REGISTRY[ri]);
     }else{
       JOB_REGISTRY.push(data);
       var _jri=JOB_REGISTRY.length-1;
@@ -18005,6 +18029,7 @@ function saveBom(){
       JOB_REGISTRY[_jri].cavity=data.cav;
       JOB_REGISTRY[_jri].efficiency=data.eff;
       JOB_REGISTRY[_jri].targetPerHr=data.target;
+      _pmfTouchUpdatedAt(JOB_REGISTRY[_jri]);
     }
     if(typeof saveJobRegistry==='function') saveJobRegistry();
   }

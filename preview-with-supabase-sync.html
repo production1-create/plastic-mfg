@@ -7,7 +7,6 @@
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #0f172a; color: #e2e8f0; }
-    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; border-bottom: 1px solid #334155; background: #111827; }
     input {
       padding: 10px 12px;
       border-radius: 8px;
@@ -33,7 +32,6 @@
     .pill { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid #334155; }
     iframe { width: 100%; height: 100vh; border: 0; background: #fff; }
 
-    /* Prefer dynamic viewport on iOS/modern mobile browsers */
     @supports (height: 100dvh) {
       iframe { height: 100dvh; }
     }
@@ -54,6 +52,45 @@
     }
     .gear-btn svg { width: 18px; height: 18px; }
     .gear-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
+
+    /* Sync status pill (always visible) */
+    .sb-sync-pill {
+      position: fixed;
+      top: 10px;
+      right: 102px;
+      max-width: min(280px, calc(100vw - 200px));
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #334155;
+      background: rgba(17, 24, 39, 0.88);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      color: #cbd5e1;
+      z-index: 55;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+
+    /* Presence bar */
+    .sb-presence-bar {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      max-width: min(420px, calc(100vw - 24px));
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      font-size: 11px;
+      color: #cbd5e1;
+      z-index: 55;
+      box-shadow: 0 8px 28px rgba(0,0,0,.35);
+    }
+    .sb-presence-bar strong { color: #f1f5f9; }
+    .sb-presence-names { margin-top: 4px; color: #94a3b8; line-height: 1.35; }
 
     dialog#sb-settings {
       width: min(680px, calc(100vw - 24px));
@@ -105,16 +142,54 @@
       align-items: center;
     }
     .grid-2 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
-    .grid-3 { display: grid; gap: 8px; grid-template-columns: 1fr 1fr 1fr; }
     .footer-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
     .help { font-size: 12px; color: #94a3b8; line-height: 1.35; }
     .help code, .help .mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; background: rgba(30, 41, 59, 0.9); padding: 1px 6px; border-radius: 4px; }
 
-    /* Small loading spinner (top-right) */
+    .btn-connect-primary {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      background: linear-gradient(180deg, rgba(14, 165, 233, 0.35), rgba(37, 99, 235, 0.45));
+      color: #f0f9ff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 46px;
+    }
+    .btn-connect-primary:hover { filter: brightness(1.06); }
+    .btn-connect-primary:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
+
+    .sb-hint-ok {
+      font-size: 12px;
+      color: #86efac;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.22);
+      display: none;
+    }
+    .sb-hint-ok.on { display: block; }
+
+    details.sb-advanced {
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: rgba(15, 23, 42, 0.6);
+    }
+    details.sb-advanced summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      user-select: none;
+    }
+
     .loading-indicator {
       position: fixed;
       top: 10px;
-      right: 58px; /* leave room for the gear button */
+      right: 58px;
       width: 26px;
       height: 26px;
       border-radius: 999px;
@@ -132,7 +207,6 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     @media (max-width: 900px) {
-      .bar { gap: 10px; padding: 10px; }
       input,
       input.url {
         min-width: 0;
@@ -151,14 +225,23 @@
       }
       iframe { height: 100vh; }
       dialog#sb-settings { width: calc(100vw - 16px); }
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .sb-sync-pill {
+        right: 58px;
+        max-width: min(200px, calc(100vw - 130px));
+      }
     }
   </style>
 </head>
 <body>
   <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
+  <div id="sb-sync-pill" class="sb-sync-pill" title="สถานะซิงก์">ซิงก์: ยังไม่เชื่อมต่อ</div>
+  <div id="sb-presence-bar" class="sb-presence-bar" style="display:none">
+    <div><strong>👥 กำลังใช้งาน</strong> <span id="sb-presence-count">0</span> คน</div>
+    <div id="sb-presence-names" class="sb-presence-names"></div>
+  </div>
 
-  <button id="open-settings" class="gear-btn" type="button" title="Settings (Supabase Sync)" aria-label="Open Supabase Sync Settings">
+  <button id="open-settings" class="gear-btn" type="button" title="ตั้งค่า Supabase Sync" aria-label="เปิดตั้งค่า Supabase Sync">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
       <path d="M19.4 15a8 8 0 0 0 .1-1 8 8 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-1.7-1l-.4-2.6H10l-.4 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a8 8 0 0 0-.1 1c0 .3 0 .7.1 1l-2 1.5 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.6h4l.4-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
@@ -168,7 +251,7 @@
   <dialog id="sb-settings" aria-labelledby="sb-settings-title">
     <div class="modal-head">
       <div id="sb-settings-title" class="modal-title">Supabase Sync</div>
-      <button id="close-settings" class="close-btn" type="button" title="Close" aria-label="Close">
+      <button id="close-settings" class="close-btn" type="button" title="ปิด" aria-label="ปิด">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style="width:18px;height:18px;">
           <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
@@ -177,37 +260,39 @@
 
     <div class="modal-body compact">
       <div class="row">
-        <input id="sb-url" class="url" placeholder="https://YOUR_PROJECT.supabase.co" />
-        <input id="sb-key" placeholder="Supabase anon public key" />
+        <input id="sb-url" class="url" placeholder="https://YOUR_PROJECT.supabase.co" autocomplete="off" />
+        <input id="sb-key" placeholder="Supabase anon public key" autocomplete="off" />
       </div>
 
-      <div class="grid-2">
-        <button id="save-conf" type="button">Save config</button>
-        <button id="test-conn" type="button">Test</button>
-      </div>
+      <button id="btn-connect-sync" type="button" class="btn-connect-primary">🔌 เชื่อมต่อ &amp; เริ่มซิงก์</button>
+      <div id="sb-connected-hint" class="sb-hint-ok">บันทึกการตั้งค่าแล้ว — ดึงข้อมูลล่าสุดจากคลาวด์ และเริ่มซิงก์อัตโนมัติ</div>
 
-      <div class="grid-2">
-        <button id="push-now" type="button">Push now</button>
-        <button id="pull-now" type="button">Pull now</button>
-      </div>
-
-      <div class="grid-1">
-        <button id="back-prev-menu" type="button" title="กลับไปหน้าเมนูที่เปิดก่อนหน้า (ในแอป)">← เมนูก่อนหน้า</button>
-      </div>
+      <details class="sb-advanced">
+        <summary>⚙️ ตั้งค่าขั้นสูง (ทดสอบ / Push / Pull แยก)</summary>
+        <div style="margin-top:10px;display:grid;gap:8px">
+          <div class="grid-2">
+            <button id="save-conf" type="button">บันทึกการตั้งค่า</button>
+            <button id="test-conn" type="button">ทดสอบการเชื่อมต่อ</button>
+          </div>
+          <div class="grid-2">
+            <button id="push-now" type="button">Push ตอนนี้</button>
+            <button id="pull-now" type="button">Pull ตอนนี้</button>
+          </div>
+          <button id="back-prev-menu" type="button" title="กลับไปหน้าเมนูที่เปิดก่อนหน้า (ในแอป)">← เมนูก่อนหน้า</button>
+        </div>
+      </details>
 
       <div class="footer-line">
-        <span id="status" class="pill">status: waiting</span>
-        <div class="help"><strong>ข้ามเครื่อง:</strong> เปิดแอปผ่านไฟล์ preview นี้เท่านั้น แล้วตั้ง URL + anon key ของ Supabase (ตาราง <code>app_storage</code>) — อย่าเปิดแค่ <code>.html</code> แอปโดยตรงถ้าต้องการซิงก์<br>
-        <strong>ผู้ใช้หลายคน:</strong> คีย์ <code>pmf_users_v5</code> รวมตาม <code>username</code> ใช้เวลา <code>updatedAt</code> ล่าสุดเป็นหลัก (หลายคนเพิ่มคนละ user พร้อมกันได้) — ถ้าแก้ <em>คนเดียวกัน</em> พร้อมกัน ให้กด Pull ก่อนแก้ หรือลดช่วง auto-sync<br>
-        Tip: แตะไอคอนเฟืองเพื่อตั้งค่า — Time Table / FG / Order / ใบอนุมัติ ฯลฯ ซิงก์ตามรายการ SYNC_KEYS</div>
+        <span id="status" class="pill">สถานะ: รอ</span>
+        <div class="help"><strong>ผู้ใช้หลายคน:</strong> เฟส 1 รวมข้อมูลตามรายการ (registry / ledger) — แต่ละเครื่องยังต้องกด <strong>บันทึก</strong> ในแอปก่อนถึงจะขึ้นคลาวด์<br>
+        <strong>Presence:</strong> แสดงว่ามีใครเชื่อมอยู่บ้าง (Realtime)<br>
+        Tip: เปิดแอปผ่านไฟล์ preview นี้เท่านั้น — ตาราง <code>app_storage</code></div>
       </div>
     </div>
   </dialog>
 
-  <!-- ใช้ไฟล์ (3) ตามชุดงานล่าสุด — ต้องอยู่โฟลเดอร์เดียวกับ preview นี้ -->
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260510-carbon-cfo-cfp"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260510-phase1-presence-ui"></iframe>
 
-  <!-- Supabase client (Realtime uses WebSocket; REST-only fetch stays as-is) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
@@ -226,14 +311,83 @@
       "_engineeringChanges","_ecoBaseline","_ecoDeptSignatures","_ecoSeq",
       "_carbonSettings"
     ];
+
     const COLLAB_MERGE_KEYS = ["_dailyReports", "pmf_users_v5"];
-    // Keys that must self-heal from server when local value is reset/empty.
+
+    /** Keys: push/pull remote wins whole blob (no structured merge) */
+    const MERGE_SKIP_KEYS = new Set(["_theme", "_dashChartPeriod"]);
+
+    /** Array stores: merge by record.id */
+    const ARRAY_MERGE_BY_ID = {
+      "_machines": "id",
+      "_moldDB": "id",
+      "_customerDB": "id",
+      "_specDB": "id",
+      "_moldRegistry": "id",
+      "_customerRegistry": "id",
+      "_qcSpecRegistry": "id",
+      "_grinderRegistry": "id",
+      "_feederRegistry": "id",
+      "_clEntries": "id",
+      "_jobRegistry": "id",
+      "_employeeRegistry": "id",
+      "_rawmatRegistry": "id",
+      "_supplierRegistry": "id",
+      "_pmChecklistRegistry": "id",
+      "_kpiTargets": "id",
+      "_zones": "id",
+      "_orders": "id",
+      "_matReservations": "id",
+      "_fgStock": "id",
+      "_fgLedger": "id",
+      "_rawMatStock": "id",
+      "_manualCostEntries": "id",
+      "_robotRegistry": "id",
+      "_limitSamples": "id",
+      "_machGroups": "id",
+      "_qrt_scans": "id",
+      "_qrt_scans2": "id",
+      "_mbColors": "id",
+      "_mbStock": "id",
+      "_mbLedger": "id",
+      "_rgStock": "id",
+      "_rgLedger": "id",
+      "_rgExtraPlastics": "id",
+      "_mixPlans": "id",
+      "_mixFeederPlans": "id",
+      "_mixDispatchHistory": "id",
+      "_mixStockIssueLog": "id",
+      "_approvalProcDocs": "id",
+      "_approvalLogV1": "id",
+      "_shipmentHistory": "id",
+      "_moldLedger": "id",
+      "_wiDocs": "id",
+      "_devRecords": "id",
+      "_approvalsV1": "id",
+      "_machinePMPlan": "id",
+      "_pmMachineTemplates": "id",
+      "_lineSummaryMenus": "id",
+      "_ngDefects": "id",
+      "_ltReasons": "id",
+      "_setupPlans": "id",
+      "_setupStdJobs": "id",
+      "_engineeringChanges": "id",
+      "_condStdList": "id",
+      "_condActualList": "id",
+      "_rawMatLedger": "id",
+      "_rawMatPRList": "id",
+      "_hrDeptMachGroups": "id"
+    };
+
     const REHYDRATE_KEYS = ["_wiDocs"];
 
     let frameReady = false;
     let lastPullAt = localStorage.getItem("_sbLastPullAt") || new Date(0).toISOString();
     let sbClient = null;
     let sbChannel = null;
+    let presenceChannel = null;
+    let presenceInterval = null;
+    let presenceTabId = "t-" + Math.random().toString(36).slice(2, 11);
     let sbClientSig = "";
     let loadingCount = 0;
     let autoSyncTimer = null;
@@ -242,7 +396,17 @@
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
-    function setStatus(msg) { document.getElementById("status").textContent = "status: " + msg; }
+
+    function setStatus(msg) {
+      const el = document.getElementById("status");
+      if (el) el.textContent = "สถานะ: " + msg;
+      const pill = document.getElementById("sb-sync-pill");
+      if (pill) {
+        const short = msg.length > 42 ? msg.slice(0, 40) + "…" : msg;
+        pill.textContent = "ซิงก์: " + short;
+      }
+    }
+
     function setLoading(isLoading) {
       loadingCount = Math.max(0, loadingCount + (isLoading ? 1 : -1));
       const el = document.getElementById("loading-indicator");
@@ -267,15 +431,16 @@
       const t = new Date(v || 0).getTime();
       return Number.isFinite(t) ? t : 0;
     }
+    function recordTs(o) {
+      if (!o || typeof o !== "object") return 0;
+      return toTs(o.updatedAt || o._updatedAt || o.savedAt || o.modifiedAt || o.createdAt || o.ts);
+    }
+
     function mergeUsersValue(localStr, remoteStr) {
       const a = safeJsonParse(localStr, []);
       const b = safeJsonParse(remoteStr, []);
       if (!Array.isArray(a) || !Array.isArray(b)) return localStr || remoteStr || "";
       const byUser = {};
-      // Note: entries with `_deleted: true` are tombstones used for cross-machine
-      // sync of user deletes / renames. We KEEP them in the merged value so other
-      // machines learn about the removal; consumers (loadUsers in the app) filter
-      // them out of the visible list.
       [...b, ...a].forEach((u) => {
         if (!u || !u.username) return;
         const prev = byUser[u.username];
@@ -288,8 +453,6 @@
         if (tu > tp) byUser[u.username] = u;
         else if (tu < tp) byUser[u.username] = prev;
         else {
-          // Equal timestamps: a tombstone always wins so a delete/rename is
-          // not silently undone by a stale concurrent edit.
           if (u._deleted && !prev._deleted) byUser[u.username] = u;
           else if (prev._deleted && !u._deleted) byUser[u.username] = prev;
           else byUser[u.username] = Object.assign({}, prev, u);
@@ -297,6 +460,7 @@
       });
       return JSON.stringify(Object.values(byUser));
     }
+
     function mergeRowsByHour(localRows, remoteRows) {
       const byHour = {};
       [...(remoteRows || []), ...(localRows || [])].forEach((r) => {
@@ -307,6 +471,7 @@
       });
       return Object.values(byHour).sort((x, y) => (x.hour || 0) - (y.hour || 0));
     }
+
     function mergeDailyReportsValue(localStr, remoteStr) {
       const a = safeJsonParse(localStr, {});
       const b = safeJsonParse(remoteStr, {});
@@ -322,11 +487,296 @@
       });
       return JSON.stringify(merged);
     }
-    function mergeValueByKey(key, localStr, remoteStr) {
+
+    function mergeArrayById(localStr, remoteStr, idKey) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      const byId = {};
+      [...rem, ...loc].forEach((rec) => {
+        if (!rec || typeof rec !== "object") return;
+        const rawId = rec[idKey];
+        if (rawId === undefined || rawId === null || rawId === "") return;
+        const k = String(rawId);
+        const prev = byId[k];
+        if (!prev) {
+          byId[k] = rec;
+          return;
+        }
+        const tp = recordTs(prev);
+        const tr = recordTs(rec);
+        if (tr > tp) byId[k] = rec;
+        else if (tr < tp) byId[k] = prev;
+        else {
+          if (rec._deleted && !prev._deleted) byId[k] = rec;
+          else if (prev._deleted && !rec._deleted) byId[k] = prev;
+          else byId[k] = Object.assign({}, prev, rec);
+        }
+      });
+      return JSON.stringify(Object.values(byId));
+    }
+
+    function mergeMachineDb(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      if (!loc || typeof loc !== "object" || Array.isArray(loc)) return localStr || remoteStr || "";
+      if (!rem || typeof rem !== "object" || Array.isArray(rem)) return localStr || remoteStr || "";
+      const ids = new Set([...Object.keys(loc), ...Object.keys(rem)]);
+      const out = {};
+      ids.forEach((id) => {
+        const a = loc[id];
+        const b = rem[id];
+        if (a === undefined) { out[id] = b; return; }
+        if (b === undefined) { out[id] = a; return; }
+        const ta = recordTs(a);
+        const tb = recordTs(b);
+        if (tb > ta) out[id] = typeof b === "object" && b && typeof a === "object" && a ? Object.assign({}, a, b) : b;
+        else if (ta > tb) out[id] = typeof a === "object" && a && typeof b === "object" && b ? Object.assign({}, b, a) : a;
+        else out[id] = typeof a === "object" && typeof b === "object" ? Object.assign({}, b, a) : a;
+      });
+      return JSON.stringify(out);
+    }
+
+    function mergeObjectValuesByTs(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      return mergeMachineDb(JSON.stringify(loc), JSON.stringify(rem));
+    }
+
+    function normalizeJobKey(name) {
+      return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+    }
+
+    function mergeJobsByName(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      const byName = {};
+      [...rem, ...loc].forEach((j) => {
+        if (!j || !j.name) return;
+        const k = normalizeJobKey(j.name);
+        const prev = byName[k];
+        if (!prev) {
+          byName[k] = j;
+          return;
+        }
+        const tp = recordTs(prev);
+        const tr = recordTs(j);
+        if (tr > tp) byName[k] = j;
+        else if (tr < tp) byName[k] = prev;
+        else byName[k] = Object.assign({}, prev, j);
+      });
+      return JSON.stringify(Object.values(byName));
+    }
+
+    function ttRowKey(r) {
+      if (!r || typeof r !== "object") return "";
+      return [r.machine, r.jobName, r.lot, r.plastic, r.shift].join("|");
+    }
+
+    function mergeTTData(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      if (!loc || typeof loc !== "object" || Array.isArray(loc)) return localStr || remoteStr || "";
+      if (!rem || typeof rem !== "object" || Array.isArray(rem)) return localStr || remoteStr || "";
+      const dates = new Set([...Object.keys(loc), ...Object.keys(rem)]);
+      const out = {};
+      dates.forEach((d) => {
+        const a = loc[d];
+        const b = rem[d];
+        if (!Array.isArray(a) && !Array.isArray(b)) { out[d] = a !== undefined ? a : b; return; }
+        if (!Array.isArray(a)) { out[d] = b; return; }
+        if (!Array.isArray(b)) { out[d] = a; return; }
+        const byK = {};
+        [...b, ...a].forEach((row) => {
+          const k = ttRowKey(row);
+          if (!k) return;
+          const prev = byK[k];
+          if (!prev) {
+            byK[k] = row;
+            return;
+          }
+          const tp = recordTs(prev);
+          const tr = recordTs(row);
+          if (tr > tp) byK[k] = row;
+          else if (tr < tp) byK[k] = prev;
+          else byK[k] = Object.assign({}, prev, row);
+        });
+        out[d] = Object.values(byK);
+      });
+      return JSON.stringify(out);
+    }
+
+    function mergeHrAttendance(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      if (!loc || typeof loc !== "object" || Array.isArray(loc)) return localStr || remoteStr || "";
+      if (!rem || typeof rem !== "object" || Array.isArray(rem)) return localStr || remoteStr || "";
+      const keys = new Set([...Object.keys(loc), ...Object.keys(rem)]);
+      const out = {};
+      keys.forEach((k) => {
+        const a = loc[k];
+        const b = rem[k];
+        if (!Array.isArray(a) && !Array.isArray(b)) { out[k] = a !== undefined ? a : b; return; }
+        if (!Array.isArray(a)) { out[k] = b; return; }
+        if (!Array.isArray(b)) { out[k] = a; return; }
+        const byR = {};
+        [...b, ...a].forEach((r) => {
+          if (!r || typeof r !== "object") return;
+          const key = `${r.empId}|${r.machine}|${r.timeIn}|${r.status}`;
+          const prev = byR[key];
+          if (!prev) {
+            byR[key] = r;
+            return;
+          }
+          const tp = recordTs(prev);
+          const tr = recordTs(r);
+          if (tr > tp) byR[key] = r;
+          else if (tr < tp) byR[key] = prev;
+          else byR[key] = Object.assign({}, prev, r);
+        });
+        out[k] = Object.values(byR);
+      });
+      return JSON.stringify(out);
+    }
+
+    function mergeSigLog(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      const seen = new Set();
+      const merged = [...rem, ...loc];
+      merged.sort((x, y) => (y.ts || 0) - (x.ts || 0));
+      const out = [];
+      merged.forEach((row) => {
+        if (!row || typeof row !== "object") return;
+        const k = `${row.username}|${row.docKey}|${row.date}|${row.time}|${row.ts}`;
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(row);
+      });
+      return JSON.stringify(out.slice(0, 500));
+    }
+
+    function mergeNavRecent(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      const seen = new Set();
+      const out = [];
+      [...rem, ...loc].forEach((x) => {
+        const id = String(x);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        out.push(x);
+      });
+      return JSON.stringify(out.slice(0, 12));
+    }
+
+    function deepMergePrefs(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      if (!loc || typeof loc !== "object" || Array.isArray(loc)) return localStr || remoteStr || "";
+      if (!rem || typeof rem !== "object" || Array.isArray(rem)) return localStr || remoteStr || "";
+
+      function walk(a, b) {
+        if (a === undefined) return b;
+        if (b === undefined) return a;
+        if (Array.isArray(a) || Array.isArray(b)) {
+          if (!Array.isArray(a)) return b;
+          if (!Array.isArray(b)) return a;
+          const seen = new Set();
+          const o = [];
+          [...b, ...a].forEach((x) => {
+            const k = typeof x === "object" && x ? JSON.stringify(x) : String(x);
+            if (seen.has(k)) return;
+            seen.add(k);
+            o.push(x);
+          });
+          return o;
+        }
+        if (typeof a === "object" && a && typeof b === "object" && b) {
+          const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+          const o = {};
+          keys.forEach((k) => {
+            o[k] = walk(a[k], b[k]);
+          });
+          return o;
+        }
+        const ta = typeof a === "object" && a ? recordTs(a) : 0;
+        const tb = typeof b === "object" && b ? recordTs(b) : 0;
+        if (tb > ta) return b;
+        if (ta > tb) return a;
+        return b !== undefined ? b : a;
+      }
+      return JSON.stringify(walk(loc, rem));
+    }
+
+    function mergeEcoSeq(localStr, remoteStr) {
+      const parseN = (s) => {
+        const j = safeJsonParse(s, null);
+        if (typeof j === "number" && Number.isFinite(j)) return j;
+        if (typeof j === "string") return parseInt(j, 10) || 0;
+        const t = String(s || "").trim();
+        if (!t) return 0;
+        const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : 0;
+      };
+      const a = parseN(localStr);
+      const b = parseN(remoteStr);
+      return JSON.stringify(Math.max(a, b));
+    }
+
+    function mergeStorageKey(key, localStr, remoteStr) {
       if (key === "pmf_users_v5") return mergeUsersValue(localStr, remoteStr);
       if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
-      return localStr;
+      if (MERGE_SKIP_KEYS.has(key)) return localStr;
+
+      const idField = ARRAY_MERGE_BY_ID[key];
+      if (idField) return mergeArrayById(localStr, remoteStr, idField);
+
+      switch (key) {
+        case "_machineDB":
+          return mergeMachineDb(localStr, remoteStr);
+        case "_clBomConfig":
+        case "_sigStore":
+          return mergeObjectValuesByTs(localStr, remoteStr);
+        case "_ttData":
+          return mergeTTData(localStr, remoteStr);
+        case "_jobs":
+          return mergeJobsByName(localStr, remoteStr);
+        case "_kpiTableData":
+        case "_costSettings":
+        case "_carbonSettings":
+        case "_dashWidgets":
+        case "_dashCharts":
+        case "_ecoBaseline":
+        case "_ecoDeptSignatures":
+          return deepMergePrefs(localStr, remoteStr);
+        case "_sigLog":
+          return mergeSigLog(localStr, remoteStr);
+        case "_navRecent":
+          return mergeNavRecent(localStr, remoteStr);
+        case "_hrAttendance":
+          return mergeHrAttendance(localStr, remoteStr);
+        case "_ecoSeq":
+          return mergeEcoSeq(localStr, remoteStr);
+        default:
+          return localStr;
+      }
     }
+
+    function usesStructuredMerge(key) {
+      if (COLLAB_MERGE_KEYS.includes(key)) return true;
+      if (MERGE_SKIP_KEYS.has(key)) return false;
+      if (ARRAY_MERGE_BY_ID[key]) return true;
+      return [
+        "_machineDB","_clBomConfig","_ttData","_jobs","_kpiTableData","_costSettings","_carbonSettings",
+        "_dashWidgets","_dashCharts","_sigStore","_sigLog","_navRecent","_hrAttendance",
+        "_ecoBaseline","_ecoDeptSignatures","_ecoSeq"
+      ].includes(key);
+    }
+
     async function fetchServerValueByKey(key) {
       const q = encodeURIComponent(key);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_value&storage_key=eq." + q + "&limit=1";
@@ -355,7 +805,7 @@
           const msg = await readErrorText(r);
           throw new Error("HTTP " + r.status + (msg ? " - " + msg : ""));
         }
-        setStatus("connected");
+        setStatus("เชื่อมต่อได้");
       } finally {
         setLoading(false);
       }
@@ -367,30 +817,33 @@
       const w = document.getElementById("app-frame").contentWindow;
       const now = new Date().toISOString();
       const rows = [];
-      for (const key of SYNC_KEYS) {
-        let value = null;
-        try { value = w.localStorage.getItem(key); } catch (e) {}
-        if (typeof value === "string" && COLLAB_MERGE_KEYS.includes(key)) {
-          const remoteVal = await fetchServerValueByKey(key);
-          if (typeof remoteVal === "string") {
-            value = mergeValueByKey(key, value, remoteVal);
-            try { w.localStorage.setItem(key, value); } catch (e) {}
+      try {
+        for (const key of SYNC_KEYS) {
+          let value = null;
+          try { value = w.localStorage.getItem(key); } catch (e) {}
+          if (typeof value === "string" && usesStructuredMerge(key)) {
+            const remoteVal = await fetchServerValueByKey(key);
+            if (typeof remoteVal === "string") {
+              value = mergeStorageKey(key, value, remoteVal);
+              try { w.localStorage.setItem(key, value); } catch (e) {}
+            }
+          }
+          if (typeof value === "string") {
+            rows.push({ storage_key: key, storage_value: value, updated_at: now });
           }
         }
-        if (typeof value === "string") {
-          rows.push({ storage_key: key, storage_value: value, updated_at: now });
+        if (!rows.length) {
+          setStatus("ไม่มีข้อมูลจะ push");
+          return;
         }
-      }
-      if (!rows.length) { setStatus("no data to push"); return; }
 
-      try {
         const url = sbUrl() + "/rest/v1/app_storage?on_conflict=storage_key";
         const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(rows) });
         if (!r.ok) {
           const msg = await readErrorText(r);
           throw new Error("push failed HTTP " + r.status + (msg ? " - " + msg : ""));
         }
-        setStatus("push ok: " + rows.length + " keys");
+        setStatus("push สำเร็จ " + rows.length + " keys");
       } finally {
         setLoading(false);
       }
@@ -412,18 +865,22 @@
         let maxUpdatedAt = lastPullAt;
         rows.forEach((row) => {
           let nextVal = row.storage_value;
-          if (COLLAB_MERGE_KEYS.includes(row.storage_key)) {
+          if (MERGE_SKIP_KEYS.has(row.storage_key)) {
+            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+          } else if (usesStructuredMerge(row.storage_key)) {
             let curVal = null;
             try { curVal = w.localStorage.getItem(row.storage_key); } catch (e) {}
-            if (typeof curVal === "string") nextVal = mergeValueByKey(row.storage_key, curVal, row.storage_value);
+            if (typeof curVal === "string") nextVal = mergeStorageKey(row.storage_key, curVal, row.storage_value);
+            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+          } else {
+            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
           }
-          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
           if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
         });
         lastPullAt = maxUpdatedAt;
         localStorage.setItem("_sbLastPullAt", lastPullAt);
         await repairCriticalKeys(w);
-        setStatus("pull ok: " + rows.length + " changes");
+        setStatus("pull สำเร็จ " + rows.length + " รายการ");
       } finally {
         setLoading(false);
       }
@@ -456,7 +913,7 @@
         await pushNow();
         await pullNow();
       } catch (e) {
-        setStatus("error: " + e.message);
+        setStatus("ผิดพลาด: " + e.message);
       } finally {
         autoSyncRunning = false;
       }
@@ -472,9 +929,9 @@
       if (!frameReady) return;
       if (!sbUrl() || !sbKey()) return;
       autoSyncTimer = setInterval(() => {
-        syncLoop().catch((e) => setStatus("error: " + e.message));
+        syncLoop().catch((e) => setStatus("ผิดพลาด: " + e.message));
       }, AUTO_SYNC_MS);
-      setStatus("auto-sync: every " + Math.round(AUTO_SYNC_MS / 1000) + "s");
+      setStatus("auto-sync ทุก " + Math.round(AUTO_SYNC_MS / 1000) + " วินาที");
     }
 
     function ensureSbClient() {
@@ -485,9 +942,8 @@
       if (sbClient && sbClientSig === sig) return sbClient;
       sbClientSig = sig;
       try {
-        // supabase-js v2 exposes window.supabase.createClient
         sbClient = window.supabase.createClient(url, key, {
-          realtime: { params: { eventsPerSecond: 5 } }
+          realtime: { params: { eventsPerSecond: 10 } }
         });
       } catch (e) {
         sbClient = null;
@@ -495,38 +951,149 @@
       return sbClient;
     }
 
-    async function stopRealtime() {
+    function readPresenceMeta(w) {
       try {
-        if (sbChannel) {
-          await sbChannel.unsubscribe();
+        const raw = w.localStorage.getItem("_authUser");
+        const u = raw ? JSON.parse(raw) : null;
+        return {
+          username: (u && u.username) || "guest",
+          name: (u && u.name) || "",
+          role: (u && u.role) || "",
+          tab_id: presenceTabId
+        };
+      } catch (e) {
+        return { username: "guest", name: "", role: "", tab_id: presenceTabId };
+      }
+    }
+
+    function presencePayload(m) {
+      if (!m || typeof m !== "object") return null;
+      if (m.payload && typeof m.payload === "object") return m.payload;
+      if (m.presence_ref && m.presence_ref.payload) return m.presence_ref.payload;
+      return m;
+    }
+
+    function renderPresenceState(state) {
+      const bar = document.getElementById("sb-presence-bar");
+      const cntEl = document.getElementById("sb-presence-count");
+      const namesEl = document.getElementById("sb-presence-names");
+      if (!bar || !cntEl || !namesEl) return;
+
+      const entries = [];
+      Object.keys(state || {}).forEach((uid) => {
+        const metas = state[uid];
+        if (!Array.isArray(metas)) return;
+        metas.forEach((m) => {
+          const p = presencePayload(m);
+          if (p && p.username) entries.push(p);
+        });
+      });
+
+      const uniq = {};
+      entries.forEach((p) => {
+        const k = (p.username || "") + "|" + (p.tab_id || "");
+        if (!uniq[k]) uniq[k] = p;
+      });
+      const list = Object.values(uniq);
+
+      if (!list.length) {
+        bar.style.display = "none";
+        return;
+      }
+      bar.style.display = "block";
+      cntEl.textContent = String(list.length);
+      namesEl.textContent = list
+        .map((p) => {
+          const nm = (p.name || p.username || "").trim();
+          const un = p.username || "";
+          const role = p.role ? " · " + p.role : "";
+          return nm && nm !== un ? nm + " (@" + un + ")" + role : "@" + un + role;
+        })
+        .join(" · ");
+    }
+
+    async function stopPresence() {
+      if (presenceInterval) {
+        clearInterval(presenceInterval);
+        presenceInterval = null;
+      }
+      try {
+        if (presenceChannel) {
+          await presenceChannel.unsubscribe();
         }
       } catch (e) {}
+      presenceChannel = null;
+      const bar = document.getElementById("sb-presence-bar");
+      if (bar) bar.style.display = "none";
+    }
+
+    async function startPresence() {
+      const client = ensureSbClient();
+      const w = document.getElementById("app-frame").contentWindow;
+      if (!client || !w) return;
+
+      await stopPresence();
+
+      presenceChannel = client.channel("plastic-planner-presence-v1");
+
+      presenceChannel.on("presence", { event: "sync" }, () => {
+        try {
+          renderPresenceState(presenceChannel.presenceState());
+        } catch (e) {}
+      });
+
+      presenceChannel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          try {
+            const meta = Object.assign({ online_at: new Date().toISOString() }, readPresenceMeta(w));
+            await presenceChannel.track(meta);
+          } catch (e) {}
+        }
+      });
+
+      presenceInterval = setInterval(async () => {
+        try {
+          if (!presenceChannel || !frameReady) return;
+          const meta = Object.assign({ online_at: new Date().toISOString() }, readPresenceMeta(w));
+          await presenceChannel.track(meta);
+        } catch (e) {}
+      }, 20000);
+    }
+
+    async function stopRealtime() {
+      try {
+        if (sbChannel) await sbChannel.unsubscribe();
+      } catch (e) {}
       sbChannel = null;
+      await stopPresence();
     }
 
     async function startRealtime() {
       const client = ensureSbClient();
-      if (!client) { setStatus("waiting: set Supabase URL & key"); return; }
+      if (!client) {
+        setStatus("รอตั้งค่า URL และ key");
+        return;
+      }
 
       await stopRealtime();
 
-      // Listen for any changes in app_storage and refresh via pullNow()
       sbChannel = client
         .channel("app_storage_changes")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "app_storage" },
           async () => {
-            // Pull only deltas since lastPullAt
-            pullNow().catch((e) => setStatus("error: " + e.message));
+            pullNow().catch((e) => setStatus("ผิดพลาด: " + e.message));
           }
         )
         .subscribe((status) => {
-          if (status === "SUBSCRIBED") setStatus("realtime: listening");
-          else if (status === "CHANNEL_ERROR") setStatus("realtime: channel error");
-          else if (status === "TIMED_OUT") setStatus("realtime: timed out");
-          else if (status === "CLOSED") setStatus("realtime: closed");
+          if (status === "SUBSCRIBED") setStatus("Realtime + Presence พร้อม");
+          else if (status === "CHANNEL_ERROR") setStatus("Realtime channel error");
+          else if (status === "TIMED_OUT") setStatus("Realtime timed out");
+          else if (status === "CLOSED") setStatus("Realtime closed");
         });
+
+      await startPresence();
     }
 
     async function initialPullAndListen() {
@@ -535,23 +1102,60 @@
         await pullNow();
         await startRealtime();
       } catch (e) {
-        setStatus("error: " + e.message);
+        setStatus("ผิดพลาด: " + e.message);
+      }
+    }
+
+    function persistSbInputs() {
+      localStorage.setItem("_sbUrl", sbUrl());
+      localStorage.setItem("_sbKey", sbKey());
+    }
+
+    function wireInputBlurSave() {
+      ["sb-url", "sb-key"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("blur", () => {
+          if (sbUrl() && sbKey()) persistSbInputs();
+        });
+      });
+    }
+
+    async function connectAndStartSync() {
+      const btn = document.getElementById("btn-connect-sync");
+      const hint = document.getElementById("sb-connected-hint");
+      if (!sbUrl() || !sbKey()) {
+        setStatus("กรอก URL และ anon key ก่อน");
+        if (typeof hint !== "undefined" && hint) hint.classList.remove("on");
+        return;
+      }
+      if (btn) btn.disabled = true;
+      try {
+        persistSbInputs();
+        await initialPullAndListen();
+        startAutoSync();
+        if (hint) hint.classList.add("on");
+      } catch (e) {
+        setStatus("ผิดพลาด: " + e.message);
+        if (hint) hint.classList.remove("on");
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
     document.getElementById("save-conf").addEventListener("click", () => {
-      localStorage.setItem("_sbUrl", sbUrl());
-      localStorage.setItem("_sbKey", sbKey());
-      setStatus("config saved");
-      // Recreate realtime with new config, and refresh once
+      persistSbInputs();
+      setStatus("บันทึกการตั้งค่าแล้ว");
       if (frameReady) {
         initialPullAndListen();
         startAutoSync();
       }
     });
-    document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("error: " + e.message)));
-    document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("error: " + e.message)));
-    document.getElementById("pull-now").addEventListener("click", () => pullNow().catch((e) => setStatus("error: " + e.message)));
+    document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("ผิดพลาด: " + e.message)));
+    document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
+    document.getElementById("pull-now").addEventListener("click", () => pullNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
+    document.getElementById("btn-connect-sync").addEventListener("click", () => connectAndStartSync());
+
     document.getElementById("back-prev-menu").addEventListener("click", () => {
       if (!frameReady) return;
       try {
@@ -559,7 +1163,7 @@
         if (typeof w.goBackMenu === "function") w.goBackMenu();
         else setStatus("แอปยังไม่พร้อม");
       } catch (e) {
-        setStatus("error: " + e.message);
+        setStatus("ผิดพลาด: " + e.message);
       }
     });
 
@@ -568,8 +1172,6 @@
     if (savedUrl) document.getElementById("sb-url").value = savedUrl;
     if (savedKey) document.getElementById("sb-key").value = savedKey;
 
-    // Allow pre-filling by URL query:
-    // ?url=https://PROJECT.supabase.co&key=... (or &apikey=...)
     try {
       const q = new URLSearchParams(window.location.search || "");
       const urlParam = (q.get("url") || "").trim();
@@ -583,6 +1185,8 @@
         localStorage.setItem("_sbKey", keyParam);
       }
     } catch (e) {}
+
+    wireInputBlurSave();
 
     const settingsDlg = document.getElementById("sb-settings");
     const openSettings = document.getElementById("open-settings");
@@ -605,8 +1209,14 @@
 
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;
-      await initialPullAndListen();
-      startAutoSync();
+      if (sbUrl() && sbKey()) {
+        await initialPullAndListen();
+        startAutoSync();
+        const hint = document.getElementById("sb-connected-hint");
+        if (hint) hint.classList.add("on");
+      } else {
+        setStatus("เปิดเฟืองเพื่อตั้งค่า แล้วกด “เชื่อมต่อ & เริ่มซิงก์”");
+      }
     });
   </script>
 </body>
