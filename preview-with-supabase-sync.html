@@ -36,123 +36,162 @@
       iframe { height: 100dvh; }
     }
 
-    /* Gear button — moved next to the save FAB (bottom-left) so it never
-       overlaps the iframe's top-right user controls (theme, user, logout). */
-    .gear-btn {
+    /* Top toolbar — sits in the empty middle area of the iframe's header,
+       so it doesn't cover the user chip on the right or the brand on the
+       left, and it doesn't block menu icons at the bottom. */
+    .pmf-toolbar {
       position: fixed;
-      left: 16px;
-      bottom: 76px;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(2, 6, 23, 0.45);
+      max-width: calc(100vw - 32px);
+    }
+
+    .gear-btn {
       width: 38px;
       height: 38px;
       padding: 0;
       display: grid;
       place-items: center;
-      border-radius: 10px;
-      background: rgba(17, 24, 39, 0.92);
-      border: 1px solid #334155;
-      backdrop-filter: blur(10px);
-      z-index: 60;
+      border-radius: 999px;
+      background: rgba(17, 24, 39, 0.6);
+      border: 1px solid transparent;
       color: #e2e8f0;
+      cursor: pointer;
+      flex: 0 0 auto;
     }
     .gear-btn svg { width: 18px; height: 18px; }
+    .gear-btn:hover { background: rgba(17, 24, 39, 0.9); }
     .gear-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 
-    /* Floating "Save to cloud" button — easy for everyone, always visible.
-       Positioned at the BOTTOM-LEFT so it never collides with the app's own
-       bottom-right FABs (e.g. Export Excel inside the iframe). */
+    /* Save button — sits inline inside the top toolbar so it doesn't cover
+       any menu icons in the iframe. */
     .save-fab {
-      position: fixed;
-      left: 16px;
-      bottom: 16px;
-      z-index: 60;
+      flex: 0 0 auto;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 12px 18px;
-      min-height: 48px;
+      padding: 8px 16px;
+      min-height: 38px;
       border-radius: 999px;
       border: 1px solid rgba(56, 189, 248, 0.55);
       background: linear-gradient(180deg, rgba(14, 165, 233, 0.92), rgba(37, 99, 235, 0.95));
       color: #f0f9ff;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 800;
       letter-spacing: 0.2px;
       cursor: pointer;
-      box-shadow: 0 10px 30px rgba(2, 132, 199, 0.45), 0 2px 6px rgba(0,0,0,0.35);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.45);
       transition: filter .12s ease, transform .12s ease, opacity .15s ease;
+      white-space: nowrap;
     }
     .save-fab:hover { filter: brightness(1.07); }
     .save-fab:active { transform: translateY(1px); }
     .save-fab:disabled { opacity: 0.65; cursor: progress; filter: none; }
-    .save-fab .save-fab-ico { font-size: 16px; line-height: 1; }
+    .save-fab .save-fab-ico { font-size: 14px; line-height: 1; }
     .save-fab.is-saving { background: linear-gradient(180deg, #475569, #334155); border-color: #64748b; }
     .save-fab.is-success { background: linear-gradient(180deg, #16a34a, #15803d); border-color: #22c55e; }
     .save-fab.is-error { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #ef4444; }
-    .save-fab.is-disabled { background: rgba(30, 41, 59, 0.92); border-color: #475569; color: #cbd5e1; cursor: not-allowed; box-shadow: 0 6px 14px rgba(0,0,0,0.35); }
+    .save-fab.is-disabled { background: rgba(30, 41, 59, 0.92); border-color: #475569; color: #cbd5e1; cursor: not-allowed; box-shadow: none; }
     .save-fab-sub {
       position: fixed;
-      left: 22px;
-      bottom: 72px;
+      top: 56px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 59;
       font-size: 10px;
       color: #94a3b8;
       background: rgba(15, 23, 42, 0.85);
       border: 1px solid #334155;
-      padding: 3px 9px;
+      padding: 3px 10px;
       border-radius: 999px;
       pointer-events: none;
       opacity: 0;
       transition: opacity .18s ease;
+      white-space: nowrap;
     }
     .save-fab-sub.on { opacity: 1; }
 
-    /* Sync status pill — sits in the bottom-left cluster to keep iframe
-       header free of overlay chrome. */
+    /* Sync status text — inline inside the top toolbar */
     .sb-sync-pill {
-      position: fixed;
-      left: 60px;
-      bottom: 80px;
-      max-width: min(280px, calc(100vw - 90px));
-      padding: 5px 12px;
+      max-width: 220px;
+      padding: 4px 10px;
       border-radius: 999px;
-      border: 1px solid #334155;
-      background: rgba(17, 24, 39, 0.88);
-      backdrop-filter: blur(10px);
+      border: 1px solid rgba(51, 65, 85, 0.6);
+      background: rgba(17, 24, 39, 0.45);
       font-size: 11px;
       color: #cbd5e1;
-      z-index: 56;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       pointer-events: none;
+      flex: 0 1 auto;
     }
 
-    /* Presence bar — anchored above the bottom-left controls cluster
-       (gear + sync pill + save FAB). Grows upward so it never overlaps. */
+    /* Presence trigger — small button inline in the top toolbar.
+       Click to expand a floating popover with the full list of users. */
+    .sb-presence-btn {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 139, 253, 0.4);
+      background: rgba(56, 139, 253, 0.18);
+      color: #bfdbfe;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .sb-presence-btn:hover { background: rgba(56, 139, 253, 0.28); }
+    .sb-presence-btn[hidden] { display: none !important; }
+
     .sb-presence-bar {
       position: fixed;
-      bottom: 124px;
-      left: 10px;
-      max-width: min(420px, calc(100vw - 24px));
-      max-height: calc(100vh - 160px);
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(520px, calc(100vw - 24px));
+      max-height: calc(100vh - 120px);
       overflow: auto;
-      padding: 8px 12px;
-      border-radius: 12px;
+      padding: 10px 14px;
+      border-radius: 14px;
       border: 1px solid #334155;
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(15, 23, 42, 0.96);
       backdrop-filter: blur(12px);
       font-size: 11px;
       color: #cbd5e1;
-      z-index: 55;
-      box-shadow: 0 8px 28px rgba(0,0,0,.35);
+      z-index: 58;
+      box-shadow: 0 12px 32px rgba(0,0,0,.45);
+      display: none;
     }
+    .sb-presence-bar.open { display: block; }
     .sb-presence-bar strong { color: #f1f5f9; }
-    .sb-presence-names { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; line-height: 1.45; }
+    .sb-presence-names {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+      line-height: 1.5;
+    }
     .sb-presence-chip {
       display: inline-flex;
       align-items: center;
       flex-wrap: wrap;
-      margin: 2px 6px 2px 0;
+      margin: 2px 4px 2px 0;
       padding: 4px 10px;
       border-radius: 999px;
       background: rgba(56, 139, 253, 0.12);
@@ -256,22 +295,19 @@
       user-select: none;
     }
 
+    /* Loading spinner — sits inline inside the toolbar (left of the gear). */
     .loading-indicator {
-      position: fixed;
-      left: 60px;
-      bottom: 18px;
-      width: 22px;
-      height: 22px;
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      margin: 0 4px 0 6px;
       border-radius: 999px;
       border: 2px solid rgba(148, 163, 184, 0.25);
       border-top-color: rgba(226, 232, 240, 0.95);
       animation: spin .8s linear infinite;
       opacity: 0;
       pointer-events: none;
-      z-index: 70;
       transition: opacity .12s ease-in-out;
-      backdrop-filter: blur(8px);
-      background: rgba(17, 24, 39, 0.35);
     }
     .loading-indicator.on { opacity: 1; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -296,42 +332,56 @@
       iframe { height: 100vh; }
       dialog#sb-settings { width: calc(100vw - 16px); }
       .grid-2 { grid-template-columns: 1fr; }
-      .sb-sync-pill {
-        right: 58px;
-        max-width: min(200px, calc(100vw - 130px));
-      }
-      .save-fab { padding: 10px 14px; font-size: 13px; left: 12px; bottom: 12px; }
-      .save-fab-sub { left: 16px; bottom: 64px; }
-      .gear-btn { left: 12px; bottom: 70px; width: 36px; height: 36px; }
-      .sb-sync-pill { left: 56px; bottom: 74px; max-width: calc(100vw - 80px); }
-      .sb-presence-bar { bottom: 116px; left: 8px; max-width: calc(100vw - 16px); }
-      .loading-indicator { left: 56px; bottom: 16px; }
+      /* Compact toolbar on small screens */
+      .pmf-toolbar { gap: 4px; padding: 3px; top: 6px; }
+      .save-fab { padding: 6px 10px; font-size: 12px; min-height: 32px; }
+      .save-fab .save-fab-text { display: none; }
+      .gear-btn { width: 32px; height: 32px; }
+      .gear-btn svg { width: 16px; height: 16px; }
+      .sb-sync-pill { display: none; }
+      .sb-presence-bar { max-width: calc(100vw - 16px); }
+      .sb-presence-btn { padding: 5px 10px; font-size: 11px; }
+      .save-fab-sub { font-size: 9px; }
     }
     @media print {
-      .save-fab, .save-fab-sub, .gear-btn, .sb-sync-pill, .sb-presence-bar, .loading-indicator { display: none !important; }
+      .pmf-toolbar, .save-fab-sub, .sb-presence-bar { display: none !important; }
     }
   </style>
 </head>
 <body>
-  <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
-  <div id="sb-sync-pill" class="sb-sync-pill" title="สถานะซิงก์">ซิงก์: ยังไม่เชื่อมต่อ</div>
-  <div id="sb-presence-bar" class="sb-presence-bar" style="display:none">
+  <!-- Top-center toolbar (sits in the empty space inside the iframe header) -->
+  <div id="pmf-toolbar" class="pmf-toolbar" role="toolbar" aria-label="แถบควบคุมซิงก์">
+    <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
+
+    <button id="open-settings" class="gear-btn" type="button" title="ตั้งค่า Supabase Sync" aria-label="เปิดตั้งค่า Supabase Sync">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M19.4 15a8 8 0 0 0 .1-1 8 8 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-1.7-1l-.4-2.6H10l-.4 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a8 8 0 0 0-.1 1c0 .3 0 .7.1 1l-2 1.5 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.6h4l.4-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <div id="sb-sync-pill" class="sb-sync-pill" title="สถานะซิงก์">ซิงก์: ยังไม่เชื่อมต่อ</div>
+
+    <button id="save-now-fab" class="save-fab" type="button" title="บันทึกข้อมูลขึ้นคลาวด์ (Ctrl+S)" aria-label="บันทึกข้อมูลขึ้นคลาวด์">
+      <span class="save-fab-ico" aria-hidden="true">💾</span>
+      <span class="save-fab-text">บันทึกขึ้นคลาวด์</span>
+    </button>
+
+    <button id="sb-presence-btn" class="sb-presence-btn" type="button" hidden title="ดูผู้ที่กำลังใช้งาน" aria-label="ดูผู้ที่กำลังใช้งาน" aria-expanded="false" aria-controls="sb-presence-bar">
+      <span aria-hidden="true">👥</span>
+      <span id="sb-presence-btn-count">0</span>
+      <span>คน</span>
+    </button>
+  </div>
+
+  <!-- Subtitle for the save button (last saved time) -->
+  <div id="save-now-sub" class="save-fab-sub" aria-hidden="true">บันทึกล่าสุด: -</div>
+
+  <!-- Presence popover (toggled by the presence button in the toolbar) -->
+  <div id="sb-presence-bar" class="sb-presence-bar" role="dialog" aria-label="ผู้ที่กำลังใช้งาน">
     <div><strong>👥 กำลังใช้งาน</strong> <span id="sb-presence-count">0</span> คน</div>
     <div id="sb-presence-names" class="sb-presence-names"></div>
   </div>
-
-  <button id="save-now-fab" class="save-fab" type="button" title="บันทึกข้อมูลขึ้นคลาวด์ (Ctrl+S)" aria-label="บันทึกข้อมูลขึ้นคลาวด์">
-    <span class="save-fab-ico" aria-hidden="true">💾</span>
-    <span class="save-fab-text">บันทึกขึ้นคลาวด์</span>
-  </button>
-  <div id="save-now-sub" class="save-fab-sub" aria-hidden="true">บันทึกล่าสุด: -</div>
-
-  <button id="open-settings" class="gear-btn" type="button" title="ตั้งค่า Supabase Sync" aria-label="เปิดตั้งค่า Supabase Sync">
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
-      <path d="M19.4 15a8 8 0 0 0 .1-1 8 8 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.8 7.8 0 0 0-1.7-1l-.4-2.6H10l-.4 2.6a7.8 7.8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a8 8 0 0 0-.1 1c0 .3 0 .7.1 1l-2 1.5 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.6h4l.4-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-    </svg>
-  </button>
 
   <dialog id="sb-settings" aria-labelledby="sb-settings-title">
     <div class="modal-head">
@@ -1132,6 +1182,8 @@
       const bar = document.getElementById("sb-presence-bar");
       const cntEl = document.getElementById("sb-presence-count");
       const namesEl = document.getElementById("sb-presence-names");
+      const btn = document.getElementById("sb-presence-btn");
+      const btnCount = document.getElementById("sb-presence-btn-count");
       if (!bar || !cntEl || !namesEl) return;
 
       const entries = [];
@@ -1162,10 +1214,14 @@
       }
 
       if (!list.length) {
-        bar.style.display = "none";
+        if (btn) { btn.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+        bar.classList.remove("open");
         return;
       }
-      bar.style.display = "block";
+      if (btn) {
+        btn.hidden = false;
+        if (btnCount) btnCount.textContent = String(list.length);
+      }
       cntEl.textContent = String(list.length);
       namesEl.innerHTML = list
         .map((p) => {
@@ -1202,7 +1258,9 @@
       } catch (e) {}
       presenceChannel = null;
       const bar = document.getElementById("sb-presence-bar");
-      if (bar) bar.style.display = "none";
+      if (bar) bar.classList.remove("open");
+      const btn = document.getElementById("sb-presence-btn");
+      if (btn) { btn.hidden = true; btn.setAttribute("aria-expanded", "false"); }
     }
 
     async function startPresence() {
@@ -1427,6 +1485,31 @@
     }
 
     if (saveFab) saveFab.addEventListener("click", doSaveNow);
+
+    // ── Presence popover toggle ────────────────────────────────────────────
+    const presenceBtn = document.getElementById("sb-presence-btn");
+    const presenceBar = document.getElementById("sb-presence-bar");
+    if (presenceBtn && presenceBar) {
+      presenceBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = presenceBar.classList.toggle("open");
+        presenceBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      // Click outside to close
+      document.addEventListener("click", (e) => {
+        if (!presenceBar.classList.contains("open")) return;
+        if (presenceBar.contains(e.target) || presenceBtn.contains(e.target)) return;
+        presenceBar.classList.remove("open");
+        presenceBtn.setAttribute("aria-expanded", "false");
+      });
+      // ESC to close
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && presenceBar.classList.contains("open")) {
+          presenceBar.classList.remove("open");
+          presenceBtn.setAttribute("aria-expanded", "false");
+        }
+      });
+    }
 
     // Ctrl+S / Cmd+S anywhere on parent → save
     window.addEventListener("keydown", (e) => {
