@@ -1269,6 +1269,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div class="nav-section">
     <div class="nav-label">📐 มาตรฐาน & BOM</div>
     <!-- 9  --> <div class="nav-item" onclick="showPage('bom',this)"><span class="nav-icon">🧩</span><span class="nav-seq">10</span> BOM & งาน</div>
+    <!--10B--> <div class="nav-item" onclick="showPage('engineering-change',this)"><span class="nav-icon">📐</span><span class="nav-seq">10B</span> Engineering Change</div>
     <!-- 10 --> <div class="nav-item" onclick="showPage('costanalysis',this)"><span class="nav-icon">💰</span><span class="nav-seq">11</span> ต้นทุน & วิเคราะห์</div>
     <!-- 11 --> <div class="nav-item" onclick="showPage('qcinspect',this)"><span class="nav-icon">🔬</span><span class="nav-seq">12</span> ทะเบียนจุดตรวจ QC</div>
     <!-- 12 --> <div class="nav-item" onclick="showPage('condstd',this)"><span class="nav-icon">📐</span><span class="nav-seq">13</span> ทะเบียน Condition Std</div>
@@ -1321,6 +1322,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div class="nav-section">
     <div class="nav-label">📊 Dashboard & รายงาน</div>
     <!-- 21 --> <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span><span class="nav-seq">25</span> Dashboard สรุปการผลิต</div>
+    <div class="nav-item" onclick="showPage('carbon-footprint',this,'dash')"><span class="nav-icon">🌿</span><span class="nav-seq">25A</span> Dashboard Carbon (CFO/CFP)</div>
+    <div class="nav-item" onclick="showPage('carbon-footprint',this,'cfo')"><span class="nav-icon">🏭</span><span class="nav-seq">25C</span> คำนวณ CFO (Carbon องค์กร)</div>
+    <div class="nav-item" onclick="showPage('carbon-footprint',this,'cfp')"><span class="nav-icon">📦</span><span class="nav-seq">25D</span> คำนวณ CFP (Carbon ผลิตภัณฑ์)</div>
     <div class="nav-item" onclick="showPage('line-summary',this)"><span class="nav-icon">💬</span><span class="nav-seq">25B</span> สรุปข้อความส่ง LINE</div>
     <!-- 26   --> <div class="nav-item" onclick="showPage('nganalysis',this)"><span class="nav-icon">🔴</span><span class="nav-seq">26</span> วิเคราะห์ NG & PPM</div>
     <!-- 27   --> <div class="nav-item" onclick="showPage('condcompare',this)"><span class="nav-icon">📈</span><span class="nav-seq">27</span> เปรียบเทียบ Condition</div>
@@ -3064,6 +3068,63 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     </tr></thead>
     <tbody id="bom-tbody"></tbody>
   </table></div></div>
+</div>
+
+<!-- ========== ENGINEERING CHANGE (ECN) ========== -->
+<div class="page" id="page-engineering-change">
+  <div class="page-header">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;width:100%">
+      <div>
+        <div class="page-title">📐 Engineering Change (ECN)</div>
+        <div class="page-sub">บันทึกการเปลี่ยนแปลงทางวิศวกรรม — สร้างรายการอัตโนมัติจาก BOM / ทะเบียนเครื่อง / วัตถุดิบ / พนักงาน</div>
+        <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-ENG-ECN-001</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="badge badge-blue" id="eco-change-count">0</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ecoRefreshNow()">🔄 สแกนการเปลี่ยนแปลง</button>
+        <button type="button" class="page-print-btn btn-sm" onclick="ecoPrintEcn()">🖨 พิมพ์หน้านี้</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="ecoClearAll()" title="ล้างประวัติและตั้งจุดอ้างอิงใหม่">🗑 ล้างประวัติ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-title">🔎 กรองตามงาน (ข้อมูลงานจาก BOM)</div>
+    <div class="form-row" style="align-items:flex-end;flex-wrap:wrap;gap:12px">
+      <div class="form-group" style="min-width:260px;flex:1">
+        <div class="form-label">เลือกงาน</div>
+        <select id="eco-filter-job" onchange="ecoFilterJobChange()" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text)">
+          <option value="">ทุกงาน / ทุกแหล่งที่มา</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:var(--text3);max-width:440px;line-height:1.45">
+        รายการด้านล่างเกิดจากความต่างของสแนปช็อตก่อน–หลังเมื่อมีการบันทึก BOM หรือแก้ทะเบียนเครื่อง / วัตถุดิบ / พนักงาน เปิดหน้านี้หรือกดสแกนเพื่ออัปเดตรายการล่าสุด (ซิงก์ผ่าน Supabase ใช้ไฟล์ preview)
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-title">📋 รายการเปลี่ยนแปลงที่ตรวจพบ (อัตโนมัติ)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>เลข EC</th>
+        <th>วันเวลา</th>
+        <th>หมวด</th>
+        <th>อ้างอิง</th>
+        <th>รายการ</th>
+        <th>ค่าเดิม</th>
+        <th>ค่าใหม่</th>
+        <th>สถานะ</th>
+      </tr></thead>
+      <tbody id="eco-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-title">✍️ ลายเซ็นแผนกที่เกี่ยวข้อง</div>
+    <div id="eco-sign-wrap" style="display:grid;gap:10px"></div>
+    <div style="margin-top:12px;font-size:11px;color:var(--text3)">ลายเซ็นถูกเก็บในเบราว์เซอร์ (คีย์ <span style="font-family:IBM Plex Mono,monospace;font-size:10px">_ecoDeptSignatures</span>) และซิงก์เมื่อใช้ไฟล์ preview กับ Supabase</div>
+  </div>
 </div>
 
 <!-- ========== MACHINE GROUP ========== -->
@@ -6838,7 +6899,7 @@ function getSpecByJob(jobName){ return SPEC_DB.filter(function(s){return s.jobNa
 
 var MACHINE_DB = JSON.parse(localStorage.getItem('_machineDB')||'{}');
 
-function saveMachineDB(){ try{ localStorage.setItem('_machineDB',JSON.stringify(MACHINE_DB)); }catch(e){} }
+function saveMachineDB(){ try{ localStorage.setItem('_machineDB',JSON.stringify(MACHINE_DB)); }catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
 
 function getMachineInfo(machId){
   if(MACHINE_DB[machId]) return MACHINE_DB[machId];
@@ -7066,7 +7127,7 @@ function initEmployeeRegistry(){
   }
   if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
 }
-function saveEmployeeRegistry(){ try{localStorage.setItem('_employeeRegistry',JSON.stringify(EMPLOYEE_REGISTRY));}catch(e){} }
+function saveEmployeeRegistry(){ try{localStorage.setItem('_employeeRegistry',JSON.stringify(EMPLOYEE_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
 function getEmployeeById(id){ return EMPLOYEE_REGISTRY.find(function(e){return e.id===id;})||null; }
 function getEmployeesByDept(dept){ return EMPLOYEE_REGISTRY.filter(function(e){return e.dept===dept&&e.status==='active';}); }
 function getEmployeesByMachine(machId){ return EMPLOYEE_REGISTRY.filter(function(e){return e.machine===machId&&e.status==='active';}); }
@@ -7110,7 +7171,7 @@ var RAWMAT_REGISTRY = JSON.parse(localStorage.getItem('_rawmatRegistry')||'null'
   ];
   return plasticItems.concat(pkgItems);
 })();
-function saveRawmatRegistry(){ try{localStorage.setItem('_rawmatRegistry',JSON.stringify(RAWMAT_REGISTRY));}catch(e){} }
+function saveRawmatRegistry(){ try{localStorage.setItem('_rawmatRegistry',JSON.stringify(RAWMAT_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
 function getRawmatByCode(code){ return RAWMAT_REGISTRY.find(function(r){return r.code===code;})||null; }
 function getRawmatById(id){ return RAWMAT_REGISTRY.find(function(r){return r.id===id;})||null; }
 
@@ -7276,6 +7337,414 @@ function persistJobs(){
   }catch(e){
     console.error('persistJobs:', e);
   }
+  if(typeof ecoOnDataMutation==='function') ecoOnDataMutation();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Engineering Change Notice (ECN) — ตรวจจับการเปลี่ยนแปลงจาก BOM / เครื่อง / วัตถุดิบ / พนักงาน
+// ═══════════════════════════════════════════════════════════════════════════
+var ECO_STORAGE_CHANGES = '_engineeringChanges';
+var ECO_STORAGE_BASELINE = '_ecoBaseline';
+var ECO_STORAGE_SIG = '_ecoDeptSignatures';
+
+function ecoLoadChanges(){
+  try{
+    var t = localStorage.getItem(ECO_STORAGE_CHANGES);
+    var a = t ? JSON.parse(t) : [];
+    return Array.isArray(a) ? a : [];
+  }catch(e){ return []; }
+}
+function ecoSaveChanges(arr){
+  try{ localStorage.setItem(ECO_STORAGE_CHANGES, JSON.stringify(arr||[])); }catch(e){}
+}
+function ecoLoadBaseline(){
+  try{
+    var t = localStorage.getItem(ECO_STORAGE_BASELINE);
+    return t ? JSON.parse(t) : null;
+  }catch(e){ return null; }
+}
+function ecoSaveBaseline(obj){
+  try{ localStorage.setItem(ECO_STORAGE_BASELINE, JSON.stringify(obj)); }catch(e){}
+}
+
+function ecoCompactJob(j){
+  if(!j) return {};
+  var ps = j.processSteps;
+  var psShort = '';
+  if(Array.isArray(ps)&&ps.length){
+    psShort = ps.map(function(s){ return typeof s==='string'?s:(s&&s.name)||''; }).join('|').slice(0,400);
+  }
+  return {
+    machine:String(j.machine||''),
+    ton:Number(j.ton)||0,
+    plastic:String(j.plastic||''),
+    grade:String(j.grade||''),
+    mb:String(j.mb||''),
+    mbRatio:Number(j.mbRatio)||0,
+    mixMethod:String(j.mixMethod||''),
+    cav:Number(j.cav)||0,
+    ct:Number(j.ct)||0,
+    eff:Number(j.eff)||0,
+    workers:Number(j.workers||j.numWorkers)||0,
+    processes:Number(j.processes||j.numProcess)||0,
+    processText:String(j.processList||j.process||'').slice(0,500),
+    stepsSummary:psShort,
+    wt:Number(j.wt)||0,
+    runnerWt:Number(j.runnerWt)||0,
+    regrindPct:Number(j.regrindPct)||0,
+    moldCode:String(j.moldCode||j.mold||''),
+    customer:String(j.customer||''),
+    mixIngr:JSON.stringify(j.mixIngredients||[])
+  };
+}
+function ecoCompactMach(mid, info){
+  var x = info||{};
+  return {
+    ton:Number(x.ton)||0,
+    brand:String(x.brand||''),
+    model:String(x.model||''),
+    maker:String(x.maker||''),
+    serialNo:String(x.serialNo||''),
+    status:String(x.status||'')
+  };
+}
+function ecoCompactRm(r){
+  return {
+    name:String(r.name||''),
+    grade:String(r.grade||''),
+    category:String(r.category||''),
+    supplier:String(r.supplier||''),
+    price:Number(r.price)||0,
+    status:String(r.status||'')
+  };
+}
+function ecoCompactEmp(e){
+  return {
+    name:String(e.name||''),
+    dept:String(e.dept||''),
+    machine:String(e.machine||e.mainMachine||''),
+    position:String(e.position||''),
+    status:String(e.status||'')
+  };
+}
+
+function ecoBuildSnapshot(){
+  var jobMap = {};
+  (typeof jobs!=='undefined'&&jobs?jobs:[]).forEach(function(j){
+    if(j&&j.name) jobMap[j.name]=ecoCompactJob(j);
+  });
+  var machMap = {};
+  if(typeof MACHINE_DB!=='undefined'&&MACHINE_DB){
+    Object.keys(MACHINE_DB).sort().forEach(function(k){
+      machMap[k]=ecoCompactMach(k,MACHINE_DB[k]);
+    });
+  }
+  var rmMap = {};
+  if(typeof RAWMAT_REGISTRY!=='undefined'&&RAWMAT_REGISTRY){
+    RAWMAT_REGISTRY.forEach(function(r){
+      if(r&&r.code) rmMap[r.code]=ecoCompactRm(r);
+    });
+  }
+  var empMap = {};
+  if(typeof EMPLOYEE_REGISTRY!=='undefined'&&EMPLOYEE_REGISTRY){
+    EMPLOYEE_REGISTRY.forEach(function(e){
+      if(e&&e.id) empMap[e.id]=ecoCompactEmp(e);
+    });
+  }
+  return { v:1, jobs:jobMap, machines:machMap, rawmat:rmMap, employees:empMap };
+}
+
+var ECO_JOB_LABELS = {
+  machine:'เครื่องจักร (BOM)', ton:'โทนน์', plastic:'เม็ดพลาสติก', grade:'เกรดเม็ด',
+  mb:'สี Masterbatch', mbRatio:'อัตราส่วน MB (g/kg)', mixMethod:'วิธีผสมเม็ด',
+  cav:'Cavity', ct:'CT (วินาที/ช็อต)', eff:'ประสิทธิภาพ %',
+  workers:'จำนวนคน', processes:'จำนวนขั้นตอน', processText:'รายละเอียดกระบวนการ',
+  stepsSummary:'ขั้นตอนประกอบ/กระบวนการ',
+  wt:'น้ำหนักชิ้น (g)', runnerWt:'Runner (g/shot)', regrindPct:'% Regrind',
+  moldCode:'รหัสแม่พิมพ์', customer:'ลูกค้า', mixIngr:'สูตรผสมเม็ด (วัตถุดิบ)'
+};
+var ECO_MACH_LABELS = {
+  ton:'โทนน์', brand:'ยี่ห้อ', model:'รุ่น', maker:'ผู้ผลิต', serialNo:'Serial', status:'สถานะ'
+};
+var ECO_RM_LABELS = {
+  name:'ชื่อวัตถุดิบ', grade:'เกรด', category:'หมวด', supplier:'Supplier', price:'ราคา', status:'สถานะ'
+};
+var ECO_EMP_LABELS = {
+  name:'ชื่อ', dept:'แผนก', machine:'เครื่องที่ดูแล', position:'ตำแหน่ง', status:'สถานะ'
+};
+
+function ecoNextSeq(){
+  try{
+    var n = parseInt(localStorage.getItem('_ecoSeq')||'0',10)||0;
+    n++;
+    localStorage.setItem('_ecoSeq', String(n));
+    return n;
+  }catch(e){ return Date.now()%100000; }
+}
+
+function ecoFmt(v){
+  if(v===null||v===undefined) return '';
+  if(typeof v==='object') return JSON.stringify(v);
+  return String(v);
+}
+
+function ecoDiffMaps(catLabel, oldObj, newObj, labels, jobOrRef){
+  var changes = [];
+  if(!oldObj) oldObj={};
+  if(!newObj) newObj={};
+  var keys = {};
+  Object.keys(oldObj).forEach(function(k){ keys[k]=1; });
+  Object.keys(newObj).forEach(function(k){ keys[k]=1; });
+  Object.keys(keys).forEach(function(field){
+    var ov = oldObj[field];
+    var nv = newObj[field];
+    var os = ecoFmt(ov), ns = ecoFmt(nv);
+    if(os===ns) return;
+    changes.push({
+      field:field,
+      label:labels[field]||field,
+      oldVal:os||'(ว่าง)',
+      newVal:ns||'(ว่าง)',
+      cat:catLabel,
+      ref:jobOrRef||''
+    });
+  });
+  return changes;
+}
+
+function ecoDetectAndLog(){
+  var cur = ecoBuildSnapshot();
+  var prev = ecoLoadBaseline();
+  if(!prev){
+    ecoSaveBaseline(cur);
+    return;
+  }
+  var batch = [];
+  var jKeys = {};
+  Object.keys(prev.jobs||{}).forEach(function(k){ jKeys[k]=1; });
+  Object.keys(cur.jobs||{}).forEach(function(k){ jKeys[k]=1; });
+  Object.keys(jKeys).forEach(function(jobName){
+    var oj = (prev.jobs||{})[jobName];
+    var nj = (cur.jobs||{})[jobName];
+    if(!oj&&nj){
+      batch.push({ cat:'BOM / งาน', ref:jobName, field:'__new__', label:'เพิ่ม BOM / งาน', oldVal:'-', newVal:jobName });
+      return;
+    }
+    if(oj&&!nj){
+      batch.push({ cat:'BOM / งาน', ref:jobName, field:'__del__', label:'ลบ BOM / งาน', oldVal:jobName, newVal:'-' });
+      return;
+    }
+    ecoDiffMaps('BOM / งาน', oj, nj, ECO_JOB_LABELS, jobName).forEach(function(x){ batch.push(x); });
+  });
+  var mKeys = {};
+  Object.keys(prev.machines||{}).forEach(function(k){ mKeys[k]=1; });
+  Object.keys(cur.machines||{}).forEach(function(k){ mKeys[k]=1; });
+  Object.keys(mKeys).forEach(function(mid){
+    var o = (prev.machines||{})[mid];
+    var n = (cur.machines||{})[mid];
+    var ref = 'เครื่อง '+mid;
+    if(!o&&n){
+      batch.push({ cat:'เครื่องจักร', ref:ref, field:'__new__', label:'เพิ่มข้อมูลเครื่องในทะเบียน', oldVal:'-', newVal:mid });
+      return;
+    }
+    if(o&&!n){
+      batch.push({ cat:'เครื่องจักร', ref:ref, field:'__del__', label:'ลบ/ไม่มีในทะเบียน', oldVal:mid, newVal:'-' });
+      return;
+    }
+    ecoDiffMaps('เครื่องจักร', o, n, ECO_MACH_LABELS, ref).forEach(function(x){ batch.push(x); });
+  });
+  var rKeys = {};
+  Object.keys(prev.rawmat||{}).forEach(function(k){ rKeys[k]=1; });
+  Object.keys(cur.rawmat||{}).forEach(function(k){ rKeys[k]=1; });
+  Object.keys(rKeys).forEach(function(code){
+    var o = (prev.rawmat||{})[code];
+    var n = (cur.rawmat||{})[code];
+    var ref = 'รหัส '+code;
+    if(!o&&n){
+      batch.push({ cat:'วัตถุดิบ', ref:ref, field:'__new__', label:'เพิ่มวัตถุดิบในทะเบียน', oldVal:'-', newVal:code });
+      return;
+    }
+    if(o&&!n){
+      batch.push({ cat:'วัตถุดิบ', ref:ref, field:'__del__', label:'ลบวัตถุดิบออกจากทะเบียน', oldVal:code, newVal:'-' });
+      return;
+    }
+    ecoDiffMaps('วัตถุดิบ', o, n, ECO_RM_LABELS, ref).forEach(function(x){ batch.push(x); });
+  });
+  var eKeys = {};
+  Object.keys(prev.employees||{}).forEach(function(k){ eKeys[k]=1; });
+  Object.keys(cur.employees||{}).forEach(function(k){ eKeys[k]=1; });
+  Object.keys(eKeys).forEach(function(eid){
+    var o = (prev.employees||{})[eid];
+    var n = (cur.employees||{})[eid];
+    var ref = 'พนักงาน '+eid;
+    if(!o&&n){
+      batch.push({ cat:'บุคลากร', ref:ref, field:'__new__', label:'เพิ่มพนักงานในทะเบียน', oldVal:'-', newVal:(n&&n.name)||eid });
+      return;
+    }
+    if(o&&!n){
+      batch.push({ cat:'บุคลากร', ref:ref, field:'__del__', label:'ลบพนักงานออกจากทะเบียน', oldVal:(o&&o.name)||eid, newVal:'-' });
+      return;
+    }
+    ecoDiffMaps('บุคลากร', o, n, ECO_EMP_LABELS, ref).forEach(function(x){ batch.push(x); });
+  });
+
+  ecoSaveBaseline(cur);
+
+  if(!batch.length) return;
+
+  var list = ecoLoadChanges();
+  var dayStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  batch.forEach(function(b){
+    var seq = ecoNextSeq();
+    list.unshift({
+      id:'EC-'+dayStr+'-'+String(seq).padStart(4,'0'),
+      ts:new Date().toISOString(),
+      category:b.cat,
+      jobRef:b.ref||'',
+      field:b.field,
+      label:b.label,
+      oldVal:b.oldVal,
+      newVal:b.newVal,
+      status:'รอลงนามแผนก'
+    });
+  });
+  if(list.length>800) list = list.slice(0,800);
+  ecoSaveChanges(list);
+}
+
+function ecoOnDataMutation(){
+  try{ ecoDetectAndLog(); }catch(e){ console.warn('ecoDetectAndLog', e); }
+}
+
+function ecoLoadSignatures(){
+  try{
+    var t = localStorage.getItem(ECO_STORAGE_SIG);
+    return t ? JSON.parse(t) : {};
+  }catch(e){ return {}; }
+}
+function ecoSaveSignatures(obj){
+  try{ localStorage.setItem(ECO_STORAGE_SIG, JSON.stringify(obj||{})); }catch(e){}
+}
+
+function ecoDeptRowsHtml(){
+  var sig = ecoLoadSignatures();
+  var defs = [
+    {k:'prod', title:'ผู้ผลิต / Production'},
+    {k:'eng', title:'วิศวกรรม / Process Engineering'},
+    {k:'qa', title:'QC / QA'},
+    {k:'maint', title:'ซ่อมบำรุง / Maintenance'},
+    {k:'mat', title:'จัดซื้อ / คลังวัตถุดิบ'},
+    {k:'hr', title:'ทรัพยากรบุคคล / HR'}
+  ];
+  return defs.map(function(d){
+    var s = sig[d.k]||{};
+    var name = s.name||'';
+    var dt = s.date||'';
+    var note = s.note||'';
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg2)">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px">'+d.title+'</div>'
+      +'<div class="form-row" style="gap:8px;flex-wrap:wrap">'
+      +'<div class="form-group" style="min-width:140px;flex:1"><div class="form-label">ชื่อผู้ลงนาม</div>'
+      +'<input type="text" class="eco-sig-name" data-k="'+d.k+'" value="'+String(name).replace(/"/g,'&quot;')+'" placeholder="ชื่อ-สกุล"></div>'
+      +'<div class="form-group" style="min-width:120px"><div class="form-label">วันที่</div>'
+      +'<input type="date" class="eco-sig-date" data-k="'+d.k+'" value="'+dt+'"></div>'
+      +'<div class="form-group" style="min-width:180px;flex:2"><div class="form-label">หมายเหตุ</div>'
+      +'<input type="text" class="eco-sig-note" data-k="'+d.k+'" value="'+String(note).replace(/"/g,'&quot;')+'" placeholder="เช่น รับทราบ / เงื่อนไขเพิ่มเติม"></div>'
+      +'</div></div>';
+  }).join('');
+}
+
+function ecoBindSignatureInputs(){
+  document.querySelectorAll('.eco-sig-name,.eco-sig-date,.eco-sig-note').forEach(function(el){
+    el.onchange = ecoPersistSignaturesFromDom;
+    el.onblur = ecoPersistSignaturesFromDom;
+  });
+}
+function ecoPersistSignaturesFromDom(){
+  var sig = {};
+  ['prod','eng','qa','maint','mat','hr'].forEach(function(k){
+    var n=document.querySelector('.eco-sig-name[data-k="'+k+'"]');
+    var d=document.querySelector('.eco-sig-date[data-k="'+k+'"]');
+    var t=document.querySelector('.eco-sig-note[data-k="'+k+'"]');
+    sig[k]={ name:(n&&n.value)||'', date:(d&&d.value)||'', note:(t&&t.value)||'' };
+  });
+  ecoSaveSignatures(sig);
+}
+
+function ecoRenderChangeTable(filterJob){
+  var tbody = document.getElementById('eco-tbody');
+  if(!tbody) return;
+  var rows = ecoLoadChanges();
+  if(filterJob){
+    rows = rows.filter(function(r){
+      var jr = String(r.jobRef||'');
+      return jr.indexOf(filterJob)>=0 || jr===filterJob;
+    });
+  }
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:28px">ยังไม่มีการบันทึกการเปลี่ยนแปลง — ระบบจะสร้างรายการอัตโนมัติเมื่อมีการแก้ BOM / เครื่อง / วัตถุดิบ / พนักงาน</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(function(r){
+    var esc = function(s){ return String(s==null?'':s).replace(/</g,'&lt;').replace(/&/g,'&amp;'); };
+    return '<tr>'
+      +'<td style="white-space:nowrap;font-size:11px">'+esc(r.id)+'</td>'
+      +'<td style="white-space:nowrap;font-size:11px">'+esc((r.ts||'').replace('T',' ').slice(0,19))+'</td>'
+      +'<td>'+esc(r.category)+'</td>'
+      +'<td style="font-size:11px">'+esc(r.jobRef)+'</td>'
+      +'<td>'+esc(r.label)+'</td>'
+      +'<td style="max-width:140px;word-break:break-all;font-size:11px;color:var(--red)">'+esc(r.oldVal)+'</td>'
+      +'<td style="max-width:140px;word-break:break-all;font-size:11px;color:var(--green)">'+esc(r.newVal)+'</td>'
+      +'<td><span class="badge badge-yellow">'+esc(r.status||'')+'</span></td>'
+      +'</tr>';
+  }).join('');
+}
+
+function ecoPopulateJobSelect(){
+  var sel = document.getElementById('eco-filter-job');
+  if(!sel) return;
+  var v = sel.value;
+  sel.innerHTML = '<option value="">ทุกงาน / ทุกแหล่งที่มา</option>'
+    +(typeof jobs!=='undefined'&&jobs?jobs:[]).map(function(j){
+      if(!j||!j.name) return '';
+      var nm = String(j.name).replace(/</g,'').replace(/"/g,'&quot;');
+      return '<option value="'+nm+'">'+nm+'</option>';
+    }).join('');
+  if(v && [...sel.options].some(function(o){ return o.value===v; })) sel.value=v;
+}
+
+function ecoRenderPage(){
+  ecoOnDataMutation();
+  ecoPopulateJobSelect();
+  var fj = document.getElementById('eco-filter-job');
+  ecoRenderChangeTable(fj ? fj.value : '');
+  var wrap = document.getElementById('eco-sign-wrap');
+  if(wrap){
+    wrap.innerHTML = ecoDeptRowsHtml();
+    ecoBindSignatureInputs();
+  }
+  var cnt = document.getElementById('eco-change-count');
+  if(cnt) cnt.textContent = String(ecoLoadChanges().length);
+}
+
+function ecoFilterJobChange(){
+  ecoRenderChangeTable(document.getElementById('eco-filter-job').value||'');
+}
+
+function ecoRefreshNow(){
+  ecoRenderPage();
+  if(typeof _toast==='function') _toast('รีเฟรช — ตรวจจับการเปลี่ยนแปลงแล้ว');
+}
+
+function ecoClearAll(){
+  if(!confirm('ล้างประวัติ ECN ทั้งหมดและตั้งจุดอ้างอิงใหม่?')) return;
+  ecoSaveChanges([]);
+  ecoSaveBaseline(ecoBuildSnapshot());
+  ecoRenderPage();
+}
+
+function ecoPrintEcn(){
+  window.print();
 }
 /** น้ำหนักใช้งานจริง (g/ชิ้น) = น้ำหนักชิ้น + (Runner/Shot ÷ Cavity) */
 function jobEffectiveWtPerPc(job, fallbackG){
@@ -8559,6 +9028,7 @@ var _navMenuList = [
   {id:'pmchecklist',  label:'ทะเบียนรายการตรวจ PM',     icon:'📋', group:'🔩 ซ่อมบำรุง',   keywords:'checklist รายการตรวจ pm'},
   // ต้นทุน
   {id:'costanalysis', label:'ต้นทุน & วิเคราะห์',       icon:'💰', group:'💰 ต้นทุน',      keywords:'cost ต้นทุน วิเคราะห์ analysis'},
+  {id:'carbon-footprint', label:'Carbon CFO / CFP', icon:'🌿', group:'📊 Dashboard', keywords:'carbon cfo cfp footprint co2 คาร์บอน รอยเท้า'},
   {id:'actionplan',   label:'Action Plan',             icon:'📌', group:'💰 ต้นทุน',      keywords:'action plan แก้ไข improvement'},
   {id:'history',      label:'สรุปปัญหา & แจ้งเตือน',    icon:'🚨', group:'🚨 แจ้งเตือน',   keywords:'แจ้งเตือน alert ปัญหา วิกฤต pm วัตถุดิบ ng downtime action plan'},
   // Document
@@ -8870,6 +9340,8 @@ function showPage(id, el, workGroup){
   } else if(id==='approvalproc'){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
     window._apListTab = 'active';
+  } else if(id==='carbon-footprint'){
+    window._carbonTab = (typeof workGroup==='string' && workGroup) ? workGroup : (window._carbonTab||'dash');
   }
   if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== id) {
     _pageNavStack.push(window._currentPage);
@@ -10532,7 +11004,12 @@ function clShowTab(tab){
   if(tab==='registry'){ clRenderGrinderList(); clRenderFeederList(); }
   if(tab==='layout') clRenderLayout();
   if(tab==='bom') clRenderBomConfig();
-  if(tab==='stock'){ rgRenderStock(); rgRenderLedger(); }
+  if(tab==='stock'){
+    rgEnsureLedMonth();
+    var t0=document.querySelector('#cl-panel-stock .rg-stock-main-tabs .tab');
+    if(typeof rgMainTab==='function' && t0) rgMainTab('stock', t0);
+    else { rgRenderStock(); rgRenderLedger(); }
+  }
 }
 
 function clInit(){
@@ -17208,7 +17685,10 @@ function renderBom(filter='',matFilter=''){
     return j.plastic===matFilter;
   });
   const tbody=document.getElementById('bom-tbody');
-  tbody.innerHTML=list.map((j,i)=>{
+  tbody.innerHTML=list.map((j)=>{
+    var jobIdx=jobs.indexOf(j);
+    if(jobIdx<0) jobIdx=jobs.findIndex(function(x){ return x&&x.name===j.name; });
+    var editCall=(jobIdx>=0)?('editBom('+jobIdx+')'):('editBom(\''+String(j.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')');
     const pk=j.packingStd||{};
     const shotWt  = j._shotWt || (typeof jobPlasticShotGrams==='function'?jobPlasticShotGrams(j):(j.wt&&j.cav ? +(j.wt*j.cav).toFixed(1) : 0));
     const pieceWt = j.wt;
@@ -17315,7 +17795,7 @@ function renderBom(filter='',matFilter=''){
       +'<td style="font-size:12px">'+(j.customer||'-')+'</td>'
       +'<td>'+getApprovalBadge('bom-'+j.name,'อนุมัติ BOM: '+j.name.substring(0,20))+'</td>'
       +'<td style="white-space:nowrap">'
-        +'<button class="btn btn-secondary btn-sm" onclick="editBom('+i+')">✏</button>'
+        +'<button class="btn btn-secondary btn-sm" onclick="'+editCall+'">✏</button>'
         +'<button class="btn-print" style="padding:3px 7px;font-size:11px" onclick="printBomDoc(this.dataset.n)" data-n="'+j.name+'" title="พิมพ์ F-PD-I010">🖨</button>'
         +'<button onclick="rmEditBOM(\''+j.name.replace(/'/g,"\\'")+'\');event.stopPropagation()" style="padding:3px 7px;font-size:11px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.3);color:#e3b341;border-radius:4px;cursor:pointer" title="แก้ไข BOM (ต้นทุน/คน/กระบวนการ/Packing)">🧩</button>'
         +'<button onclick="openCostAnalysis(this.dataset.n)" data-n="'+j.name+'" style="padding:3px 7px;font-size:11px;background:rgba(163,113,247,0.12);border:1px solid rgba(163,113,247,0.3);color:#a371f7;border-radius:4px;cursor:pointer" title="วิเคราะห์ต้นทุน">💰</button>'
@@ -17326,8 +17806,10 @@ function renderBom(filter='',matFilter=''){
 }
 function filterBom(v){ renderBom(v); }
 function filterBomMat(v){ renderBom('',v); }
-function editBom(i){
-  const j=jobs[i];
+function editBom(ref){
+  var j=null;
+  if(typeof ref==='number'&&ref>=0&&ref<jobs.length) j=jobs[ref];
+  else if(typeof ref==='string'&&ref) j=jobs.find(function(x){ return x&&x.name===ref; });
   if(!j) return;
   if(typeof bomPopulatePlasticSelectors==='function') bomPopulatePlasticSelectors();
   var sv=function(id,v){var el=document.getElementById(id);if(el&&v!==undefined&&v!==null)el.value=v;};
@@ -30464,6 +30946,541 @@ function renderCostLotList(filterJob){
 }
 
 
+// ══════════════════════════════════════════════════════════════════════
+// CARBON — CFO / CFP / Dashboard (ดึงจาก dailyReports + orders + shipment)
+// ══════════════════════════════════════════════════════════════════════
+function _carbonMatFactor(plastic){
+  var cs = CARBON_SETTINGS || CARBON_DEFAULTS;
+  var mp = cs.matKgCO2ePerKg || {};
+  var p = String(plastic || 'PP').trim();
+  var v = parseFloat(mp[p]);
+  if(!isNaN(v) && v >= 0) return v;
+  return parseFloat(mp.PP) || 2;
+}
+
+function _calcReportCarbon(rpt){
+  var lc = _calcLotCost(rpt);
+  var cs = CARBON_SETTINGS || CARBON_DEFAULTS;
+  var j = lc.j;
+  var plastic = j && j.plastic ? j.plastic : 'PP';
+  var mf = _carbonMatFactor(plastic);
+  var mbF = parseFloat(cs.mbKgCO2ePerKg);
+  if(isNaN(mbF)) mbF = 2.5;
+  var matCO2 = lc.matKg * mf + lc.mbKg * mbF;
+  var kwh = lc.schedHrs * (parseFloat(cs.avgKwhPerMachHour) || 6);
+  var grid = parseFloat(cs.gridKgCO2PerKwh);
+  if(isNaN(grid)) grid = 0.499;
+  var procCO2 = kwh * grid;
+  var ngKg = (lc.totalNg || 0) * (lc.wtPerPc / 1000);
+  var wi = parseFloat(cs.ngWasteIntensity);
+  if(isNaN(wi)) wi = 0.35;
+  var ngCO2 = ngKg * mf * wi;
+  return {
+    lc: lc,
+    date: rpt.date,
+    machine: rpt.machine,
+    jobName: rpt.jobName,
+    orderNo: rpt.orderNo || '',
+    lotNo: rpt.lotNo || '',
+    schedHrs: lc.schedHrs,
+    okProd: lc.okProd,
+    totalProd: lc.totalProd,
+    matCO2: matCO2,
+    procCO2: procCO2,
+    ngCO2: ngCO2,
+    totalCO2: matCO2 + procCO2 + ngCO2,
+    kwh: kwh
+  };
+}
+
+function carbonLotGroupKey(jobName, lotNo, orderNo){
+  return String(jobName || '') + '\x01' + String(lotNo || '') + '\x01' + String(orderNo || '');
+}
+
+function carbonShipDateForOrder(orderNo){
+  if(!orderNo) return '';
+  var ord = (typeof orders !== 'undefined' && orders) ? orders.find(function(o){ return o.orderNo === orderNo; }) : null;
+  if(ord && ord.shippedAt) return String(ord.shippedAt).slice(0, 10);
+  var sh = typeof shipmentHistory !== 'undefined' ? shipmentHistory : [];
+  var h = sh.find(function(x){ return x.orderNo === orderNo; });
+  return h ? String(h.date || '').slice(0, 10) : '';
+}
+
+function carbonHasShipped(orderNo){
+  if(!orderNo) return false;
+  var ord = (typeof orders !== 'undefined' && orders) ? orders.find(function(o){ return o.orderNo === orderNo; }) : null;
+  if(ord && (ord.shippedAt || ord.status === 'ส่งแล้ว')) return true;
+  var sh = typeof shipmentHistory !== 'undefined' ? shipmentHistory : [];
+  return sh.some(function(x){ return x.orderNo === orderNo; });
+}
+
+function carbonStartDateForGroup(jobName, lotNo, orderNo, minReportDate){
+  var ord = null;
+  if(typeof orders !== 'undefined' && orders){
+    ord = orders.find(function(o){
+      if(orderNo && o.orderNo === orderNo) return true;
+      if(lotNo && o.lotNo === lotNo && (o.jobName === jobName || !jobName)) return true;
+      return false;
+    });
+  }
+  var os = ord && ord.startDate ? String(ord.startDate).slice(0, 10) : '';
+  var mr = minReportDate ? String(minReportDate).slice(0, 10) : '';
+  if(os && mr) return os.localeCompare(mr) < 0 ? os : mr;
+  return os || mr || '-';
+}
+
+function carbonBuildReportRows(){
+  var rows = [];
+  var dr = dailyReports || {};
+  Object.keys(dr).forEach(function(k){
+    var rpt = dr[k];
+    if(!rpt || !rpt.rows) return;
+    var x = _calcReportCarbon(rpt);
+    x._rptKey = k;
+    rows.push(x);
+  });
+  rows.sort(function(a, b){ return String(b.date).localeCompare(String(a.date)); });
+  return rows;
+}
+
+function carbonBuildLotGroups(){
+  var groups = {};
+  carbonBuildReportRows().forEach(function(x){
+    var gk = carbonLotGroupKey(x.jobName, x.lotNo, x.orderNo);
+    if(!groups[gk]){
+      groups[gk] = {
+        jobName: x.jobName,
+        lotNo: x.lotNo,
+        orderNo: x.orderNo,
+        dates: [],
+        machines: {},
+        matCO2: 0,
+        procCO2: 0,
+        ngCO2: 0,
+        transportCO2: 0,
+        schedHrs: 0,
+        okProd: 0,
+        reportCount: 0
+      };
+    }
+    var g = groups[gk];
+    g.dates.push(x.date);
+    g.matCO2 += x.matCO2;
+    g.procCO2 += x.procCO2;
+    g.ngCO2 += x.ngCO2;
+    g.schedHrs += x.schedHrs || 0;
+    g.okProd += x.okProd || 0;
+    g.reportCount++;
+    if(x.machine) g.machines[x.machine] = true;
+  });
+  var cs = CARBON_SETTINGS || CARBON_DEFAULTS;
+  var tr = parseFloat(cs.transportKgCO2ePerShipment);
+  if(isNaN(tr)) tr = 15;
+  Object.keys(groups).forEach(function(gk){
+    var g = groups[gk];
+    g.minDate = g.dates.length ? g.dates.reduce(function(a, b){ return a.localeCompare(b) < 0 ? a : b; }) : '';
+    g.maxDate = g.dates.length ? g.dates.reduce(function(a, b){ return a.localeCompare(b) > 0 ? a : b; }) : '';
+    g.startDisplay = carbonStartDateForGroup(g.jobName, g.lotNo, g.orderNo, g.minDate);
+    g.shipDate = carbonShipDateForOrder(g.orderNo);
+    g.transportCO2 = carbonHasShipped(g.orderNo) ? tr : 0;
+    g.totalCO2 = g.matCO2 + g.procCO2 + g.ngCO2 + g.transportCO2;
+    g.unitCO2 = g.okProd > 0 ? g.totalCO2 / g.okProd : 0;
+  });
+  return groups;
+}
+
+function carbonMonthFromRow(x){
+  return x.date ? String(x.date).substring(0, 7) : '';
+}
+
+function carbonFilterRows(rows, month, jobSel, lotSel, machineSel){
+  var jf = (jobSel || '').trim();
+  var lf = (lotSel || '').trim();
+  var mf = (machineSel || '').trim();
+  return rows.filter(function(x){
+    if(month && carbonMonthFromRow(x) !== month) return false;
+    if(jf && String(x.jobName || '') !== jf) return false;
+    if(lf){
+      var ln = String(x.lotNo || '');
+      var on = String(x.orderNo || '');
+      if(ln !== lf && on !== lf) return false;
+    }
+    if(mf && String(x.machine || '') !== mf) return false;
+    return true;
+  });
+}
+
+function carbonFilterGroups(groupMap, month, jobSel, lotSel, machineSel){
+  var jf = (jobSel || '').trim();
+  var lf = (lotSel || '').trim();
+  var mf = (machineSel || '').trim();
+  var out = {};
+  Object.keys(groupMap).forEach(function(gk){
+    var g = groupMap[gk];
+    if(jf && String(g.jobName || '') !== jf) return;
+    if(lf){
+      var ln = String(g.lotNo || '');
+      var on = String(g.orderNo || '');
+      if(ln !== lf && on !== lf) return;
+    }
+    if(month){
+      var inM = false;
+      (g.dates || []).forEach(function(d){
+        if(String(d).startsWith(month)) inM = true;
+      });
+      if(!inM) return;
+    }
+    if(mf){
+      var okm = g.machines && g.machines[mf];
+      if(!okm) return;
+    }
+    out[gk] = g;
+  });
+  return out;
+}
+
+function carbonFillMonthSelect(selId, includeAll){
+  var el = document.getElementById(selId);
+  if(!el) return;
+  var months = new Set();
+  carbonBuildReportRows().forEach(function(x){ if(x.date) months.add(String(x.date).substring(0, 7)); });
+  var cur = el.value;
+  el.innerHTML = '';
+  if(includeAll){
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = 'ทุกเดือน';
+    el.appendChild(o0);
+  }
+  [...months].sort().reverse().forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m;
+    o.textContent = m;
+    el.appendChild(o);
+  });
+  if(cur && [...el.options].some(function(op){ return op.value === cur; })) el.value = cur;
+}
+
+function carbonFillJobSelect(selId, includeAll, rows){
+  var el = document.getElementById(selId);
+  if(!el) return;
+  var jobsSet = new Set();
+  (rows || carbonBuildReportRows()).forEach(function(x){
+    if(x.jobName) jobsSet.add(x.jobName);
+  });
+  var cur = el.value;
+  el.innerHTML = '';
+  if(!includeAll){
+    var ox = document.createElement('option');
+    ox.value = '';
+    ox.textContent = '-- เลือกชื่องาน --';
+    el.appendChild(ox);
+  }
+  if(includeAll){
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = 'ทุกชื่องาน';
+    el.appendChild(o0);
+  }
+  [...jobsSet].sort().forEach(function(j){
+    var o = document.createElement('option');
+    o.value = j;
+    o.textContent = j;
+    el.appendChild(o);
+  });
+  if(cur && [...el.options].some(function(op){ return op.value === cur; })) el.value = cur;
+}
+
+function carbonFillLotSelect(selId, jobName, includeAll, rows){
+  var el = document.getElementById(selId);
+  if(!el) return;
+  var lotSet = new Set();
+  (rows || carbonBuildReportRows()).forEach(function(x){
+    if(jobName && String(x.jobName) !== jobName) return;
+    if(x.lotNo) lotSet.add(x.lotNo);
+    else if(x.orderNo) lotSet.add(x.orderNo);
+  });
+  var cur = el.value;
+  el.innerHTML = '';
+  if(includeAll){
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = 'ทุก Lot / Order';
+    el.appendChild(o0);
+  }
+  [...lotSet].sort().forEach(function(l){
+    var o = document.createElement('option');
+    o.value = l;
+    o.textContent = l;
+    el.appendChild(o);
+  });
+  if(cur && [...el.options].some(function(op){ return op.value === cur; })) el.value = cur;
+}
+
+function carbonFillMachineSelect(selId, includeAll){
+  var el = document.getElementById(selId);
+  if(!el) return;
+  var machs = new Set();
+  carbonBuildReportRows().forEach(function(x){ if(x.machine) machs.add(x.machine); });
+  var cur = el.value;
+  el.innerHTML = '';
+  if(includeAll){
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = 'ทุกเครื่อง';
+    el.appendChild(o0);
+  }
+  [...machs].sort().forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m;
+    o.textContent = m;
+    el.appendChild(o);
+  });
+  if(cur && [...el.options].some(function(op){ return op.value === cur; })) el.value = cur;
+}
+
+function renderCarbonPage(){
+  loadCarbonSettings();
+  carbonFillMonthSelect('carbon-dash-month', true);
+  carbonFillMonthSelect('carbon-cfo-month', true);
+  carbonFillJobSelect('carbon-dash-job', true);
+  carbonFillJobSelect('carbon-cfo-job', true);
+  carbonFillJobSelect('carbon-cfp-job', false);
+  carbonDashJobChange();
+  carbonCfoJobChange();
+  carbonCfpJobChange();
+  carbonFillMachineSelect('carbon-cfo-machine', true);
+  carbonRenderSettingsForm();
+  carbonSwitchTab(window._carbonTab || 'dash');
+}
+
+function carbonSwitchTab(t){
+  window._carbonTab = t || 'dash';
+  ['dash','cfo','cfp','cfg'].forEach(function(k){
+    var btn = document.getElementById('carbon-tab-' + k);
+    var panel = document.getElementById('carbon-panel-' + k);
+    var on = (window._carbonTab === k);
+    if(btn){
+      btn.style.background = on ? 'var(--accent)' : 'var(--bg2)';
+      btn.style.color = on ? '#fff' : 'var(--text2)';
+      btn.style.fontWeight = on ? '700' : '400';
+    }
+    if(panel) panel.style.display = on ? 'block' : 'none';
+  });
+  carbonRenderActivePanel();
+}
+
+function carbonRenderActivePanel(){
+  var t = window._carbonTab || 'dash';
+  if(t === 'dash') carbonRenderDashboard();
+  else if(t === 'cfo') carbonRenderCFO();
+  else if(t === 'cfp') carbonRenderCFP();
+  else if(t === 'cfg') carbonRenderSettingsForm();
+}
+
+function carbonDashJobChange(){
+  var j = document.getElementById('carbon-dash-job') && document.getElementById('carbon-dash-job').value;
+  carbonFillLotSelect('carbon-dash-lot', j, true);
+  carbonRenderDashboard();
+}
+
+function carbonCfoJobChange(){
+  var j = document.getElementById('carbon-cfo-job') && document.getElementById('carbon-cfo-job').value;
+  carbonFillLotSelect('carbon-cfo-lot', j, true);
+  carbonRenderCFO();
+}
+
+function carbonCfpJobChange(){
+  var j = document.getElementById('carbon-cfp-job') && document.getElementById('carbon-cfp-job').value;
+  carbonFillLotSelect('carbon-cfp-lot', j, true);
+  carbonRenderCFP();
+}
+
+function carbonRenderDashboard(){
+  var month = (document.getElementById('carbon-dash-month') && document.getElementById('carbon-dash-month').value) || '';
+  var jobSel = (document.getElementById('carbon-dash-job') && document.getElementById('carbon-dash-job').value) || '';
+  var lotSel = (document.getElementById('carbon-dash-lot') && document.getElementById('carbon-dash-lot').value) || '';
+  var rows = carbonFilterRows(carbonBuildReportRows(), month, jobSel, lotSel, '');
+  var groups = carbonFilterGroups(carbonBuildLotGroups(), month, jobSel, lotSel, '');
+  var mat = rows.reduce(function(s, x){ return s + x.matCO2; }, 0);
+  var nrg = rows.reduce(function(s, x){ return s + x.procCO2 + x.ngCO2; }, 0);
+  var trn = Object.keys(groups).reduce(function(s, k){ return s + (groups[k].transportCO2 || 0); }, 0);
+  var tot = mat + nrg + trn;
+  function setT(id, v){
+    var e = document.getElementById(id);
+    if(e) e.textContent = v;
+  }
+  setT('carbon-dash-total', tot.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + ' kg CO₂e');
+  setT('carbon-dash-mat', mat.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + ' kg');
+  setT('carbon-dash-nrg', nrg.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + ' kg');
+  setT('carbon-dash-trn', trn.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + ' kg');
+  var all = tot > 0 ? tot : 1;
+  var bm = document.getElementById('carbon-dash-bar-mat');
+  var bn = document.getElementById('carbon-dash-bar-nrg');
+  var bt = document.getElementById('carbon-dash-bar-trn');
+  if(bm) bm.style.width = (mat / all * 100).toFixed(1) + '%';
+  if(bn) bn.style.width = (nrg / all * 100).toFixed(1) + '%';
+  if(bt) bt.style.width = (trn / all * 100).toFixed(1) + '%';
+  var byJob = {};
+  Object.keys(groups).forEach(function(k){
+    var g = groups[k];
+    var jn = g.jobName || '(ไม่มีชื่อ)';
+    if(!byJob[jn]) byJob[jn] = { co2: 0, n: 0 };
+    byJob[jn].co2 += g.totalCO2 || 0;
+    byJob[jn].n += g.reportCount || 0;
+  });
+  var leader = Object.keys(byJob).sort(function(a, b){ return byJob[b].co2 - byJob[a].co2; }).slice(0, 12);
+  var tb = document.getElementById('carbon-dash-leader');
+  if(tb){
+    tb.innerHTML = leader.map(function(jn){
+      var r = byJob[jn];
+      return '<tr><td style="padding:8px">' + jn + '</td><td style="padding:8px;text-align:right;font-weight:700">' + r.co2.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td><td style="padding:8px;text-align:right">' + r.n + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีข้อมูลรายงานการผลิต</td></tr>';
+  }
+}
+
+function carbonRenderCFO(){
+  var month = (document.getElementById('carbon-cfo-month') && document.getElementById('carbon-cfo-month').value) || '';
+  var jobSel = (document.getElementById('carbon-cfo-job') && document.getElementById('carbon-cfo-job').value) || '';
+  var lotSel = (document.getElementById('carbon-cfo-lot') && document.getElementById('carbon-cfo-lot').value) || '';
+  var machSel = (document.getElementById('carbon-cfo-machine') && document.getElementById('carbon-cfo-machine').value) || '';
+  var rows = carbonFilterRows(carbonBuildReportRows(), month, jobSel, lotSel, machSel);
+  var groups = carbonFilterGroups(carbonBuildLotGroups(), month, jobSel, lotSel, machSel);
+  var byMonth = {};
+  rows.forEach(function(x){
+    var m = carbonMonthFromRow(x);
+    if(!m) return;
+    if(!byMonth[m]) byMonth[m] = { mat: 0, proc: 0, ng: 0, trn: 0 };
+    byMonth[m].mat += x.matCO2;
+    byMonth[m].proc += x.procCO2;
+    byMonth[m].ng += x.ngCO2;
+  });
+  Object.keys(groups).forEach(function(gk){
+    var g = groups[gk];
+    var tr = g.transportCO2 || 0;
+    if(tr <= 0) return;
+    var sm = g.shipDate ? String(g.shipDate).substring(0, 7) : '';
+    if(sm){
+      if(!byMonth[sm]) byMonth[sm] = { mat: 0, proc: 0, ng: 0, trn: 0 };
+      byMonth[sm].trn += tr;
+    }
+  });
+  var months = Object.keys(byMonth).sort().reverse();
+  var tbody = document.getElementById('carbon-cfo-tbody');
+  var sumMat = rows.reduce(function(s, x){ return s + x.matCO2; }, 0);
+  var sumProc = rows.reduce(function(s, x){ return s + x.procCO2; }, 0);
+  var sumNg = rows.reduce(function(s, x){ return s + x.ngCO2; }, 0);
+  var sumTrn = Object.keys(groups).reduce(function(s, k){ return s + (groups[k].transportCO2 || 0); }, 0);
+  var sumTot = sumMat + sumProc + sumNg + sumTrn;
+  var sumHrs = rows.reduce(function(s, x){ return s + (x.schedHrs || 0); }, 0);
+  var sumOk = rows.reduce(function(s, x){ return s + (x.okProd || 0); }, 0);
+  var elSum = document.getElementById('carbon-cfo-sum');
+  var elH = document.getElementById('carbon-cfo-hrs');
+  var elO = document.getElementById('carbon-cfo-ok');
+  if(elSum) elSum.textContent = sumTot.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + ' kg';
+  if(elH) elH.textContent = sumHrs.toLocaleString('th-TH', { maximumFractionDigits: 1 });
+  if(elO) elO.textContent = sumOk.toLocaleString();
+  if(tbody){
+    tbody.innerHTML = months.map(function(m){
+      var b = byMonth[m];
+      var line = b.mat + b.proc + b.ng + (b.trn || 0);
+      return '<tr><td style="padding:8px" class="mono">' + m + '</td><td style="padding:8px;text-align:right">' + b.mat.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td><td style="padding:8px;text-align:right">' + b.proc.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td><td style="padding:8px;text-align:right">' + b.ng.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td><td style="padding:8px;text-align:right">' + (b.trn || 0).toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td><td style="padding:8px;text-align:right;font-weight:700">' + line.toLocaleString('th-TH', { maximumFractionDigits: 1 }) + '</td></tr>';
+    }).join('') || '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--text3)">ไม่มีข้อมูลในช่วงที่เลือก — บันทึกใบรายงานการผลิตก่อน</td></tr>';
+  }
+}
+
+function carbonRenderCFP(){
+  var jobSel = (document.getElementById('carbon-cfp-job') && document.getElementById('carbon-cfp-job').value) || '';
+  var lotSel = (document.getElementById('carbon-cfp-lot') && document.getElementById('carbon-cfp-lot').value) || '';
+  if(!jobSel){
+    var tb = document.getElementById('carbon-cfp-tbody');
+    if(tb) tb.innerHTML = '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text3)">เลือกชื่องานด้านบนเพื่อดูรายละเอียด Lot</td></tr>';
+    return;
+  }
+  var groups = carbonBuildLotGroups();
+  var tbody = document.getElementById('carbon-cfp-tbody');
+  var list = Object.keys(groups).filter(function(gk){
+    var g = groups[gk];
+    if(String(g.jobName) !== jobSel) return false;
+    if(lotSel){
+      var ln = String(g.lotNo || '');
+      var on = String(g.orderNo || '');
+      if(ln !== lotSel && on !== lotSel) return false;
+    }
+    return true;
+  }).sort(function(a, b){
+    return String(groups[b].minDate).localeCompare(String(groups[a].minDate));
+  });
+  if(tbody){
+    tbody.innerHTML = list.map(function(gk){
+      var g = groups[gk];
+      var fmt = function(v){ return v.toLocaleString('th-TH', { maximumFractionDigits: 3 }); };
+      return '<tr>'
+        + '<td style="padding:8px;font-weight:600">' + (g.jobName || '') + '</td>'
+        + '<td style="padding:8px" class="mono">' + (g.lotNo || '—') + '</td>'
+        + '<td style="padding:8px" class="mono">' + (g.orderNo || '—') + '</td>'
+        + '<td style="padding:8px;font-size:11px;color:var(--text3)">' + (g.startDisplay || g.minDate || '—') + '</td>'
+        + '<td style="padding:8px;font-size:11px;color:#3fb950">' + (g.shipDate || '—') + '</td>'
+        + '<td style="padding:8px;text-align:right">' + (g.okProd || 0).toLocaleString() + '</td>'
+        + '<td style="padding:8px;text-align:right;font-weight:700;color:var(--accent)">' + fmt(g.totalCO2) + '</td>'
+        + '<td style="padding:8px;text-align:right">' + fmt(g.unitCO2) + '</td>'
+        + '<td style="padding:8px;text-align:right;font-size:11px">' + fmt(g.matCO2) + '</td>'
+        + '<td style="padding:8px;text-align:right;font-size:11px">' + fmt(g.procCO2 + g.ngCO2) + '</td>'
+        + '<td style="padding:8px;text-align:right;font-size:11px">' + fmt(g.transportCO2) + '</td>'
+        + '</tr>';
+    }).join('') || '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบ Lot สำหรับงานนี้</td></tr>';
+  }
+}
+
+function carbonRenderSettingsForm(){
+  var cs = CARBON_SETTINGS || CARBON_DEFAULTS;
+  var g = document.getElementById('carbon-cfg-grid');
+  var k = document.getElementById('carbon-cfg-kwh');
+  var t = document.getElementById('carbon-cfg-trn');
+  var mb = document.getElementById('carbon-mat-mb');
+  if(g) g.value = cs.gridKgCO2PerKwh;
+  if(k) k.value = cs.avgKwhPerMachHour;
+  if(t) t.value = cs.transportKgCO2ePerShipment;
+  if(mb) mb.value = cs.mbKgCO2ePerKg;
+  CARBON_STD_MAT_KEYS.forEach(function(m){
+    var inp = document.getElementById('carbon-mat-' + m);
+    if(inp) inp.value = (cs.matKgCO2ePerKg && cs.matKgCO2ePerKg[m] != null) ? cs.matKgCO2ePerKg[m] : '';
+  });
+}
+
+function saveCarbonSettings(){
+  var cs = mergeCarbonSettingsFromStorage(JSON.parse(JSON.stringify(CARBON_SETTINGS || CARBON_DEFAULTS)));
+  var parseN = function(id, def){
+    var el = document.getElementById(id);
+    var v = parseFloat(el && el.value);
+    return !isNaN(v) && v >= 0 ? v : def;
+  };
+  cs.gridKgCO2PerKwh = parseN('carbon-cfg-grid', CARBON_DEFAULTS.gridKgCO2PerKwh);
+  cs.avgKwhPerMachHour = parseN('carbon-cfg-kwh', CARBON_DEFAULTS.avgKwhPerMachHour);
+  cs.transportKgCO2ePerShipment = parseN('carbon-cfg-trn', CARBON_DEFAULTS.transportKgCO2ePerShipment);
+  cs.mbKgCO2ePerKg = parseN('carbon-mat-mb', CARBON_DEFAULTS.mbKgCO2ePerKg);
+  cs.matKgCO2ePerKg = Object.assign({}, CARBON_DEFAULTS.matKgCO2ePerKg);
+  CARBON_STD_MAT_KEYS.forEach(function(m){
+    var el = document.getElementById('carbon-mat-' + m);
+    var v = parseFloat(el && el.value);
+    if(!isNaN(v) && v >= 0) cs.matKgCO2ePerKg[m] = v;
+  });
+  CARBON_SETTINGS = mergeCarbonSettingsFromStorage(cs);
+  if(persistCarbonSettings()){
+    if(typeof _toast === 'function') _toast('✓ บันทึกตั้งค่า Carbon แล้ว');
+    renderCarbonPage();
+  }
+}
+
+function resetCarbonSettings(){
+  CARBON_SETTINGS = JSON.parse(JSON.stringify(CARBON_DEFAULTS));
+  persistCarbonSettings();
+  carbonRenderSettingsForm();
+  if(typeof _toast === 'function') _toast('↺ รีเซ็ตตั้งค่า Carbon');
+  renderCarbonPage();
+}
+
+
 // ══════════════════════════════════════════════════════
 // NG ANALYSIS PAGE
 // ══════════════════════════════════════════════════════
@@ -30909,6 +31926,7 @@ function renderPage(id){
     setupStdLoadEditor();
   }
   else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
+  else if(id==='engineering-change'){ setTimeout(function(){ if(typeof ecoRenderPage==='function') ecoRenderPage(); }, 30); }
   else if(id==='dc') dcRender();
   else if(id==='qrtrack'){ qrtRender(); }
   else if(id==='wi') wiRender();
@@ -31038,6 +32056,7 @@ function renderPage(id){
     if(cdd&&!cdd.value) cdd.value=new Date().toISOString().split('T')[0];
   }
   else if(id==='costanalysis') setTimeout(renderCostPage, 30);
+  else if(id==='carbon-footprint') setTimeout(renderCarbonPage, 30);
   else if(id==='kpipresent')  setTimeout(kpiInit, 40);
   else if(id==='closedloop')  setTimeout(clInit, 40);
   else if(id==='mbstock')     setTimeout(mbInit, 40);
@@ -41248,6 +42267,7 @@ const ALL_PAGES = [
   {id:'setup-tt',     label:'Setup Time Table',        icon:'📆', section:'การผลิต'},
   {id:'setup-std',    label:'STD SET UP',              icon:'📏', section:'การผลิต'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
+  {id:'engineering-change', label:'Engineering Change (ECN)', icon:'📐', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
   {id:'rawmat',       label:'วัตถุดิบ & Batch',          icon:'📦', section:'วัตถุดิบ'},
   {id:'rawmatreg',   label:'ทะเบียนวัตถุดิบ',             icon:'🧪', section:'วัตถุดิบ'},
@@ -41272,6 +42292,7 @@ const ALL_PAGES = [
   {id:'machinepm',    label:'แผน PM เครื่องจักร',        icon:'🔩', section:'ซ่อมบำรุง'},
   {id:'pmchecklist', label:'ทะเบียนรายการตรวจ PM',         icon:'📋', section:'ซ่อมบำรุง'},
   {id:'costanalysis', label:'ต้นทุนการผลิต',              icon:'💰', section:'ต้นทุน'},
+  {id:'carbon-footprint', label:'Carbon CFO / CFP',       icon:'🌿', section:'สิ่งแวดล้อม'},
   {id:'actionplan',   label:'Action Plan',              icon:'📌', section:'Action Plan'},
   {id:'dc',           label:'DC — ควบคุมเอกสาร',        icon:'📁', section:'Document Control'},
   {id:'wi',           label:'WI & Packing Std',         icon:'📋', section:'Document Control'},
@@ -41312,8 +42333,8 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','mixing','rawmat',
-           'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','machregistry','condstd','conddaily','condcompare','history',
+    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','rawmat',
+           'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
   },
@@ -41325,15 +42346,15 @@ const ROLES = {
   qc: {
     label:'QC', color:'#388bfd', bg:'rgba(56,139,253,0.15)',
     desc:'ดู/แก้ Condition, รายงานคุณภาพ, สอบกลับ',
-    pages:['dashboard','line-summary','dailyrpt','hourlyboard','nganalysis','costanalysis','condstd','conddaily','condcompare',
-           'traceability','bom','actionplan','approvallog','approvaldocs','setup','setup-tt','setup-std',
+    pages:['dashboard','line-summary','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','condstd','conddaily','condcompare',
+           'traceability','bom','engineering-change','actionplan','approvallog','approvaldocs','setup','setup-tt','setup-std',
            'specregistry','qcspecs','limitsample',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch']
   },
   warehouse: {
     label:'Warehouse', color:'#bc8cff', bg:'rgba(188,140,255,0.15)',
     desc:'วัตถุดิบ, FG Stock, Delivery เท่านั้น',
-    pages:['dashboard','line-summary','rawmat','stock','delivery','order-await','shipment-history','traceability','barcode','globalsearch']
+    pages:['dashboard','line-summary','rawmat','stock','delivery','order-await','shipment-history','traceability','engineering-change','barcode','globalsearch']
   },
 };
 
@@ -42272,6 +43293,43 @@ const TPP_CONFIG = {
       if(sel.length===1) printBomDoc(sel[0]);
       else { sel.forEach(n=>printBomDoc(n)); }
     },
+  },
+  'page-engineering-change': {
+    title: 'Engineering Change Notice',
+    docNo: 'F-ENG-ECN-001',
+    sub: 'รายการเปลี่ยนแปลงที่ตรวจพบอัตโนมัติจาก BOM / Master Data',
+    filters: [
+      {id:'tpf-eco-job',label:'ชื่องาน',type:'select',opts:()=>['ทั้งหมด',...(typeof jobs!=='undefined'&&jobs?jobs.map(j=>j.name):[])]},
+    ],
+    getRecords: ()=> (typeof ecoLoadChanges==='function'?ecoLoadChanges():[]),
+    filterRecords: (recs)=>{
+      const j=document.getElementById('tpf-eco-job')?.value||'';
+      if(!j||j==='ทั้งหมด') return recs;
+      return recs.filter(r=>{
+        const jr=String(r.jobRef||'');
+        return jr.indexOf(j)>=0||jr===j;
+      });
+    },
+    renderRecord: (r)=>({
+      main:`${r.label}`,
+      sub:`${r.category} · ${r.jobRef||'-'}`,
+      badge:r.category||'EC',
+      id:r.id,
+    }),
+    getPreview: (sel)=>{
+      const list=(typeof ecoLoadChanges==='function'?ecoLoadChanges():[]);
+      const r=list.find(x=>x.id===sel[0]); if(!r) return [];
+      return [
+        {l:'เลข EC',v:r.id},{l:'วันเวลา',v:(r.ts||'').replace('T',' ').slice(0,19)},
+        {l:'หมวด',v:r.category},{l:'อ้างอิง',v:r.jobRef||'-'},{l:'รายการ',v:r.label},
+        {l:'ค่าเดิม',v:String(r.oldVal||'')},{l:'ค่าใหม่',v:String(r.newVal||'')},{l:'สถานะ',v:r.status||'-'},
+      ];
+    },
+    printSelected: (sel)=>{
+      if(typeof showPage==='function') showPage('engineering-change');
+      setTimeout(function(){ if(typeof ecoPrintEcn==='function') ecoPrintEcn(); }, 200);
+    },
+    signRoles: [{key:'prod',label:'ผู้ผลิต'},{key:'eng',label:'วิศวกรรม'},{key:'qa',label:'QC/QA'},{key:'maint',label:'ซ่อมบำรุง'},{key:'mat',label:'จัดซื้อ/คลัง'},{key:'hr',label:'HR'}]
   },
   'page-mixing': {
     title: 'แผนผสมเม็ดพลาสติก',
@@ -43317,6 +44375,43 @@ function persistCostSettings(){
   }
 }
 loadCostSettings();
+
+// ── Carbon footprint (CFO / CFP) — emission factors (kg CO2e) ───────────────
+const CARBON_STD_MAT_KEYS = ['PP','LDPE','HDPE','POM','NY6','AS','ABS','PC'];
+const CARBON_DEFAULTS = {
+  gridKgCO2PerKwh: 0.499,
+  avgKwhPerMachHour: 6,
+  mbKgCO2ePerKg: 2.5,
+  transportKgCO2ePerShipment: 15,
+  ngWasteIntensity: 0.35,
+  matKgCO2ePerKg: { PP:1.9, LDPE:2.0, HDPE:2.0, POM:3.3, NY6:5.5, AS:2.8, ABS:3.0, PC:5.5 }
+};
+let CARBON_SETTINGS = JSON.parse(JSON.stringify(CARBON_DEFAULTS));
+function mergeCarbonSettingsFromStorage(raw){
+  var base = JSON.parse(JSON.stringify(CARBON_DEFAULTS));
+  if(!raw || typeof raw !== 'object') return base;
+  ['gridKgCO2PerKwh','avgKwhPerMachHour','mbKgCO2ePerKg','transportKgCO2ePerShipment','ngWasteIntensity'].forEach(function(k){
+    var v = parseFloat(raw[k]);
+    if(!isNaN(v) && v >= 0) base[k] = v;
+  });
+  if(raw.matKgCO2ePerKg && typeof raw.matKgCO2ePerKg === 'object'){
+    base.matKgCO2ePerKg = Object.assign({}, CARBON_DEFAULTS.matKgCO2ePerKg, raw.matKgCO2ePerKg);
+  }
+  return base;
+}
+function loadCarbonSettings(){
+  try{
+    var s = localStorage.getItem('_carbonSettings');
+    if(s) CARBON_SETTINGS = mergeCarbonSettingsFromStorage(JSON.parse(s));
+  }catch(e){ CARBON_SETTINGS = JSON.parse(JSON.stringify(CARBON_DEFAULTS)); }
+}
+function persistCarbonSettings(){
+  try{
+    localStorage.setItem('_carbonSettings', JSON.stringify(CARBON_SETTINGS));
+    return true;
+  }catch(e){ return false; }
+}
+loadCarbonSettings();
 
 function getCostSettings(){ return COST_SETTINGS; }
 function costExtraHrPerHr(){
@@ -48134,6 +49229,159 @@ function _clRenderChart(){
   </div>
 </div>
 
+<!-- ========== CARBON FOOTPRINT — CFO / CFP / Dashboard ========== -->
+<div class="page" id="page-carbon-footprint">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🌿 Carbon Footprint — CFO / CFP</div>
+      <div class="page-subtitle">คำนวณจากข้อมูลในระบบ (ใบรายงานการผลิต · Order · ประวัติจัดส่ง) · ปรับปัจจัย CO₂e ได้ในหน้านี้</div>
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="renderCarbonPage()">🔄 ดึงจากระบบใหม่</button>
+  </div>
+
+  <div class="card mb-3">
+    <div style="display:flex;gap:0;border-bottom:2px solid var(--border);flex-wrap:wrap;margin-bottom:0">
+      <button id="carbon-tab-dash" type="button" onclick="carbonSwitchTab('dash')" style="padding:10px 16px;border:none;background:var(--accent);color:#fff;border-radius:6px 6px 0 0;cursor:pointer;font-size:12px;font-weight:700">📊 Dashboard</button>
+      <button id="carbon-tab-cfo" type="button" onclick="carbonSwitchTab('cfo')" style="padding:10px 16px;border:none;background:var(--bg2);color:var(--text2);border-radius:6px 6px 0 0;cursor:pointer;font-size:12px">🏭 CFO — ภาพรวมองค์กร</button>
+      <button id="carbon-tab-cfp" type="button" onclick="carbonSwitchTab('cfp')" style="padding:10px 16px;border:none;background:var(--bg2);color:var(--text2);border-radius:6px 6px 0 0;cursor:pointer;font-size:12px">📦 CFP — ต่อ Lot / งาน</button>
+      <button id="carbon-tab-cfg" type="button" onclick="carbonSwitchTab('cfg')" style="padding:10px 16px;border:none;background:var(--bg2);color:var(--text2);border-radius:6px 6px 0 0;cursor:pointer;font-size:12px">⚙️ ตั้งค่าปัจจัย CO₂e</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="carbon-panel-dash" style="padding:14px">
+      <div class="grid grid-4 mb-3">
+        <div class="card kpi-card">
+          <div class="kpi-label">CO₂e รวม (ช่วงที่เลือก)</div>
+          <div class="kpi-value" id="carbon-dash-total" style="color:#3fb950;font-size:18px">0 kg</div>
+          <div class="kpi-sub">จากการผลิต + ขนส่ง (ถ้าส่งแล้ว)</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">วัตถุดิบ + MB</div>
+          <div class="kpi-value" id="carbon-dash-mat" style="color:rgba(57,197,207,0.95);font-size:18px">0 kg</div>
+          <div class="kpi-sub">ตามน้ำหนักเม็ดที่ใช้ในรายงาน</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">พลังงานการผลิต</div>
+          <div class="kpi-value" id="carbon-dash-nrg" style="color:#79c0ff;font-size:18px">0 kg</div>
+          <div class="kpi-sub">จากชม.เครื่อง × kWh/ชม. × grid factor</div>
+        </div>
+        <div class="card kpi-card">
+          <div class="kpi-label">ขนส่งถึงลูกค้า</div>
+          <div class="kpi-value" id="carbon-dash-trn" style="color:#e3b341;font-size:18px">0 kg</div>
+          <div class="kpi-sub">เมื่อมีวันส่งใน Order / ประวัติจัดส่ง</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <label style="font-size:11px;color:var(--text3)">เดือน</label>
+        <select id="carbon-dash-month" onchange="carbonRenderDashboard()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px"></select>
+        <label style="font-size:11px;color:var(--text3)">ชื่องาน</label>
+        <select id="carbon-dash-job" onchange="carbonDashJobChange()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:160px;max-width:220px"></select>
+        <label style="font-size:11px;color:var(--text3)">Lot</label>
+        <select id="carbon-dash-lot" onchange="carbonRenderDashboard()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:120px"></select>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">สัดส่วน CO₂e (ช่วงที่เลือก)</div>
+      <div style="height:10px;border-radius:5px;background:var(--bg3);overflow:hidden;display:flex;margin-bottom:16px">
+        <div id="carbon-dash-bar-mat" style="height:100%;background:rgba(57,197,207,0.85);transition:width .4s;width:0%"></div>
+        <div id="carbon-dash-bar-nrg" style="height:100%;background:rgba(121,192,255,0.85);transition:width .4s;width:0%"></div>
+        <div id="carbon-dash-bar-trn" style="height:100%;background:rgba(227,179,65,0.75);transition:width .4s;width:0%"></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="border-collapse:collapse;min-width:720px;width:100%;font-size:12px">
+          <thead><tr style="background:var(--bg3)">
+            <th style="padding:8px;text-align:left">ชื่องาน</th>
+            <th style="padding:8px;text-align:right">CO₂e รวม (kg)</th>
+            <th style="padding:8px;text-align:right">รายงาน (ครั้ง)</th>
+          </tr></thead>
+          <tbody id="carbon-dash-leader"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CFO -->
+    <div id="carbon-panel-cfo" style="padding:14px;display:none">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">สรุปภาพรวมองค์กร (Corporate footprint จากการผลิตในระบบ) — กรองได้ตามเดือน / งาน / เครื่อง</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <select id="carbon-cfo-month" onchange="carbonRenderCFO()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px"></select>
+        <select id="carbon-cfo-job" onchange="carbonCfoJobChange()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:160px"></select>
+        <select id="carbon-cfo-lot" onchange="carbonRenderCFO()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:120px"></select>
+        <select id="carbon-cfo-machine" onchange="carbonRenderCFO()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px"></select>
+      </div>
+      <div class="grid grid-3 mb-3">
+        <div class="card kpi-card"><div class="kpi-label">CO₂e CFO (ช่วงที่เลือก)</div><div class="kpi-value" id="carbon-cfo-sum" style="color:var(--accent);font-size:17px">0 kg</div></div>
+        <div class="card kpi-card"><div class="kpi-label">ชม.เครื่องรวม</div><div class="kpi-value" id="carbon-cfo-hrs" style="font-size:17px">0</div></div>
+        <div class="card kpi-card"><div class="kpi-label">ชิ้นดีรวม</div><div class="kpi-value" id="carbon-cfo-ok" style="font-size:17px">0</div></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="border-collapse:collapse;min-width:900px;width:100%;font-size:12px">
+          <thead><tr style="background:var(--bg3)">
+            <th style="padding:8px;text-align:left">เดือน</th>
+            <th style="padding:8px;text-align:right">วัสดุ (kg CO₂e)</th>
+            <th style="padding:8px;text-align:right">พลังงาน (kg CO₂e)</th>
+            <th style="padding:8px;text-align:right">ของเสีย/NG (kg CO₂e)</th>
+            <th style="padding:8px;text-align:right">ขนส่ง (kg CO₂e)</th>
+            <th style="padding:8px;text-align:right">รวม</th>
+          </tr></thead>
+          <tbody id="carbon-cfo-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CFP -->
+    <div id="carbon-panel-cfp" style="padding:14px;display:none">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Carbon Footprint of Product — ต่อชุดงาน/Lot ตั้งแต่เริ่มบันทึกผลิตจนถึงวันส่งลูกค้า (ดึงวันส่งจาก Order / ประวัติจัดส่ง)</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <select id="carbon-cfp-job" onchange="carbonCfpJobChange()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:180px"></select>
+        <select id="carbon-cfp-lot" onchange="carbonRenderCFP()" style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:12px;min-width:140px"></select>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="carbonRenderCFP()">⟳ รีเฟรช</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="border-collapse:collapse;min-width:1180px;width:100%;font-size:12px">
+          <thead><tr style="background:var(--bg3)">
+            <th style="padding:8px;text-align:left">ชื่องาน</th>
+            <th style="padding:8px;text-align:left">Lot</th>
+            <th style="padding:8px;text-align:left">Order</th>
+            <th style="padding:8px;text-align:left">เริ่มผลิต (ข้อมูล)</th>
+            <th style="padding:8px;text-align:left">ส่งลูกค้า</th>
+            <th style="padding:8px;text-align:right">ชิ้นดี</th>
+            <th style="padding:8px;text-align:right">CO₂e รวม (kg)</th>
+            <th style="padding:8px;text-align:right">kg CO₂e / ชิ้น</th>
+            <th style="padding:8px;text-align:right">วัสดุ</th>
+            <th style="padding:8px;text-align:right">พลังงาน</th>
+            <th style="padding:8px;text-align:right">ขนส่ง</th>
+          </tr></thead>
+          <tbody id="carbon-cfp-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="carbon-panel-cfg" style="padding:14px;display:none">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">ค่าประมาณทางวิศวกรรม — ปรับให้สอดคล้องแหล่งปล่อยและปัจจัยของโรงงานคุณ (บันทึกในเบราว์เซอร์ + ซิงก์ Supabase ผ่าน preview)</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:900px">
+        <div><div class="form-label">กริดไฟฟ้า (kg CO₂e / kWh)</div><input type="number" id="carbon-cfg-grid" class="cost-inp" step="0.001" /></div>
+        <div><div class="form-label">สมมติ kWh / ชม. เครื่อง</div><input type="number" id="carbon-cfg-kwh" class="cost-inp" step="0.1" /></div>
+        <div><div class="form-label">ขนส่งต่อครั้ง (kg CO₂e)</div><input type="number" id="carbon-cfg-trn" class="cost-inp" step="0.5" /></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--accent);margin:16px 0 8px">ปัจจัยเม็ดพลาสติก (kg CO₂e / kg เม็ด) — cradle-to-gate ประมาณการ</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:900px">
+        <div><div class="form-label">PP</div><input type="number" id="carbon-mat-PP" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">LDPE</div><input type="number" id="carbon-mat-LDPE" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">HDPE</div><input type="number" id="carbon-mat-HDPE" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">POM</div><input type="number" id="carbon-mat-POM" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">NY6</div><input type="number" id="carbon-mat-NY6" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">AS</div><input type="number" id="carbon-mat-AS" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">ABS</div><input type="number" id="carbon-mat-ABS" class="cost-inp" step="0.01" /></div>
+        <div><div class="form-label">PC</div><input type="number" id="carbon-mat-PC" class="cost-inp" step="0.01" /></div>
+      </div>
+      <div style="margin-top:12px"><div class="form-label">MB สี (kg CO₂e / kg)</div><input type="number" id="carbon-mat-mb" class="cost-inp" step="0.01" style="max-width:200px" /></div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-primary" onclick="saveCarbonSettings()">✓ บันทึกตั้งค่า Carbon</button>
+        <button type="button" class="btn btn-secondary" onclick="resetCarbonSettings()">↺ ค่าเริ่มต้น</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ========== TPS PAGE ========== -->
 <div class="page" id="page-tps">
   <div class="page-header">
@@ -48594,7 +49842,7 @@ function _clRenderChart(){
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
         <div class="page-title">♻️ Close Loop & เศษบด (Regrind)</div>
-        <div class="page-sub">ติดตาม Runner/เศษบดแยก Lot · Stock เศษบด: รับเข้า-จ่ายออก-ปรับยอด · รายการเม็ดจากทะเบียนวัตถุดิบและงาน (+เพิ่มเม็ดเองได้)</div>
+        <div class="page-sub">ติดตาม Runner/เศษบดแยก Lot · Stock CARD เศษบด · บัญชีคุมรับ-จ่าย (เหมือนหน้าวัตถุดิบ) · รับเข้า-จ่ายออก-ปรับยอด · รายการเม็ดจากทะเบียนวัตถุดิบและงาน (+เพิ่มเม็ดเองได้)</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button onclick="clShowTab('entry')" id="cl-tab-entry" class="btn btn-primary btn-sm">📝 บันทึก</button>
@@ -48773,8 +50021,8 @@ function _clRenderChart(){
 
   <!-- === STOCK TAB === -->
   <div id="cl-panel-stock" style="display:none">
-    <!-- Header actions -->
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <!-- Header actions (ใช้ได้ทั้งแท็บการ์ดและบัญชีคุม) -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="rg-stock-search" placeholder="🔍 ค้นหา..." oninput="rgRenderStock()"
           style="padding:7px 12px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px;width:180px">
@@ -48799,76 +50047,106 @@ function _clRenderChart(){
       </div>
     </div>
 
-    <!-- Stock KPI row -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">
-      <div style="background:var(--bg2);border:1px solid #e3b34133;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:var(--text3)">Stock รวม (kg)</div>
-        <div id="rg-kpi-total" style="font-size:22px;font-weight:800;color:#e3b341">0.0</div>
+    <div class="tabs rg-stock-main-tabs" style="margin-bottom:10px">
+      <div class="tab active" onclick="rgMainTab('stock',this)">📦 Stock CARD เศษบด</div>
+      <div class="tab" onclick="rgMainTab('ledger',this)">📒 บัญชีคุม รับ-จ่าย</div>
+    </div>
+
+    <div id="rg-sub-stock">
+      <!-- Stock KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px">
+        <div style="background:var(--bg2);border:1px solid #e3b34133;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text3)">Stock รวม (kg)</div>
+          <div id="rg-kpi-total" style="font-size:22px;font-weight:800;color:#e3b341">0.0</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid #3fb95033;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text3)">ประเภทเม็ด</div>
+          <div id="rg-kpi-types" style="font-size:22px;font-weight:800;color:#3fb950">0</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid #f8514933;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text3)">ต่ำกว่า Min</div>
+          <div id="rg-kpi-low" style="font-size:22px;font-weight:800;color:#f85149">0</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid #79c0ff33;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:10px;color:var(--text3)">มูลค่าประหยัด (฿)</div>
+          <div id="rg-kpi-value" style="font-size:22px;font-weight:800;color:#79c0ff">0</div>
+        </div>
       </div>
-      <div style="background:var(--bg2);border:1px solid #3fb95033;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:var(--text3)">ประเภทเม็ด</div>
-        <div id="rg-kpi-types" style="font-size:22px;font-weight:800;color:#3fb950">0</div>
-      </div>
-      <div style="background:var(--bg2);border:1px solid #f8514933;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:var(--text3)">ต่ำกว่า Min</div>
-        <div id="rg-kpi-low" style="font-size:22px;font-weight:800;color:#f85149">0</div>
-      </div>
-      <div style="background:var(--bg2);border:1px solid #79c0ff33;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:var(--text3)">มูลค่าประหยัด (฿)</div>
-        <div id="rg-kpi-value" style="font-size:22px;font-weight:800;color:#79c0ff">0</div>
+
+      <!-- Stock cards (แบบหน้าวัตถุดิบ) -->
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-weight:700">📇 Stock CARD เศษบด — สรุปตามประเภทเม็ด</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-bottom:14px" id="rg-stock-cards"></div>
+
+      <!-- Stock table (สรุปรายการ) -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
+        <div style="padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700">📋 บัญชีคุมเศษบด (สรุปตามประเภทเม็ด)</span>
+          <span id="rg-stock-count" style="font-size:10px;background:rgba(227,179,65,0.15);color:#e3b341;padding:2px 8px;border-radius:10px"></span>
+        </div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:var(--bg3)">
+            <th style="padding:8px 12px;text-align:left;color:var(--text3)">ประเภทเม็ด</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">Stock (kg)</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">Min (kg)</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">Lot ล่าสุด</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text3)">งานล่าสุด</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">เข้าล่าสุด</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">สถานะ</th>
+            <th style="padding:8px 12px;text-align:center;color:var(--text3)">จัดการ</th>
+          </tr></thead>
+          <tbody id="rg-stock-tbody"></tbody>
+        </table></div>
       </div>
     </div>
 
-    <!-- Stock table -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">
-      <div style="padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        <span style="font-size:13px;font-weight:700">📦 Stock เศษบด แยกตามประเภทเม็ด</span>
-        <span id="rg-stock-count" style="font-size:10px;background:rgba(227,179,65,0.15);color:#e3b341;padding:2px 8px;border-radius:10px"></span>
+    <div id="rg-sub-ledger" style="display:none">
+      <div style="background:var(--bg2);border-radius:10px;border:1px solid var(--border);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+          <span style="font-weight:600;font-size:13px">📒 รับเข้า-จ่ายออก · เศษบด</span>
+          <select id="rg-led-plastic" onchange="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+            <option value="">ทุกประเภทเม็ด</option>
+          </select>
+          <input type="month" id="rg-led-month" onchange="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+          <input type="text" id="rg-led-mat-search" placeholder="ค้นหาชื่อเม็ด"
+            oninput="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;min-width:120px">
+          <input type="text" id="rg-led-job-search" placeholder="ค้นหาชื่องาน"
+            oninput="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;min-width:140px">
+          <input type="text" id="rg-led-lot-search" placeholder="ค้นหา Lot"
+            oninput="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px;min-width:110px">
+          <select id="rg-led-type" onchange="rgRenderLedger()"
+            style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
+            <option value="">ทุกประเภท</option>
+            <option value="in">📥 รับเข้า</option>
+            <option value="out">📤 จ่ายออก</option>
+            <option value="adj">⚖️ ปรับยอด</option>
+          </select>
+          <button type="button" onclick="rgExportLedger()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit">📤 Export</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:var(--bg3)">
+              <th style="padding:9px 12px;text-align:left;color:var(--text3)">วันที่</th>
+              <th style="padding:9px 8px;text-align:center;color:var(--text3)">ประเภท</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">ประเภทเม็ด</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">เกรด / Batch</th>
+              <th style="padding:9px 8px;text-align:center;color:var(--text3)">จำนวน (kg)</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">เลขอ้างอิง</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">งาน / Lot</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">แหล่งที่มา</th>
+              <th style="padding:9px 8px;text-align:center;color:var(--text3)">Balance (kg)</th>
+              <th style="padding:9px 8px;text-align:left;color:var(--text3)">โดย / หมายเหตุ</th>
+              <th style="padding:9px 8px;text-align:center;color:var(--text3)">TAG</th>
+              <th style="padding:9px 8px;text-align:center;color:var(--text3)">ลบ</th>
+            </tr></thead>
+            <tbody id="rg-ledger-tbody"></tbody>
+          </table>
+        </div>
       </div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:var(--bg3)">
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">ประเภทเม็ด</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">Stock (kg)</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">Min (kg)</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">Lot ล่าสุด</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">งานล่าสุด</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">เข้าล่าสุด</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">สถานะ</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">จัดการ</th>
-        </tr></thead>
-        <tbody id="rg-stock-tbody"></tbody>
-      </table></div>
-    </div>
-
-    <!-- Ledger -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="padding:10px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:700">📒 บัญชีคุม Stock เศษบด</span>
-        <select id="rg-led-plastic" onchange="rgRenderLedger()" style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
-          <option value="">ทุกประเภท</option>
-        </select>
-        <input type="month" id="rg-led-month" onchange="rgRenderLedger()" style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
-        <select id="rg-led-type" onchange="rgRenderLedger()" style="padding:5px 8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
-          <option value="">ทุกประเภท</option>
-          <option value="in">📥 รับเข้า</option>
-          <option value="out">📤 จ่ายออก</option>
-          <option value="adj">⚖️ ปรับยอด</option>
-        </select>
-      </div>
-      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead><tr style="background:var(--bg3)">
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">วันที่/เวลา</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">ประเภทเม็ด</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">งาน / Lot</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">ประเภท</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">จำนวน (kg)</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">Balance (kg)</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--text3)">โดย / เหตุผล</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">TAG</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text3)">ลบ</th>
-        </tr></thead>
-        <tbody id="rg-ledger-tbody"></tbody>
-      </table></div>
     </div>
   </div>
 
@@ -50944,6 +52222,104 @@ function rgAddFromCLEntry(entry){
   saveRgStock();
   rgLedger.unshift({_id:'RGI-'+Date.now(),date:entry.date,time:entry.time||new Date().toTimeString().slice(0,5),type:'in',plastic:plastic,job:entry.job||'',lot:entry.lot||'',machine:entry.machine||'',qty:entry.stock,by:'ระบบ (CL)',reason:'เข้าจากการบันทึกเศษบด',balance:rgStock[plastic].qty,note:'',tagId:''});
   saveRgLedger();
+  rgRenderStock();
+  rgRenderLedger();
+}
+
+function rgEnsureLedMonth(){
+  var lm=document.getElementById('rg-led-month');
+  if(lm && !lm.value){
+    var d=new Date();
+    lm.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+}
+
+function rgMainTab(which, el){
+  rgEnsureLedMonth();
+  var subS=document.getElementById('rg-sub-stock');
+  var subL=document.getElementById('rg-sub-ledger');
+  if(subS) subS.style.display=which==='stock'?'block':'none';
+  if(subL) subL.style.display=which==='ledger'?'block':'none';
+  document.querySelectorAll('#cl-panel-stock .rg-stock-main-tabs .tab').forEach(function(t){ t.classList.remove('active'); });
+  if(el) el.classList.add('active');
+  if(which==='stock') rgRenderStock();
+  if(which==='ledger') rgRenderLedger();
+}
+
+function rgFocusTxPlastic(plastic){
+  rgOpenTx('in');
+  setTimeout(function(){
+    var sel=document.getElementById('rgtx-plastic');
+    if(!sel||plastic==null||plastic==='') return;
+    var p=String(plastic);
+    for(var i=0;i<sel.options.length;i++){
+      if(sel.options[i].value===p){ sel.selectedIndex=i; return; }
+    }
+    var o=document.createElement('option');
+    o.value=p; o.textContent=p; o.selected=true;
+    sel.appendChild(o);
+  },50);
+}
+
+function rgLedgerFilteredRows(){
+  var pf=document.getElementById('rg-led-plastic')?.value||'';
+  var mf=document.getElementById('rg-led-month')?.value||'';
+  var tf=document.getElementById('rg-led-type')?.value||'';
+  var jobQ=(document.getElementById('rg-led-job-search')?.value||'').trim().toLowerCase();
+  var lotQ=(document.getElementById('rg-led-lot-search')?.value||'').trim().toLowerCase();
+  var matQ=(document.getElementById('rg-led-mat-search')?.value||'').trim().toLowerCase();
+  return (rgLedger||[]).filter(function(r){
+    if(pf && r.plastic!==pf) return false;
+    if(mf && !(String(r.date||'').startsWith(mf))) return false;
+    if(tf && r.type!==tf) return false;
+    if(jobQ && String(r.job||'').toLowerCase().indexOf(jobQ)<0) return false;
+    if(matQ && String(r.plastic||'').toLowerCase().indexOf(matQ)<0) return false;
+    if(lotQ){
+      var lf=(String(r.lot||'')+' '+String(r.tagId||'')+' '+String(r._id||'')).toLowerCase();
+      if(lf.indexOf(lotQ)<0) return false;
+    }
+    return true;
+  });
+}
+
+function rgExportLedger(){
+  var rows=[['Date','Time','Type','Plastic','Reason','Qty_kg','Ref','Job','Lot','Source','Balance_kg','By','Note']];
+  rgLedgerFilteredRows().forEach(function(r){
+    var ref=r.tagId||r._id||'';
+    rows.push([r.date||'', r.time||'', r.type||'', r.plastic||'', r.reason||'', r.qty, ref, r.job||'', r.lot||'', r.machine||'', r.balance, r.by||'', r.note||'']);
+  });
+  if(typeof _downloadCsv==='function') _downloadCsv(rows,'regrind_ledger');
+  else if(typeof _infoToast==='function') _infoToast('Export บัญชีคุมเศษบด');
+}
+
+function rgRenderStockCards(list){
+  var cards=document.getElementById('rg-stock-cards');
+  if(!cards) return;
+  if(!list||!list.length){
+    cards.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:22px;color:var(--text3);font-size:12px;border:1px dashed var(--border);border-radius:8px">ยังไม่มีรายการ Stock เศษบดตามตัวกรอง<br><span style="font-size:11px">บันทึกเศษบดในแท็บ 📝 บันทึก หรือกด 📥 รับเข้า / 🏷 ออก TAG</span></div>';
+    return;
+  }
+  cards.innerHTML=list.map(function(p){
+    var s=Object.assign({qty:0,min:10,lastLot:'—',lastJob:'—',lastIn:0,price:45},rgStock[p]||{});
+    var barPct=s.min>0?Math.min(100,Math.round(s.qty/s.min*100)):Math.min(100,Math.round((s.qty||0)*5));
+    var low=s.qty<s.min;
+    var empty=s.qty<=0;
+    var col=empty?'#f85149':low?'var(--red)':s.qty<s.min*1.5?'#e3b341':'var(--green)';
+    var status=empty?'หมด':low?'ต่ำกว่า Min':'ปกติ';
+    var badgeCls=empty?'badge-red':low?'badge-red':s.qty<s.min*1.5?'badge-yellow':'badge-green';
+    var safeP=String(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var priceLine=(s.price&&Number(s.price)>0)?('<div style="font-size:10px;color:#e3b341;margin-top:2px">฿ '+Number(s.price).toLocaleString()+'/kg</div>'):'';
+    return '<div class="card" style="'+(low||empty?'border:1px solid var(--red)':'')+'">'
+      +'<div class="flex justify-between items-center mb-2">'
+      +'<span class="badge mat-'+p+'">'+String(p).replace(/</g,'')+'</span>'
+      +'<span class="badge '+badgeCls+'" style="font-size:10px">'+status+'</span></div>'
+      +'<div class="kpi-value mono" style="font-size:20px;color:'+col+'">'+s.qty.toFixed(1)+'<span style="font-size:11px;color:var(--text3)"> kg</span></div>'
+      +'<div class="progress mt-2"><div class="progress-fill" style="width:'+Math.min(barPct,100)+'%;background:'+col+'"></div></div>'
+      +'<div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: '+s.min+' kg</div>'
+      +priceLine
+      +(low||empty?'<button type="button" class="btn btn-green btn-sm" style="margin-top:8px;width:100%;font-size:10px" onclick="rgFocusTxPlastic(\''+safeP+'\')">📥 รับเข้า</button>':'')
+    +'</div>';
+  }).join('');
 }
 
 function rgRenderStock(){
@@ -50992,33 +52368,59 @@ function rgRenderStock(){
   var e3=document.getElementById('rg-kpi-low');if(e3)e3.textContent=lowCount;
   var e4=document.getElementById('rg-kpi-value');if(e4)e4.textContent=Math.round(totalVal).toLocaleString();
   var cnt=document.getElementById('rg-stock-count');if(cnt)cnt.textContent=list.length+' ประเภท';
+  rgRenderStockCards(list);
 }
 
 function rgRenderLedger(){
   var tbody=document.getElementById('rg-ledger-tbody');if(!tbody)return;
-  var pf=document.getElementById('rg-led-plastic')?.value||'';
-  var mf=document.getElementById('rg-led-month')?.value||'';
-  var tf=document.getElementById('rg-led-type')?.value||'';
-  var rows=rgLedger.filter(function(r){return(!pf||r.plastic===pf)&&(!mf||r.date.startsWith(mf))&&(!tf||r.type===tf);});
-  tbody.innerHTML=rows.slice(0,200).map(function(r){
+  rgEnsureLedMonth();
+  var allP=rgAllPlasticCodes();
+  var sel2=document.getElementById('rg-led-plastic');
+  if(sel2){
+    var cv2=sel2.value;
+    sel2.innerHTML='<option value="">ทุกประเภทเม็ด</option>'+allP.map(function(p){
+      var esc=String(p).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<option value="'+esc+'"'+(p===cv2?' selected':'')+'>'+String(p).replace(/</g,'')+'</option>';
+    }).join('');
+  }
+  var rows=rgLedgerFilteredRows();
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="12" style="padding:22px;text-align:center;color:var(--text3)">ยังไม่มีรายการ</td></tr>';
+    return;
+  }
+  tbody.innerHTML=rows.slice(0,300).map(function(r){
     var isAdj=r.type==='adj',isIn=r.type==='in';
-    var tBadge=isAdj?'<span style="background:rgba(227,179,65,0.2);color:#e3b341;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700">⚖️ ปรับ</span>'
-      :isIn?'<span style="background:rgba(63,185,80,0.2);color:#3fb950;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700">📥 เข้า</span>'
-      :'<span style="background:rgba(248,81,73,0.2);color:#f85149;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700">📤 ออก</span>';
-    var qc=isAdj?'#e3b341':isIn?'#3fb950':'#f85149';
-    var qs=isAdj?(r.qty>=0?'+':''):(isIn?'+':'-');
-    return '<tr style="border-bottom:1px solid var(--border);background:'+(isAdj?'rgba(227,179,65,0.03)':'')+'">'
-      +'<td style="padding:7px 10px;font-size:11px"><span class="mono">'+r.date+'</span><br><span style="color:var(--text3);font-size:10px">'+r.time+'</span></td>'
-      +'<td style="padding:7px 10px"><span class="badge mat-'+r.plastic+'">'+r.plastic+'</span></td>'
-      +'<td style="padding:7px 10px;font-size:11px;max-width:140px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(r.job||'—')+'</div><div style="font-size:10px;color:var(--text3);font-family:monospace">'+(r.lot||'—')+'</div></td>'
-      +'<td style="padding:7px 10px;text-align:center">'+tBadge+'</td>'
-      +'<td style="padding:7px 10px;text-align:center;font-family:monospace;font-weight:700;color:'+qc+'">'+qs+Math.abs(r.qty).toFixed(3)+'</td>'
-      +'<td style="padding:7px 10px;text-align:center;font-family:monospace;font-weight:600">'+r.balance.toFixed(3)+'</td>'
-      +'<td style="padding:7px 10px;font-size:11px">'+(r.by||'—')+(r.reason?'<br><span style="font-size:10px;color:var(--text3)">'+r.reason+'</span>':'')+'</td>'
-      +'<td style="padding:7px 10px;text-align:center">'+(r.tagId?'<button onclick="rgReprintTag(\''+r._id+'\')" style="padding:2px 7px;background:rgba(57,197,207,0.12);border:1px solid rgba(57,197,207,0.3);color:#39c5cf;border-radius:5px;cursor:pointer;font-size:10px">🏷</button>':'—')+'</td>'
-      +'<td style="padding:7px 10px;text-align:center"><button onclick="rgDeleteLedger(\''+r._id+'\')" style="'+_DEL_BTN+'">🗑</button></td>'
+    var typeBadge=isAdj
+      ?'<span class="badge" style="background:rgba(227,179,65,0.2);color:#e3b341;border:1px solid rgba(227,179,65,0.4)">⚖️ ปรับยอด</span>'
+      :(isIn?'<span class="badge badge-green">📥 รับเข้า</span>':'<span class="badge badge-red">📤 จ่ายออก</span>');
+    var qtyColor=isAdj?'#e3b341':isIn?'#3fb950':'#f85149';
+    var qtyPrefix=isAdj?(r.qty>=0?'+':'-'):(isIn?'+':'-');
+    var ref=(r.tagId&&String(r.tagId))||String(r._id||'').slice(0,22)||'—';
+    var esc=function(t){return String(t==null?'':t).replace(/</g,'').replace(/&/g,'&amp;');};
+    var gradeBlock=esc(r.reason||'เศษบด')
+      +(r.lot?'<br><span style="font-size:9px;color:#79c0ff;font-family:monospace">Lot/Batch: '+esc(r.lot)+'</span>':'');
+    var rid=String(r._id||'').replace(/'/g,"\\'");
+    return '<tr style="border-bottom:1px solid var(--border);background:'+(isAdj?'rgba(227,179,65,0.04)':'')+'">'
+      +'<td style="padding:7px 12px;font-family:monospace;font-size:11px;color:var(--text3)">'+esc(r.date)+'<br><span style="font-size:9px">'+esc(r.time)+'</span></td>'
+      +'<td style="padding:7px 8px;text-align:center">'+typeBadge+'</td>'
+      +'<td style="padding:7px 8px"><span class="badge mat-'+r.plastic+'">'+esc(r.plastic)+'</span></td>'
+      +'<td style="padding:7px 8px;font-size:11px;color:var(--text3)">'+gradeBlock+'</td>'
+      +'<td style="padding:7px 8px;text-align:center;font-weight:700;font-family:monospace;font-size:13px;color:'+qtyColor+'">'+qtyPrefix+Math.abs(r.qty).toFixed(3)+'</td>'
+      +'<td style="padding:7px 8px;font-family:monospace;font-size:10px;color:var(--text2)">'+esc(ref)+'</td>'
+      +'<td style="padding:7px 8px;font-size:11px">'
+        +(r.job?'<span style="color:var(--accent2);font-weight:600">'+esc(r.job)+'</span>':'—')
+        +(r.lot?'<br><span style="font-size:9px;color:var(--text3);font-family:monospace">Lot งาน: '+esc(r.lot)+'</span>':'')
+      +'</td>'
+      +'<td style="padding:7px 8px;font-size:10px;color:var(--text3)">'+(r.machine?esc(r.machine):'—')+'</td>'
+      +'<td style="padding:7px 8px;text-align:center;font-weight:700;font-size:12px;font-family:monospace">'+r.balance.toFixed(3)+'</td>'
+      +'<td style="padding:7px 8px;font-size:10px;color:var(--text3)">'
+        +(r.by?'<span style="font-weight:600">👤 '+esc(r.by)+'</span>':'—')
+        +(r.note?'<br><span style="font-size:9px;color:var(--text3)">'+esc(r.note)+'</span>':'')
+      +'</td>'
+      +'<td style="padding:7px 8px;text-align:center">'+(r.tagId?'<button type="button" onclick="rgReprintTag(\''+rid+'\')" style="padding:2px 7px;background:rgba(57,197,207,0.12);border:1px solid rgba(57,197,207,0.3);color:#39c5cf;border-radius:5px;cursor:pointer;font-size:10px">🏷</button>':'—')+'</td>'
+      +'<td style="padding:7px 8px;text-align:center"><button type="button" onclick="rgDeleteLedger(\''+rid+'\')" style="'+(_DEL_BTN||'')+'">🗑</button></td>'
     +'</tr>';
-  }).join('')||'<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text3)">ยังไม่มีรายการ</td></tr>';
+  }).join('');
 }
 
 function rgOpenAdj(plastic){
@@ -51229,7 +52631,7 @@ function rgDeleteLedger(id){
   if(!r)return;
   _confirmDel('🗑 ลบรายการ Stock เศษบด<br><b>'+r.plastic+'</b> | '+r.type+' '+Math.abs(r.qty).toFixed(3)+' kg<br>'+r.date+' | Lot: '+(r.lot||'—')+'<br><span style="font-size:11px;color:#8b949e">⚠️ Balance ไม่ถูกย้อนอัตโนมัติ</span>',function(){
     rgLedger=rgLedger.filter(function(x){return x._id!==id;});
-    saveRgLedger(); rgRenderLedger();
+    saveRgLedger(); rgRenderStock(); rgRenderLedger();
     if(typeof _toast==='function')_toast('🗑 ลบรายการ Ledger เศษบดแล้ว');
   });
 }
@@ -53313,6 +54715,7 @@ window.HOME_PAGES = [
   ]},
   { id:'standard', icon:'📐', label:'มาตรฐาน & BOM', items:[
     {id:'bom',          icon:'🧩', label:'BOM & งาน',           color:'#1a1a2e', seq:10},
+    {id:'engineering-change', icon:'📐', label:'Engineering Change (ECN)', color:'#151a28', seq:'10B'},
     {id:'costanalysis', icon:'💰', label:'ต้นทุน & วิเคราะห์',   color:'#1f2010', seq:11},
     {id:'qcinspect',    icon:'🔬', label:'จุดตรวจ QC',           color:'#1a2518', seq:12},
     {id:'condstd',      icon:'📐', label:'Condition Std',        color:'#101a22', seq:13},
@@ -53345,6 +54748,7 @@ window.HOME_PAGES = [
   ]},
   { id:'dash', icon:'📊', label:'Dashboard & รายงาน', items:[
     {id:'dashboard',    icon:'📊', label:'Dashboard สรุปการผลิต', color:'#0e1f1a', seq:25},
+    {id:'carbon-footprint', icon:'🌿', label:'Carbon — CFO / CFP', color:'#0d2818', seq:'25A'},
     {id:'line-summary', icon:'💬', label:'สรุปข้อความส่ง LINE',   color:'#0f1820', seq:'25B'},
     {id:'nganalysis',   icon:'🔴', label:'วิเคราะห์ NG & PPM',   color:'#200e0e', seq:26},
     {id:'condcompare',  icon:'📈', label:'เปรียบเทียบ Condition', color:'#101820', seq:27},
