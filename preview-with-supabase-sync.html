@@ -36,27 +36,33 @@
       iframe { height: 100dvh; }
     }
 
+    /* Gear button — moved next to the save FAB (bottom-left) so it never
+       overlaps the iframe's top-right user controls (theme, user, logout). */
     .gear-btn {
       position: fixed;
-      top: 10px;
-      right: 10px;
-      width: 40px;
-      height: 40px;
+      left: 16px;
+      bottom: 76px;
+      width: 38px;
+      height: 38px;
       padding: 0;
       display: grid;
       place-items: center;
-      border-radius: 12px;
-      background: rgba(17, 24, 39, 0.85);
+      border-radius: 10px;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid #334155;
       backdrop-filter: blur(10px);
-      z-index: 50;
+      z-index: 60;
+      color: #e2e8f0;
     }
     .gear-btn svg { width: 18px; height: 18px; }
     .gear-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 
-    /* Floating "Save to cloud" button — easy for everyone, always visible */
+    /* Floating "Save to cloud" button — easy for everyone, always visible.
+       Positioned at the BOTTOM-LEFT so it never collides with the app's own
+       bottom-right FABs (e.g. Export Excel inside the iframe). */
     .save-fab {
       position: fixed;
-      right: 16px;
+      left: 16px;
       bottom: 16px;
       z-index: 60;
       display: inline-flex;
@@ -85,8 +91,8 @@
     .save-fab.is-disabled { background: rgba(30, 41, 59, 0.92); border-color: #475569; color: #cbd5e1; cursor: not-allowed; box-shadow: 0 6px 14px rgba(0,0,0,0.35); }
     .save-fab-sub {
       position: fixed;
-      right: 18px;
-      bottom: 70px;
+      left: 22px;
+      bottom: 72px;
       z-index: 59;
       font-size: 10px;
       color: #94a3b8;
@@ -100,32 +106,36 @@
     }
     .save-fab-sub.on { opacity: 1; }
 
-    /* Sync status pill (always visible) */
+    /* Sync status pill — sits in the bottom-left cluster to keep iframe
+       header free of overlay chrome. */
     .sb-sync-pill {
       position: fixed;
-      top: 10px;
-      right: 102px;
-      max-width: min(280px, calc(100vw - 200px));
-      padding: 6px 12px;
+      left: 60px;
+      bottom: 80px;
+      max-width: min(280px, calc(100vw - 90px));
+      padding: 5px 12px;
       border-radius: 999px;
       border: 1px solid #334155;
       background: rgba(17, 24, 39, 0.88);
       backdrop-filter: blur(10px);
       font-size: 11px;
       color: #cbd5e1;
-      z-index: 55;
+      z-index: 56;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       pointer-events: none;
     }
 
-    /* Presence bar */
+    /* Presence bar — anchored above the bottom-left controls cluster
+       (gear + sync pill + save FAB). Grows upward so it never overlaps. */
     .sb-presence-bar {
       position: fixed;
-      bottom: 10px;
+      bottom: 124px;
       left: 10px;
       max-width: min(420px, calc(100vw - 24px));
+      max-height: calc(100vh - 160px);
+      overflow: auto;
       padding: 8px 12px;
       border-radius: 12px;
       border: 1px solid #334155;
@@ -248,17 +258,17 @@
 
     .loading-indicator {
       position: fixed;
-      top: 10px;
-      right: 58px;
-      width: 26px;
-      height: 26px;
+      left: 60px;
+      bottom: 18px;
+      width: 22px;
+      height: 22px;
       border-radius: 999px;
       border: 2px solid rgba(148, 163, 184, 0.25);
       border-top-color: rgba(226, 232, 240, 0.95);
       animation: spin .8s linear infinite;
       opacity: 0;
       pointer-events: none;
-      z-index: 60;
+      z-index: 70;
       transition: opacity .12s ease-in-out;
       backdrop-filter: blur(8px);
       background: rgba(17, 24, 39, 0.35);
@@ -290,8 +300,12 @@
         right: 58px;
         max-width: min(200px, calc(100vw - 130px));
       }
-      .save-fab { padding: 10px 14px; font-size: 13px; }
-      .save-fab-sub { right: 14px; bottom: 64px; }
+      .save-fab { padding: 10px 14px; font-size: 13px; left: 12px; bottom: 12px; }
+      .save-fab-sub { left: 16px; bottom: 64px; }
+      .gear-btn { left: 12px; bottom: 70px; width: 36px; height: 36px; }
+      .sb-sync-pill { left: 56px; bottom: 74px; max-width: calc(100vw - 80px); }
+      .sb-presence-bar { bottom: 116px; left: 8px; max-width: calc(100vw - 16px); }
+      .loading-indicator { left: 56px; bottom: 16px; }
     }
     @media print {
       .save-fab, .save-fab-sub, .gear-btn, .sb-sync-pill, .sb-presence-bar, .loading-indicator { display: none !important; }

@@ -187,12 +187,27 @@ body {
   position: sticky; top: 0; z-index: 200; gap: 14px;
 }
 .hs-brand { display: flex; align-items: center; gap: 11px; }
-.hs-brand-icon { font-size: 28px; }
+.hs-brand-icon {
+  font-size: 28px;
+  display: flex; align-items: center; justify-content: center;
+}
+.hs-brand-icon.brand-b {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,#1a56db,#388bfd);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  font-family: 'Inter','Segoe UI',sans-serif;
+  letter-spacing: 0;
+  line-height: 1;
+  box-shadow: 0 6px 18px rgba(26,86,219,0.32);
+}
 .hs-brand-name {
   font-size: 17px; font-weight: 900; color: var(--ios-accent);
   letter-spacing: -0.6px; font-family: 'Inter', sans-serif;
 }
-.hs-brand-sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.hs-brand-sub { font-size: 11px; color: var(--text3); margin-top: 2px; letter-spacing: .2px; }
 .hs-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hs-user-chip {
   display: flex; align-items: center; gap: 8px;
@@ -1156,10 +1171,10 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <!-- Top bar -->
   <div class="hs-topbar">
     <div class="hs-brand">
-      <span class="hs-brand-icon">🏭</span>
+      <span class="hs-brand-icon brand-b" aria-label="Production system logo">B</span>
       <div>
         <div class="hs-brand-name">PLASTIC MFG</div>
-        <div class="hs-brand-sub">ระบบวางแผนการผลิต</div>
+        <div class="hs-brand-sub">Production system</div>
       </div>
     </div>
     <div class="hs-right">
