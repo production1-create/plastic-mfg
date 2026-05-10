@@ -53,6 +53,53 @@
     .gear-btn svg { width: 18px; height: 18px; }
     .gear-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 2px; }
 
+    /* Floating "Save to cloud" button — easy for everyone, always visible */
+    .save-fab {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 60;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      min-height: 48px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.55);
+      background: linear-gradient(180deg, rgba(14, 165, 233, 0.92), rgba(37, 99, 235, 0.95));
+      color: #f0f9ff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(2, 132, 199, 0.45), 0 2px 6px rgba(0,0,0,0.35);
+      transition: filter .12s ease, transform .12s ease, opacity .15s ease;
+    }
+    .save-fab:hover { filter: brightness(1.07); }
+    .save-fab:active { transform: translateY(1px); }
+    .save-fab:disabled { opacity: 0.65; cursor: progress; filter: none; }
+    .save-fab .save-fab-ico { font-size: 16px; line-height: 1; }
+    .save-fab.is-saving { background: linear-gradient(180deg, #475569, #334155); border-color: #64748b; }
+    .save-fab.is-success { background: linear-gradient(180deg, #16a34a, #15803d); border-color: #22c55e; }
+    .save-fab.is-error { background: linear-gradient(180deg, #b91c1c, #991b1b); border-color: #ef4444; }
+    .save-fab.is-disabled { background: rgba(30, 41, 59, 0.92); border-color: #475569; color: #cbd5e1; cursor: not-allowed; box-shadow: 0 6px 14px rgba(0,0,0,0.35); }
+    .save-fab-sub {
+      position: fixed;
+      right: 18px;
+      bottom: 70px;
+      z-index: 59;
+      font-size: 10px;
+      color: #94a3b8;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid #334155;
+      padding: 3px 9px;
+      border-radius: 999px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+    .save-fab-sub.on { opacity: 1; }
+
     /* Sync status pill (always visible) */
     .sb-sync-pill {
       position: fixed;
@@ -90,7 +137,20 @@
       box-shadow: 0 8px 28px rgba(0,0,0,.35);
     }
     .sb-presence-bar strong { color: #f1f5f9; }
-    .sb-presence-names { margin-top: 4px; color: #94a3b8; line-height: 1.35; }
+    .sb-presence-names { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; line-height: 1.45; }
+    .sb-presence-chip {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 2px 6px 2px 0;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(56, 139, 253, 0.12);
+      border: 1px solid rgba(56, 139, 253, 0.32);
+      font-size: 11px;
+      white-space: nowrap;
+      max-width: 100%;
+    }
 
     dialog#sb-settings {
       width: min(680px, calc(100vw - 24px));
@@ -230,6 +290,11 @@
         right: 58px;
         max-width: min(200px, calc(100vw - 130px));
       }
+      .save-fab { padding: 10px 14px; font-size: 13px; }
+      .save-fab-sub { right: 14px; bottom: 64px; }
+    }
+    @media print {
+      .save-fab, .save-fab-sub, .gear-btn, .sb-sync-pill, .sb-presence-bar, .loading-indicator { display: none !important; }
     }
   </style>
 </head>
@@ -240,6 +305,12 @@
     <div><strong>👥 กำลังใช้งาน</strong> <span id="sb-presence-count">0</span> คน</div>
     <div id="sb-presence-names" class="sb-presence-names"></div>
   </div>
+
+  <button id="save-now-fab" class="save-fab" type="button" title="บันทึกข้อมูลขึ้นคลาวด์ (Ctrl+S)" aria-label="บันทึกข้อมูลขึ้นคลาวด์">
+    <span class="save-fab-ico" aria-hidden="true">💾</span>
+    <span class="save-fab-text">บันทึกขึ้นคลาวด์</span>
+  </button>
+  <div id="save-now-sub" class="save-fab-sub" aria-hidden="true">บันทึกล่าสุด: -</div>
 
   <button id="open-settings" class="gear-btn" type="button" title="ตั้งค่า Supabase Sync" aria-label="เปิดตั้งค่า Supabase Sync">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -291,7 +362,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260510-phase1-presence-ui"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260510-presence-username"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -393,6 +464,31 @@
     let autoSyncTimer = null;
     let autoSyncRunning = false;
     const AUTO_SYNC_MS = 12000;
+
+    // ── First-time / fresh-device guard ──────────────────────────────────
+    // The very first time this preview opens on a device it must PULL the
+    // server's data first. Until that happens, push is forbidden so an empty
+    // localStorage cannot accidentally overwrite data on Supabase.
+    const BOOTSTRAP_KEY = "_sbBootstrappedAt";
+    let bootstrapDone = !!localStorage.getItem(BOOTSTRAP_KEY);
+    function markBootstrapped() {
+      try {
+        if (!bootstrapDone) {
+          localStorage.setItem(BOOTSTRAP_KEY, new Date().toISOString());
+          bootstrapDone = true;
+        }
+      } catch (e) {}
+    }
+    function pushBlockedReason() {
+      if (!sbUrl() || !sbKey()) return "ยังไม่ได้ตั้งค่า Supabase";
+      if (!bootstrapDone) return "ยังไม่ได้ดาวน์โหลดข้อมูลครั้งแรก — กดเฟือง → 'เชื่อมต่อ & เริ่มซิงก์'";
+      return "";
+    }
+    function isEmptyBlobStr(v) {
+      if (typeof v !== "string") return true;
+      const t = v.trim();
+      return !t || t === "[]" || t === "{}" || t === "null" || t === '""';
+    }
 
     function sbUrl() { return (document.getElementById("sb-url").value || "").trim().replace(/\/+$/, ""); }
     function sbKey() { return (document.getElementById("sb-key").value || "").trim(); }
@@ -813,14 +909,36 @@
 
     async function pushNow() {
       if (!frameReady) return;
+      const block = pushBlockedReason();
+      if (block) {
+        setStatus("ยังไม่ push: " + block);
+        return;
+      }
       setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const now = new Date().toISOString();
       const rows = [];
+      let skippedEmpty = 0;
       try {
         for (const key of SYNC_KEYS) {
           let value = null;
           try { value = w.localStorage.getItem(key); } catch (e) {}
+
+          // Empty-blob guard: if local is empty but remote has data, skip the
+          // key entirely so a fresh device cannot wipe other users' data.
+          if (isEmptyBlobStr(value)) {
+            try {
+              const remoteVal = await fetchServerValueByKey(key);
+              if (typeof remoteVal === "string" && !isEmptyBlobStr(remoteVal)) {
+                try { w.localStorage.setItem(key, remoteVal); } catch (e) {}
+                skippedEmpty++;
+                continue;
+              }
+            } catch (_) { /* if remote check fails, fall through and skip */
+              if (typeof value !== "string") { skippedEmpty++; continue; }
+            }
+          }
+
           if (typeof value === "string" && usesStructuredMerge(key)) {
             const remoteVal = await fetchServerValueByKey(key);
             if (typeof remoteVal === "string") {
@@ -833,7 +951,9 @@
           }
         }
         if (!rows.length) {
-          setStatus("ไม่มีข้อมูลจะ push");
+          setStatus(skippedEmpty
+            ? ("ข้ามคีย์ว่าง " + skippedEmpty + " คีย์ (ปกป้องข้อมูลคลาวด์)")
+            : "ไม่มีข้อมูลจะ push");
           return;
         }
 
@@ -843,7 +963,8 @@
           const msg = await readErrorText(r);
           throw new Error("push failed HTTP " + r.status + (msg ? " - " + msg : ""));
         }
-        setStatus("push สำเร็จ " + rows.length + " keys");
+        const skipMsg = skippedEmpty ? " (ข้ามว่าง " + skippedEmpty + ")" : "";
+        setStatus("push สำเร็จ " + rows.length + " keys" + skipMsg);
       } finally {
         setLoading(false);
       }
@@ -951,19 +1072,39 @@
       return sbClient;
     }
 
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
     function readPresenceMeta(w) {
       try {
         const raw = w.localStorage.getItem("_authUser");
-        const u = raw ? JSON.parse(raw) : null;
-        return {
-          username: (u && u.username) || "guest",
-          name: (u && u.name) || "",
-          role: (u && u.role) || "",
-          tab_id: presenceTabId
-        };
-      } catch (e) {
-        return { username: "guest", name: "", role: "", tab_id: presenceTabId };
-      }
+        if (raw) {
+          const u = JSON.parse(raw);
+          const username = u && u.username ? String(u.username).trim() : "";
+          if (username) {
+            return {
+              username: username,
+              name: u && u.name ? String(u.name).trim() : "",
+              role: u && u.role ? String(u.role).trim() : "",
+              tab_id: presenceTabId
+            };
+          }
+        }
+        const sessRaw = w.localStorage.getItem("pmf_session_v5");
+        if (sessRaw) {
+          const s = JSON.parse(sessRaw);
+          const username = s && s.username ? String(s.username).trim() : "";
+          if (username) {
+            return { username: username, name: "", role: "", tab_id: presenceTabId };
+          }
+        }
+      } catch (e) {}
+      return { username: "guest", name: "", role: "", tab_id: presenceTabId };
     }
 
     function presencePayload(m) {
@@ -989,12 +1130,22 @@
         });
       });
 
-      const uniq = {};
+      const uniqUser = {};
       entries.forEach((p) => {
-        const k = (p.username || "") + "|" + (p.tab_id || "");
-        if (!uniq[k]) uniq[k] = p;
+        const un = String(p.username || "guest").trim() || "guest";
+        const prev = uniqUser[un];
+        if (!prev) {
+          uniqUser[un] = Object.assign({}, p, { username: un, _tabs: 1 });
+          return;
+        }
+        prev._tabs = (prev._tabs || 1) + 1;
+        if (p.name) prev.name = p.name;
+        if (p.role) prev.role = p.role;
       });
-      const list = Object.values(uniq);
+      let list = Object.values(uniqUser).filter((p) => p.username && p.username !== "guest");
+      if (!list.length) {
+        list = Object.values(uniqUser);
+      }
 
       if (!list.length) {
         bar.style.display = "none";
@@ -1002,14 +1153,27 @@
       }
       bar.style.display = "block";
       cntEl.textContent = String(list.length);
-      namesEl.textContent = list
+      namesEl.innerHTML = list
         .map((p) => {
-          const nm = (p.name || p.username || "").trim();
-          const un = p.username || "";
-          const role = p.role ? " · " + p.role : "";
-          return nm && nm !== un ? nm + " (@" + un + ")" + role : "@" + un + role;
+          const un = escapeHtml(p.username || "");
+          const nm = escapeHtml((p.name || "").trim());
+          const role = escapeHtml((p.role || "").trim());
+          const tabs = p._tabs > 1 ? ` <span style="opacity:.75;font-size:10px">(${p._tabs} แท็บ)</span>` : "";
+          const roleBit = role ? `<span style="opacity:.75;font-size:10px;margin-left:4px">${role}</span>` : "";
+          const nameBit = nm ? `<span style="opacity:.9;font-weight:600;margin-left:6px">${nm}</span>` : "";
+          return `<span class="sb-presence-chip"><span class="mono" style="color:#7dd3fc;font-weight:800">@${un}</span>${nameBit}${roleBit}${tabs}</span>`;
         })
-        .join(" · ");
+        .join("");
+    }
+
+    async function refreshPresenceTrack() {
+      if (!frameReady) return;
+      const w = document.getElementById("app-frame").contentWindow;
+      if (!presenceChannel || !w) return;
+      try {
+        const meta = Object.assign({ online_at: new Date().toISOString() }, readPresenceMeta(w));
+        await presenceChannel.track(meta);
+      } catch (e) {}
     }
 
     async function stopPresence() {
@@ -1100,6 +1264,11 @@
       try {
         await testConn();
         await pullNow();
+        // First successful pull marks the device as "bootstrapped" so that
+        // subsequent pushes are allowed (and won't accidentally wipe cloud
+        // data with an empty localStorage).
+        markBootstrapped();
+        try { updateSaveFabReady(); } catch (_) {}
         await startRealtime();
       } catch (e) {
         setStatus("ผิดพลาด: " + e.message);
@@ -1127,6 +1296,7 @@
       if (!sbUrl() || !sbKey()) {
         setStatus("กรอก URL และ anon key ก่อน");
         if (typeof hint !== "undefined" && hint) hint.classList.remove("on");
+        try { updateSaveFabReady(); } catch (_) {}
         return;
       }
       if (btn) btn.disabled = true;
@@ -1135,6 +1305,7 @@
         await initialPullAndListen();
         startAutoSync();
         if (hint) hint.classList.add("on");
+        try { updateSaveFabReady(); } catch (_) {}
       } catch (e) {
         setStatus("ผิดพลาด: " + e.message);
         if (hint) hint.classList.remove("on");
@@ -1155,6 +1326,101 @@
     document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
     document.getElementById("pull-now").addEventListener("click", () => pullNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
     document.getElementById("btn-connect-sync").addEventListener("click", () => connectAndStartSync());
+
+    // ── Floating "Save now" button (visible on every page) ─────────────────
+    const saveFab = document.getElementById("save-now-fab");
+    const saveFabSub = document.getElementById("save-now-sub");
+    let saveFabBusy = false;
+
+    function setSaveFabState(stateClass, text, icon) {
+      if (!saveFab) return;
+      saveFab.classList.remove("is-saving", "is-success", "is-error", "is-disabled");
+      if (stateClass) saveFab.classList.add(stateClass);
+      const tEl = saveFab.querySelector(".save-fab-text");
+      const iEl = saveFab.querySelector(".save-fab-ico");
+      if (tEl && text) tEl.textContent = text;
+      if (iEl && icon) iEl.textContent = icon;
+    }
+
+    function fmtTime(d) {
+      try {
+        const h = String(d.getHours()).padStart(2, "0");
+        const m = String(d.getMinutes()).padStart(2, "0");
+        const s = String(d.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+      } catch (e) { return ""; }
+    }
+
+    function updateSaveFabReady() {
+      if (!saveFab) return;
+      const hasCfg = !!(sbUrl() && sbKey());
+      if (!hasCfg) {
+        saveFab.disabled = true;
+        setSaveFabState("is-disabled", "ตั้งค่า Sync ก่อน", "⚠️");
+        if (saveFabSub) saveFabSub.classList.remove("on");
+        return;
+      }
+      if (!bootstrapDone) {
+        saveFab.disabled = true;
+        setSaveFabState("is-disabled", "รอดาวน์โหลดข้อมูลครั้งแรก", "📥");
+        if (saveFabSub) saveFabSub.classList.remove("on");
+        return;
+      }
+      if (!saveFabBusy) {
+        saveFab.disabled = false;
+        setSaveFabState("", "บันทึกขึ้นคลาวด์", "💾");
+      }
+    }
+
+    async function doSaveNow() {
+      if (!saveFab || saveFab.disabled || saveFabBusy) return;
+      if (!sbUrl() || !sbKey()) {
+        updateSaveFabReady();
+        try { document.getElementById("open-settings").click(); } catch (e) {}
+        return;
+      }
+      if (!frameReady) {
+        setStatus("แอปยังไม่พร้อม");
+        return;
+      }
+      saveFabBusy = true;
+      saveFab.disabled = true;
+      setSaveFabState("is-saving", "กำลังบันทึก...", "🔄");
+      try {
+        await pushNow();
+        await pullNow();
+        const now = new Date();
+        setSaveFabState("is-success", "บันทึกแล้ว", "✅");
+        if (saveFabSub) {
+          saveFabSub.textContent = "บันทึกล่าสุด: " + fmtTime(now);
+          saveFabSub.classList.add("on");
+        }
+        setTimeout(() => {
+          saveFabBusy = false;
+          updateSaveFabReady();
+          if (saveFabSub) {
+            setTimeout(() => { if (saveFabSub) saveFabSub.classList.remove("on"); }, 2200);
+          }
+        }, 1400);
+      } catch (e) {
+        setStatus("ผิดพลาด: " + e.message);
+        setSaveFabState("is-error", "บันทึกไม่สำเร็จ — ลองใหม่", "⚠️");
+        setTimeout(() => {
+          saveFabBusy = false;
+          updateSaveFabReady();
+        }, 2200);
+      }
+    }
+
+    if (saveFab) saveFab.addEventListener("click", doSaveNow);
+
+    // Ctrl+S / Cmd+S anywhere on parent → save
+    window.addEventListener("keydown", (e) => {
+      const isSave = (e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S");
+      if (!isSave) return;
+      e.preventDefault();
+      doSaveNow();
+    });
 
     document.getElementById("back-prev-menu").addEventListener("click", () => {
       if (!frameReady) return;
@@ -1206,6 +1472,26 @@
     settingsDlg.addEventListener("click", (e) => {
       if (e.target === settingsDlg) closeSettingsModal();
     });
+
+    window.addEventListener("message", (ev) => {
+      try {
+        if (!ev.data) return;
+        if (ev.data.type === "pmf-presence-refresh") {
+          refreshPresenceTrack();
+        } else if (ev.data.type === "pmf-save-now") {
+          doSaveNow();
+        }
+      } catch (e) {}
+    });
+
+    // Refresh Save FAB readiness when URL/key inputs change or settings dialog closes
+    ["sb-url", "sb-key"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("input", updateSaveFabReady);
+      el.addEventListener("blur", updateSaveFabReady);
+    });
+    updateSaveFabReady();
 
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;

@@ -42535,6 +42535,8 @@ function doLogin(){
   AUTH.pages = [...new Set([...(user.pages||[]), ...roleDefaults2])];
   if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify({username:user.username, ts:Date.now()})); }catch(e){}
+  try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
+  try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
 
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-app').style.display = '';
@@ -42551,6 +42553,8 @@ function doLogin(){
 function doLogout(){
   AUTH = null;
   try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+  try{ localStorage.removeItem('_authUser'); }catch(e){}
+  try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-username-input').value = '';
@@ -42578,6 +42582,8 @@ function tryAutoLogin(){
     const merged = [...new Set([...(user.pages||[]), ...roleDefaults])];
     AUTH.pages = merged;
     if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
+    try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = '';
     applyPermissions();
@@ -43041,6 +43047,23 @@ document.addEventListener('DOMContentLoaded', function(){
     renderHomeScreen();
   }
 });
+
+// Forward Ctrl+S inside this iframe to the parent (preview) so the floating
+// "บันทึกขึ้นคลาวด์" button gets triggered no matter which page is focused.
+(function(){
+  function _isCtrlS(e){
+    return (e.ctrlKey || e.metaKey) && (e.key==='s' || e.key==='S');
+  }
+  document.addEventListener('keydown', function(e){
+    if(!_isCtrlS(e)) return;
+    e.preventDefault();
+    try{
+      if(window.parent && window.parent!==window){
+        window.parent.postMessage({ type:'pmf-save-now' }, '*');
+      }
+    }catch(_){ }
+  }, true);
+})();
 
 // masterInit is now called by doLogin() or tryAutoLogin()
 // masterInit();
