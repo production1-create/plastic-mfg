@@ -42396,9 +42396,19 @@ const ROLES = {
     desc:'วัตถุดิบ, FG Stock, Delivery เท่านั้น',
     pages:['dashboard','line-summary','rawmat','stock','delivery','order-await','shipment-history','traceability','engineering-change','barcode','globalsearch']
   },
+  viewer: {
+    label:'ดูอย่างเดียว', color:'#94a3b8', bg:'rgba(148,163,184,0.15)',
+    desc:'ดูข้อมูลเท่านั้น (กำหนดเมนูได้)',
+    pages:['dashboard','line-summary']
+  },
+  custom: {
+    label:'กำหนดเอง', color:'#22d3ee', bg:'rgba(34,211,238,0.15)',
+    desc:'ตำแหน่งกำหนดเอง — Admin เลือกเมนูได้อิสระ',
+    pages:[]
+  },
 };
 
-const ROLE_AVATAR = {admin:'🔴',manager:'🟠',production:'🟡',operator:'🟢',qc:'🔵',warehouse:'🟣'};
+const ROLE_AVATAR = {admin:'🔴',manager:'🟠',production:'🟡',operator:'🟢',qc:'🔵',warehouse:'🟣',viewer:'⚪',custom:'🎭'};
 
 // ── Storage keys ──────────────────────────────────────────────────────────
 const USER_STORE_KEY = 'pmf_users_v5'; // v5: added dc/wi/barcode/globalsearch/approvaldocs/nganalysis
@@ -42420,13 +42430,19 @@ function loadUsers(){
       if(u && u.length){
         // Skip soft-deleted tombstones used for cross-machine sync of deletes/renames
         u = u.filter(x => x && x.username && !x._deleted);
-        // Merge: ensure every user has at least the pages their role grants
-        const rolePages = (role) => (ROLES[role]?.pages || []);
+        // Respect admin's choice: only seed defaults if pages field is missing.
+        // Empty array [] is treated as a deliberate restriction (e.g. limited
+        // operator who should see only 2 menus) — do NOT inject role defaults.
         u.forEach(user => {
-          if(!Array.isArray(user.pages)) user.pages = [];
-          const rp = rolePages(user.role);
-          // Add any role pages not yet in user's list (new features)
-          rp.forEach(p => { if(!user.pages.includes(p)) user.pages.push(p); });
+          if(!Array.isArray(user.pages)){
+            // Brand new record (no pages key yet) — fall back to role default
+            const rp = (ROLES[user.role]?.pages || []).slice();
+            user.pages = rp;
+          }
+          // Admin role always has access to everything (safety net)
+          if(user.role === 'admin'){
+            user.pages = ALL_PAGES.map(p => p.id);
+          }
           if(user.pages.includes('approvalproc') && !user.pages.includes('approvalproc-done'))
             user.pages.push('approvalproc-done');
         });
@@ -42545,9 +42561,13 @@ function doLogin(){
   }
 
   AUTH = {...user};
-  // Merge role default pages so existing users get new pages automatically
-  const roleDefaults2 = (ROLES[user.role]||{}).pages||[];
-  AUTH.pages = [...new Set([...(user.pages||[]), ...roleDefaults2])];
+  // Respect Admin's per-user permission choice exactly (no auto-merge).
+  // Admin role itself always gets the full page set.
+  if(user.role === 'admin'){
+    AUTH.pages = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+  } else {
+    AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
+  }
   if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify({username:user.username, ts:Date.now()})); }catch(e){}
   try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
@@ -42592,10 +42612,12 @@ function tryAutoLogin(){
     const user = loadUsers().find(x=>x.username===sess.username);
     if(!user) return false;
     AUTH = {...user};
-    // Merge role default pages so new pages added to role are always accessible
-    const roleDefaults = (ROLES[user.role]||{}).pages||[];
-    const merged = [...new Set([...(user.pages||[]), ...roleDefaults])];
-    AUTH.pages = merged;
+    // Respect Admin's per-user permission choice exactly (no auto-merge).
+    if(user.role === 'admin'){
+      AUTH.pages = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+    } else {
+      AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
+    }
     if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
     try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
     try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
@@ -42611,43 +42633,24 @@ function tryAutoLogin(){
 }
 
 // ── Apply permissions: hide/show nav items ─────────────────────────────────
+// Admin role: full access (sees every page).
+// All other roles: strictly limited to AUTH.pages — Admin can restrict a user
+// to as few as 1-2 menus by editing them in "จัดการผู้ใช้". The previous
+// "always-allowed" defaults were removed so per-user restrictions actually
+// take effect.
 function applyPermissions(){
   if(!AUTH) return;
+  const isAdmin = AUTH.role === 'admin';
   const allowed = new Set(AUTH.pages||[]);
-  // ── Pages ที่ทุก role เข้าได้เสมอ ──────────────────────────────
-  allowed.add('machregistry');
-  allowed.add('moldregistry');
-  allowed.add('customers');
-  allowed.add('closedloop');
-  allowed.add('jobreg');
-  allowed.add('empreg');
-  allowed.add('rawmatreg');
-  allowed.add('supplierreg');
-  allowed.add('pmchecklist');
-  allowed.add('kpitargets');
-  allowed.add('specregistry');
-  allowed.add('limitsample');
-  allowed.add('dailyrpt');
-  allowed.add('nganalysis');
-  allowed.add('dashboard');
-  // ── เพิ่มเติม: เอกสารมาตรฐานที่ทุกคนควรเข้าได้ ──────────────
-  allowed.add('wi');           // WI & Packing Standard
-  allowed.add('wi-rework');    // WI Rework
-  allowed.add('wi-deviation'); // ขออนุมัติปล่อยผ่าน
-  allowed.add('barcode');      // QR Code & Label
-  allowed.add('globalsearch'); // ค้นหาทั่วไป
-  allowed.add('machgroup');    // Group เครื่องจักร
-  allowed.add('deptmachcare'); // จัดกลุ่มแผนกดูแลเครื่อง (HR)
-  allowed.add('mixing');       // แผนผสมเม็ด
-  allowed.add('qrtrack');      // QR Scan Tracker
-  allowed.add('hourlyboard');  // บอร์ดผลิตรายชั่วโมง
+  if(isAdmin){
+    (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).forEach(p => allowed.add(p.id));
+  }
   if(allowed.has('approvalproc')) allowed.add('approvalproc-done');
 
   document.querySelectorAll('.nav-item[onclick]').forEach(el=>{
     const m = el.getAttribute('onclick').match(/showPage\('([^']+)'/);
     if(!m) return;
     const pid = m[1];
-    // Hide nav items not in allowed set (show admin only for admin role)
     el.style.display = allowed.has(pid) ? '' : 'none';
   });
 
@@ -42657,12 +42660,11 @@ function applyPermissions(){
     const anyVisible = [...items].some(i=>i.style.display!=='none');
     const label = sec.querySelector('.nav-label');
     if(label) label.style.display = anyVisible ? '' : 'none';
-    // Keep section div but hide label if empty
   });
 
-  // Admin nav section
+  // Admin nav section is admin-only
   const adminSec = document.getElementById('nav-admin-section');
-  if(adminSec) adminSec.style.display = AUTH.role==='admin' ? '' : 'none';
+  if(adminSec) adminSec.style.display = isAdmin ? '' : 'none';
 }
 
 function updateSidebarUser(){
@@ -42721,13 +42723,14 @@ function getIconBg(secId, itemIdx){
 function renderHomeScreen(){
   var area = document.getElementById('hs-grid-area');
   if(!area) return;
+  // Strict: home screen tiles reflect exactly what Admin granted to this user.
+  // Admin role gets every tile (full access).
   var allowed = new Set(AUTH && AUTH.pages ? AUTH.pages : []);
-  ['machregistry','moldregistry','customers','closedloop','jobreg','empreg','rawmatreg',
-   'supplierreg','pmchecklist','kpitargets','specregistry','limitsample','dailyrpt',
-   'nganalysis','dashboard','wi','wi-rework','wi-deviation','barcode','globalsearch',
-   'machgroup','deptmachcare','mixing','qrtrack','hourlyboard'].forEach(function(p){ allowed.add(p); });
+  if(AUTH && AUTH.role==='admin'){
+    (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).forEach(function(p){ allowed.add(p.id); });
+    allowed.add('admin');
+  }
   if(AUTH && AUTH.pages && AUTH.pages.includes('approvalproc')) allowed.add('approvalproc-done');
-  if(AUTH && AUTH.role==='admin') allowed.add('admin');
 
   var isLt = document.body.classList.contains('light-mode');
   var html = '';
@@ -42750,6 +42753,13 @@ function renderHomeScreen(){
     });
     html += '</div></div>';
   });
+  if(!html){
+    html = '<div style="padding:40px 20px;text-align:center;color:var(--text3);font-size:14px;background:var(--bg2);border:1px dashed var(--border);border-radius:12px">'
+         + '<div style="font-size:38px;margin-bottom:10px">🔒</div>'
+         + '<div style="font-weight:700;color:var(--text2);margin-bottom:6px">ยังไม่มีเมนูที่เข้าถึงได้</div>'
+         + '<div style="font-size:12px">กรุณาแจ้ง <b>Admin</b> เพื่อกำหนดสิทธิ์เมนูที่คุณต้องการใช้งาน</div>'
+         + '</div>';
+  }
   area.innerHTML = html;
 
   // Wire up click via event delegation (avoids inline onclick quote issues)
@@ -42792,15 +42802,24 @@ function renderAdminPage(){
   const cnt = document.getElementById('user-count');
   if(cnt) cnt.textContent = users.length;
 
-  // Role cards
+  // Role cards — counts users in each role to make it tangible for Admin
   const legend = document.getElementById('role-legend');
   if(legend){
-    legend.innerHTML = Object.entries(ROLES).map(([k,r])=>`
-      <div style="background:${r.bg};border:1px solid ${r.color}40;border-radius:8px;padding:8px 14px;min-width:130px">
+    const userCountByRole = {};
+    users.forEach(u => { userCountByRole[u.role] = (userCountByRole[u.role]||0) + 1; });
+    legend.innerHTML = Object.entries(ROLES).map(([k,r])=>{
+      const cnt = userCountByRole[k]||0;
+      const defaultPagesCount = k === 'admin' ? ALL_PAGES.length : (r.pages||[]).length;
+      const isCustom = k === 'custom';
+      return `
+      <div style="background:${r.bg};border:1px solid ${r.color}40;border-radius:8px;padding:8px 14px;min-width:140px">
         <div style="color:${r.color};font-weight:800;font-size:13px">${ROLE_AVATAR[k]||'👤'} ${r.label}</div>
         <div style="font-size:10px;color:#8b949e;margin-top:3px">${r.desc}</div>
-        <div style="font-size:10px;color:${r.color};margin-top:4px;font-weight:600">${(ROLES[k].pages||[]).length} หน้า (default)</div>
-      </div>`).join('');
+        <div style="font-size:10px;color:${r.color};margin-top:4px;font-weight:600">
+          ${cnt} คน · ${isCustom ? 'กำหนดเมนูเองแต่ละคน' : (defaultPagesCount + ' หน้า (default)')}
+        </div>
+      </div>`;
+    }).join('');
   }
 
   // User list
@@ -42814,8 +42833,12 @@ function renderAdminPage(){
          </div>`
       : '';
     list.innerHTML = headerHtml + users.map(u=>{
-      const role = ROLES[u.role]||ROLES.operator;
+      const role = ROLES[u.role]||ROLES.custom||ROLES.operator;
       const isSelf = AUTH&&AUTH.username===u.username;
+      // For custom roles, show the user-defined position (dept) as the badge
+      // label so each "custom" user shows up with their own job title.
+      const roleLabel = u.role === 'custom' && u.dept ? u.dept : role.label;
+      const pageCount = u.role === 'admin' ? ALL_PAGES.length : (u.pages||[]).length;
       const pwdRow = isAdminViewer ? `
             <div class="pwd-row" style="font-size:11px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               <span style="color:var(--text3)">🔑 Password:</span>
@@ -42837,8 +42860,8 @@ function renderAdminPage(){
           </div>
           ${pwdRow}
           <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <span style="background:${role.bg};border:1px solid ${role.color}40;color:${role.color};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">${role.label}</span>
-            <span style="font-size:10px;color:var(--text3)">${(u.pages||[]).length} หน้าที่เข้าถึงได้</span>
+            <span style="background:${role.bg};border:1px solid ${role.color}40;color:${role.color};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">${ROLE_AVATAR[u.role]||'👤'} ${roleLabel}</span>
+            <span style="font-size:10px;color:var(--text3)">${pageCount} หน้าที่เข้าถึงได้${u.role==='admin'?' (ทุกหน้า)':''}</span>
           </div>
         </div>
         <div class="flex gap-2">
@@ -42856,13 +42879,13 @@ function renderPermMatrix(){
   const head = document.getElementById('perm-matrix-head');
   const body = document.getElementById('perm-matrix-body');
   if(!head||!body) return;
-  const roleKeys = Object.keys(ROLES);
+  // Skip "custom" — it has no fixed defaults (per-user choice)
+  const roleKeys = Object.keys(ROLES).filter(k => k !== 'custom');
   head.innerHTML = `<tr>
     <th style="text-align:left;min-width:155px;font-size:11px">หน้า / ฟีเจอร์</th>
     ${roleKeys.map(k=>`<th style="text-align:center;font-size:10px;color:${ROLES[k].color};min-width:76px">${ROLE_AVATAR[k]} ${ROLES[k].label}</th>`).join('')}
   </tr>`;
 
-  // Group by section
   const sections = [...new Set(ALL_PAGES.map(p=>p.section))];
   body.innerHTML = sections.map(sec=>{
     const pages = ALL_PAGES.filter(p=>p.section===sec);
@@ -42870,7 +42893,8 @@ function renderPermMatrix(){
       + pages.map(pg=>`<tr>
         <td style="font-size:12px">${pg.icon} ${pg.label}</td>
         ${roleKeys.map(k=>{
-          const has=(ROLES[k].pages||[]).includes(pg.id);
+          // Admin always has every page (full access)
+          const has = k === 'admin' ? true : (ROLES[k].pages||[]).includes(pg.id);
           return `<td style="text-align:center">${has
             ?'<span style="color:#3fb950;font-size:15px">✓</span>'
             :'<span style="color:rgba(255,255,255,0.12);font-size:12px">—</span>'}</td>`;
@@ -42891,6 +42915,7 @@ function openAddUserModal(){
   document.getElementById('au-edit-username').value = '';
   try { resetAuPasswordVisibility(); } catch(_){ }
   presetRolePerms();
+  onRoleChange();
   openModal('modal-add-user');
 }
 
@@ -42905,30 +42930,134 @@ function editUser(username){
   document.getElementById('au-name').value = u.name;
   document.getElementById('au-password').value = u.password;
   document.getElementById('au-dept').value = u.dept||'';
-  document.getElementById('au-role').value = u.role;
+  // If the saved role no longer exists in ROLES, fall back to "custom" so
+  // Admin can keep editing their bespoke per-user permissions.
+  const savedRole = u.role && ROLES[u.role] ? u.role : 'custom';
+  document.getElementById('au-role').value = savedRole;
   document.getElementById('au-edit-username').value = u.username;
   // Reset password visibility to hidden whenever the modal opens
   try { resetAuPasswordVisibility(); } catch(_){ }
   buildPermToggles(u.pages||[]);
+  onRoleChange();
   openModal('modal-add-user');
 }
 
 function presetRolePerms(){
   const role = document.getElementById('au-role').value;
-  buildPermToggles((ROLES[role]||ROLES.operator).pages);
+  // Custom role starts empty so Admin picks pages from scratch.
+  // Admin role pre-selects everything for visual confirmation (full access).
+  let initial;
+  if(role === 'admin'){
+    initial = ALL_PAGES.map(p=>p.id);
+  } else if(role === 'custom'){
+    initial = [];
+  } else {
+    initial = (ROLES[role]||ROLES.operator).pages || [];
+  }
+  buildPermToggles(initial);
+}
+
+// Called when role dropdown changes — updates hint, dept-required marker,
+// and admin full-access banner. Does NOT overwrite the current toggles
+// (admin must explicitly click "ใช้ค่าเริ่มต้นของ Role" to do that), so
+// switching role won't accidentally erase a carefully picked menu list.
+function onRoleChange(){
+  const role = document.getElementById('au-role').value;
+  const hintEl = document.getElementById('au-role-hint');
+  const reqEl  = document.getElementById('au-dept-required');
+  const bannerEl = document.getElementById('au-admin-fullaccess-hint');
+  const togglesEl = document.getElementById('au-perm-toggles');
+  const r = ROLES[role];
+
+  if(hintEl){
+    if(r){
+      hintEl.innerHTML = `<span style="color:${r.color};font-weight:700">${ROLE_AVATAR[role]||'👤'} ${r.label}</span> — ${r.desc}`;
+    } else {
+      hintEl.textContent = '';
+    }
+  }
+  if(reqEl) reqEl.style.display = (role === 'custom') ? '' : 'none';
+  if(bannerEl) bannerEl.style.display = (role === 'admin') ? '' : 'none';
+  if(togglesEl) togglesEl.style.opacity = (role === 'admin') ? '0.55' : '1';
+
+  // First-time entry to a role (no toggles yet) — preset from defaults
+  if(togglesEl && !togglesEl.querySelector('.perm-toggle')){
+    presetRolePerms();
+  } else if(role === 'admin'){
+    // Admin role: visually mark every toggle as ON (because access is full)
+    togglesEl.querySelectorAll('.perm-toggle').forEach(el=>{
+      el.classList.add('on'); el.classList.remove('off');
+    });
+    updateAuPermCount();
+  }
 }
 
 function buildPermToggles(activePagesArr){
   const active = new Set(activePagesArr);
   const cont = document.getElementById('au-perm-toggles');
   if(!cont) return;
-  // Group by section
   const sections = [...new Set(ALL_PAGES.map(p=>p.section))];
   cont.innerHTML = sections.map(sec=>{
     const pages = ALL_PAGES.filter(p=>p.section===sec);
-    return `<div style="width:100%;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.6px;text-transform:uppercase;padding:6px 0 3px;border-top:1px solid var(--border);margin-top:4px">${sec}</div>`
-      + pages.map(pg=>`<span class="perm-toggle ${active.has(pg.id)?'on':'off'}" data-page="${pg.id}" onclick="this.classList.toggle('on');this.classList.toggle('off')">${pg.icon} ${pg.label}</span>`).join('');
+    const secPagesIds = pages.map(p=>p.id).join(',');
+    return `<div data-perm-section="${sec}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.6px;text-transform:uppercase;padding:8px 0 3px;border-top:1px solid var(--border);margin-top:4px">
+        <span>${sec}</span>
+        <span style="display:flex;gap:4px;text-transform:none;letter-spacing:0">
+          <button type="button" onclick="auToggleSection('${sec}', true)" title="เปิดทั้งหมวด" style="padding:2px 8px;font-size:10px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:4px;cursor:pointer;font-family:inherit">✓ ทั้งหมวด</button>
+          <button type="button" onclick="auToggleSection('${sec}', false)" title="ปิดทั้งหมวด" style="padding:2px 8px;font-size:10px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.25);color:#f85149;border-radius:4px;cursor:pointer;font-family:inherit">✕</button>
+        </span>
+      </div>`
+      + pages.map(pg=>`<span class="perm-toggle ${active.has(pg.id)?'on':'off'}" data-page="${pg.id}" data-section="${sec}" onclick="auTogglePerm(this)">${pg.icon} ${pg.label}</span>`).join('');
   }).join('');
+  updateAuPermCount();
+}
+
+function auTogglePerm(el){
+  if(!el) return;
+  el.classList.toggle('on');
+  el.classList.toggle('off');
+  updateAuPermCount();
+}
+
+function auSelectAllPerms(on){
+  const cont = document.getElementById('au-perm-toggles');
+  if(!cont) return;
+  cont.querySelectorAll('.perm-toggle').forEach(el=>{
+    if(on){ el.classList.add('on'); el.classList.remove('off'); }
+    else  { el.classList.add('off'); el.classList.remove('on'); }
+  });
+  updateAuPermCount();
+}
+
+function auToggleSection(section, on){
+  const cont = document.getElementById('au-perm-toggles');
+  if(!cont) return;
+  cont.querySelectorAll(`.perm-toggle[data-section="${CSS.escape(section)}"]`).forEach(el=>{
+    if(on){ el.classList.add('on'); el.classList.remove('off'); }
+    else  { el.classList.add('off'); el.classList.remove('on'); }
+  });
+  updateAuPermCount();
+}
+
+function auResetToRoleDefault(){
+  const role = document.getElementById('au-role').value;
+  const r = ROLES[role];
+  const def = role === 'admin'
+    ? ALL_PAGES.map(p=>p.id)
+    : (r && r.pages ? r.pages : []);
+  buildPermToggles(def);
+  if(typeof _toast === 'function') _toast(`🔄 รีเซ็ตเป็นสิทธิ์เริ่มต้นของ ${(r&&r.label)||role}`);
+}
+
+function updateAuPermCount(){
+  const cont = document.getElementById('au-perm-toggles');
+  const counter = document.getElementById('au-perm-count');
+  if(!cont || !counter) return;
+  const all = cont.querySelectorAll('.perm-toggle');
+  const on = cont.querySelectorAll('.perm-toggle.on');
+  counter.textContent = `${on.length} / ${all.length}`;
+  counter.style.background = on.length === 0 ? 'rgba(248,81,73,0.15)' : 'rgba(56,139,253,0.12)';
+  counter.style.color      = on.length === 0 ? '#f85149' : '#388bfd';
 }
 
 function saveUser(){
@@ -42943,40 +43072,63 @@ function saveUser(){
   if(!username||!name){ if(typeof _infoToast==="function") _infoToast('กรุณากรอก Username และชื่อ'); return; }
   if(!/^[a-z0-9._-]{2,32}$/i.test(username)){ if(typeof _infoToast==="function") _infoToast('Username ต้องเป็นตัวอักษร a-z, 0-9, จุด/ขีดล่าง/ขีดกลาง (2-32 ตัว)'); return; }
   if(password.length<4){ if(typeof _infoToast==="function") _infoToast('Password ต้องมีอย่างน้อย 4 ตัวอักษร'); return; }
+  if(role === 'custom' && !dept){
+    if(typeof _infoToast==="function") _infoToast('กรุณากรอก "แผนก / ตำแหน่ง" สำหรับ Role กำหนดเอง');
+    document.getElementById('au-dept')?.focus();
+    return;
+  }
 
-  const pages = [...document.querySelectorAll('#au-perm-toggles .perm-toggle.on')].map(el=>el.dataset.page);
+  // Admin role always gets full access. Other roles use what was toggled.
+  let pages;
+  if(role === 'admin'){
+    pages = ALL_PAGES.map(p=>p.id);
+  } else {
+    pages = [...document.querySelectorAll('#au-perm-toggles .perm-toggle.on')].map(el=>el.dataset.page);
+    if(pages.length === 0){
+      if(typeof _confirmDel === 'function'){
+        _confirmDel('⚠️ ยังไม่ได้เลือกเมนูใดเลย<br>ผู้ใช้นี้จะ <b>ไม่เห็นเมนูใด ๆ</b> หลังเข้าสู่ระบบ<br><br>ต้องการบันทึกแบบนี้หรือไม่?', function(){
+          _saveUserCommit({editUn,isEdit,username,name,password,role,dept,pages});
+        });
+        return;
+      }
+    }
+  }
+  _saveUserCommit({editUn,isEdit,username,name,password,role,dept,pages});
+}
+
+function _saveUserCommit(d){
   const users = loadUsers();
-  const usernameChanged = isEdit && username !== editUn;
+  const usernameChanged = d.isEdit && d.username !== d.editUn;
   const now = new Date().toISOString();
 
-  if(isEdit){
-    const idx = users.findIndex(x=>x.username===editUn);
+  if(d.isEdit){
+    const idx = users.findIndex(x=>x.username===d.editUn);
     if(idx<0){ if(typeof _infoToast==="function") _infoToast('ไม่พบผู้ใช้'); return; }
-    if(usernameChanged && users.find(x=>x.username===username)){
-      if(typeof _infoToast==="function") _infoToast('Username "'+username+'" นี้มีอยู่แล้ว');
+    if(usernameChanged && users.find(x=>x.username===d.username)){
+      if(typeof _infoToast==="function") _infoToast('Username "'+d.username+'" นี้มีอยู่แล้ว');
       return;
     }
-    users[idx] = {...users[idx], username, name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', updatedAt:now};
+    users[idx] = {...users[idx], username:d.username, name:d.name, password:d.password, role:d.role, dept:d.dept, pages:d.pages, avatar:ROLE_AVATAR[d.role]||'👤', updatedAt:now};
     if(usernameChanged){
-      // Leave a tombstone so cross-machine sync knows to drop the old username
-      users.push({username:editUn, _deleted:true, _renamedTo:username, updatedAt:now});
+      users.push({username:d.editUn, _deleted:true, _renamedTo:d.username, updatedAt:now});
     }
-    if(AUTH&&AUTH.username===editUn){
+    if(AUTH&&AUTH.username===d.editUn){
       AUTH={...users[idx]};
       try { localStorage.setItem('_authUser', JSON.stringify(AUTH)); } catch(_){ }
       applyPermissions();
       updateSidebarUser();
+      if(typeof renderHomeScreen === 'function') renderHomeScreen();
     }
   } else {
-    if(users.find(x=>x.username===username)){ if(typeof _infoToast==="function") _infoToast('Username นี้มีอยู่แล้ว'); return; }
-    users.push({username, name, password, role, dept, pages, avatar:ROLE_AVATAR[role]||'👤', createdAt:now, updatedAt:now});
+    if(users.find(x=>x.username===d.username)){ if(typeof _infoToast==="function") _infoToast('Username นี้มีอยู่แล้ว'); return; }
+    users.push({username:d.username, name:d.name, password:d.password, role:d.role, dept:d.dept, pages:d.pages, avatar:ROLE_AVATAR[d.role]||'👤', createdAt:now, updatedAt:now});
   }
 
   saveUsers(users);
   closeModal('modal-add-user');
   renderAdminPage();
   if(typeof buildLoginUserList==='function') buildLoginUserList();
-  if(typeof _toast==='function') _toast(isEdit?(usernameChanged?'✅ เปลี่ยน Username เรียบร้อย':'✅ แก้ไขเรียบร้อย'):'✅ เพิ่มผู้ใช้ใหม่เรียบร้อย');
+  if(typeof _toast==='function') _toast(d.isEdit?(usernameChanged?'✅ เปลี่ยน Username เรียบร้อย':'✅ แก้ไขเรียบร้อย'):'✅ เพิ่มผู้ใช้ใหม่เรียบร้อย');
 }
 
 // ── Password visibility helpers ────────────────────────────────────────────
@@ -48517,7 +48669,7 @@ function _clRenderChart(){
     <div class="flex items-center justify-between">
       <div>
         <div class="page-title">👥 จัดการผู้ใช้งาน & สิทธิ์การเข้าถึง</div>
-        <div class="page-sub">กำหนด Role, Password และสิทธิ์แต่ละหน้าสำหรับผู้ใช้แต่ละคน</div>
+        <div class="page-sub">กำหนด Role, Password และเลือก<b>เฉพาะเมนูที่ผู้ใช้แต่ละคนต้องการเห็น</b> — ใช้ Role <b>🎭 กำหนดเอง</b> เมื่อต้องการสร้างตำแหน่งใหม่</div>
       </div>
       <div class="flex gap-2">
         <button class="btn btn-primary" onclick="openAddUserModal()">+ เพิ่มผู้ใช้ใหม่</button>
@@ -48649,24 +48801,39 @@ function _clRenderChart(){
       </div>
     </div>
     <div class="form-group">
-      <div class="form-label">Role</div>
-      <select id="au-role" onchange="presetRolePerms()">
-        <option value="admin">🔴 Admin</option>
+      <div class="form-label">Role / กลุ่มสิทธิ์</div>
+      <select id="au-role" onchange="onRoleChange()">
+        <option value="admin">🔴 Admin (เห็นทุกหน้าเสมอ)</option>
         <option value="manager">🟠 ผู้จัดการโรงงาน</option>
         <option value="production">🟡 หัวหน้าการผลิต</option>
         <option value="operator">🟢 พนักงานฉีด</option>
         <option value="qc">🔵 QC</option>
         <option value="warehouse">🟣 Warehouse</option>
         <option value="viewer">⚪ ดูอย่างเดียว</option>
+        <option value="custom">🎭 กำหนดเอง (สร้างตำแหน่งใหม่)</option>
       </select>
+      <div id="au-role-hint" style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4"></div>
     </div>
   </div>
   <div class="form-group">
-    <div class="form-label">แผนก / ตำแหน่ง</div>
-    <input type="text" id="au-dept" placeholder="เช่น แผนกผลิต">
+    <div class="form-label">แผนก / ตำแหน่ง <span id="au-dept-required" style="color:#f85149;display:none">*</span></div>
+    <input type="text" id="au-dept" placeholder="เช่น แผนกผลิต / หัวหน้าไลน์โซน A">
   </div>
   <div class="form-group">
-    <div class="form-label" style="margin-bottom:8px">สิทธิ์การเข้าถึงหน้า (คลิกเพื่อเปิด/ปิด)</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div class="form-label" style="margin:0">
+        สิทธิ์การเข้าถึงหน้า (คลิกเพื่อเปิด/ปิด)
+        <span id="au-perm-count" style="font-size:11px;font-weight:600;color:#388bfd;background:rgba(56,139,253,0.12);padding:2px 8px;border-radius:10px;margin-left:6px">0 / 0</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="auSelectAllPerms(true)" style="padding:4px 10px;font-size:11px">✓ เลือกทั้งหมด</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="auSelectAllPerms(false)" style="padding:4px 10px;font-size:11px">✕ ไม่เลือกเลย</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="auResetToRoleDefault()" style="padding:4px 10px;font-size:11px;background:rgba(34,211,238,0.12);border-color:rgba(34,211,238,0.35);color:#22d3ee">🔄 ใช้ค่าเริ่มต้นของ Role</button>
+      </div>
+    </div>
+    <div id="au-admin-fullaccess-hint" style="display:none;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.25);color:#f85149;font-size:11px;padding:8px 10px;border-radius:7px;margin-bottom:8px">
+      🔴 Role <b>Admin</b> เห็นทุกหน้าโดยอัตโนมัติ — ไม่จำเป็นต้องเลือกเมนู
+    </div>
     <div id="au-perm-toggles" style="display:flex;flex-wrap:wrap;gap:6px"></div>
   </div>
   <input type="hidden" id="au-edit-username">
