@@ -42439,9 +42439,12 @@ function loadUsers(){
             const rp = (ROLES[user.role]?.pages || []).slice();
             user.pages = rp;
           }
-          // Admin role always has access to everything (safety net)
+          // Admin role always has access to everything (safety net). Use a
+          // UNION of saved + current ALL_PAGES so that page IDs known to
+          // other (newer) clients are preserved during sync round-trips.
           if(user.role === 'admin'){
-            user.pages = ALL_PAGES.map(p => p.id);
+            const all = ALL_PAGES.map(p => p.id);
+            user.pages = Array.from(new Set([...(user.pages||[]), ...all]));
           }
           if(user.pages.includes('approvalproc') && !user.pages.includes('approvalproc-done'))
             user.pages.push('approvalproc-done');
@@ -42562,9 +42565,11 @@ function doLogin(){
 
   AUTH = {...user};
   // Respect Admin's per-user permission choice exactly (no auto-merge).
-  // Admin role itself always gets the full page set.
+  // Admin role itself always gets the full page set (union of saved + current
+  // ALL_PAGES so that nothing is dropped after cross-device sync).
   if(user.role === 'admin'){
-    AUTH.pages = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+    const all = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+    AUTH.pages = Array.from(new Set([...(user.pages||[]), ...all]));
   } else {
     AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
   }
@@ -42614,7 +42619,8 @@ function tryAutoLogin(){
     AUTH = {...user};
     // Respect Admin's per-user permission choice exactly (no auto-merge).
     if(user.role === 'admin'){
-      AUTH.pages = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+      const all = (typeof ALL_PAGES !== 'undefined' ? ALL_PAGES : []).map(p => p.id);
+      AUTH.pages = Array.from(new Set([...(user.pages||[]), ...all]));
     } else {
       AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
     }

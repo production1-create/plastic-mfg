@@ -441,10 +441,12 @@
       "_limitSamples","_machGroups","_qrt_scans","_qrt_scans2","_sigStore","_sigLog","_mbColors","_mbStock","_mbLedger",
       "_rgStock","_rgLedger","_rgExtraPlastics","pmf_users_v5",
       "_mixPlans","_mixFeederPlans","_mixDispatchHistory","_mixStockIssueLog","_approvalProcDocs","_approvalLogV1","_shipmentHistory",
-      "_moldLedger","_wiDocs","_devRecords","_approvalsV1",
+      "_moldLedger","_wiDocs","_rwDocs","_devRecords","_approvalsV1",
       "_machinePMPlan","_pmMachineTemplates","_lineSummaryMenus","_ngDefects","_ltReasons","_setupPlans","_setupStdJobs",
       "_engineeringChanges","_ecoBaseline","_ecoDeptSignatures","_ecoSeq",
-      "_carbonSettings"
+      "_carbonSettings",
+      // OT requests, company holidays, rework docs — previously missing → cross-device data loss
+      "_otRequests","_companyHolidays"
     ];
 
     const COLLAB_MERGE_KEYS = ["_dailyReports", "pmf_users_v5"];
@@ -452,7 +454,15 @@
     /** Keys: push/pull remote wins whole blob (no structured merge) */
     const MERGE_SKIP_KEYS = new Set(["_theme", "_dashChartPeriod"]);
 
-    /** Array stores: merge by record.id */
+    /**
+     * Array stores: merge by record id. Each value can be:
+     *  - string: single id field name
+     *  - array : ordered list of id field names (first non-empty wins).
+     *            For ledgers without an id field the merge falls back to a
+     *            content-based hash of the record so entries are NOT dropped
+     *            (prevents the "wipe-on-push" bug seen previously with
+     *            _orders / _rawMatLedger).
+     */
     const ARRAY_MERGE_BY_ID = {
       "_machines": "id",
       "_moldDB": "id",
@@ -471,50 +481,103 @@
       "_pmChecklistRegistry": "id",
       "_kpiTargets": "id",
       "_zones": "id",
-      "_orders": "id",
-      "_matReservations": "id",
-      "_fgStock": "id",
-      "_fgLedger": "id",
-      "_rawMatStock": "id",
-      "_manualCostEntries": "id",
+      // Orders use orderNo as the stable identifier — falling back to id
+      "_orders": ["orderNo", "id"],
+      "_matReservations": ["id", "orderNo"],
+      "_manualCostEntries": ["id", "ts"],
       "_robotRegistry": "id",
       "_limitSamples": "id",
       "_machGroups": "id",
       "_qrt_scans": "id",
       "_qrt_scans2": "id",
-      "_mbColors": "id",
-      "_mbStock": "id",
-      "_mbLedger": "id",
-      "_rgStock": "id",
-      "_rgLedger": "id",
-      "_rgExtraPlastics": "id",
-      "_mixPlans": "id",
-      "_mixFeederPlans": "id",
-      "_mixDispatchHistory": "id",
-      "_mixStockIssueLog": "id",
-      "_approvalProcDocs": "id",
-      "_approvalLogV1": "id",
-      "_shipmentHistory": "id",
-      "_moldLedger": "id",
+      // Mixing/raw-mat ledgers: append-only, no stable id → composite hash
+      "_mbLedger": ["_mbId", "id"],
+      "_rgLedger": ["_rgId", "id"],          // FIX: rgLedger is array, not object-of-arrays
+      "_mixPlans": ["id", "planNo"],
+      "_mixFeederPlans": ["id", "planNo"],
+      "_mixDispatchHistory": ["id", "ts"],
+      "_mixStockIssueLog": ["id", "ts"],
+      "_approvalProcDocs": ["id", "docNo"],
+      "_approvalLogV1": ["id", "ts"],
+      "_shipmentHistory": ["id", "shipmentNo"],
+      "_moldLedger": ["id", "ts"],
       "_wiDocs": "id",
+      "_rwDocs": "id",                        // NEW: was missing → cross-device data loss
       "_devRecords": "id",
-      "_approvalsV1": "id",
-      "_machinePMPlan": "id",
-      "_pmMachineTemplates": "id",
-      "_lineSummaryMenus": "id",
-      "_ngDefects": "id",
-      "_ltReasons": "id",
-      "_setupPlans": "id",
+      "_approvalsV1": ["id", "docNo"],
+      "_machinePMPlan": ["id", "planNo"],
+      "_pmMachineTemplates": ["id", "name"],
+      "_lineSummaryMenus": ["id", "name"],
+      "_ngDefects": ["id", "code"],
+      "_ltReasons": ["id", "code"],
+      "_setupPlans": ["id", "planNo"],
       "_setupStdJobs": "id",
-      "_engineeringChanges": "id",
+      "_engineeringChanges": ["id", "ecnNo"],
       "_condStdList": "id",
       "_condActualList": "id",
-      "_rawMatLedger": "id",
-      "_rawMatPRList": "id",
-      "_hrDeptMachGroups": "id"
+      "_rawMatLedger": ["id", "ref"],
+      "_rawMatPRList": ["id", "prNo"],
+      "_hrDeptMachGroups": "id",
+      // OT requests have id; orderNo is the natural fallback
+      "_otRequests": ["id", "orderNo"]
     };
 
-    const REHYDRATE_KEYS = ["_wiDocs"];
+    /**
+     * Object-keyed stores (NOT arrays). Each value is `{ key: value, ... }`
+     * where the value is either a record object or an array of records.
+     * These were previously mis-classified as arrays which caused the merge
+     * to silently drop them or, worse, return an empty array.
+     */
+    const OBJECT_BY_KEY_STORES = new Set([
+      "_fgStock",      // {jobName: {qty,min,max,...}}
+      "_rawMatStock",  // {material: {qty,...}}
+      "_mbColors",     // {colorId: {...}}
+      "_mbStock",      // {colorId: {qty,...}}
+      "_rgStock"       // {jobName: {qty,...}}
+    ]);
+
+    /** Object-of-arrays stores: {key: [records...]} merged per-key */
+    const OBJECT_OF_ARRAYS_STORES = {
+      "_fgLedger": "_fgId"    // {jobName: [{_fgId,...}]}
+    };
+
+    /**
+     * String-array stores. These are arrays of plain strings (e.g. dates,
+     * codes). mergeArrayById would mis-handle them because every record
+     * fails the `typeof === "object"` check, so we route them to a simple
+     * union-dedupe merge instead.
+     */
+    const STRING_ARRAY_STORES = new Set([
+      "_companyHolidays",   // ['2026-01-01', '2026-04-13', ...]
+      "_rgExtraPlastics"    // ['ABS', 'PC-ABS', ...]
+    ]);
+
+    /**
+     * After every pull, if any of these keys is still empty locally we fetch
+     * the latest value directly from Supabase. This is a safety net so that
+     * critical user-facing data (orders, ledgers, registries) is rehydrated
+     * even if the incremental pull window happened to miss them.
+     */
+    const REHYDRATE_KEYS = [
+      "_wiDocs",
+      "_orders",
+      "_rawMatLedger",
+      "_rawMatPRList",
+      "_fgStock",
+      "_fgLedger",
+      "_rawMatStock",
+      "_jobRegistry",
+      "_employeeRegistry",
+      "_machines",
+      "_moldRegistry",
+      "_customerRegistry",
+      "_rawmatRegistry",
+      "_supplierRegistry",
+      "_jobs",
+      "_ttData",
+      "_dailyReports",
+      "pmf_users_v5"
+    ];
 
     let frameReady = false;
     let lastPullAt = localStorage.getItem("_sbLastPullAt") || new Date(0).toISOString();
@@ -648,16 +711,45 @@
       return JSON.stringify(merged);
     }
 
+    /**
+     * Returns a stable identity key for a record. Tries each candidate field
+     * in order. Falls back to a content hash so records without an id are
+     * preserved (deduped by content) instead of silently dropped — this is
+     * the fix for the bug that wiped _orders & _rawMatLedger.
+     */
+    function _recIdKey(rec, idFields) {
+      const fields = Array.isArray(idFields) ? idFields : [idFields];
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i];
+        if (!f) continue;
+        const v = rec[f];
+        if (v !== undefined && v !== null && v !== "") return String(v);
+      }
+      // Stable content key — JSON of record minus volatile timestamps so
+      // identical entries from local + remote dedupe cleanly.
+      try {
+        const copy = Object.assign({}, rec);
+        delete copy.updatedAt;
+        delete copy.createdAt;
+        return "__cnt__::" + JSON.stringify(copy);
+      } catch (_) {
+        return "__cnt__::" + Math.random();
+      }
+    }
+
     function mergeArrayById(localStr, remoteStr, idKey) {
       const loc = safeJsonParse(localStr, []);
       const rem = safeJsonParse(remoteStr, []);
-      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      // If either side isn't an array, do not corrupt the data — return the
+      // local copy (which is what the user is currently looking at).
+      if (!Array.isArray(loc) && !Array.isArray(rem)) return localStr || remoteStr || "";
+      if (!Array.isArray(loc)) return remoteStr || localStr || "";
+      if (!Array.isArray(rem)) return localStr || remoteStr || "";
+
       const byId = {};
       [...rem, ...loc].forEach((rec) => {
         if (!rec || typeof rec !== "object") return;
-        const rawId = rec[idKey];
-        if (rawId === undefined || rawId === null || rawId === "") return;
-        const k = String(rawId);
+        const k = _recIdKey(rec, idKey);
         const prev = byId[k];
         if (!prev) {
           byId[k] = rec;
@@ -673,7 +765,49 @@
           else byId[k] = Object.assign({}, prev, rec);
         }
       });
-      return JSON.stringify(Object.values(byId));
+      const merged = Object.values(byId);
+
+      // Safety belt — never let the merge produce fewer records than EITHER
+      // side alone (after stripping tombstones). If the merge would shrink
+      // the dataset for any reason, fall back to a defensive union so no
+      // user data is ever lost during sync.
+      const liveLoc = loc.filter(r => r && !r._deleted).length;
+      const liveRem = rem.filter(r => r && !r._deleted).length;
+      const liveOut = merged.filter(r => r && !r._deleted).length;
+      if (liveOut < Math.max(liveLoc, liveRem)) {
+        const union = {};
+        [...loc, ...rem].forEach(r => {
+          if (!r || typeof r !== "object") return;
+          union[_recIdKey(r, idKey)] = r;
+        });
+        return JSON.stringify(Object.values(union));
+      }
+      return JSON.stringify(merged);
+    }
+
+    /**
+     * Merge stores shaped like { key: [records...] } (e.g. _fgLedger keyed
+     * by jobName, _rgLedger by name). Records inside each bucket are
+     * deduped/merged like mergeArrayById.
+     */
+    function mergeObjectOfArrays(localStr, remoteStr, idFields) {
+      const loc = safeJsonParse(localStr, {});
+      const rem = safeJsonParse(remoteStr, {});
+      const locOk = loc && typeof loc === "object" && !Array.isArray(loc);
+      const remOk = rem && typeof rem === "object" && !Array.isArray(rem);
+      if (!locOk && !remOk) return localStr || remoteStr || "";
+      if (!locOk) return remoteStr || localStr || "";
+      if (!remOk) return localStr || remoteStr || "";
+
+      const out = {};
+      const keys = new Set([...Object.keys(loc), ...Object.keys(rem)]);
+      keys.forEach((bucketKey) => {
+        const a = Array.isArray(loc[bucketKey]) ? loc[bucketKey] : [];
+        const b = Array.isArray(rem[bucketKey]) ? rem[bucketKey] : [];
+        const merged = JSON.parse(mergeArrayById(JSON.stringify(a), JSON.stringify(b), idFields));
+        out[bucketKey] = merged;
+      });
+      return JSON.stringify(out);
     }
 
     function mergeMachineDb(localStr, remoteStr) {
@@ -694,6 +828,35 @@
         else if (ta > tb) out[id] = typeof a === "object" && a && typeof b === "object" && b ? Object.assign({}, b, a) : a;
         else out[id] = typeof a === "object" && typeof b === "object" ? Object.assign({}, b, a) : a;
       });
+      // Safety belt — never lose keys that exist in either input
+      const cntLoc = Object.keys(loc).length;
+      const cntRem = Object.keys(rem).length;
+      const cntOut = Object.keys(out).length;
+      if (cntOut < Math.max(cntLoc, cntRem)) {
+        return JSON.stringify(Object.assign({}, rem, loc));
+      }
+      return JSON.stringify(out);
+    }
+
+    /**
+     * String-array union-dedupe merge. Preserves order of first appearance.
+     * Used for stores like _companyHolidays / _rgExtraPlastics which are
+     * arrays of plain strings (mergeArrayById would silently drop them).
+     */
+    function mergeStringArray(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) && !Array.isArray(rem)) return localStr || remoteStr || "";
+      if (!Array.isArray(loc)) return remoteStr || localStr || "";
+      if (!Array.isArray(rem)) return localStr || remoteStr || "";
+      const seen = new Set();
+      const out = [];
+      [...rem, ...loc].forEach((s) => {
+        const k = String(s == null ? "" : s);
+        if (!k || seen.has(k)) return;
+        seen.add(k);
+        out.push(s);
+      });
       return JSON.stringify(out);
     }
 
@@ -710,11 +873,15 @@
     function mergeJobsByName(localStr, remoteStr) {
       const loc = safeJsonParse(localStr, []);
       const rem = safeJsonParse(remoteStr, []);
-      if (!Array.isArray(loc) || !Array.isArray(rem)) return localStr || remoteStr || "";
+      if (!Array.isArray(loc) && !Array.isArray(rem)) return localStr || remoteStr || "";
+      if (!Array.isArray(loc)) return remoteStr || localStr || "";
+      if (!Array.isArray(rem)) return localStr || remoteStr || "";
       const byName = {};
       [...rem, ...loc].forEach((j) => {
-        if (!j || !j.name) return;
-        const k = normalizeJobKey(j.name);
+        if (!j || typeof j !== "object") return;
+        // Records without a name are now kept (deduped by content) instead
+        // of being silently dropped — mirrors the same fix as mergeArrayById.
+        const k = j.name ? normalizeJobKey(j.name) : ("__cnt__::" + JSON.stringify(j));
         const prev = byName[k];
         if (!prev) {
           byName[k] = j;
@@ -726,7 +893,21 @@
         else if (tr < tp) byName[k] = prev;
         else byName[k] = Object.assign({}, prev, j);
       });
-      return JSON.stringify(Object.values(byName));
+      const merged = Object.values(byName);
+      // Safety belt — fall back to defensive union if merge would shrink
+      const liveLoc = loc.filter(r => r && !r._deleted).length;
+      const liveRem = rem.filter(r => r && !r._deleted).length;
+      const liveOut = merged.filter(r => r && !r._deleted).length;
+      if (liveOut < Math.max(liveLoc, liveRem)) {
+        const union = {};
+        [...loc, ...rem].forEach((j) => {
+          if (!j || typeof j !== "object") return;
+          const k = j.name ? normalizeJobKey(j.name) : ("__cnt__::" + JSON.stringify(j));
+          union[k] = j;
+        });
+        return JSON.stringify(Object.values(union));
+      }
+      return JSON.stringify(merged);
     }
 
     function ttRowKey(r) {
@@ -749,8 +930,11 @@
         if (!Array.isArray(b)) { out[d] = a; return; }
         const byK = {};
         [...b, ...a].forEach((row) => {
-          const k = ttRowKey(row);
-          if (!k) return;
+          if (!row || typeof row !== "object") return;
+          // Rows without a stable composite key fall back to content hash
+          // so they aren't silently dropped (defensive: TT rows always have
+          // machine/jobName etc., but be safe in case a row is malformed).
+          const k = ttRowKey(row) || ("__cnt__::" + JSON.stringify(row));
           const prev = byK[k];
           if (!prev) {
             byK[k] = row;
@@ -762,7 +946,19 @@
           else if (tr < tp) byK[k] = prev;
           else byK[k] = Object.assign({}, prev, row);
         });
-        out[d] = Object.values(byK);
+        const merged = Object.values(byK);
+        // Safety belt — defensive union if merge would shrink this date's rows
+        if (merged.length < Math.max(a.length, b.length)) {
+          const union = {};
+          [...a, ...b].forEach((row) => {
+            if (!row || typeof row !== "object") return;
+            const k = ttRowKey(row) || ("__cnt__::" + JSON.stringify(row));
+            union[k] = row;
+          });
+          out[d] = Object.values(union);
+        } else {
+          out[d] = merged;
+        }
       });
       return JSON.stringify(out);
     }
@@ -892,6 +1088,19 @@
       if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
       if (MERGE_SKIP_KEYS.has(key)) return localStr;
 
+      // Object-keyed stores (e.g. _fgStock, _rawMatStock) — merge by bucket
+      if (OBJECT_BY_KEY_STORES.has(key)) {
+        return mergeObjectValuesByTs(localStr, remoteStr);
+      }
+      // Object-of-arrays stores (e.g. _fgLedger keyed by jobName)
+      if (OBJECT_OF_ARRAYS_STORES[key]) {
+        return mergeObjectOfArrays(localStr, remoteStr, OBJECT_OF_ARRAYS_STORES[key]);
+      }
+      // String-array stores (e.g. _companyHolidays) — union dedupe
+      if (STRING_ARRAY_STORES.has(key)) {
+        return mergeStringArray(localStr, remoteStr);
+      }
+
       const idField = ARRAY_MERGE_BY_ID[key];
       if (idField) return mergeArrayById(localStr, remoteStr, idField);
 
@@ -930,6 +1139,9 @@
       if (COLLAB_MERGE_KEYS.includes(key)) return true;
       if (MERGE_SKIP_KEYS.has(key)) return false;
       if (ARRAY_MERGE_BY_ID[key]) return true;
+      if (OBJECT_BY_KEY_STORES.has(key)) return true;
+      if (OBJECT_OF_ARRAYS_STORES[key]) return true;
+      if (STRING_ARRAY_STORES.has(key)) return true;
       return [
         "_machineDB","_clBomConfig","_ttData","_jobs","_kpiTableData","_costSettings","_carbonSettings",
         "_dashWidgets","_dashCharts","_sigStore","_sigLog","_navRecent","_hrAttendance",
@@ -971,6 +1183,29 @@
       }
     }
 
+    /**
+     * Defensive count of "live" records inside a structured value. Used by
+     * pushNow() to detect catastrophic shrinkage (e.g. merge bug returning
+     * an empty array when the local copy still has data) so we can refuse
+     * to overwrite the cloud with bad data.
+     */
+    function _countRecords(v) {
+      try {
+        const j = typeof v === "string" ? JSON.parse(v) : v;
+        if (Array.isArray(j)) return j.filter(r => r && !r._deleted).length;
+        if (j && typeof j === "object") {
+          let n = 0;
+          Object.values(j).forEach(val => {
+            if (Array.isArray(val)) n += val.filter(r => r && !r._deleted).length;
+            else if (val && typeof val === "object" && !val._deleted) n += 1;
+          });
+          return n;
+        }
+      } catch (_) {}
+      return -1;
+    }
+
+    let pushInFlight = false;
     async function pushNow() {
       if (!frameReady) return;
       const block = pushBlockedReason();
@@ -978,11 +1213,20 @@
         setStatus("ยังไม่ push: " + block);
         return;
       }
+      // Concurrency guard — never run two pushes (or push during a pull) in
+      // parallel. The merge logic reads → modifies → writes localStorage
+      // and overlapping calls can corrupt structured stores.
+      if (pushInFlight || pullInFlight) {
+        setStatus("รอซิงก์เดิมเสร็จก่อน");
+        return;
+      }
+      pushInFlight = true;
       setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const now = new Date().toISOString();
       const rows = [];
       let skippedEmpty = 0;
+      let skippedShrink = 0;
       try {
         for (const key of SYNC_KEYS) {
           let value = null;
@@ -1006,8 +1250,50 @@
           if (typeof value === "string" && usesStructuredMerge(key)) {
             const remoteVal = await fetchServerValueByKey(key);
             if (typeof remoteVal === "string") {
-              value = mergeStorageKey(key, value, remoteVal);
-              try { w.localStorage.setItem(key, value); } catch (e) {}
+              // Re-read just before merging — between the first read and now
+              // the iframe could have written newer data (e.g. user clicked
+              // "save" while we were waiting on the network). Using the
+              // latest snapshot keeps the iframe's edits.
+              let latestLocal = value;
+              try {
+                const fresh = w.localStorage.getItem(key);
+                if (typeof fresh === "string") latestLocal = fresh;
+              } catch (e) {}
+
+              const merged = mergeStorageKey(key, latestLocal, remoteVal);
+
+              // Anti-wipe safety belt: never push a merged value that has
+              // FEWER live records than what's already on the server. This
+              // covers the case where a buggy merge would otherwise replace
+              // a non-empty cloud blob with an empty one.
+              const cntLocal  = _countRecords(latestLocal);
+              const cntRemote = _countRecords(remoteVal);
+              const cntMerged = _countRecords(merged);
+              if (cntMerged >= 0 && cntRemote > 0 && cntMerged < cntRemote) {
+                skippedShrink++;
+                continue;
+              }
+              if (cntMerged >= 0 && cntLocal > 0 && cntMerged === 0) {
+                skippedShrink++;
+                continue;
+              }
+              value = merged;
+              // Re-read again right before writing — synchronous from here
+              // (no await), so no further iframe interleaving is possible.
+              try {
+                const ultra = w.localStorage.getItem(key);
+                if (typeof ultra === "string" && ultra !== latestLocal) {
+                  // Iframe wrote during the merge → re-merge with that newer
+                  // local, then write the doubly-merged result. Belt &
+                  // braces: cnt of the second merge must not shrink either.
+                  const merged2 = mergeStorageKey(key, ultra, merged);
+                  const cnt2 = _countRecords(merged2);
+                  if (cnt2 >= cntMerged) {
+                    value = merged2;
+                  }
+                }
+                w.localStorage.setItem(key, value);
+              } catch (e) {}
             }
           }
           if (typeof value === "string") {
@@ -1015,8 +1301,11 @@
           }
         }
         if (!rows.length) {
-          setStatus(skippedEmpty
-            ? ("ข้ามคีย์ว่าง " + skippedEmpty + " คีย์ (ปกป้องข้อมูลคลาวด์)")
+          const parts = [];
+          if (skippedEmpty)  parts.push("ว่าง " + skippedEmpty);
+          if (skippedShrink) parts.push("กันทับ " + skippedShrink);
+          setStatus(parts.length
+            ? ("ไม่ push (ข้าม " + parts.join(", ") + " คีย์ — ป้องกันข้อมูลหาย)")
             : "ไม่มีข้อมูลจะ push");
           return;
         }
@@ -1027,15 +1316,26 @@
           const msg = await readErrorText(r);
           throw new Error("push failed HTTP " + r.status + (msg ? " - " + msg : ""));
         }
-        const skipMsg = skippedEmpty ? " (ข้ามว่าง " + skippedEmpty + ")" : "";
+        const skipParts = [];
+        if (skippedEmpty)  skipParts.push("ว่าง " + skippedEmpty);
+        if (skippedShrink) skipParts.push("กันทับ " + skippedShrink);
+        const skipMsg = skipParts.length ? " (ข้าม " + skipParts.join(", ") + ")" : "";
         setStatus("push สำเร็จ " + rows.length + " keys" + skipMsg);
       } finally {
         setLoading(false);
+        pushInFlight = false;
       }
     }
 
     async function pullNow() {
       if (!frameReady) return;
+      // Cooperative concurrency — also held by _runPullSafely() for realtime.
+      // Direct callers (manual button, doSaveNow) skip if a push is mid-flight
+      // to avoid interleaved localStorage writes.
+      if (pushInFlight) {
+        setStatus("รอ push เดิมเสร็จก่อน");
+        return;
+      }
       setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
       const f = encodeURIComponent(lastPullAt);
@@ -1304,6 +1604,45 @@
       await stopPresence();
     }
 
+    /**
+     * Debounced + serialised realtime pull. Multiple realtime events that
+     * arrive within `RT_PULL_DEBOUNCE_MS` collapse into a single pullNow()
+     * call. Concurrent push/pull are prevented by `pullInFlight` so the
+     * iframe's localStorage is never written by two callers at once.
+     */
+    const RT_PULL_DEBOUNCE_MS = 600;
+    let pullInFlight = false;
+    let pullPending = false;
+    let rtPullTimer = null;
+
+    async function _runPullSafely() {
+      if (pullInFlight) {
+        pullPending = true;
+        return;
+      }
+      pullInFlight = true;
+      try {
+        await pullNow();
+      } catch (e) {
+        setStatus("ผิดพลาด: " + e.message);
+      } finally {
+        pullInFlight = false;
+      }
+      if (pullPending) {
+        pullPending = false;
+        // Yield to the event loop before chaining the next pull
+        setTimeout(_runPullSafely, 80);
+      }
+    }
+
+    function _scheduleRealtimePull() {
+      if (rtPullTimer) clearTimeout(rtPullTimer);
+      rtPullTimer = setTimeout(() => {
+        rtPullTimer = null;
+        _runPullSafely();
+      }, RT_PULL_DEBOUNCE_MS);
+    }
+
     async function startRealtime() {
       const client = ensureSbClient();
       if (!client) {
@@ -1318,9 +1657,7 @@
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "app_storage" },
-          async () => {
-            pullNow().catch((e) => setStatus("ผิดพลาด: " + e.message));
-          }
+          () => { _scheduleRealtimePull(); }
         )
         .subscribe((status) => {
           if (status === "SUBSCRIBED") setStatus("Realtime + Presence พร้อม");
