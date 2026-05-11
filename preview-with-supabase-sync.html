@@ -446,7 +446,8 @@
       "_engineeringChanges","_ecoBaseline","_ecoDeptSignatures","_ecoSeq",
       "_carbonSettings",
       // OT requests, company holidays, rework docs — previously missing → cross-device data loss
-      "_otRequests","_companyHolidays"
+      "_otRequests","_companyHolidays",
+      "_actionPlans"
     ];
 
     const COLLAB_MERGE_KEYS = ["_dailyReports", "pmf_users_v5"];
@@ -484,15 +485,15 @@
       // Orders use orderNo as the stable identifier — falling back to id
       "_orders": ["orderNo", "id"],
       "_matReservations": ["id", "orderNo"],
-      "_manualCostEntries": ["id", "ts"],
+      "_manualCostEntries": ["_id", "id", "ts"],
       "_robotRegistry": "id",
       "_limitSamples": "id",
       "_machGroups": "id",
       "_qrt_scans": "id",
       "_qrt_scans2": "id",
       // Mixing/raw-mat ledgers: append-only, no stable id → composite hash
-      "_mbLedger": ["_mbId", "id"],
-      "_rgLedger": ["_rgId", "id"],          // FIX: rgLedger is array, not object-of-arrays
+      "_mbLedger": ["_id", "_mbId", "id"],
+      "_rgLedger": ["_id", "_rgId", "id"],   // planner uses _id (not _rgId)
       "_mixPlans": ["id", "planNo"],
       "_mixFeederPlans": ["id", "planNo"],
       "_mixDispatchHistory": ["id", "ts"],
@@ -515,11 +516,12 @@
       "_engineeringChanges": ["id", "ecnNo"],
       "_condStdList": "id",
       "_condActualList": "id",
-      "_rawMatLedger": ["id", "ref"],
+      "_rawMatLedger": ["_id", "id", "ref"],  // _id unique per row; never dedupe by ref alone (lot repeats)
       "_rawMatPRList": ["id", "prNo"],
       "_hrDeptMachGroups": "id",
       // OT requests have id; orderNo is the natural fallback
-      "_otRequests": ["id", "orderNo"]
+      "_otRequests": ["id", "orderNo"],
+      "_actionPlans": ["id"]
     };
 
     /**
@@ -576,7 +578,8 @@
       "_jobs",
       "_ttData",
       "_dailyReports",
-      "pmf_users_v5"
+      "pmf_users_v5",
+      "_actionPlans"
     ];
 
     let frameReady = false;
@@ -768,17 +771,22 @@
       const merged = Object.values(byId);
 
       // Safety belt — never let the merge produce fewer records than EITHER
-      // side alone (after stripping tombstones). If the merge would shrink
-      // the dataset for any reason, fall back to a defensive union so no
-      // user data is ever lost during sync.
-      const liveLoc = loc.filter(r => r && !r._deleted).length;
-      const liveRem = rem.filter(r => r && !r._deleted).length;
-      const liveOut = merged.filter(r => r && !r._deleted).length;
-      if (liveOut < Math.max(liveLoc, liveRem)) {
+      // side alone. Tombstones (records with `_deleted=true`) count as
+      // records so a legitimate soft-delete doesn't trip the belt. The
+      // belt only fires when merge would silently *drop* a row entirely.
+      const cntLoc = loc.filter(r => r && typeof r === "object").length;
+      const cntRem = rem.filter(r => r && typeof r === "object").length;
+      const cntOut = merged.filter(r => r && typeof r === "object").length;
+      if (cntOut < Math.max(cntLoc, cntRem)) {
         const union = {};
-        [...loc, ...rem].forEach(r => {
+        [...rem, ...loc].forEach(r => {
           if (!r || typeof r !== "object") return;
-          union[_recIdKey(r, idKey)] = r;
+          const k = _recIdKey(r, idKey);
+          const prev = union[k];
+          if (!prev) { union[k] = r; return; }
+          const tp = recordTs(prev);
+          const tr = recordTs(r);
+          if (tr >= tp) union[k] = r;
         });
         return JSON.stringify(Object.values(union));
       }
@@ -891,19 +899,28 @@
         const tr = recordTs(j);
         if (tr > tp) byName[k] = j;
         else if (tr < tp) byName[k] = prev;
-        else byName[k] = Object.assign({}, prev, j);
+        else {
+          const pd = !!(prev && prev._deleted);
+          const rd = !!(j && j._deleted);
+          if (pd !== rd) byName[k] = rd ? j : prev;
+          else byName[k] = Object.assign({}, prev, j);
+        }
       });
       const merged = Object.values(byName);
-      // Safety belt — fall back to defensive union if merge would shrink
-      const liveLoc = loc.filter(r => r && !r._deleted).length;
-      const liveRem = rem.filter(r => r && !r._deleted).length;
-      const liveOut = merged.filter(r => r && !r._deleted).length;
-      if (liveOut < Math.max(liveLoc, liveRem)) {
+      // Safety belt — fall back to defensive union if merge would *lose*
+      // records entirely (count all rows, tombstones included, so soft
+      // deletes don't trip the belt).
+      const liveOut = merged.filter(r => r && typeof r === "object").length;
+      if (liveOut < Math.max(loc.length, rem.length)) {
         const union = {};
-        [...loc, ...rem].forEach((j) => {
+        [...rem, ...loc].forEach((j) => {
           if (!j || typeof j !== "object") return;
           const k = j.name ? normalizeJobKey(j.name) : ("__cnt__::" + JSON.stringify(j));
-          union[k] = j;
+          const prev = union[k];
+          if (!prev) { union[k] = j; return; }
+          const tp = recordTs(prev);
+          const tr = recordTs(j);
+          if (tr >= tp) union[k] = j;
         });
         return JSON.stringify(Object.values(union));
       }
@@ -944,7 +961,12 @@
           const tr = recordTs(row);
           if (tr > tp) byK[k] = row;
           else if (tr < tp) byK[k] = prev;
-          else byK[k] = Object.assign({}, prev, row);
+          else {
+            const pd = !!(prev && prev._deleted);
+            const rd = !!(row && row._deleted);
+            if (pd !== rd) byK[k] = rd ? row : prev;
+            else byK[k] = Object.assign({}, prev, row);
+          }
         });
         const merged = Object.values(byK);
         // Safety belt — defensive union if merge would shrink this date's rows
@@ -1145,7 +1167,7 @@
       return [
         "_machineDB","_clBomConfig","_ttData","_jobs","_kpiTableData","_costSettings","_carbonSettings",
         "_dashWidgets","_dashCharts","_sigStore","_sigLog","_navRecent","_hrAttendance",
-        "_ecoBaseline","_ecoDeptSignatures","_ecoSeq"
+        "_ecoBaseline","_ecoDeptSignatures","_ecoSeq","_actionPlans"
       ].includes(key);
     }
 
@@ -1184,20 +1206,25 @@
     }
 
     /**
-     * Defensive count of "live" records inside a structured value. Used by
+     * Defensive count of records inside a structured value. Used by
      * pushNow() to detect catastrophic shrinkage (e.g. merge bug returning
      * an empty array when the local copy still has data) so we can refuse
      * to overwrite the cloud with bad data.
+     *
+     * NOTE: We intentionally count tombstones (records with `_deleted=true`)
+     * — they are still real rows that have to be propagated so other
+     * devices learn about the delete. Excluding them would make the
+     * anti-wipe safety belt block every legitimate soft-delete push.
      */
     function _countRecords(v) {
       try {
         const j = typeof v === "string" ? JSON.parse(v) : v;
-        if (Array.isArray(j)) return j.filter(r => r && !r._deleted).length;
+        if (Array.isArray(j)) return j.filter(r => r).length;
         if (j && typeof j === "object") {
           let n = 0;
           Object.values(j).forEach(val => {
-            if (Array.isArray(val)) n += val.filter(r => r && !r._deleted).length;
-            else if (val && typeof val === "object" && !val._deleted) n += 1;
+            if (Array.isArray(val)) n += val.filter(r => r).length;
+            else if (val && typeof val === "object") n += 1;
           });
           return n;
         }
