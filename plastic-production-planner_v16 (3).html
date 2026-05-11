@@ -7964,7 +7964,7 @@ try{
 }
 /** แถว Time Table ที่ยังใช้งาน — รายการที่ลบแล้วจะเป็น tombstone (_deleted) เพื่อซิงก์ข้ามเครื่อง */
 function ttLiveRows(dk){
-  return ttLiveRows(dk).filter(function(e){ return e && !e._deleted; });
+  return (ttData[dk]||[]).filter(function(e){ return e && !e._deleted; });
 }
 let setupPlans = [];
 const SETUP_STORAGE_KEY = '_setupPlans';
