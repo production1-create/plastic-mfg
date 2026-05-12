@@ -505,7 +505,6 @@
       "_wiDocs": "id",
       "_rwDocs": "id",                        // NEW: was missing → cross-device data loss
       "_devRecords": "id",
-      "_approvalsV1": ["id", "docNo"],
       "_machinePMPlan": ["id", "planNo"],
       "_pmMachineTemplates": ["id", "name"],
       "_lineSummaryMenus": ["id", "name"],
@@ -535,7 +534,8 @@
       "_rawMatStock",  // {material: {qty,...}}
       "_mbColors",     // {colorId: {...}}
       "_mbStock",      // {colorId: {qty,...}}
-      "_rgStock"       // {jobName: {qty,...}}
+      "_rgStock",      // {jobName: {qty,...}}
+      "_approvalsV1"   // {key: {status,by,date,...}} — เคยตั้งผิดเป็น array
     ]);
 
     /** Object-of-arrays stores: {key: [records...]} merged per-key */
@@ -579,7 +579,11 @@
       "_ttData",
       "_dailyReports",
       "pmf_users_v5",
-      "_actionPlans"
+      "_actionPlans",
+      "_approvalsV1",
+      "_approvalLogV1",
+      "_mixPlans",
+      "_mixFeederPlans"
     ];
 
     let frameReady = false;
@@ -1392,6 +1396,12 @@
         lastPullAt = maxUpdatedAt;
         localStorage.setItem("_sbLastPullAt", lastPullAt);
         await repairCriticalKeys(w);
+        // Notify iframe so it can reload its in-memory state and re-render
+        // the current page. Without this, soft-deletes and stock updates
+        // pulled from the cloud stay invisible until the user reloads.
+        try {
+          if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull" }, "*");
+        } catch (e) {}
         setStatus("pull สำเร็จ " + rows.length + " รายการ");
       } finally {
         setLoading(false);

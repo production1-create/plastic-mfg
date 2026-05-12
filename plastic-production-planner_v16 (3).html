@@ -19411,6 +19411,7 @@ function mixExecuteStockIssueForPlan(planId, opts){
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
   p.status='ผสมแล้ว';
+  p.updatedAt=new Date().toISOString();
   saveMixPlans();
   mixPushStockIssueLog({
     kind:'tank', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
@@ -19499,6 +19500,7 @@ function mixExecuteFeederStockIssue(planId, opts){
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
   p.status='เบิกแล้ว';
+  p.updatedAt=new Date().toISOString();
   saveMixFeederPlans();
   mixPushStockIssueLog({
     kind:'feeder', planId:p.id, jobName:p.jobName||'', orderNo:p.orderNo||'', jobLot:p.lotNo||'',
@@ -35227,7 +35229,8 @@ function doApproval(action){
   if(action==='rejected'&&!note){ if(typeof _infoToast==="function") _infoToast('กรุณาระบุเหตุผลในการปฏิเสธ'); return; }
   approvals[key]={
     status:action, by, note, date:new Date().toISOString().split('T')[0],
-    time:new Date().toTimeString().slice(0,5)
+    time:new Date().toTimeString().slice(0,5),
+    updatedAt:new Date().toISOString()
   };
   saveApprovals();
   // Update related data
@@ -35239,7 +35242,7 @@ function doApproval(action){
   } else if(key.startsWith('mixing-')){
     const mixId=key.replace('mixing-','');
     const mx=mixPlans.find(x=>x.id===mixId||x.id===parseInt(mixId));
-    if(mx) mx.approvalStatus=action;
+    if(mx){ mx.approvalStatus=action; mx.updatedAt=new Date().toISOString(); }
     saveMixPlans();
     if(action==='approved' && typeof mixExecuteStockIssueForPlan==='function')
       mixExecuteStockIssueForPlan(mixId, { by: by });
@@ -35247,7 +35250,7 @@ function doApproval(action){
   } else if(key.startsWith('mixfeeder-')){
     const fid=key.replace('mixfeeder-','');
     const fx=mixFeederPlans.find(function(x){ return String(x.id)===String(fid); });
-    if(fx) fx.approvalStatus=action;
+    if(fx){ fx.approvalStatus=action; fx.updatedAt=new Date().toISOString(); }
     saveMixFeederPlans();
     if(action==='approved' && typeof mixExecuteFeederStockIssue==='function')
       mixExecuteFeederStockIssue(fid, { by: by });
@@ -43339,6 +43342,169 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){ }
   }, true);
 })();
+
+// ════════════════════════════════════════════════════════════════
+// PMF SYNC RELOAD — ดึงค่าจาก localStorage เข้าตัวแปร global ใหม่
+// เรียกหลังจาก parent (preview-with-supabase-sync) แจ้งว่า pull เสร็จ
+// และทำให้หน้าปัจจุบัน render ใหม่ — ป้องกัน UI ค้างกับข้อมูลเก่า
+// ════════════════════════════════════════════════════════════════
+function _pmfSafeParse(key, fallback){
+  try{
+    var raw = localStorage.getItem(key);
+    if(raw==null) return fallback;
+    var v = JSON.parse(raw);
+    return v==null ? fallback : v;
+  }catch(e){ return fallback; }
+}
+function _pmfReplaceObjectInPlace(targetObj, sourceObj){
+  if(!targetObj || typeof targetObj!=='object') return;
+  Object.keys(targetObj).forEach(function(k){ delete targetObj[k]; });
+  if(sourceObj && typeof sourceObj==='object'){
+    Object.keys(sourceObj).forEach(function(k){ targetObj[k]=sourceObj[k]; });
+  }
+}
+function pmfReloadFromStorage(){
+  try{
+    var j = _pmfSafeParse('_jobs', null);
+    if(Array.isArray(j) && typeof jobs!=='undefined'){
+      jobs.length = 0;
+      j.forEach(function(x){ jobs.push(x); });
+    }
+  }catch(e){}
+  try{
+    var jr = _pmfSafeParse('_jobRegistry', null);
+    if(Array.isArray(jr) && typeof JOB_REGISTRY!=='undefined'){
+      JOB_REGISTRY.length = 0;
+      jr.forEach(function(x){ JOB_REGISTRY.push(x); });
+    }
+  }catch(e){}
+  try{
+    var tt = _pmfSafeParse('_ttData', null);
+    if(tt && typeof tt==='object' && typeof ttData!=='undefined'){
+      _pmfReplaceObjectInPlace(ttData, tt);
+    }
+  }catch(e){}
+  try{
+    var od = _pmfSafeParse('_orders', null);
+    if(Array.isArray(od) && typeof orders!=='undefined'){
+      orders.length = 0;
+      od.forEach(function(x){ orders.push(x); });
+    }
+  }catch(e){}
+  try{
+    var ap = _pmfSafeParse('_actionPlans', null);
+    if(Array.isArray(ap) && typeof actionPlans!=='undefined'){
+      actionPlans.length = 0;
+      ap.forEach(function(x){ actionPlans.push(x); });
+    }
+  }catch(e){}
+  try{
+    var rms = _pmfSafeParse('_rawMatStock', null);
+    if(rms && typeof rms==='object' && typeof rawMatStock!=='undefined'){
+      _pmfReplaceObjectInPlace(rawMatStock, rms);
+    }
+  }catch(e){}
+  try{
+    var fgs = _pmfSafeParse('_fgStock', null);
+    if(fgs && typeof fgs==='object' && typeof fgStock!=='undefined'){
+      _pmfReplaceObjectInPlace(fgStock, fgs);
+    }
+  }catch(e){}
+  try{
+    var fgl = _pmfSafeParse('_fgLedger', null);
+    if(fgl && typeof fgl==='object' && typeof fgLedger!=='undefined'){
+      _pmfReplaceObjectInPlace(fgLedger, fgl);
+    }
+  }catch(e){}
+  try{
+    var rml = _pmfSafeParse('_rawMatLedger', null);
+    if(Array.isArray(rml) && typeof rawMatLedger!=='undefined'){
+      rawMatLedger.length = 0;
+      rml.forEach(function(x){ rawMatLedger.push(x); });
+    }
+  }catch(e){}
+  try{
+    var mbs = _pmfSafeParse('_mbStock', null);
+    if(mbs && typeof mbs==='object' && typeof mbStock!=='undefined'){
+      _pmfReplaceObjectInPlace(mbStock, mbs);
+    }
+  }catch(e){}
+  try{
+    var mbl = _pmfSafeParse('_mbLedger', null);
+    if(Array.isArray(mbl) && typeof mbLedger!=='undefined'){
+      mbLedger.length = 0;
+      mbl.forEach(function(x){ mbLedger.push(x); });
+    }
+  }catch(e){}
+  try{
+    var rgs = _pmfSafeParse('_rgStock', null);
+    if(rgs && typeof rgs==='object' && typeof rgStock!=='undefined'){
+      _pmfReplaceObjectInPlace(rgStock, rgs);
+    }
+  }catch(e){}
+  try{
+    var rgl = _pmfSafeParse('_rgLedger', null);
+    if(Array.isArray(rgl) && typeof rgLedger!=='undefined'){
+      rgLedger.length = 0;
+      rgl.forEach(function(x){ rgLedger.push(x); });
+    }
+  }catch(e){}
+  try{
+    var dr = _pmfSafeParse('_dailyReports', null);
+    if(dr && typeof dr==='object' && typeof dailyReports!=='undefined'){
+      _pmfReplaceObjectInPlace(dailyReports, dr);
+    }
+  }catch(e){}
+  try{
+    var ap1 = _pmfSafeParse('_approvalsV1', null);
+    if(ap1 && typeof ap1==='object' && typeof approvals!=='undefined'){
+      _pmfReplaceObjectInPlace(approvals, ap1);
+    }
+  }catch(e){}
+  try{
+    var apl = _pmfSafeParse('_approvalLogV1', null);
+    if(Array.isArray(apl) && typeof approvalLog!=='undefined'){
+      approvalLog.length = 0;
+      apl.forEach(function(x){ approvalLog.push(x); });
+    }
+  }catch(e){}
+  try{
+    var mp = _pmfSafeParse('_mixPlans', null);
+    if(Array.isArray(mp) && typeof mixPlans!=='undefined'){
+      mixPlans.length = 0;
+      mp.forEach(function(x){ mixPlans.push(x); });
+    }
+  }catch(e){}
+  try{
+    var mfp = _pmfSafeParse('_mixFeederPlans', null);
+    if(Array.isArray(mfp) && typeof mixFeederPlans!=='undefined'){
+      mixFeederPlans.length = 0;
+      mfp.forEach(function(x){ mixFeederPlans.push(x); });
+    }
+  }catch(e){}
+  try{
+    var mdh = _pmfSafeParse('_mixDispatchHistory', null);
+    if(Array.isArray(mdh) && typeof mixDispatchHistory!=='undefined'){
+      mixDispatchHistory.length = 0;
+      mdh.forEach(function(x){ mixDispatchHistory.push(x); });
+    }
+  }catch(e){}
+  // Re-render หน้าปัจจุบันถ้าผู้ใช้กำลังเปิดอยู่ — ใช้ renderPage แทน showPage
+  // เพื่อไม่ดัน navigation/scroll
+  try{
+    if(window._currentPage && typeof renderPage==='function'){
+      renderPage(window._currentPage);
+    }
+  }catch(e){}
+}
+window.addEventListener('message', function(ev){
+  try{
+    if(!ev || !ev.data) return;
+    if(ev.data.type === 'pmf-sync-applied'){
+      pmfReloadFromStorage();
+    }
+  }catch(e){}
+}, false);
 
 // masterInit is now called by doLogin() or tryAutoLogin()
 // masterInit();
