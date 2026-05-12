@@ -53454,8 +53454,20 @@ function machineDelete(id){
 function jobregDelete(id){
   const j=JOB_REGISTRY.find(x=>x.id===id); if(!j) return;
   _confirmDel('🗑 ลบงาน: <b>'+j.name+'</b><br>ลูกค้า: '+(j.customer||'—'), function(){
-    const idx=JOB_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) JOB_REGISTRY.splice(idx,1);
-    saveJobRegistry(); renderJobRegistry();
+    const idx=JOB_REGISTRY.findIndex(x=>x.id===id);
+    if(idx>=0){
+      JOB_REGISTRY[idx]=Object.assign({}, JOB_REGISTRY[idx], { _deleted:true, updatedAt:new Date().toISOString() });
+    }
+    // ลบ BOM ที่ผูกชื่อเดียวกันด้วย (soft-delete) เพื่อไม่ให้หน้า BOM แสดงค้าง
+    try{
+      var bi=jobs.findIndex(function(x){ return x && x.name===j.name; });
+      if(bi>=0){
+        jobs[bi]=Object.assign({}, jobs[bi], { _deleted:true, updatedAt:new Date().toISOString() });
+        if(typeof saveJobs==='function') saveJobs();
+      }
+    }catch(e){}
+    saveJobRegistry();
+    renderJobRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบงาน '+j.name+' แล้ว');
   });
 }
