@@ -16675,10 +16675,19 @@ function mixUpsertPlanFromTTEntry(en, ttProdDate, order){
   };
   if(idx>=0){
     var keep = mixPlans[idx];
+    // อย่า rebuild ทับแผนที่อนุมัติ/เบิกสต็อกแล้ว มิฉะนั้น sync ข้ามเครื่องจะ
+    // ทำให้สถานะหาย (มือถือเห็นว่า "ยังไม่ตัด" ทั้งที่ desktop เบิกไปแล้ว)
+    if(keep && (keep.stockIssued || keep.status==='ผสมแล้ว')){
+      return;
+    }
     row.status = keep.status||row.status;
     row.reserved = keep.reserved;
     row.stockChecked = keep.stockChecked;
     row.mixer = keep.mixer||'';
+    row.stockIssued = !!keep.stockIssued;
+    if(keep.stockIssuedAt) row.stockIssuedAt = keep.stockIssuedAt;
+    if(keep.approvalStatus) row.approvalStatus = keep.approvalStatus;
+    if(keep.updatedAt) row.updatedAt = keep.updatedAt;
     mixPlans[idx]=row;
   }else{
     mixPlans.unshift(row);
@@ -16738,8 +16747,15 @@ function mixUpsertFeederPlanFromTTEntry(en, ttProdDate, order){
   };
   if(idx>=0){
     var keep = mixFeederPlans[idx];
+    // อย่า rebuild ทับช่อง feeder ที่เบิกสต็อกรายวันไปแล้ว
+    if(keep && (keep.stockIssued || keep.status==='เบิกแล้ว')){
+      return;
+    }
     row.stockIssued = keep.stockIssued||false;
     row.status = keep.status||row.status;
+    if(keep.stockIssuedAt) row.stockIssuedAt = keep.stockIssuedAt;
+    if(keep.approvalStatus) row.approvalStatus = keep.approvalStatus;
+    if(keep.updatedAt) row.updatedAt = keep.updatedAt;
     mixFeederPlans[idx]=row;
   }else{
     mixFeederPlans.unshift(row);
