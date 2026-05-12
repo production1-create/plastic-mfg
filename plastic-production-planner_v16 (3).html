@@ -1886,7 +1886,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <!-- Summary bar -->
   <div id="tt-summary-bar" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap"></div>
-  <div id="tt-manpower-bar" class="card mb-3" style="padding:10px 14px;display:none"></div>
+  <div id="tt-manpower-bar" class="card mb-3" style="padding:10px 14px;display:none !important"></div>
   <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--border)" id="tt-container">
     <div id="tt-content"></div>
   </div>
@@ -17118,25 +17118,9 @@ function renderTT(){
       return d.toISOString().split('T')[0];
     });
     buildSummaryBar(days);
-    const mpBar=document.getElementById('tt-manpower-bar');
-    if(mpBar){
-      mpBar.style.display='';
-      var mpH='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">👷 กำลังคนรวมตามวัน <span style="font-weight:600;color:var(--text3)">(ผลรวมจาก BOM: จำนวนคน/เครื่องของแต่ละงานในแผน)</span></div><div style="display:flex;gap:8px;flex-wrap:wrap">';
-      days.forEach(function(d){
-        var sum=0;
-        ttLiveRows(d).forEach(function(j){
-          var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(j):'injection';
-          if((sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly'))
-            sum+=(typeof ttBomHeadcount==='function'?ttBomHeadcount(j.jobName):0);
-        });
-        mpH+='<div style="min-width:92px;text-align:center;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px">'
-          +'<div style="font-size:9px;color:var(--text3)">'+d+'</div>'
-          +'<div style="font-size:18px;font-weight:800;color:#a371f7">'+sum+'</div>'
-          +'<div style="font-size:9px;color:var(--text3)">คน</div></div>';
-      });
-      mpH+='</div>';
-      mpBar.innerHTML=mpH;
-    }
+    // ── สรุปจำนวนคนตามวันถูกซ่อนตามคำขอผู้ใช้ ────────────────────
+    var mpBar=document.getElementById('tt-manpower-bar');
+    if(mpBar){ mpBar.style.display='none'; mpBar.innerHTML=''; }
     const today=new Date().toISOString().split('T')[0];
     const DOW=['อา','จ','อ','พ','พฤ','ศ','ส'];
 
