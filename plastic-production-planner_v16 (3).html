@@ -16469,7 +16469,7 @@ function _softDeleteTTByOrder(orderNo){
       var arr=ttData[d]; if(!Array.isArray(arr)) return;
       arr.forEach(function(en){
         if(!en || en._deleted) return;
-        if(en.orderNo===orderNo){
+        if(String(en.orderNo||'')===String(orderNo||'')){
           en._deleted=true;
           en._deletedAt=nowIso;
           en.updatedAt=nowIso;
@@ -16498,6 +16498,7 @@ function deleteOrder(orderNo){
     if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage();
     if(typeof renderDelivery==='function') renderDelivery();
     if(typeof _toast==='function') _toast('🗑 ลบ Order ' + orderNo + ' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
@@ -16521,6 +16522,7 @@ function deleteOrdersSelected(){
     if(typeof renderDelivery==='function') renderDelivery();
     updateOrderSelectionUI();
     if(typeof _toast==='function') _toast('🗑 ลบ ' + checked.length + ' Order แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
@@ -16677,7 +16679,7 @@ function deleteTTEntry(machine, date, orderNo){
       if(!ttData[d]||!Array.isArray(ttData[d])) return;
       ttData[d].forEach(function(entry){
         if(!entry||entry._deleted) return;
-        if(entry.orderNo===orderNo && entry.machine===machine){
+        if(String(entry.orderNo||'')===String(orderNo||'') && entry.machine===machine){
           entry._deleted=true;
           entry._deletedAt=nowIso;
           entry.updatedAt=nowIso;
@@ -16702,6 +16704,7 @@ function deleteTTEntry(machine, date, orderNo){
     if(typeof _toast==='function') _toast('🗑️ ลบ '+orderNo+' ออกจาก TT แล้ว ('+deletedCount+' รายการ)');
     renderTT();
     renderOrdersTable();
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 function autoCreateMoldPrep(order){

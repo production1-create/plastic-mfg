@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260512-tt-mp-counts"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260512-tt-sync-fix"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -664,7 +664,7 @@
     }
     function recordTs(o) {
       if (!o || typeof o !== "object") return 0;
-      return toTs(o.updatedAt || o._updatedAt || o.savedAt || o.modifiedAt || o.createdAt || o.ts);
+      return toTs(o.updatedAt || o._deletedAt || o._updatedAt || o.savedAt || o.modifiedAt || o.createdAt || o.ts);
     }
 
     function mergeUsersValue(localStr, remoteStr) {
@@ -934,7 +934,9 @@
 
     function ttRowKey(r) {
       if (!r || typeof r !== "object") return "";
-      return [r.machine, r.jobName, r.lot, r.plastic, r.shift].join("|");
+      // ต้องมี orderNo — ไม่งั้น merge จะรวมแถวคนละ Order ที่ช่องเดียวกันเป็นแถวเดียว
+      // ทำให้ลบ Order แล้ว TT บนเครื่องอื่นไม่อัปเดต / push ถูกกันทับโดย anti-shrink
+      return [r.machine, String(r.orderNo || ""), r.jobName, r.lot, r.plastic, r.shift].join("|");
     }
 
     function mergeTTData(localStr, remoteStr) {
@@ -1301,11 +1303,14 @@
               const cntLocal  = _countRecords(latestLocal);
               const cntRemote = _countRecords(remoteVal);
               const cntMerged = _countRecords(merged);
-              if (cntMerged >= 0 && cntRemote > 0 && cntMerged < cntRemote) {
+              // _ttData: แถวซ้ำจาก ttRowKey เก่า (ไม่มี orderNo) ทำให้ merge แล้วจำนวนแถวน้อยลง
+              // แม้ข้อมูลถูกต้อง — ห้าม skip push ไม่งั้นการลบ Order ไม่ขึ้นคลาวด์
+              const skipShrinkGuard = key === "_ttData";
+              if (!skipShrinkGuard && cntMerged >= 0 && cntRemote > 0 && cntMerged < cntRemote) {
                 skippedShrink++;
                 continue;
               }
-              if (cntMerged >= 0 && cntLocal > 0 && cntMerged === 0) {
+              if (!skipShrinkGuard && cntMerged >= 0 && cntLocal > 0 && cntMerged === 0) {
                 skippedShrink++;
                 continue;
               }
@@ -1320,7 +1325,7 @@
                   // braces: cnt of the second merge must not shrink either.
                   const merged2 = mergeStorageKey(key, ultra, merged);
                   const cnt2 = _countRecords(merged2);
-                  if (cnt2 >= cntMerged) {
+                  if (key === "_ttData" || cnt2 >= cntMerged) {
                     value = merged2;
                   }
                 }
