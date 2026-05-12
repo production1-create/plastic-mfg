@@ -23708,6 +23708,7 @@ function saveFgMinMaxModal(){
   if(minV>=maxV){ if(typeof _infoToast==='function') _infoToast('Max ต้องมากกว่า Min'); return; }
   fgStock[j].min=minV;
   fgStock[j].max=maxV;
+  _stampStockBucket(fgStock,j);
   saveFgStock();
   closeModal('modal-fg-minmax');
   renderStock();
