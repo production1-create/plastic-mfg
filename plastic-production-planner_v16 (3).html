@@ -12342,10 +12342,17 @@ function rawmatregSave(){
     pcsPerUnit:parseFloat(document.getElementById('rme-pkg-pcs-per')?.value)||0,
     weightPerUnit:parseFloat(document.getElementById('rme-pkg-weight')?.value)||0,
     pricePerUnit:parseFloat(document.getElementById('rme-pkg-price-unit')?.value)||0};
+  _pmfTouchUpdatedAt(obj);
   var idx2=RAWMAT_REGISTRY.findIndex(function(r){return r.id===id;}); if(idx2>=0) RAWMAT_REGISTRY[idx2]=obj; else RAWMAT_REGISTRY.push(obj);
-  // Sync stock min/max
-  if(rawMatStock[code]){rawMatStock[code].min=obj.minStock;rawMatStock[code].max=obj.maxStock;rawMatStock[code].grade=obj.grade;_stampStockBucket(rawMatStock,code);}
+  // Sync stock min/max — ensure bucket exists แล้วบันทึก rawMatStock เพื่อให้ซิงค์ข้ามเครื่อง
+  if(!rawMatStock[code]) rawMatStock[code]={qty:0,min:0,max:9999,grade:''};
+  rawMatStock[code].min=obj.minStock;
+  rawMatStock[code].max=obj.maxStock;
+  rawMatStock[code].grade=obj.grade;
+  _stampStockBucket(rawMatStock,code);
+  if(typeof saveRawMatStock==='function') saveRawMatStock();
   saveRawmatRegistry(); closeModal('modal-rawmat-edit'); renderRawmatRegistry();
+  if(typeof renderRawmat==='function') renderRawmat();
   if(typeof _toast==='function') _toast('✅ บันทึกวัตถุดิบ '+code+' แล้ว');
 }
 function rawmatregExport(){
@@ -20993,22 +21000,30 @@ function renderRawmat(){
     const prof = getStockDemandProfile(p, demandKind);
     const dailyUse = prof.dailyFromPeak || 0;
     const peakMonthly = prof.maxMonthly || 0;
-    // ตามโจทย์:
-    // MAX = (ยอดใช้สูงสุดรายเดือน) + (ยอดใช้ต่อวัน × LT)
-    // MIN = (ยอดใช้ต่อวัน × LT) × 2 (เผื่อ)
-    const calcMax = Math.ceil(peakMonthly + (dailyUse * ltDays));
-    const calcMin = Math.ceil((dailyUse * ltDays) * 2);
-    if(calcMax>0 || calcMin>0){
-      s.max = Math.max(1, calcMax, calcMin);
-      s.min = Math.max(0, calcMin);
+    // ถ้าผู้ใช้ตั้งค่า Min/Max ในทะเบียนวัตถุดิบ (ค่ามากกว่า 0) → ถือเป็น manual override
+    // แล้วใช้ค่าจากทะเบียนเป็นหลัก ไม่ทับด้วย auto-calc มิฉะนั้น auto-calc จะลบค่าที่ตั้งทันที
+    const regMin = reg ? toNum(reg.minStock, 0) : 0;
+    const regMax = reg ? toNum(reg.maxStock, 0) : 0;
+    const manualOverride = !!(reg && (regMin>0 || regMax>0));
+    if(manualOverride){
+      s.min = Math.max(0, regMin);
+      s.max = Math.max(1, regMax>0 ? regMax : (regMin>0 ? regMin*4 : 9999));
     }else{
-      // fallback เมื่อยังไม่มี order ใช้งานเม็ดนี้
-      const regMin = reg ? toNum(reg.minStock, 0) : 0;
-      const regMax = reg ? toNum(reg.maxStock, 0) : 0;
-      const curMin = toNum(s.min, NaN);
-      const curMax = toNum(s.max, NaN);
-      s.min = Number.isFinite(curMin) ? curMin : (regMin||0);
-      s.max = Number.isFinite(curMax) && curMax>0 ? curMax : (regMax||9999);
+      // ตามโจทย์ (อัตโนมัติเมื่อทะเบียนยังไม่ตั้งค่า):
+      // MAX = (ยอดใช้สูงสุดรายเดือน) + (ยอดใช้ต่อวัน × LT)
+      // MIN = (ยอดใช้ต่อวัน × LT) × 2 (เผื่อ)
+      const calcMax = Math.ceil(peakMonthly + (dailyUse * ltDays));
+      const calcMin = Math.ceil((dailyUse * ltDays) * 2);
+      if(calcMax>0 || calcMin>0){
+        s.max = Math.max(1, calcMax, calcMin);
+        s.min = Math.max(0, calcMin);
+      }else{
+        // fallback เมื่อยังไม่มี order ใช้งานเม็ดนี้
+        const curMin = toNum(s.min, NaN);
+        const curMax = toNum(s.max, NaN);
+        s.min = Number.isFinite(curMin) ? curMin : 0;
+        s.max = Number.isFinite(curMax) && curMax>0 ? curMax : 9999;
+      }
     }
   });
 
