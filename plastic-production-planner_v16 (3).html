@@ -1318,6 +1318,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 21C --><div class="nav-item" onclick="showPage('approvalproc-done',this,'injection')"><span class="nav-icon">✅</span><span class="nav-seq">21C</span> ใบอนุมัติ — จบ Lot (ฉีด)</div>
     <!-- 21D --><div class="nav-item" onclick="showPage('approvalproc-done',this,'postprocess')"><span class="nav-icon">✅</span><span class="nav-seq">21D</span> ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)</div>
     <!-- 18  --> <div class="nav-item" onclick="showPage('mixing',this)"><span class="nav-icon">🧪</span><span class="nav-seq">18</span> แผนผสมเม็ด</div>
+    <!-- 18B --> <div class="nav-item" onclick="showPage('mix-prod-receive',this)"><span class="nav-icon">✅</span><span class="nav-seq">18B</span> ฝ่ายผลิต — ยืนยันรับเม็ด</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -3262,6 +3263,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <button onclick="mixRebuildFromTT({merge:true});renderMixing();if(typeof _toast==='function')_toast('📅 ซิงค์แผนผสมจาก TT แล้ว (ถัง + ป้อนสี)')" style="padding:7px 14px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit" title="ซิงค์แผนถังผสม (ล่วงหน้า 2 วัน) และแผนป้อนสีรายวันจาก Time Table">📅 ซิงค์จาก TT</button>
         <button onclick="mixAutoGenerate()" style="padding:7px 14px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;font-family:inherit">⚡ สร้างแผนจาก Order</button>
         <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-mix')">+ เพิ่มแผนเอง</button>
+        <button type="button" onclick="mixDeleteAllPlans()" style="padding:7px 12px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.45);color:#f85149;border-radius:7px;cursor:pointer;font-size:11px;font-weight:800;font-family:inherit" title="ลบแผนถังและแผนป้อนสีทั้งหมด (soft-delete)">🗑 ลบแผนทั้งหมด</button>
         <button class="page-print-btn btn-sm" onclick="openPrintPanel('page-mixing')">🖨 พิมพ์</button>
       </div>
     </div>
@@ -3281,7 +3283,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="tab" onclick="mixTab('stock',this)">📦 ตรวจสต็อก & จอง</div>
     <div class="tab" onclick="mixTab('tt',this)">📅 Time Table ถังผสม</div>
     <div class="tab" onclick="mixTab('ttfeeder',this)">📅 Time Table ป้อนสี</div>
-    <div class="tab" onclick="mixTab('dispatch',this)">📤 เบิกส่งฝ่ายผลิต & ประวัติ</div>
+    <div class="tab" onclick="mixTab('dispatch',this)">🔎 ค้นหาประวัติการผสม (อนุมัติแล้ว)</div>
   </div>
 
   <!-- ══════════ TAB: PLAN ══════════ -->
@@ -3455,6 +3457,23 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div id="mix-tab-dispatch" style="display:none;background:var(--bg2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px">
     <div id="mix-dispatch-body"></div>
   </div>
+</div>
+
+<!-- ========== MIXING — PRODUCTION RECEIPT CONFIRM ========== -->
+<div class="page" id="page-mix-prod-receive">
+  <div class="page-header" style="margin-bottom:12px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="page-title">✅ ฝ่ายผลิต — ยืนยันรับเม็ดผสม</div>
+        <div class="page-sub">รายการจัดส่งจากแผนกผสมเม็ด · กดยืนยันเมื่อรับของแล้ว · รายการที่ยังไม่ยืนยันจะแสดงพื้นหลังสีแดง</div>
+        <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I009 &nbsp;|&nbsp; จัดส่ง → รับรองฝ่ายผลิต</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="if(typeof showPage==='function')showPage('mixing',this);var _t=document.querySelector('#page-mixing .tab:nth-child(7)');if(_t&&typeof mixTab==='function')mixTab('dispatch',_t);">← กลับแผนผสมเม็ด</button>
+      </div>
+    </div>
+  </div>
+  <div id="mix-prod-receive-body" style="padding:0 4px 24px"></div>
 </div>
 
 <!-- ========== RAW MATERIAL ========== -->
@@ -8797,6 +8816,27 @@ function loadMixDispatchHistory(){
 }
 loadMixPlans();
 loadMixDispatchHistory();
+/** ฝ่ายผลิตยืนยันรับเม็ด — key: iss:<logId> หรือ disp:<dispatchId> */
+let mixProdReceiveConfirms = [];
+function saveMixProdReceiveConfirms(){ try{ localStorage.setItem('_mixProdReceiveConfirms', JSON.stringify(mixProdReceiveConfirms)); }catch(e){} }
+function loadMixProdReceiveConfirms(){
+  try{
+    var d = localStorage.getItem('_mixProdReceiveConfirms');
+    if(d){ var arr = JSON.parse(d); if(Array.isArray(arr)) mixProdReceiveConfirms = arr; }
+  }catch(e){}
+}
+loadMixProdReceiveConfirms();
+function mixProdReceiveHas(key){
+  return (mixProdReceiveConfirms||[]).some(function(c){ return c && String(c.key)===String(key); });
+}
+function mixProdReceiveConfirm(key){
+  if(!key || mixProdReceiveHas(key)) return;
+  var by = (typeof AUTH!=='undefined' && AUTH && (AUTH.displayName||AUTH.name||AUTH.username)) ? String(AUTH.displayName||AUTH.name||AUTH.username) : 'ฝ่ายผลิต';
+  mixProdReceiveConfirms.push({ key:String(key), at:new Date().toISOString(), by:by, updatedAt:new Date().toISOString() });
+  saveMixProdReceiveConfirms();
+  if(typeof renderMixProdReceivePage==='function') renderMixProdReceivePage();
+  if(typeof _toast==='function') _toast('✅ ยืนยันรับแล้ว');
+}
 let mixFeederPlans = [];
 let mixStockIssueLog = [];
 function saveMixFeederPlans(){ try{ localStorage.setItem('_mixFeederPlans', JSON.stringify(mixFeederPlans)); }catch(e){} }
@@ -8831,7 +8871,7 @@ function mixCountTTSlotsForOrder(orderNo){
   return n;
 }
 function mixCountTTPlansForOrder(orderNo){
-  return mixPlans.filter(function(p){ return p.orderNo===orderNo && p.ttSource; }).length;
+  return mixPlans.filter(function(p){ return p && !p._deleted && p.orderNo===orderNo && p.ttSource; }).length;
 }
 
 // ─── RAW MATERIAL RESERVATIONS ──────────────────────────────────
@@ -9064,6 +9104,7 @@ var _navMenuList = [
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', group:'🏭 การผลิต',     keywords:'bom bill of materials สูตร'},
   // วัตถุดิบ
   {id:'mixing',       label:'แผนผสมเม็ด',              icon:'🧪', group:'🧪 วัตถุดิบ',    keywords:'ผสมเม็ด mixing blend สูตรผสม'},
+  {id:'mix-prod-receive', label:'ฝ่ายผลิต — ยืนยันรับเม็ด', icon:'✅', group:'🧪 วัตถุดิบ', keywords:'รับเม็ด ฝ่ายผลิต ยืนยันรับ จัดส่ง mixing dispatch receive'},
   {id:'rawmat',       label:'วัตถุดิบ & Batch',         icon:'📦', group:'🧪 วัตถุดิบ',    keywords:'วัตถุดิบ batch stock เม็ดพลาสติก'},
   {id:'rawmatreg',    label:'ทะเบียนวัตถุดิบ',          icon:'🧪', group:'🧪 วัตถุดิบ',    keywords:'ทะเบียนวัตถุดิบ material registry'},
   {id:'supplierreg',  label:'ทะเบียน Supplier',         icon:'🏭', group:'🧪 วัตถุดิบ',    keywords:'supplier ผู้จัดหา vendor'},
@@ -16329,9 +16370,10 @@ function renderOrders(){
   if(wpEl){
     const today=new Date(); const days=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()+i);return d;});
     const byStatus={รอผลิต:0,กำลังผลิต:0,พร้อมส่ง:0,Delay:0};
-    const actOrders=orders.filter(function(o){ return typeof isOrderInActivePipeline==='function'?isOrderInActivePipeline(o):true; });
+    const liveOrders=orders.filter(function(o){ return o && !o._deleted; });
+    const actOrders=liveOrders.filter(function(o){ return typeof isOrderInActivePipeline==='function'?isOrderInActivePipeline(o):true; });
     actOrders.forEach(o=>{byStatus[o.status]=(byStatus[o.status]||0)+1;});
-    const awaitN=orders.filter(function(o){ return typeof isOrderAwaitingShipment==='function'&&isOrderAwaitingShipment(o); }).length;
+    const awaitN=liveOrders.filter(function(o){ return typeof isOrderAwaitingShipment==='function'&&isOrderAwaitingShipment(o); }).length;
     wpEl.innerHTML=`<div class="grid mb-4" style="margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
       ${Object.entries(byStatus).map(([s,c])=>`<div class="card" style="padding:12px;text-align:center"><div style="font-size:12px;color:var(--text3)">${s}</div><div class="kpi-value" style="font-size:22px;color:${s==='พร้อมส่ง'?'var(--green)':s==='Delay'?'var(--red)':s==='กำลังผลิต'?'var(--accent2)':'var(--yellow)'}">${c}</div></div>`).join('')}
       <div class="card" style="padding:12px;text-align:center;grid-column:span 1"><div style="font-size:12px;color:var(--text3)">รอส่ง (ผลิตจบ)</div><div class="kpi-value" style="font-size:22px;color:#79c0ff">${awaitN}</div><div style="font-size:10px;color:var(--text3)">ดูเมนู Order ผลิตจบ — รอส่ง</div></div>
@@ -16350,7 +16392,7 @@ function renderOrders(){
 function renderOrdersTable(filter, statusFilter){
   const tbody=document.getElementById('orders-tbody');
   if(!tbody) return;
-  let list=orders;
+  let list=orders.filter(function(o){ return o && !o._deleted; });
   var textQ=(arguments.length>=1 && filter!==undefined)?String(filter||'').trim():_ordersCombinedSearch();
   if(textQ) list=list.filter(function(o){
     return (o.jobName&&o.jobName.includes(textQ))||(o.orderNo&&o.orderNo.includes(textQ))||(o.lotNo&&String(o.lotNo).includes(textQ));
@@ -16417,15 +16459,42 @@ function renderOrdersTable(filter, statusFilter){
 }
 function filterOrders(v){ renderOrdersTable(v, undefined); }
 function filterOrderStatus(v){ renderOrdersTable(undefined, v); }
+// Soft-delete TT entries linked to an order so หน้า TT / summary คน หายตาม
+function _softDeleteTTByOrder(orderNo){
+  if(!orderNo) return 0;
+  var nowIso=new Date().toISOString();
+  var n=0;
+  try{
+    Object.keys(ttData||{}).forEach(function(d){
+      var arr=ttData[d]; if(!Array.isArray(arr)) return;
+      arr.forEach(function(en){
+        if(!en || en._deleted) return;
+        if(en.orderNo===orderNo){
+          en._deleted=true;
+          en._deletedAt=nowIso;
+          en.updatedAt=nowIso;
+          n++;
+        }
+      });
+    });
+    if(n>0){ try{ localStorage.setItem('_ttData', JSON.stringify(ttData)); }catch(_){} }
+  }catch(e){}
+  return n;
+}
+
 function deleteOrder(orderNo){
   const o = orders.find(x=>x.orderNo===orderNo);
   if(!o) return;
   _confirmDel('🗑 ลบ Order: <b>'+orderNo+'</b><br>งาน: '+o.jobName+' | จำนวน: '+o.qty.toLocaleString()+' ชิ้น', function(){
     const idx = orders.findIndex(x=>x.orderNo===orderNo);
-    if(idx>=0) orders.splice(idx,1);
+    if(idx>=0){
+      orders[idx]=Object.assign({}, orders[idx], { _deleted:true, _deletedAt:new Date().toISOString(), updatedAt:new Date().toISOString() });
+    }
+    _softDeleteTTByOrder(orderNo);
     saveOrders();
     renderOrdersTable();
     renderOrders();
+    if(typeof renderTT==='function') renderTT();
     if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage();
     if(typeof renderDelivery==='function') renderDelivery();
     if(typeof _toast==='function') _toast('🗑 ลบ Order ' + orderNo + ' แล้ว');
@@ -16436,10 +16505,18 @@ function deleteOrdersSelected(){
   const checked = [...document.querySelectorAll('.order-chk:checked')].map(cb=>cb.dataset.orderNo);
   if(!checked.length){ _toast('⚠️ กรุณาเลือก Order ที่ต้องการลบ'); return; }
   _confirmDel('🗑 ลบ <b>'+checked.length+' Order</b> ที่เลือก<br><span style="font-size:11px;color:#8b949e">'+checked.slice(0,5).join(', ')+(checked.length>5?' ...':'')+'</span>', function(){
-    checked.forEach(function(no){ const idx=orders.findIndex(x=>x.orderNo===no); if(idx>=0) orders.splice(idx,1); });
+    var nowIso=new Date().toISOString();
+    checked.forEach(function(no){
+      var idx=orders.findIndex(x=>x.orderNo===no);
+      if(idx>=0){
+        orders[idx]=Object.assign({}, orders[idx], { _deleted:true, _deletedAt:nowIso, updatedAt:nowIso });
+      }
+      _softDeleteTTByOrder(no);
+    });
     saveOrders();
     renderOrdersTable();
     renderOrders();
+    if(typeof renderTT==='function') renderTT();
     if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage();
     if(typeof renderDelivery==='function') renderDelivery();
     updateOrderSelectionUI();
@@ -16709,7 +16786,7 @@ function mixRebuildFromTT(opts){
     ttLiveRows(dateStr).forEach(function(en){
       if(!en || !en.orderNo || en.orderNo==='MANUAL') return;
       var o = orders.find(function(x){ return x.orderNo===en.orderNo; });
-      if(!o || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
+      if(!o || o._deleted || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
       mixUpsertPlanFromTTEntry(en, dateStr, o);
     });
   });
@@ -16777,7 +16854,7 @@ function mixRebuildFeederFromTT(opts){
     ttLiveRows(dateStr).forEach(function(en){
       if(!en || !en.orderNo || en.orderNo==='MANUAL') return;
       var o = orders.find(function(x){ return x.orderNo===en.orderNo; });
-      if(!o || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
+      if(!o || o._deleted || o.status==='ยกเลิก'||o.status==='ส่งแล้ว'||o.status==='พร้อมส่ง'||o.status==='ส่งมอบแล้ว') return;
       mixUpsertFeederPlanFromTTEntry(en, dateStr, o);
     });
   });
@@ -19355,7 +19432,7 @@ function rmRecomputeMbLedgerBalances(){
 function mixExecuteStockIssueForPlan(planId, opts){
   opts=opts||{};
   var by=opts.by||'—';
-  var p=mixPlans.find(function(x){ return String(x.id)===String(planId); });
+  var p=mixPlans.find(function(x){ return String(x.id)===String(planId) && !x._deleted; });
   if(!p){ if(typeof _infoToast==='function') _infoToast('ไม่พบแผนผสมถัง'); return; }
   if(p.stockIssued){ if(typeof _infoToast==='function') _infoToast('แผนนี้เบิกสต็อกแล้ว'); return; }
   var approveKey='mixing-'+p.id;
@@ -19450,7 +19527,7 @@ function mixExecuteStockIssueForPlan(planId, opts){
 function mixExecuteFeederStockIssue(planId, opts){
   opts=opts||{};
   var by=opts.by||'—';
-  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(planId); });
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(planId) && !x._deleted; });
   if(!p){ if(typeof _infoToast==='function') _infoToast('ไม่พบแผนป้อนสี'); return; }
   if(p.stockIssued){ if(typeof _infoToast==='function') _infoToast('ช่องนี้เบิกสต็อกรายวันแล้ว'); return; }
   var approveKey='mixfeeder-'+p.id;
@@ -19566,7 +19643,7 @@ function renderMixing(){
 }
 
 function mixMarkFeederMixed(id){
-  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id); }); if(!p) return;
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; }); if(!p) return;
   var ak='mixfeeder-'+p.id;
   var ap=approvals[ak];
   if(!ap || ap.status!=='approved'){
@@ -19581,13 +19658,51 @@ function mixMarkFeederMixed(id){
 }
 
 function mixFeederDeletePlan(id){
-  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id); }); if(!p) return;
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; }); if(!p) return;
   _confirmDel('🗑 ลบแผนป้อนสี: <b>'+(p.jobName||id)+'</b><br>วันผลิต (TT): '+(p.ttProdDate||'—'), function(){
     var idx=mixFeederPlans.findIndex(function(x){ return String(x.id)===String(id); });
-    if(idx>=0) mixFeederPlans.splice(idx,1);
+    if(idx>=0){
+      mixFeederPlans[idx]=Object.assign({}, mixFeederPlans[idx], { _deleted:true, updatedAt:new Date().toISOString() });
+    }
     saveMixFeederPlans();
     renderMixFeeder(); mixRenderAlerts();
     if(typeof _toast==='function') _toast('🗑 ลบแผนป้อนสีแล้ว');
+  });
+}
+
+/** ลบแผนผสมทั้งหมด (ถัง + ป้อนสี) — soft-delete เพื่อซิงค์ข้ามเครื่อง */
+function mixDeleteAllPlans(){
+  var nT=(mixPlans||[]).filter(function(p){ return p && !p._deleted; }).length;
+  var nF=(mixFeederPlans||[]).filter(function(p){ return p && !p._deleted; }).length;
+  if(!nT && !nF){ if(typeof _infoToast==='function') _infoToast('ไม่มีแผนที่จะลบ'); return; }
+  _confirmDel('🗑 <b>ลบแผนผสมเม็ดทั้งหมด</b><br>ถังผสม: <b>'+nT+'</b> แผน · เครื่องป้อนสี: <b>'+nF+'</b> แผน<br><span style="color:#f85149;font-weight:700">ลบจากรายการทั้งหมด — แนะนำกดบันทึกขึ้นคลาวด์หลังลบ</span>', function(){
+    var nowIso=new Date().toISOString();
+    var planIds=new Set();
+    (mixPlans||[]).forEach(function(p){
+      if(!p||p._deleted) return;
+      planIds.add(String(p.id));
+      Object.assign(p,{ _deleted:true, updatedAt:nowIso });
+    });
+    (mixFeederPlans||[]).forEach(function(p){
+      if(!p||p._deleted) return;
+      planIds.add(String(p.id));
+      Object.assign(p,{ _deleted:true, updatedAt:nowIso });
+    });
+    try{
+      planIds.forEach(function(mid){
+        Object.keys(rawMatReservations||{}).forEach(function(k){ if(k.indexOf(mid+'_')===0) delete rawMatReservations[k]; });
+      });
+      saveReservations();
+    }catch(e){}
+    saveMixPlans();
+    saveMixFeederPlans();
+    if(typeof mixRenderKPI==='function') mixRenderKPI();
+    if(typeof mixRenderAlerts==='function') mixRenderAlerts();
+    if(typeof renderMixTable==='function') renderMixTable();
+    if(typeof renderMixFeeder==='function') renderMixFeeder();
+    if(typeof renderMixAutoList==='function') renderMixAutoList();
+    if(typeof renderMixDispatchTab==='function') renderMixDispatchTab();
+    if(typeof _toast==='function') _toast('🗑 ลบแผนทั้งหมดแล้ว (ถัง '+nT+' · ป้อนสี '+nF+')');
   });
 }
 
@@ -19608,7 +19723,7 @@ function renderMixFeeder(){
     var curM=machF;
     var machSet=new Set();
     jobs.filter(function(j){ return j.mixMethod==='feeder'; }).forEach(function(j){ if(j.machine) machSet.add(j.machine); });
-    mixFeederPlans.forEach(function(p){ if(p.machine) machSet.add(p.machine); });
+    mixFeederPlans.filter(function(p){ return p && !p._deleted && p.machine; }).forEach(function(p){ if(p.machine) machSet.add(p.machine); });
     var machs=[...machSet].sort();
     mSel.innerHTML='<option value="">ทุกเครื่อง</option>'+machs.map(function(m){ return '<option value="'+m+'">'+m+'</option>'; }).join('');
     if(curM && machs.indexOf(curM)>=0) mSel.value=curM;
@@ -19631,6 +19746,7 @@ function renderMixFeeder(){
   });
 
   var list=mixFeederPlans.filter(function(p){
+    if(!p||p._deleted) return false;
     if(statusF && p.status!==statusF) return false;
     var prodD=p.ttProdDate||p.prodDate||p.date||'';
     if(dateF && prodD!==dateF) return false;
@@ -19647,8 +19763,8 @@ function renderMixFeeder(){
 
   var summEl = document.getElementById('mix-feeder-summary');
   if(summEl){
-    var waitCt=mixFeederPlans.filter(function(p){ return p.status==='รอเดินงาน'; }).length;
-    var doneCt=mixFeederPlans.filter(function(p){ return p.status==='เบิกแล้ว'; }).length;
+    var waitCt=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.status==='รอเดินงาน'; }).length;
+    var doneCt=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.status==='เบิกแล้ว'; }).length;
     var lowCt=list.filter(function(p){
       var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
       var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
@@ -19664,7 +19780,7 @@ function renderMixFeeder(){
       return !(plOk&&mbOk);
     }).length;
     summEl.innerHTML=[
-      {icon:'📋',label:'แผนป้อนสีจาก TT',val:mixFeederPlans.length,col:'#79c0ff',bg:'rgba(121,192,255,0.08)',bd:'rgba(121,192,255,0.3)'},
+      {icon:'📋',label:'แผนป้อนสีจาก TT',val:mixFeederPlans.filter(function(p){ return p && !p._deleted; }).length,col:'#79c0ff',bg:'rgba(121,192,255,0.08)',bd:'rgba(121,192,255,0.3)'},
       {icon:'⏳',label:'รอเดินงาน',val:waitCt,col:'#e3b341',bg:'rgba(227,179,65,0.08)',bd:'rgba(227,179,65,0.28)'},
       {icon:'✅',label:'เบิกแล้ว',val:doneCt,col:'#3fb950',bg:'rgba(63,185,80,0.08)',bd:'rgba(63,185,80,0.28)'},
       {icon:'⚙️',label:'งาน Feeder (BOM)',val:feederJobsAll.length,col:'#d2a8ff',bg:'rgba(210,168,255,0.08)',bd:'rgba(210,168,255,0.3)'},
@@ -19753,7 +19869,7 @@ function renderMixFeeder(){
   }
 
   if(det && fb){
-    if(!mixFeederPlans.length && feederJobsAll.length){
+    if(!mixFeederPlans.filter(function(p){ return p && !p._deleted; }).length && feederJobsAll.length){
       det.style.display='block';
       var rows=[];
       feederJobs.forEach(function(j){
@@ -19792,11 +19908,11 @@ function renderMixFeeder(){
 // ── KPI Row ──────────────────────────────────────────────────────
 function mixRenderKPI(){
   var el = document.getElementById('mix-kpi-row'); if(!el) return;
-  var total = mixPlans.length;
-  var waiting = mixPlans.filter(function(p){ return p.status==='รอผสม'; }).length;
-  var reserved= mixPlans.filter(function(p){ return p.status==='จองวัตถุดิบแล้ว'; }).length;
-  var done    = mixPlans.filter(function(p){ return p.status==='ผสมแล้ว'; }).length;
-  var noStock = mixPlans.filter(function(p){ return p.status==='ขาดวัตถุดิบ'; }).length;
+  var total = mixPlans.filter(function(p){ return p && !p._deleted; }).length;
+  var waiting = mixPlans.filter(function(p){ return p && !p._deleted && p.status==='รอผสม'; }).length;
+  var reserved= mixPlans.filter(function(p){ return p && !p._deleted && p.status==='จองวัตถุดิบแล้ว'; }).length;
+  var done    = mixPlans.filter(function(p){ return p && !p._deleted && p.status==='ผสมแล้ว'; }).length;
+  var noStock = mixPlans.filter(function(p){ return p && !p._deleted && p.status==='ขาดวัตถุดิบ'; }).length;
   var ordersNeedMix = _getOrdersNeedingMix().length;
   el.innerHTML = [
     {label:'แผนทั้งหมด',   val:total,       col:'var(--text)',   icon:'🧪'},
@@ -19828,7 +19944,7 @@ function mixRenderAlerts(){
     if(source && agg[mat].jobs.indexOf(source)<0) agg[mat].jobs.push(source);
   }
   // Check each mix plan's material
-  mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
+  mixPlans.filter(function(p){ return p && !p._deleted && p.status!=='ผสมแล้ว'; }).forEach(function(p){
     var rows=mixPlanPlasticNeedRows(p);
     rows.forEach(function(r){
       var mat=r.material; if(!mat) return;
@@ -19945,6 +20061,7 @@ function renderMixTable(){
   var statusF = document.getElementById('mix-filter-status')?.value || '';
   var dateF   = document.getElementById('mix-filter-date')?.value   || '';
   var list = mixPlans.filter(function(p){
+    if(!p || p._deleted) return false;
     if(statusF && p.status!==statusF) return false;
     if(dateF && p.date!==dateF) return false;
     return true;
@@ -20202,7 +20319,7 @@ function renderMixStockGrid(){
   function escAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
   var PREVIEW_MAX=7;
   var matMap = {};
-  mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว'; }).forEach(function(p){
+  mixPlans.filter(function(p){ return p && !p._deleted && p.status!=='ผสมแล้ว'; }).forEach(function(p){
     mixPlanPlasticNeedRows(p).forEach(function(r){
       var mat=r.material||'';
       if(!mat) return;
@@ -20280,7 +20397,7 @@ function renderMixStockGrid(){
     });
   // MB summary cards
   var mbMap={};
-  mixPlans.filter(function(p){ return p.status!=='ผสมแล้ว' && p.mb; }).forEach(function(p){
+  mixPlans.filter(function(p){ return p && !p._deleted && p.status!=='ผสมแล้ว' && p.mb; }).forEach(function(p){
     var mbNeed=mixPlanMbNeedKg(p);
     if(!(mbNeed>0)) return;
     var key=mixResolveMbStockKey(p.mb)||String(p.mb).trim();
@@ -20326,7 +20443,7 @@ function renderMixStockGrid(){
 
 // ── Reservation functions ─────────────────────────────────────────
 function mixReserveOne(mixId){
-  var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
+  var p = mixPlans.find(function(x){ return x.id===mixId && !x._deleted; }); if(!p) return;
   var rows=mixPlanPlasticNeedRows(p);
   if(!rows.length) return;
   rows.forEach(function(r){
@@ -20345,7 +20462,7 @@ function mixReserveOne(mixId){
 }
 
 function mixConfirmReserve(mixId){
-  var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
+  var p = mixPlans.find(function(x){ return x.id===mixId && !x._deleted; }); if(!p) return;
   var rows=mixPlanPlasticNeedRows(p);
   rows.forEach(function(r){
     var mat=r.material||''; if(!mat) return;
@@ -20360,7 +20477,7 @@ function mixConfirmReserve(mixId){
 }
 
 function mixCancelReserve(mixId){
-  var p = mixPlans.find(function(x){ return x.id===mixId; }); if(!p) return;
+  var p = mixPlans.find(function(x){ return x.id===mixId && !x._deleted; }); if(!p) return;
   var rows=mixPlanPlasticNeedRows(p);
   rows.forEach(function(r){
     var mat=r.material||''; if(!mat) return;
@@ -20378,7 +20495,7 @@ function mixCancelReserve(mixId){
 function mixConfirmSingle(mixId, mat){
   var key = mixId+'_'+mat;
   if(!rawMatReservations[key]){
-    var p = mixPlans.find(function(x){ return x.id===mixId; });
+    var p = mixPlans.find(function(x){ return x.id===mixId && !x._deleted; });
     var need = 0;
     if(p){
       var row=mixPlanPlasticNeedRows(p).find(function(r){ return r.material===mat; });
@@ -20386,7 +20503,7 @@ function mixConfirmSingle(mixId, mat){
     }
     rawMatReservations[key]={material:mat,qty:need,status:'confirmed',reservedAt:new Date().toISOString(),mixId:mixId};
   } else rawMatReservations[key].status='confirmed';
-  var p2=mixPlans.find(function(x){return x.id===mixId;});
+  var p2=mixPlans.find(function(x){return x.id===mixId && !x._deleted;});
   if(p2&&p2.plastic===mat){p2.status='จองวัตถุดิบแล้ว';p2.reserved=true;}
   saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   mixStockDetailRefreshIfOpen();
@@ -20395,7 +20512,7 @@ function mixConfirmSingle(mixId, mat){
 function mixCancelSingle(mixId, mat){
   var key=mixId+'_'+mat;
   if(rawMatReservations[key]) rawMatReservations[key].status='cancelled';
-  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId); });
+  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId) && !x._deleted; });
   if(p&&p.status==='จองวัตถุดิบแล้ว'){p.status='รอผสม';p.reserved=false;}
   saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
   mixStockDetailRefreshIfOpen();
@@ -20403,7 +20520,7 @@ function mixCancelSingle(mixId, mat){
 }
 
 function mixReservePendingSingle(mixId, mat){
-  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId); }); if(!p) return;
+  var p=mixPlans.find(function(x){ return String(x.id)===String(mixId) && !x._deleted; }); if(!p) return;
   var row=mixPlanPlasticNeedRows(p).find(function(r){ return r.material===mat; });
   var need=row?Math.max(0,parseFloat(row.qty)||0):0;
   var key=mixId+'_'+mat;
@@ -20415,7 +20532,7 @@ function mixReservePendingSingle(mixId, mat){
 }
 
 function mixReserveAll(){
-  var pending = mixPlans.filter(function(p){ return p.status==='รอผสม'; });
+  var pending = mixPlans.filter(function(p){ return p && !p._deleted && p.status==='รอผสม'; });
   pending.forEach(function(p){
     var rows=mixPlanPlasticNeedRows(p);
     rows.forEach(function(r){
@@ -20447,13 +20564,14 @@ function mixConfirmAllReserve(){
 function mixCancelAllReserve(){
   _confirmDel('🗑 ยกเลิกการจองวัตถุดิบ<b>ทั้งหมด</b>?<br><span style="font-size:11px;color:#8b949e">สถานะจองทุกรายการจะถูกยกเลิก</span>', function(){
     Object.values(rawMatReservations).forEach(function(r){ r.status='cancelled'; });
-    mixPlans.forEach(function(p){ if(p.status==='จองวัตถุดิบแล้ว'){ p.status='รอผสม'; p.reserved=false; } });
+    mixPlans.forEach(function(p){ if(p && !p._deleted && p.status==='จองวัตถุดิบแล้ว'){ p.status='รอผสม'; p.reserved=false; } });
     saveReservations(); saveMixPlans(); renderMixStockGrid(); renderMixTable(); mixRenderKPI(); mixRenderAlerts();
     if(typeof _toast==='function') _toast('✕ ยกเลิกการจองทั้งหมดแล้ว');
   });
 }
 function mixReserveMat(matCode){
   var plans=mixPlans.filter(function(p){
+    if(!p||p._deleted) return false;
     if(p.status==='ผสมแล้ว') return false;
     return mixPlanPlasticNeedRows(p).some(function(r){ return r.material===matCode; });
   });
@@ -20470,7 +20588,7 @@ function mixReserveMat(matCode){
   if(typeof _toast==='function') _toast('🔒 จอง '+matCode+' ทั้งหมด '+plans.length+' แผนแล้ว');
 }
 function mixCheckAllStock(){
-  mixPlans.filter(function(p){return p.status==='รอผสม';}).forEach(function(p){
+  mixPlans.filter(function(p){ return p && !p._deleted && p.status==='รอผสม'; }).forEach(function(p){
     var rows=mixPlanPlasticNeedRows(p);
     var short=rows.some(function(r){
       var need=Math.max(0,parseFloat(r.qty)||0);
@@ -20487,7 +20605,7 @@ function mixCheckAllStock(){
 
 // ── Mark mixed (ต้องอนุมัติแผนก่อน — ระบบเบิกสต็อกตอนอนุมัติ) ───────
 function mixMarkMixed(id){
-  var p=mixPlans.find(function(x){return x.id===id||x.id===String(id);}); if(!p) return;
+  var p=mixPlans.find(function(x){return (x.id===id||x.id===String(id)) && !x._deleted;}); if(!p) return;
   var ak='mixing-'+p.id;
   var ap=approvals[ak];
   if(!ap || ap.status!=='approved'){
@@ -20532,7 +20650,7 @@ function renderMixingTT(){
       var dt=new Date(d+'T12:00:00');
       var isToday=d===today;
       var label=DOW[dt.getDay()]+' '+dt.getDate()+'/'+(dt.getMonth()+1);
-      var plans=mixPlans.filter(function(p){ return p.date===d; });
+      var plans=mixPlans.filter(function(p){ return p && !p._deleted && p.date===d; });
       return '<th style="background:'+(isToday?'rgba(56,139,253,0.1)':'var(--bg3)')+';padding:8px 6px;text-align:center;font-size:10px;min-width:118px;border-left:1px solid var(--border);'+(isToday?'border-top:2px solid #388bfd;':'')+'">'
         +'<div style="color:'+(isToday?'var(--accent2)':'var(--text3)')+';font-weight:'+(isToday?'800':'600')+'">'+label+'</div>'
         +'<div style="font-size:9px;color:var(--text3);margin-top:2px">ผสม '+d+'</div>'
@@ -20543,7 +20661,7 @@ function renderMixingTT(){
   ['08:00','10:00','13:00','15:00'].forEach(function(t){
     html+='<tr><td style="background:var(--bg3);padding:6px 10px;font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;border-top:1px solid var(--border)">'+t+'</td>';
     days.forEach(function(d){
-      var plans=mixPlans.filter(function(p){ return p.date===d&&(p.time||'08:00')===t; });
+      var plans=mixPlans.filter(function(p){ return p && !p._deleted && p.date===d&&(p.time||'08:00')===t; });
       var isToday=d===today;
       html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:56px;background:'+(isToday?'rgba(56,139,253,0.04)':'transparent')+'">';
       if(plans.length){
@@ -20602,7 +20720,7 @@ function renderMixingFeederTT(){
       var dt=new Date(d+'T12:00:00');
       var isToday=d===today;
       var label=DOW[dt.getDay()]+' '+dt.getDate()+'/'+(dt.getMonth()+1);
-      var plans=mixFeederPlans.filter(function(p){ return p.date===d; });
+      var plans=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.date===d; });
       return '<th style="background:'+(isToday?'rgba(56,139,253,0.1)':'var(--bg3)')+';padding:8px 6px;text-align:center;font-size:10px;min-width:132px;border-left:1px solid var(--border);'+(isToday?'border-top:2px solid #388bfd;':'')+'">'
         +'<div style="color:'+(isToday?'var(--accent2)':'var(--text3)')+';font-weight:'+(isToday?'800':'600')+'">'+label+'</div>'
         +'<div style="font-size:9px;color:var(--text3);margin-top:2px">ผลิต '+d+'</div>'
@@ -20613,7 +20731,7 @@ function renderMixingFeederTT(){
   ['08:00','10:00','13:00','15:00'].forEach(function(t){
     html+='<tr><td style="background:var(--bg3);padding:6px 10px;font-size:11px;font-weight:700;color:var(--text2);white-space:nowrap;border-top:1px solid var(--border)">'+t+'</td>';
     days.forEach(function(d){
-      var plans=mixFeederPlans.filter(function(p){ return p.date===d && (p.time||'08:00')===t; });
+      var plans=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.date===d && (p.time||'08:00')===t; });
       var isToday=d===today;
       html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:64px;background:'+(isToday?'rgba(56,139,253,0.04)':'transparent')+'">';
       if(plans.length){
@@ -20642,41 +20760,158 @@ function renderMixingFeederTT(){
   el.innerHTML=html;
 }
 
+var _mixHistSearchTimer=null;
+function mixHistorySearchSchedule(){
+  clearTimeout(_mixHistSearchTimer);
+  _mixHistSearchTimer=setTimeout(function(){
+    if(typeof _mixCurrentTab!=='undefined' && _mixCurrentTab==='dispatch' && typeof renderMixDispatchTab==='function') renderMixDispatchTab();
+  },220);
+}
+function mixFindLatestIssueLogForPlan(planId, kind){
+  var best=null;
+  (mixStockIssueLog||[]).forEach(function(r){
+    if(!r || String(r.planId)!==String(planId)) return;
+    if(kind && r.kind!==kind) return;
+    if(!best || String(r.at||'')>String(best.at||'')) best=r;
+  });
+  return best;
+}
+function mixBuildApprovedMixHistoryRows(){
+  var rows=[];
+  (mixPlans||[]).forEach(function(p){
+    if(!p||p._deleted) return;
+    if(typeof approvals==='undefined'||!approvals) return;
+    var ap=approvals['mixing-'+p.id];
+    if(!ap||ap.status!=='approved') return;
+    var log=mixFindLatestIssueLogForPlan(p.id,'tank');
+    rows.push({
+      kind:'ถังผสม', planId:p.id, mixDate:p.date||'', prodDate:p.ttProdDate||p.prodDate||'',
+      jobName:p.jobName||'', orderNo:p.orderNo||'', lotNo:p.lotNo||'',
+      plastic:p.plastic||'', mb:p.mb||'',
+      batchTxt: log?((log.plasticRmLots||'')+' '+(log.mbRmLots||'')).trim():'',
+      rawTxt: log?((log.plasticFormula||'')+' '+(log.mbFormula||'')).trim():'',
+      statusMix:p.status||'', stockIssued:!!p.stockIssued,
+      issuedAt:(log&&log.at)||p.stockIssuedAt||''
+    });
+  });
+  (mixFeederPlans||[]).forEach(function(p){
+    if(!p||p._deleted) return;
+    if(typeof approvals==='undefined'||!approvals) return;
+    var ap=approvals['mixfeeder-'+p.id];
+    if(!ap||ap.status!=='approved') return;
+    var log=mixFindLatestIssueLogForPlan(p.id,'feeder');
+    rows.push({
+      kind:'ป้อนสี', planId:p.id, mixDate:p.ttProdDate||p.date||'', prodDate:p.ttProdDate||'',
+      jobName:p.jobName||'', orderNo:p.orderNo||'', lotNo:p.lotNo||'',
+      plastic:p.plastic||'', mb:p.mb||'',
+      batchTxt: log?((log.plasticRmLots||'')+' '+(log.mbRmLots||'')).trim():'',
+      rawTxt: log?((log.plasticFormula||'')+' '+(log.mbFormula||'')).trim():'',
+      statusMix:p.status||'', stockIssued:!!p.stockIssued,
+      issuedAt:(log&&log.at)||p.stockIssuedAt||''
+    });
+  });
+  rows.sort(function(a,b){
+    var sa=String(a.issuedAt||a.mixDate||''), sb=String(b.issuedAt||b.mixDate||'');
+    return sb.localeCompare(sa);
+  });
+  return rows;
+}
+function mixApprovedHistoryRowHaystack(r){
+  return [r.kind,r.mixDate,r.prodDate,r.jobName,r.orderNo,r.lotNo,r.plastic,r.mb,r.batchTxt,r.rawTxt,r.statusMix,r.issuedAt]
+    .map(function(x){ return String(x==null?'':x).toLowerCase(); }).join(' ');
+}
+function mixApprovedHistoryPassesFilters(row, filters){
+  var f=filters||{};
+  function has(t){ return String(t||'').trim().length>0; }
+  var keys=['job','lot','batch','raw','plastic'];
+  if(!keys.some(function(k){ return has(f[k]); })) return true;
+  var hay=mixApprovedHistoryRowHaystack(row);
+  if(has(f.job)&&hay.indexOf(String(f.job).toLowerCase())<0) return false;
+  if(has(f.lot)&&hay.indexOf(String(f.lot).toLowerCase())<0) return false;
+  if(has(f.batch)&&hay.indexOf(String(f.batch).toLowerCase())<0) return false;
+  if(has(f.raw)&&hay.indexOf(String(f.raw).toLowerCase())<0) return false;
+  if(has(f.plastic)&&hay.indexOf(String(f.plastic).toLowerCase())<0) return false;
+  return true;
+}
+function mixEscInputAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
 function renderMixDispatchTab(){
   var root=document.getElementById('mix-dispatch-body'); if(!root) return;
-  var modeEl=document.getElementById('mix-dispatch-view');
-  var mode=modeEl?modeEl.value:'day';
-  var yEl=document.getElementById('mix-dispatch-year');
-  var mEl=document.getElementById('mix-dispatch-month');
-  var y=yEl?parseInt(yEl.value,10):new Date().getFullYear();
-  var m=mEl?parseInt(mEl.value,10):new Date().getMonth()+1;
-  if(!isFinite(y)) y=new Date().getFullYear();
-  if(!isFinite(m)||m<1||m>12) m=new Date().getMonth()+1;
-  var rows=mixDispatchHistory.slice();
-  rows.sort(function(a,b){ return (b.dispatchDate||'').localeCompare(a.dispatchDate||''); });
-  if(mode==='month'){
-    rows=rows.filter(function(r){ var d=r.dispatchDate||''; return d.slice(0,7)===(''+y+'-'+String(m).padStart(2,'0')); });
-  } else if(mode==='year'){
-    rows=rows.filter(function(r){ var d=r.dispatchDate||''; return d.slice(0,4)===String(y); });
-  }
-  var opts=mixPlans.filter(function(p){ return p.status==='ผสมแล้ว'; }).map(function(p){
+  var jobQ=(document.getElementById('mix-hist-q-job')||{}).value||'';
+  var lotQ=(document.getElementById('mix-hist-q-lot')||{}).value||'';
+  var batchQ=(document.getElementById('mix-hist-q-batch')||{}).value||'';
+  var rawQ=(document.getElementById('mix-hist-q-raw')||{}).value||'';
+  var plastQ=(document.getElementById('mix-hist-q-plastic')||{}).value||'';
+  var allRows=mixBuildApprovedMixHistoryRows();
+  var filt={job:jobQ,lot:lotQ,batch:batchQ,raw:rawQ,plastic:plastQ};
+  var rows=allRows.filter(function(r){ return mixApprovedHistoryPassesFilters(r,filt); });
+  var cap=400;
+  var rowsShow=rows.slice(0,cap);
+  root.innerHTML=
+    '<div class="card" style="padding:14px;margin-bottom:14px;background:rgba(56,139,253,0.06);border:1px solid rgba(56,139,253,0.25)">'
+    +'<div style="font-size:13px;font-weight:800;margin-bottom:6px">📤 ฝ่ายผลิต — ยืนยันรับเม็ด / ประวัติจัดส่ง</div>'
+    +'<div style="font-size:11px;color:var(--text3);line-height:1.45">บันทึกการจัดส่งและกด <b>ยืนยันรับ</b> อยู่หน้าแยกเพื่อให้ฝ่ายผลิตใช้งาน · รายการที่ยังไม่ยืนยันจะแสดงพื้นหลังสีแดง</div>'
+    +'<button type="button" class="btn btn-primary btn-sm" style="margin-top:10px" onclick="if(typeof showPage===\'function\')showPage(\'mix-prod-receive\',this)">✅ ไปหน้า «ฝ่ายผลิต — ยืนยันรับเม็ด»</button>'
+  +'</div>'
+  +'<div style="font-size:13px;font-weight:800;margin-bottom:8px">🔎 ค้นหาแผนผสมที่ <span style="color:#79c0ff">อนุมัติแล้ว</span> (ถัง + ป้อนสี)</div>'
+  +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:12px;font-size:11px">'
+    +'<label>ชื่องาน<br><input id="mix-hist-q-job" value="'+mixEscInputAttr(jobQ)+'" oninput="mixHistorySearchSchedule()" placeholder="ค้นหา..." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+    +'<label>Lot งาน<br><input id="mix-hist-q-lot" value="'+mixEscInputAttr(lotQ)+'" oninput="mixHistorySearchSchedule()" placeholder="Lot..." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+    +'<label>Batch / Lot วัตถุดิบ<br><input id="mix-hist-q-batch" value="'+mixEscInputAttr(batchQ)+'" oninput="mixHistorySearchSchedule()" placeholder="Batch..." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+    +'<label>วัตถุดิบ / สูตรตัดสต็อก<br><input id="mix-hist-q-raw" value="'+mixEscInputAttr(rawQ)+'" oninput="mixHistorySearchSchedule()" placeholder="สูตร..." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+    +'<label>ชนิดเม็ดพลาสติก<br><input id="mix-hist-q-plastic" value="'+mixEscInputAttr(plastQ)+'" oninput="mixHistorySearchSchedule()" placeholder="เช่น PP, ABS..." style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
+  +'</div>'
+  +'<div style="font-size:10px;color:var(--text3);margin-bottom:8px">พบ '+rows.length+' รายการ'+(rows.length>cap?' (แสดง '+cap+' แถวแรก)':'')+' · ข้อมูลจากแผนถัง/ป้อนสีที่สถานะอนุมัติ = อนุมัติแล้ว</div>'
+  +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
+  +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg3)">'
+    +'<th style="padding:8px;text-align:left">ประเภท</th>'
+    +'<th style="padding:8px;text-align:left">วันผสม/ผลิต</th>'
+    +'<th style="padding:8px;text-align:left">เวลาเบิกจริง</th>'
+    +'<th style="padding:8px;text-align:left">สถานะแผน</th>'
+    +'<th style="padding:8px;text-align:left">ชื่องาน</th>'
+    +'<th style="padding:8px;text-align:left">Order</th>'
+    +'<th style="padding:8px;text-align:left">Lot</th>'
+    +'<th style="padding:8px;text-align:left">เม็ด</th>'
+    +'<th style="padding:8px;text-align:left">MB</th>'
+    +'<th style="padding:8px;text-align:left">Batch/Lot วัตถุดิบ</th>'
+    +'<th style="padding:8px;text-align:left">สูตรตัดสต็อก</th>'
+  +'</tr></thead><tbody>'
+  +(rowsShow.length?rowsShow.map(function(r){
+    var dtIss=String(r.issuedAt||'').replace('T',' ').slice(0,19)||'—';
+    var dmix=(r.mixDate||'—')+(r.prodDate&&r.prodDate!==r.mixDate?'<div style="font-size:9px;color:var(--text3)">ผลิต '+r.prodDate+'</div>':'');
+    var st=r.stockIssued?(r.statusMix||'เบิกแล้ว'):'รอเบิกตัดสต็อก';
+    var stCol=r.stockIssued?'#3fb950':'#e3b341';
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:8px;font-weight:700">'+(r.kind||'')+'</td>'
+      +'<td style="padding:8px" class="mono">'+dmix+'</td>'
+      +'<td style="padding:8px" class="mono">'+dtIss+'</td>'
+      +'<td style="padding:8px"><span style="color:'+stCol+';font-weight:700;font-size:10px">'+st+'</span></td>'
+      +'<td style="padding:8px">'+(r.jobName||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px">'+(r.orderNo||'—')+'</td>'
+      +'<td style="padding:8px;font-family:monospace;font-size:10px">'+(r.lotNo||'—')+'</td>'
+      +'<td style="padding:8px"><span class="badge mat-'+(r.plastic||'')+'">'+(r.plastic||'—')+'</span></td>'
+      +'<td style="padding:8px;font-size:10px">'+(r.mb||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;max-width:160px;word-break:break-word">'+(r.batchTxt||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;max-width:220px;line-height:1.35;word-break:break-word">'+(r.rawTxt||'—')+'</td>'
+    +'</tr>';
+  }).join(''):'<tr><td colspan="10" style="padding:28px;text-align:center;color:var(--text3)">ไม่พบแผนที่อนุมัติแล้ว — หรือลองล้างช่องค้นหา</td></tr>')
+  +'</tbody></table></div>';
+}
+
+function renderMixProdReceivePage(){
+  var root=document.getElementById('mix-prod-receive-body'); if(!root) return;
+  function escAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  var opts=mixPlans.filter(function(p){ return p && !p._deleted && p.status==='ผสมแล้ว'; }).map(function(p){
     var vid=String(p.id).replace(/&/g,'').replace(/"/g,'').replace(/'/g,'');
     var ppKg=mixPlanPlasticNeedKg(p), mbKg=mixPlanMbNeedKg(p);
     return '<option value="'+vid+'">'+(p.date||'')+' | '+(p.machine||'—')+' | '+(p.jobName||'')+' | '+(p.orderNo||'')+' | '+(ppKg+mbKg).toFixed(1)+' kg</option>';
   }).join('');
-  root.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">'
-    +'<span style="font-size:12px;font-weight:700">ประวัติการจัดส่ง</span>'
-    +'<select id="mix-dispatch-view" onchange="renderMixDispatchTab()" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px">'
-      +'<option value="day"'+(mode==='day'?' selected':'')+'>ทั้งหมด (ล่าสุด)</option>'
-      +'<option value="month"'+(mode==='month'?' selected':'')+'>รายเดือน</option>'
-      +'<option value="year"'+(mode==='year'?' selected':'')+'>รายปี</option>'
-    +'</select>'
-    +'<input type="number" id="mix-dispatch-year" value="'+y+'" min="2020" max="2100" style="width:76px;padding:5px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px" onchange="renderMixDispatchTab()">'
-    +'<input type="number" id="mix-dispatch-month" value="'+m+'" min="1" max="12" style="width:52px;padding:5px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px" onchange="renderMixDispatchTab()">'
-    +'<span style="font-size:10px;color:var(--text3)">ปี·เดือน ใช้กับโหมดรายเดือน/รายปี</span>'
-  +'</div>'
-  +'<div class="card" style="padding:14px;margin-bottom:12px;background:var(--bg);border:1px solid var(--border)">'
-    +'<div style="font-size:13px;font-weight:800;margin-bottom:10px">📤 บันทึกเบิกจัดส่งเม็ดผสมแล้ว → ฝ่ายผลิต</div>'
+  var rows=(mixDispatchHistory||[]).slice().sort(function(a,b){ return (b.dispatchDate||'').localeCompare(a.dispatchDate||''); });
+  var formBlock=
+    '<div class="card" style="padding:14px;margin-bottom:14px;background:var(--bg);border:1px solid var(--border)">'
+    +'<div style="font-size:13px;font-weight:800;margin-bottom:10px">📤 แผนกผสม — บันทึกจัดส่งเม็ดผสมแล้ว → ฝ่ายผลิต</div>'
     +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;font-size:12px">'
       +'<label>แผนผสม (ผสมแล้ว)<br><select id="mix-dispatch-plan" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)">'+opts+'</select></label>'
       +'<label>วันที่ส่ง<br><input type="date" id="mix-dispatch-date" value="'+new Date().toISOString().split('T')[0]+'" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
@@ -20687,8 +20922,10 @@ function renderMixDispatchTab(){
       +'<label style="grid-column:1/-1">หมายเหตุ<br><input id="mix-dispatch-note" style="width:100%;margin-top:4px;padding:6px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text)"></label>'
     +'</div>'
     +'<button type="button" class="btn btn-primary btn-sm" style="margin-top:12px" onclick="mixSaveDispatchRecord()">💾 บันทึกส่งฝ่ายผลิต + ประวัติ</button>'
-  +'</div>'
-  +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
+  +'</div>';
+  var tableHead=
+    '<div style="font-size:13px;font-weight:800;margin-bottom:8px">📋 ประวัติจัดส่ง — ฝ่ายผลิตยืนยันรับเม็ด</div>'
+    +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg3)">'
       +'<th style="padding:8px;text-align:left">วันที่ส่ง</th>'
       +'<th style="padding:8px;text-align:left">เครื่อง</th>'
@@ -20698,58 +20935,35 @@ function renderMixDispatchTab(){
       +'<th style="padding:8px;text-align:left">ผู้รับ</th>'
       +'<th style="padding:8px;text-align:left">Batch</th>'
       +'<th style="padding:8px;text-align:left">หมายเหตุ</th>'
-    +'</tr></thead><tbody>'
-    +(rows.length?rows.map(function(r){
-      return '<tr style="border-bottom:1px solid var(--border)">'
-        +'<td style="padding:8px" class="mono">'+(r.dispatchDate||'')+'</td>'
-        +'<td style="padding:8px;font-weight:700;color:var(--accent2)" class="mono">'+(r.machine||'—')+'</td>'
-        +'<td style="padding:8px">'+(r.jobName||'—')+'<div style="font-size:10px;color:var(--text3)">'+(r.orderNo||'')+' · Lot '+(r.lotNo||'—')+'</div></td>'
-        +'<td style="padding:8px;text-align:right;font-weight:700">'+(r.kg!=null?Number(r.kg).toFixed(2):'')+'</td>'
-        +'<td style="padding:8px;text-align:right">'+(r.bags!==''&&r.bags!=null?r.bags:'')+'</td>'
-        +'<td style="padding:8px">'+(r.receiver||'')+'</td>'
-        +'<td style="padding:8px" class="mono">'+(r.plasticBatch||'')+'</td>'
-        +'<td style="padding:8px;color:var(--text3)">'+(r.note||'')+'</td>'
-      +'</tr>';
-    }).join(''):'<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีประวัติการจัดส่ง</td></tr>')
-  +'</tbody></table></div>'
-  +'<div style="margin-top:18px;font-size:13px;font-weight:800;margin-bottom:8px">📒 ประวัติเบิกตัดสต็อก (หลังอนุมัติ — เม็ด &amp; MB)</div>'
-  +'<div style="overflow-x:auto;border:1px solid var(--border);border-radius:10px">'
-  +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg3)">'
-  +'<th style="padding:8px;text-align:left">วันเวลา</th>'
-  +'<th style="padding:8px;text-align:left">ประเภท</th>'
-  +'<th style="padding:8px;text-align:left">งาน / Order</th>'
-  +'<th style="padding:8px;text-align:left">Lot งาน</th>'
-  +'<th style="padding:8px;text-align:right">เม็ด (kg)</th>'
-  +'<th style="padding:8px;text-align:right">MB (kg)</th>'
-  +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (เม็ด)</th>'
-  +'<th style="padding:8px;text-align:left">Lot วัตถุดิบ (MB)</th>'
-  +'<th style="padding:8px;text-align:left">สูตรตัดสต๊อกจริง</th>'
-  +'<th style="padding:8px;text-align:left">ผู้บันทึก</th>'
-  +'</tr></thead><tbody>'
-  +(mixStockIssueLog.length?mixStockIssueLog.slice(0,150).map(function(r){
-    var dt=String(r.at||'').replace('T',' ').slice(0,19);
-    return '<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:8px" class="mono">'+dt+'</td>'
-      +'<td style="padding:8px">'+(r.kind==='feeder'?'ป้อนสี/วัน':'ถังผสม')+(r.prodDate?'<div style="font-size:9px;color:var(--text3)">ผลิต '+r.prodDate+'</div>':'')+'</td>'
-      +'<td style="padding:8px">'+(r.jobName||'—')+'<div style="font-size:10px;color:var(--text3)">'+(r.orderNo||'')+'</div></td>'
-      +'<td style="padding:8px;font-family:monospace">'+(r.jobLot||'—')+'</td>'
-      +'<td style="padding:8px;text-align:right">'+(r.plasticKg!=null?Number(r.plasticKg).toFixed(2):'')+'</td>'
-      +'<td style="padding:8px;text-align:right">'+(r.mbKg!=null?Number(r.mbKg).toFixed(3):'')+'</td>'
-      +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.plasticRmLots||'—')+'</td>'
-      +'<td style="padding:8px;font-size:10px;max-width:150px;word-break:break-word">'+(r.mbRmLots||'—')+'</td>'
-      +'<td style="padding:8px;font-size:10px;max-width:260px;line-height:1.35">'
-        +'<div><span style="color:var(--text3)">เม็ด:</span> '+(r.plasticFormula||'—')+'</div>'
-        +'<div><span style="color:var(--text3)">สี:</span> '+(r.mbFormula||'—')+'</div>'
+      +'<th style="padding:8px;text-align:center">ยืนยันรับ</th>'
+    +'</tr></thead><tbody>';
+  var tableBody=rows.length?rows.map(function(r){
+    var key='disp:'+(r.id||'');
+    var ok=mixProdReceiveHas(key);
+    var bg=ok?'rgba(63,185,80,0.07)':'rgba(248,81,73,0.14)';
+    var who='';
+    (mixProdReceiveConfirms||[]).forEach(function(c){ if(c&&String(c.key)===key) who=(c.by||'')+' · '+String(c.at||'').replace('T',' ').slice(0,16); });
+    return '<tr style="border-bottom:1px solid var(--border);background:'+bg+'">'
+      +'<td style="padding:8px" class="mono">'+(r.dispatchDate||'')+'</td>'
+      +'<td style="padding:8px;font-weight:700;color:var(--accent2)" class="mono">'+(r.machine||'—')+'</td>'
+      +'<td style="padding:8px">'+(r.jobName||'—')+'<div style="font-size:10px;color:var(--text3)">'+(r.orderNo||'')+' · Lot '+(r.lotNo||'—')+'</div></td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700">'+(r.kg!=null?Number(r.kg).toFixed(2):'')+'</td>'
+      +'<td style="padding:8px;text-align:right">'+(r.bags!==''&&r.bags!=null?r.bags:'')+'</td>'
+      +'<td style="padding:8px">'+(r.receiver||'')+'</td>'
+      +'<td style="padding:8px" class="mono">'+(r.plasticBatch||'')+'</td>'
+      +'<td style="padding:8px;color:var(--text3)">'+(r.note||'')+'</td>'
+      +'<td style="padding:8px;text-align:center">'
+        +(ok?'<span style="color:#3fb950;font-size:10px;font-weight:800">✓ รับแล้ว<br><span style="font-weight:600;color:var(--text3)">'+who+'</span></span>'
+          :'<button type="button" onclick="mixProdReceiveConfirm(\''+escAttr(key)+'\')" style="padding:4px 10px;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.4);color:#3fb950;border-radius:6px;cursor:pointer;font-size:10px;font-weight:800;font-family:inherit">✅ ยืนยันรับ</button>')
       +'</td>'
-      +'<td style="padding:8px">'+(r.by||'—')+'</td>'
     +'</tr>';
-  }).join(''):'<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีประวัติเบิกอัตโนมัติ — อนุมัติแผนถังหรือแผนป้อนสีใน Time Table</td></tr>')
-  +'</tbody></table></div>';
+  }).join(''):'<tr><td colspan="9" style="padding:24px;text-align:center;color:var(--text3)">ยังไม่มีประวัติการจัดส่ง</td></tr>';
+  root.innerHTML=formBlock+tableHead+tableBody+'</tbody></table></div>';
 }
 
 function mixSaveDispatchRecord(){
   var pid=(document.getElementById('mix-dispatch-plan')||{}).value;
-  var p=mixPlans.find(function(x){ return String(x.id)===String(pid); });
+  var p=mixPlans.find(function(x){ return String(x.id)===String(pid) && !x._deleted; });
   if(!p){ if(typeof _toast==='function') _toast('⚠️ เลือกแผนผสมก่อน'); return; }
   if(p.status!=='ผสมแล้ว'){ if(typeof _toast==='function') _toast('⚠️ ต้องทำสถานะ "ผสมแล้ว" ก่อนจัดส่ง'); return; }
   var d=(document.getElementById('mix-dispatch-date')||{}).value||'';
@@ -20783,7 +20997,8 @@ function mixSaveDispatchRecord(){
   });
   saveMixDispatchHistory();
   if(typeof _toast==='function') _toast('✅ บันทึกประวัติจัดส่งแล้ว');
-  renderMixDispatchTab();
+  if(typeof renderMixProdReceivePage==='function') renderMixProdReceivePage();
+  if(typeof renderMixDispatchTab==='function' && typeof _mixCurrentTab!=='undefined' && _mixCurrentTab==='dispatch') renderMixDispatchTab();
 }
 
 // ── Save Mix (add modal) ──────────────────────────────────────────
@@ -22601,7 +22816,7 @@ function dashWidgetMB(){
 }
 
 function dashWidgetMix(){
-  var pending=mixPlans.filter(function(p){return p.status!=='ผสมแล้ว';}).slice(0,5);
+  var pending=mixPlans.filter(function(p){ return p && !p._deleted && p.status!=='ผสมแล้ว'; }).slice(0,5);
   var html=pending.length?pending.map(function(p){
     return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">'
       +'<div><div style="font-size:11px;font-weight:600">'+p.jobName+'</div><div style="font-size:10px;color:var(--text3)">'+p.date+'</div></div>'
@@ -32104,6 +32319,7 @@ function renderPage(id){
   else if(id==='globalsearch') gsInit();
   else if(id==='approvaldocs') renderApprovalDocs();
   else if(id==='mixing') renderMixing();
+  else if(id==='mix-prod-receive'){ if(typeof renderMixProdReceivePage==='function') renderMixProdReceivePage(); }
   else if(id==='rawmat'){
     renderRawmat();
     var ledMonth=document.getElementById('led-month');
@@ -42446,6 +42662,7 @@ const ALL_PAGES = [
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
   {id:'engineering-change', label:'Engineering Change (ECN)', icon:'📐', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
+  {id:'mix-prod-receive', label:'ฝ่ายผลิต — ยืนยันรับเม็ด', icon:'✅', section:'วัตถุดิบ'},
   {id:'rawmat',       label:'วัตถุดิบ & Batch',          icon:'📦', section:'วัตถุดิบ'},
   {id:'rawmatreg',   label:'ทะเบียนวัตถุดิบ',             icon:'🧪', section:'วัตถุดิบ'},
   {id:'supplierreg', label:'ทะเบียน Supplier',             icon:'🏭', section:'วัตถุดิบ'},
@@ -42510,7 +42727,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -42518,7 +42735,7 @@ const ROLES = {
   operator: {
     label:'พนักงานฉีด', color:'#3fb950', bg:'rgba(63,185,80,0.15)',
     desc:'บันทึกผลผลิตประจำวัน และ Condition เท่านั้น',
-    pages:['dashboard','line-summary','dailyrpt','hourlyboard','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','setup','setup-tt','setup-std']
+    pages:['dashboard','line-summary','dailyrpt','hourlyboard','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','mix-prod-receive','setup','setup-tt','setup-std']
   },
   qc: {
     label:'QC', color:'#388bfd', bg:'rgba(56,139,253,0.15)',
@@ -42585,6 +42802,8 @@ function loadUsers(){
           }
           if(user.pages.includes('approvalproc') && !user.pages.includes('approvalproc-done'))
             user.pages.push('approvalproc-done');
+          if(user.pages.includes('mixing') && !user.pages.includes('mix-prod-receive'))
+            user.pages.push('mix-prod-receive');
         });
         if(u.length) return u;
       }
@@ -42711,6 +42930,7 @@ function doLogin(){
     AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
   }
   if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
+  if(AUTH.pages.includes('mixing') && !AUTH.pages.includes('mix-prod-receive')) AUTH.pages.push('mix-prod-receive');
   try{ localStorage.setItem(SESSION_KEY, JSON.stringify({username:user.username, ts:Date.now()})); }catch(e){}
   try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
   try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
@@ -42762,6 +42982,7 @@ function tryAutoLogin(){
       AUTH.pages = Array.isArray(user.pages) ? user.pages.slice() : [];
     }
     if(AUTH.pages.includes('approvalproc') && !AUTH.pages.includes('approvalproc-done')) AUTH.pages.push('approvalproc-done');
+    if(AUTH.pages.includes('mixing') && !AUTH.pages.includes('mix-prod-receive')) AUTH.pages.push('mix-prod-receive');
     try{ localStorage.setItem('_authUser', JSON.stringify(AUTH)); }catch(e){}
     try{ if(window.parent && window.parent!==window) window.parent.postMessage({type:'pmf-presence-refresh'}, '*'); }catch(_){ }
     document.getElementById('login-screen').style.display = 'none';
@@ -42874,6 +43095,7 @@ function renderHomeScreen(){
     allowed.add('admin');
   }
   if(AUTH && AUTH.pages && AUTH.pages.includes('approvalproc')) allowed.add('approvalproc-done');
+  if(AUTH && AUTH.pages && AUTH.pages.includes('mixing')) allowed.add('mix-prod-receive');
 
   var isLt = document.body.classList.contains('light-mode');
   var html = '';
@@ -43521,6 +43743,13 @@ function pmfReloadFromStorage(){
       mdh.forEach(function(x){ mixDispatchHistory.push(x); });
     }
   }catch(e){}
+  try{
+    var mpc = _pmfSafeParse('_mixProdReceiveConfirms', null);
+    if(Array.isArray(mpc) && typeof mixProdReceiveConfirms!=='undefined'){
+      mixProdReceiveConfirms.length = 0;
+      mpc.forEach(function(x){ mixProdReceiveConfirms.push(x); });
+    }
+  }catch(e){}
   // Re-render หน้าปัจจุบันถ้าผู้ใช้กำลังเปิดอยู่ — ใช้ renderPage แทน showPage
   // เพื่อไม่ดัน navigation/scroll
   try{
@@ -43864,7 +44093,7 @@ const TPP_CONFIG = {
     filterRecords: (recs)=>{
       const s=document.getElementById('tpf-mix-status')?.value||'';
       const d=document.getElementById('tpf-mix-date')?.value||'';
-      return recs.filter(r=>(s==='ทั้งหมด'||!s||r.status===s)&&(!d||r.date===d));
+      return recs.filter(r=>!r._deleted&&(s==='ทั้งหมด'||!s||r.status===s)&&(!d||r.date===d));
     },
     renderRecord: (r)=>({
       main:`แผนผสม #${r.id} — ${r.jobName}`,
@@ -53532,15 +53761,19 @@ function kpiTargetDelete(id){
 
 // ── แผนผสมเม็ด ───────────────────────────────────────────────────
 function mixDelete(id){
-  // รองรับ id ทั้ง string และ number (loose equality)
-  const p=mixPlans.find(x=>String(x.id)===String(id)); if(!p) return;
+  // รองรับ id ทั้ง string และ number (loose equality) — soft-delete เพื่อซิงค์ข้ามเครื่อง
+  const p=mixPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; }); if(!p) return;
   _confirmDel('🗑 ลบแผนผสม: <b>'+(p.jobName||id)+'</b><br>วันที่: '+(p.date||'—')+' | เม็ด: '+(p.plastic||'—'), function(){
-    const idx=mixPlans.findIndex(x=>String(x.id)===String(id)); if(idx>=0) mixPlans.splice(idx,1);
-    // ลบ reservation ที่เกี่ยวข้องด้วย
+    const idx=mixPlans.findIndex(function(x){ return String(x.id)===String(id); });
+    if(idx>=0){
+      mixPlans[idx]=Object.assign({}, mixPlans[idx], { _deleted:true, updatedAt:new Date().toISOString() });
+    }
     Object.keys(rawMatReservations).forEach(function(k){ if(k.startsWith(String(id)+'_')) delete rawMatReservations[k]; });
     saveReservations();
     saveMixPlans();
     renderMixTable(); if(typeof renderMixAutoList==='function') renderMixAutoList();
+    if(typeof mixRenderKPI==='function') mixRenderKPI();
+    if(typeof mixRenderAlerts==='function') mixRenderAlerts();
     if(typeof _toast==='function') _toast('🗑 ลบแผนผสม '+String(id)+' แล้ว');
   });
 }
@@ -55329,6 +55562,7 @@ window.HOME_PAGES = [
   { id:'prep', icon:'🏭', label:'เตรียมการผลิต', items:[
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
     {id:'mixing',       icon:'🧪', label:'แผนผสมเม็ด',            color:'#0f2010', seq:19},
+    {id:'mix-prod-receive', icon:'✅', label:'ฝ่ายผลิต — ยืนยันรับเม็ด', color:'#102018', seq:'19B'},
     {id:'setup',        icon:'🛠️', label:'Setup Planning',        color:'#0f1d20', seq:'17B'},
     {id:'molds',        icon:'🔧', label:'แม่พิมพ์ & PM',         color:'#201010', seq:20},
     {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#e3f2fd', seq:'21A', workGroup:'injection'},
