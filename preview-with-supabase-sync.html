@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260513-fg-stock-dashboard"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260513-ap-proc-delete-fix"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -499,7 +499,8 @@
       "_mixDispatchHistory": ["id", "ts"],
       "_mixProdReceiveConfirms": ["key"],
       "_mixStockIssueLog": ["id", "ts"],
-      "_approvalProcDocs": ["id", "docNo"],
+      // docNo เป็นตัวตนทางธุรกิจ — merge ก่อน id เพื่อไม่ให้คนละเครื่องได้ id คนละค่าแล้วกลายเป็นสองแถว + ลบแล้วกลับมา
+      "_approvalProcDocs": ["docNo", "id"],
       "_approvalLogV1": ["id", "ts"],
       "_shipmentHistory": ["id", "shipmentNo"],
       "_moldLedger": ["id", "ts"],

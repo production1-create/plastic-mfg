@@ -38846,7 +38846,7 @@ function loadApprovalProcDocs(){
 function apNextDocSuffix(){
   var n = 0;
   approvalProcDocs.forEach(function(d){
-    if(!apDocIsLive(d)) return;
+    if(!d) return;
     var m = (d.docNo||'').match(/(\d+)$/);
     if(m) n = Math.max(n, parseInt(m[1], 10));
   });
@@ -39422,8 +39422,13 @@ function apBackfillApprovalDocsFromOrders(){
 
 function apAutoEnsureForOrder(o){
   if(!o || !o.orderNo) return;
-  var existed=approvalProcDocs.find(function(x){ return apDocIsLive(x) && x.orderNo===o.orderNo; });
+  var existed=approvalProcDocs.find(function(x){ return apDocIsLive(x) && String(x.orderNo)===String(o.orderNo); });
   if(existed) return existed;
+  // ถ้าเคยลบใบของ Order นี้แล้ว (soft-delete) อย่าสร้างใบใหม่อัตโนมัติ — ไม่งั้นรายการจะโผล่กลับหลังรีเฟรช/ซิงก์
+  var tomb = approvalProcDocs.some(function(x){
+    return x && x._deleted && String(x.orderNo)===String(o.orderNo);
+  });
+  if(tomb) return null;
   var j = jobs.find(function(jj){ return jj.name===o.jobName; }) || {};
   var wg = _orderWorkGroup(o);
   var bom = apBuildApOrderBomMap(o.orderNo, o.jobName||'');
