@@ -32093,6 +32093,344 @@ function _calcLotCost(rpt){
   };
 }
 
+function costDashRestoreSelect(){
+  try{
+    var sel=document.getElementById('cost-dash-days');
+    if(!sel) return;
+    var v=localStorage.getItem('_costDashDays');
+    if(v&&(v==='7'||v==='14'||v==='30')) sel.value=v;
+  }catch(e){}
+}
+
+function costDashDayLabel(iso){
+  var th=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var p=String(iso||'').split('-');
+  if(p.length<3) return String(iso||'');
+  var d=parseInt(p[2],10)||1;
+  var mi=(parseInt(p[1],10)||1)-1;
+  if(mi<0||mi>11) return iso;
+  return (d<10?'0':'')+d+' '+th[mi];
+}
+
+function costDashAggByDate(lots){
+  var by={};
+  lots.forEach(function(l){
+    var d=String(l.date||'').trim();
+    if(!d) return;
+    if(!by[d]) by[d]={ act:0, ok:0, bomW:0, bomOk:0 };
+    by[d].act+=+(l.totalCost||0);
+    by[d].ok+=+(l.okProd||0);
+    var bu=+(l.bomUnit||0);
+    if(bu>0){
+      by[d].bomW+=bu*(+(l.okProd||0));
+      by[d].bomOk+=+(l.okProd||0);
+    }
+  });
+  return by;
+}
+
+function costDashLastNDates(n, lots){
+  var by=costDashAggByDate(lots);
+  var keys=Object.keys(by).sort();
+  var end=new Date();
+  if(keys.length){
+    var last=keys[keys.length-1];
+    var p=last.split('-');
+    if(p.length>=3) end=new Date(parseInt(p[0],10),(parseInt(p[1],10)||1)-1,parseInt(p[2],10)||1,12,0,0);
+  }
+  var arr=[];
+  for(var i=n-1;i>=0;i--){
+    var dd=new Date(end.getFullYear(),end.getMonth(),end.getDate()-i,12,0,0);
+    arr.push(dd.toISOString().substring(0,10));
+  }
+  return arr;
+}
+
+function _costDashDrawDailyCombo(canvasId, labels, actualArr, bomArr, pctArr){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  var ctx=canvas.getContext('2d');
+  var W=canvas.parentElement?canvas.parentElement.clientWidth:640;
+  if(!(W>80)) W=640;
+  var H=canvas.height||210;
+  canvas.width=W;
+  ctx.clearRect(0,0,W,H);
+  var pad={l:46,r:44,t:16,b:30};
+  var cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+  var n=labels.length||1;
+  var maxL=Math.max.apply(null,actualArr.concat(bomArr).concat([1]));
+  var minP=Math.min.apply(null,pctArr.concat([0]));
+  var maxP=Math.max.apply(null,pctArr.concat([0]));
+  var padP=Math.max(8,(maxP-minP)*0.12);
+  minP-=padP; maxP+=padP;
+  if(maxP-minP<15){ var mid=(maxP+minP)/2; minP=mid-10; maxP=mid+10; }
+  ctx.strokeStyle='rgba(139,148,158,0.15)'; ctx.lineWidth=1;
+  for(var g=0;g<=4;g++){
+    var yy=pad.t+ch-(g/4)*ch;
+    ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
+    ctx.fillStyle='rgba(139,148,158,0.55)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(String(Math.round(maxL*g/4)), pad.l-4, yy+3);
+  }
+  for(g=0;g<=4;g++){
+    var yy2=pad.t+ch-(g/4)*ch;
+    var pv=minP+(maxP-minP)*(g/4);
+    ctx.fillStyle='rgba(248,136,62,0.65)'; ctx.textAlign='left'; ctx.font='9px IBM Plex Mono,monospace';
+    ctx.fillText((g===0||g===4)?(Math.round(pv*10)/10+'%'):'', W-pad.r+4, yy2+3);
+  }
+  var bw=cw/(n*1.2+0.2);
+  actualArr.forEach(function(v,xi){
+    var bh=Math.max(0,(v/maxL)*ch);
+    var x=pad.l+(xi*1.2+0.2)*bw;
+    var y=pad.t+ch-bh;
+    ctx.fillStyle='rgba(56,139,253,0.82)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,bw*0.75,bh,3); else ctx.rect(x,y,bw*0.75,bh);
+    ctx.fill();
+  });
+  function yL(val){ return pad.t+ch-(Math.max(0,val)/maxL)*ch; }
+  function yP(pct){ return pad.t+ch-((pct-minP)/(maxP-minP))*ch; }
+  ctx.strokeStyle='rgba(63,185,80,0.95)'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+  ctx.beginPath();
+  bomArr.forEach(function(v,xi){
+    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
+    var y=yL(v);
+    if(xi===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(240,136,62,0.95)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  pctArr.forEach(function(p,xi){
+    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
+    var y=yP(p);
+    if(xi===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  pctArr.forEach(function(p,xi){
+    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
+    var y=yP(p);
+    ctx.fillStyle='#f0883e'; ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
+  });
+  ctx.fillStyle='rgba(139,148,158,0.8)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
+  labels.forEach(function(l,xi){
+    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
+    ctx.fillText(String(l), x, H-8);
+  });
+  ctx.textAlign='left';
+}
+
+function _costDashDrawDonut(canvasId, segments, centerLine1, centerLine2){
+  var c=document.getElementById(canvasId);
+  if(!c) return;
+  var ctx=c.getContext('2d');
+  var sz=Math.min(c.width||168,c.height||168);
+  c.width=sz; c.height=sz;
+  ctx.clearRect(0,0,sz,sz);
+  var cx=sz/2, cy=sz/2, r0=sz*0.36, r1=sz*0.52;
+  var tot=segments.reduce(function(a,s){return a+Math.max(0,s.v);},0)||1;
+  var ang=-Math.PI/2;
+  segments.forEach(function(s){
+    var v=Math.max(0,s.v);
+    var a=(v/tot)*Math.PI*2;
+    ctx.beginPath();
+    ctx.arc(cx,cy,r1,ang,ang+a);
+    ctx.arc(cx,cy,r0,ang+a,ang,true);
+    ctx.closePath();
+    ctx.fillStyle=s.c;
+    ctx.fill();
+    ang+=a;
+  });
+  ctx.beginPath(); ctx.arc(cx,cy,r0,0,Math.PI*2);
+  var holeFill='#f6f8fa';
+  try{
+    var bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    if(bg&&bg.indexOf('rgb')===0) holeFill=bg;
+    else if(bg&&bg[0]==='#') holeFill=bg;
+  }catch(e){}
+  ctx.fillStyle=holeFill;
+  ctx.fill();
+  ctx.fillStyle='rgba(139,148,158,0.9)'; ctx.font='700 11px Inter,sans-serif'; ctx.textAlign='center';
+  ctx.fillText(centerLine1||'', cx, cy-4);
+  ctx.font='9px Inter,sans-serif'; ctx.fillStyle='rgba(139,148,158,0.75)';
+  ctx.fillText(centerLine2||'', cx, cy+10);
+}
+
+function _costDashDrawUnitLines(canvasId, labels, actPc, bomPc){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  var ctx=canvas.getContext('2d');
+  var W=canvas.parentElement?canvas.parentElement.clientWidth:640;
+  if(!(W>80)) W=640;
+  var H=canvas.height||190;
+  canvas.width=W;
+  ctx.clearRect(0,0,W,H);
+  var pad={l:42,r:14,t:14,b:28};
+  var cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+  var n=labels.length||1;
+  var all=[];
+  actPc.forEach(function(v){ if(isFinite(v)) all.push(v); });
+  bomPc.forEach(function(v){ if(isFinite(v)) all.push(v); });
+  var maxV=Math.max.apply(null,all.concat([1]))*1.08;
+  var minV=0;
+  ctx.strokeStyle='rgba(139,148,158,0.12)'; ctx.lineWidth=1;
+  for(var g=0;g<=4;g++){
+    var yy=pad.t+ch-(g/4)*ch;
+    ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
+    ctx.fillStyle='rgba(139,148,158,0.55)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText((maxV*g/4).toFixed(2), pad.l-4, yy+3);
+  }
+  function xAt(i){ return pad.l+(i/(n-1||1))*cw; }
+  function yAt(v){ return pad.t+ch-((v-minV)/(maxV-minV))*ch; }
+  ctx.strokeStyle='rgba(63,185,80,0.9)'; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  var started=false;
+  bomPc.forEach(function(v,i){
+    if(!isFinite(v)) return;
+    var x=xAt(i), y=yAt(v);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(56,139,253,0.95)'; ctx.lineWidth=2;
+  ctx.beginPath(); started=false;
+  actPc.forEach(function(v,i){
+    if(!isFinite(v)) return;
+    var x=xAt(i), y=yAt(v);
+    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  actPc.forEach(function(v,i){
+    if(!isFinite(v)) return;
+    ctx.fillStyle='#388bfd'; ctx.beginPath(); ctx.arc(xAt(i),yAt(v),4,0,Math.PI*2); ctx.fill();
+  });
+  bomPc.forEach(function(v,i){
+    if(!isFinite(v)) return;
+    ctx.fillStyle='#3fb950'; ctx.beginPath(); ctx.arc(xAt(i),yAt(v),4,0,Math.PI*2); ctx.fill();
+  });
+  ctx.fillStyle='rgba(139,148,158,0.8)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
+  labels.forEach(function(l,i){ ctx.fillText(String(l), xAt(i), H-8); });
+  ctx.textAlign='left';
+}
+
+function renderCostDashboard(lots){
+  costDashRestoreSelect();
+  var wrap=document.getElementById('cost-dash-wrap');
+  if(!wrap) return;
+  var fmt2=function(v){ return (+(v||0)).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var lotsArr=lots||[];
+  var elVs=document.getElementById('cost-dash-vs-bom');
+  var elSub=document.getElementById('cost-dash-vs-bom-sub');
+  var elVar=document.getElementById('cost-dash-var-baht');
+  var totalAct=lotsArr.reduce(function(s,l){ return s+(+(l.totalCost||0)); },0);
+  var bomBaseline=lotsArr.reduce(function(s,l){
+    var bu=+(l.bomUnit||0), ok=+(l.okProd||0);
+    return bu>0?s+bu*ok:s;
+  },0);
+  if(bomBaseline>0){
+    var pct=(totalAct-bomBaseline)/bomBaseline*100;
+    if(elVs) elVs.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+    if(elSub) elSub.textContent=pct>0?'ต้นทุนจริงสูงกว่า BOM (รวมทุก Lot ในช่วง)':'ต้นทุนจริงต่ำกว่าหรือเท่า BOM';
+    if(elVar) elVar.textContent=(totalAct-bomBaseline>=0?'+':'')+'฿ '+fmt2(Math.abs(totalAct-bomBaseline));
+  }else{
+    if(elVs) elVs.textContent='—';
+    if(elSub) elSub.textContent='ยังไม่มี BOM Std ในชุด Lot นี้';
+    if(elVar) elVar.textContent='—';
+  }
+  var nDay=7;
+  try{
+    var sd=document.getElementById('cost-dash-days');
+    nDay=parseInt(sd&&sd.value?sd.value:'7',10);
+  }catch(e){}
+  if(nDay!==7&&nDay!==14&&nDay!==30) nDay=7;
+  var dates=costDashLastNDates(nDay, lotsArr);
+  var by=costDashAggByDate(lotsArr);
+  var labels=[], actA=[], bomA=[], pctA=[];
+  dates.forEach(function(d){
+    labels.push(costDashDayLabel(d));
+    var o=by[d]||{ act:0, ok:0, bomW:0, bomOk:0 };
+    actA.push(o.act);
+    var bomDay=o.bomOk>0?o.bomW/o.bomOk:0;
+    var bomBaht=bomDay*(o.ok||0);
+    bomA.push(bomBaht);
+    var p=0;
+    if(bomBaht>0.01) p=(o.act-bomBaht)/bomBaht*100;
+    else if(o.act>0) p=100;
+    pctA.push(p);
+  });
+  setTimeout(function(){ _costDashDrawDailyCombo('cost-dash-daily-canvas', labels, actA, bomA, pctA); }, 40);
+  var totMat=lotsArr.reduce(function(s,l){ return s+(+(l.matCost||0))+(+(l.mbCost||0)); },0);
+  var totLab=lotsArr.reduce(function(s,l){
+    return s+(+(l.elecCost||0))+(+(l.labCost||0))+(+(l.machCost||0))+(+(l.extraHrCost||0))+(+(l.pieceAddonCost||0));
+  },0);
+  var totOvh=lotsArr.reduce(function(s,l){ return s+(+(l.ovhCost||0)); },0);
+  var segs=[
+    { c:'rgba(56,139,253,0.88)', v:totMat, label:'วัตถุดิบ' },
+    { c:'rgba(63,185,80,0.85)', v:totLab, label:'ค่าแรง+เครื่อง+ชม.' },
+    { c:'rgba(240,136,62,0.85)', v:totOvh, label:'Overhead' }
+  ];
+  var leg=document.getElementById('cost-dash-donut-legend');
+  if(leg){
+    var tt=totMat+totLab+totOvh||1;
+    leg.innerHTML=segs.map(function(s){
+      var pct=Math.round(s.v/tt*1000)/10;
+      return '<div style="display:flex;justify-content:space-between;gap:8px;margin:3px 0">'
+        +'<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+s.c+';margin-right:6px;vertical-align:middle"></span>'+s.label+'</span>'
+        +'<span style="font-weight:700;white-space:nowrap">฿ '+fmt2(s.v)+' <span style="color:var(--text3);font-weight:600">('+pct+'%)</span></span></div>';
+    }).join('');
+  }
+  setTimeout(function(){
+    _costDashDrawDonut('cost-dash-donut-canvas', segs, 'รวม', '฿ '+fmt2(totalAct));
+  }, 40);
+  var actPc=[], bomPc=[];
+  dates.forEach(function(d){
+    var o=by[d]||{ act:0, ok:0, bomW:0, bomOk:0 };
+    actPc.push(o.ok>0?o.act/o.ok:NaN);
+    bomPc.push(o.bomOk>0?o.bomW/o.bomOk:NaN);
+  });
+  setTimeout(function(){ _costDashDrawUnitLines('cost-dash-unit-canvas', labels, actPc, bomPc); }, 70);
+  var ins=document.getElementById('cost-dash-insights');
+  var cmp=document.getElementById('cost-dash-compare-bars');
+  if(!lotsArr.length){
+    if(ins) ins.innerHTML='<div style="font-size:11px;color:var(--text3);padding:10px;border:1px dashed var(--border);border-radius:8px">ยังไม่มี Lot ในช่วงที่เลือก — กราฟจะแสดงเมื่อมีข้อมูล</div>';
+    if(cmp) cmp.innerHTML='';
+    return;
+  }
+  var over=lotsArr.filter(function(l){ return +(l.bomUnit||0)>0&&+(l.variance||0)>+(l.alertPct||10); });
+  var under=lotsArr.filter(function(l){ return +(l.bomUnit||0)>0&&+(l.variance||0)<0; });
+  var maxLot=null, maxU=0;
+  lotsArr.forEach(function(l){
+    var u=+(l.unitCost||0);
+    if(u>maxU){ maxU=u; maxLot=l; }
+  });
+  var ngSus=lotsArr.filter(function(l){
+    var t=+(l.totalProd||0), n=+(l.totalNg||0);
+    return t>0&&n/t>0.05&&n>=10;
+  });
+  if(ins){
+    ins.innerHTML=
+      '<div style="padding:8px 10px;border-radius:8px;border:1px solid rgba(248,81,73,0.35);background:rgba(248,81,73,0.08);font-size:11px">'
+      +'⚠️ ต้นทุนสูงกว่า BOM เกินเกณฑ์ <b>'+over.length+'</b> Lot <span style="color:var(--text3)">('+((over.length/lotsArr.length)*100).toFixed(1)+'%)</span></div>'
+      +(maxLot?'<div style="padding:8px 10px;border-radius:8px;border:1px solid rgba(240,136,62,0.4);background:rgba(240,136,62,0.08);font-size:11px">'
+      +'📈 ต้นทุนต่อชิ้นสูงสุด <b>฿ '+fmt2(maxU)+'/ชิ้น</b> — '+String(maxLot.jobName||'').replace(/</g,'&lt;').replace(/&/g,'&amp;')+'</div>':'')
+      +'<div style="padding:8px 10px;border-radius:8px;border:1px solid rgba(63,185,80,0.35);background:rgba(63,185,80,0.08);font-size:11px">'
+      +'✅ ต้นทุนต่ำกว่า BOM <b>'+under.length+'</b> Lot <span style="color:var(--text3)">('+((under.length/lotsArr.length)*100).toFixed(1)+'%)</span></div>'
+      +'<div style="padding:8px 10px;border-radius:8px;border:1px solid rgba(56,139,253,0.35);background:rgba(56,139,253,0.08);font-size:11px">'
+      +'🔎 Lot ที่ NG สูงผิดปกติ (&gt;5% และ NG≥10 ชิ้น): <b>'+ngSus.length+'</b> Lot</div>';
+  }
+  if(cmp){
+    var mx=Math.max(totalAct,bomBaseline,1);
+    var w1=Math.round(totalAct/mx*100);
+    var w2=Math.round(bomBaseline/mx*100);
+    var diff=totalAct-bomBaseline;
+    var dp=bomBaseline>0?(diff/bomBaseline*100):0;
+    cmp.innerHTML='<div style="font-size:12px;font-weight:800;margin-bottom:8px;color:var(--text)">เปรียบเทียบต้นทุน</div>'
+      +'<div style="font-size:11px;margin-bottom:4px">ต้นทุนจริงรวม</div>'
+      +'<div style="height:22px;border-radius:6px;background:var(--bg3);overflow:hidden"><div style="height:100%;width:'+w1+'%;background:rgba(56,139,253,0.85);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:800;color:#fff">฿ '+fmt2(totalAct)+'</div></div>'
+      +'<div style="font-size:11px;margin:10px 0 4px">BOM มาตรฐาน (BOM×ชิ้นดี)</div>'
+      +'<div style="height:22px;border-radius:6px;background:var(--bg3);overflow:hidden"><div style="height:100%;width:'+w2+'%;background:rgba(63,185,80,0.85);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:11px;font-weight:800;color:#fff">฿ '+fmt2(bomBaseline)+'</div></div>'
+      +'<div style="font-size:11px;margin:10px 0 4px">ต่างจาก BOM</div>'
+      +'<div style="font-size:13px;font-weight:900;color:'+(diff>0?'#f85149':'#3fb950')+'">'+(diff>=0?'+':'−')+'฿ '+fmt2(Math.abs(diff))+' <span style="font-size:11px">('+(dp>=0?'+':'')+dp.toFixed(2)+'%)</span></div>';
+  }
+}
+
 function renderCostLotList(filterJob){
   const tbody = document.getElementById('cost-lot-tbody');
   if(!tbody) return;
@@ -32195,6 +32533,14 @@ function renderCostLotList(filterJob){
     tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--text3);padding:40px">
       ยังไม่มีข้อมูลการผลิต — บันทึกใบรายงานการผลิต หรือกด + เพิ่มต้นทุน
     </td></tr>`;
+    const setKpi0 = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+    const z='0.00';
+    setKpi0('ck-total-cost', z+' ฿');
+    setKpi0('ck-ng-loss', z+' ฿');
+    setKpi0('ck-avg-unit', z+' ฿/ชิ้น');
+    setKpi0('ck-over-budget','0 Lot');
+    ['ck-bar-mat','ck-bar-lab','ck-bar-ovh'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.style.width='0%'; el.title=''; } });
+    renderCostDashboard([]);
     return;
   }
 
@@ -32287,6 +32633,7 @@ function renderCostLotList(filterJob){
     const el  = document.getElementById(id);
     if(el){ el.style.width=pct.toFixed(1)+'%'; el.title=[`วัตถุดิบ ${pct.toFixed(1)}%`,`ค่าใช้จ่าย ${pct.toFixed(1)}%`,`Overhead ${pct.toFixed(1)}%`][k]; }
   });
+  renderCostDashboard(lots);
 }
 
 
@@ -50872,6 +51219,67 @@ function _clRenderChart(){
       <div class="kpi-label">Lot เกิน Budget</div>
       <div class="kpi-value" id="ck-over-budget" style="color:var(--yellow);font-size:18px">0 Lot</div>
       <div class="kpi-sub">ต้นทุนจริง > BOM +10%</div>
+    </div>
+  </div>
+
+  <!-- Dashboard: แนวโน้ม + สัดส่วน (เพิ่มเติม — ไม่แทนที่ KPI/ตารางเดิม) -->
+  <div id="cost-dash-wrap" class="card mb-3" style="padding:14px 16px">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--accent)">แดชบอร์ดต้นทุน</div>
+        <div style="font-size:11px;color:var(--text3)">สรุปจาก Lot ชุดเดียวกับตาราง (ตามฟิลเตอร์เดือน / เครื่อง / ค้นหางาน)</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--text3);font-weight:700">ช่วงกราฟรายวัน</span>
+        <select id="cost-dash-days" onchange="try{localStorage.setItem('_costDashDays',this.value);}catch(e){};renderCostLotList()"
+          style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px">
+          <option value="7">7 วันล่าสุด</option>
+          <option value="14">14 วันล่าสุด</option>
+          <option value="30">30 วันล่าสุด</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px;margin-bottom:14px">
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg2)">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">เปรียบเทียบกับ BOM (ถ่วงชิ้นดี)</div>
+        <div id="cost-dash-vs-bom" style="font-size:20px;font-weight:900;margin-top:4px">—</div>
+        <div id="cost-dash-vs-bom-sub" style="font-size:10px;color:var(--text3);margin-top:2px">—</div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg2)">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">ต่างจาก BOM (รวมเงิน)</div>
+        <div id="cost-dash-var-baht" style="font-size:20px;font-weight:900;margin-top:4px">—</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">ต้นทุนจริง − (BOM×ชิ้นดี)</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(280px,1.25fr) minmax(240px,0.75fr);gap:14px;margin-bottom:14px">
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg)">
+        <div style="font-size:12px;font-weight:800;margin-bottom:6px;color:var(--text)">แนวโน้มต้นทุนรายวัน</div>
+        <div style="height:210px;width:100%"><canvas id="cost-dash-daily-canvas" height="210" style="width:100%;display:block"></canvas></div>
+        <div style="display:flex;gap:12px;font-size:9px;color:var(--text3);margin-top:6px;flex-wrap:wrap">
+          <span><span style="color:#388bfd;font-weight:700">■</span> ต้นทุนจริง (บาท)</span>
+          <span><span style="color:#3fb950;font-weight:700">■</span> ต้นทุนมาตรฐาน BOM (บาท)</span>
+          <span><span style="color:#f0883e;font-weight:700">■</span> % ต่างจาก BOM (แกนขวา)</span>
+        </div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg)">
+        <div style="font-size:12px;font-weight:800;margin-bottom:6px;color:var(--text)">สัดส่วนต้นทุน</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">
+          <canvas id="cost-dash-donut-canvas" width="168" height="168" style="flex-shrink:0"></canvas>
+          <div id="cost-dash-donut-legend" style="font-size:11px;min-width:120px;flex:1"></div>
+        </div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--bg);margin-bottom:14px">
+      <div style="font-size:12px;font-weight:800;margin-bottom:6px;color:var(--text)">แนวโน้มต้นทุนต่อชิ้น (บาท/ชิ้น)</div>
+      <div style="height:190px;width:100%"><canvas id="cost-dash-unit-canvas" height="190" style="width:100%;display:block"></canvas></div>
+      <div style="display:flex;gap:14px;font-size:9px;color:var(--text3);margin-top:6px">
+        <span><span style="color:#388bfd;font-weight:700">●</span> ต้นทุนจริง/ชิ้น</span>
+        <span><span style="color:#3fb950;font-weight:700">●</span> BOM/ชิ้น (ถ่วงน้ำหนักวัน)</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:14px">
+      <div id="cost-dash-insights" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="cost-dash-compare-bars"></div>
     </div>
   </div>
 
