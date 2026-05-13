@@ -1706,7 +1706,104 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <button class="btn btn-primary" onclick="openNewOrderModal()">+ เพิ่ม Order</button>
       </div>
     </div>
+    <div class="page-sub" style="margin:-4px 0 10px 2px;font-size:12px;color:var(--text3)">ติดตามสถานะ Order และแผนการผลิตแบบเรียลไทม์</div>
   </div>
+
+  <!-- Dashboard Order & แผน (เพิ่มเติม — แท็บ/ตาราง/ฟิลเตอร์เดิมอยู่ด้านล่าง) -->
+  <div id="orders-dash-wrap" class="mb-3" style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+      <div class="card" style="padding:12px 14px;border-left:3px solid #388bfd">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">📋 Order ทั้งหมด</div>
+        <div id="od-kpi-total" style="font-size:22px;font-weight:900;margin-top:4px">0</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">รายการ (ไม่รวมที่ลบ)</div>
+      </div>
+      <div class="card" style="padding:12px 14px;border-left:3px solid #79c0ff">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">⚙️ กำลังผลิตวันนี้ (ชม. สูงสุด)</div>
+        <div id="od-kpi-cap" style="font-size:20px;font-weight:900;margin-top:4px;color:#79c0ff">0 / 0 ชม.</div>
+        <div style="height:6px;border-radius:4px;background:var(--bg3);margin-top:8px;overflow:hidden"><div id="od-bar-cap" style="height:100%;width:0%;background:rgba(56,139,253,0.75);transition:width .4s"></div></div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px">เครื่อง×ชม./วัน (จากช่อง TT)</div>
+      </div>
+      <div class="card" style="padding:12px 14px;border-left:3px solid #3fb950">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">✅ ผลิตแล้วรวม</div>
+        <div id="od-kpi-prod" style="font-size:20px;font-weight:900;margin-top:4px;color:#3fb950">0 ชิ้น</div>
+        <div style="height:6px;border-radius:4px;background:var(--bg3);margin-top:8px;overflow:hidden"><div id="od-bar-prod" style="height:100%;width:0%;background:rgba(63,185,80,0.75);transition:width .4s"></div></div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px">เทียบยอดสั่งใน Order ที่ยังอยู่ในแผน</div>
+      </div>
+      <div class="card" style="padding:12px 14px;border-left:3px solid #f0883e">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">⏳ คงเหลือผลิต</div>
+        <div id="od-kpi-rem" style="font-size:20px;font-weight:900;margin-top:4px;color:#f0883e">0 ชิ้น</div>
+        <div style="height:6px;border-radius:4px;background:var(--bg3);margin-top:8px;overflow:hidden"><div id="od-bar-rem" style="height:100%;width:0%;background:rgba(240,136,62,0.75);transition:width .4s"></div></div>
+      </div>
+      <div class="card" style="padding:12px 14px;border-left:3px solid #f85149">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">🚨 เลยกำหนด / Delay</div>
+        <div id="od-kpi-delay" style="font-size:22px;font-weight:900;margin-top:4px;color:#f85149">0</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Order ในแผนที่เกิน due หรือสถานะ Delay</div>
+      </div>
+      <div class="card" style="padding:12px 14px;border-left:3px solid #a371f7">
+        <div style="font-size:10px;color:var(--text3);font-weight:700">📈 ความคืบหน้าเฉลี่ย</div>
+        <div id="od-kpi-rate" style="font-size:22px;font-weight:900;margin-top:4px;color:#a371f7">0%</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">ถ่วงจากยอดสั่งใน Order ที่ยังอยู่ในแผน</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(280px,1.1fr) minmax(300px,0.9fr);gap:12px;align-items:stretch">
+      <div class="card" style="padding:12px 14px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+          <span style="font-size:13px;font-weight:800;color:var(--text)">รายการ Order (ล่าสุด)</span>
+          <span style="font-size:10px;color:var(--accent2);cursor:pointer;font-weight:600" onclick="var t=document.querySelector('#tab-orders .tab.active');if(t)t.click();document.getElementById('order-search-input-2')&&document.getElementById('order-search-input-2').focus();">ดูในตาราง ↓</span>
+        </div>
+        <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:420px">
+            <thead><tr style="background:var(--bg3);color:var(--text3)">
+              <th style="padding:6px 8px;text-align:left">Order</th>
+              <th style="padding:6px 8px;text-align:left">งาน</th>
+              <th style="padding:6px 8px;text-align:right">สั่ง</th>
+              <th style="padding:6px 8px;text-align:right">ผลิต</th>
+              <th style="padding:6px 8px;text-align:center">สถานะ</th>
+            </tr></thead>
+            <tbody id="orders-dash-recent-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:6px">แผนการผลิต (Gantt 7 วัน)</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px">แถบตามเครื่อง · ช่วงเริ่ม–กำหนดส่ง (โดยประมาณ)</div>
+        <div style="width:100%;overflow-x:auto"><canvas id="orders-dash-gantt" height="240" style="min-width:420px;width:100%;display:block"></canvas></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:9px;color:var(--text3);margin-top:6px">
+          <span><span style="color:#388bfd">■</span> รอผลิต</span>
+          <span><span style="color:#56d364">■</span> กำลังผลิต</span>
+          <span><span style="color:#d2a8ff">■</span> พร้อมส่ง</span>
+          <span><span style="color:#f85149">■</span> Delay</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">ภาพรวมสถานะ Order</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <canvas id="orders-dash-donut" width="120" height="120" style="flex-shrink:0"></canvas>
+          <div id="orders-dash-donut-legend" style="font-size:11px;flex:1;min-width:100px"></div>
+        </div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">Top 5 งาน (ตามยอดสั่ง)</div>
+        <div id="orders-dash-top5" style="font-size:11px"></div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px;color:#f85149">งานที่เสี่ยง / เลยกำหนด</div>
+        <div id="orders-dash-risk" style="font-size:11px;max-height:140px;overflow-y:auto"></div>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:12px;font-weight:800;margin-bottom:8px">ประสิทธิภาพ (จาก Order ในแผน)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="font-size:9px;color:var(--text3)">คืบหน้าเฉลี่ย</div><div id="od-m1" style="font-weight:900;font-size:15px;color:#3fb950">—</div><canvas id="orders-dash-sp1" height="32" style="width:100%;margin-top:4px;display:block"></canvas></div>
+          <div><div style="font-size:9px;color:var(--text3)">รอเริ่ม %</div><div id="od-m2" style="font-weight:900;font-size:15px;color:#79c0ff">—</div><canvas id="orders-dash-sp2" height="32" style="width:100%;margin-top:4px;display:block"></canvas></div>
+          <div><div style="font-size:9px;color:var(--text3)">กำลังผลิต %</div><div id="od-m3" style="font-weight:900;font-size:15px;color:#388bfd">—</div><canvas id="orders-dash-sp3" height="32" style="width:100%;margin-top:4px;display:block"></canvas></div>
+          <div><div style="font-size:9px;color:var(--text3)">Delay / เสี่ยง %</div><div id="od-m4" style="font-weight:900;font-size:15px;color:#f0883e">—</div><canvas id="orders-dash-sp4" height="32" style="width:100%;margin-top:4px;display:block"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="tabs">
     <div class="tab active" onclick="switchTab(this,'tab-orders');">📋 Order ทั้งหมด</div>
     <div class="tab" onclick="switchTab(this,'tab-plan');">📅 แผนการผลิต</div>
@@ -16490,7 +16587,210 @@ function renderOrdersTable(filter, statusFilter){
       </td>
     </tr>`;
   }).join('')||'<tr><td colspan="14" style="padding:24px;text-align:center;color:var(--text3)">ไม่พบ Order ตามตัวกรอง</td></tr>';
+  if(typeof renderOrdersDashboard==='function') renderOrdersDashboard(list);
   updateOrderSelectionUI();
+}
+/** แดชบอร์ดด้านบนหน้า Order & แผน — อัปเดตจากรายการเดียวกับตาราง (list) + สรุปรวมจาก Order ที่ยังไม่ลบ */
+function renderOrdersDashboard(tableList){
+  if(!document.getElementById('orders-dash-wrap')) return;
+  var H=typeof ttGetHoursPerDay==='function'?ttGetHoursPerDay():20;
+  var liveAll=(orders||[]).filter(function(o){ return o && !o._deleted; });
+  var pipeAll=liveAll.filter(function(o){ return typeof isOrderInActivePipeline==='function'?isOrderInActivePipeline(o):true; });
+  var producing=pipeAll.filter(function(o){ return o.status==='กำลังผลิต'; });
+  var uniqMach=new Set();
+  pipeAll.forEach(function(o){ var m=String(o.machine||'').trim().split(/\s+/)[0]; if(m) uniqMach.add(m); });
+  var machN=uniqMach.size||0;
+  var maxH=Math.max(1, machN)*H;
+  var loadH=Math.round(producing.reduce(function(s,o){
+    var eff=typeof orderEffectiveHoursPerDay==='function'?orderEffectiveHoursPerDay(o):H;
+    var pct=o.qty>0?Math.min(1, (o.produced||0)/o.qty):0;
+    return s+eff*pct;
+  },0));
+  if(!isFinite(loadH)||loadH<0) loadH=0;
+  loadH=Math.min(loadH, maxH*2);
+  var sumQ=pipeAll.reduce(function(s,o){ return s+Math.max(0,+(o.qty||0)); },0);
+  var sumP=pipeAll.reduce(function(s,o){ return s+Math.max(0,+(o.produced||0)); },0);
+  var sumRem=Math.max(0,sumQ-sumP);
+  var today=new Date(); today.setHours(0,0,0,0);
+  function _ymd(s){ if(!s) return null; var p=String(s).trim().split('T')[0].split('-'); if(p.length<3) return null; var d=new Date(+p[0],+p[1]-1,+p[2]); return isNaN(d.getTime())?null:d; }
+  var delayN=pipeAll.filter(function(o){
+    if(o.status==='Delay') return true;
+    var due=_ymd(o.dueDate);
+    if(!due) return false;
+    if(due<today && (o.produced||0)<(o.qty||0)) return true;
+    return false;
+  }).length;
+  var avgPct=0, nProg=0, sumProg=0;
+  pipeAll.forEach(function(o){
+    var q=+(o.qty||0);
+    if(q<=0) return;
+    sumProg+=Math.min(100,Math.round((o.produced||0)/q*100));
+    nProg++;
+  });
+  if(nProg) avgPct=sumProg/nProg;
+  function _set(id, txt){ var el=document.getElementById(id); if(el) el.textContent=txt; }
+  function _bar(id, pct){ var el=document.getElementById(id); if(el) el.style.width=Math.min(100,Math.max(0,pct))+'%'; }
+  _set('od-kpi-total', String(liveAll.length));
+  _set('od-kpi-cap', loadH.toLocaleString()+' / '+maxH.toLocaleString()+' ชม.');
+  _bar('od-bar-cap', maxH>0?loadH/maxH*100:0);
+  _set('od-kpi-prod', sumP.toLocaleString()+' ชิ้น');
+  _bar('od-bar-prod', sumQ>0?sumP/sumQ*100:0);
+  _set('od-kpi-rem', sumRem.toLocaleString()+' ชิ้น');
+  _bar('od-bar-rem', sumQ>0?sumRem/sumQ*100:0);
+  _set('od-kpi-delay', String(delayN));
+  _set('od-kpi-rate', (Math.round(avgPct*10)/10).toLocaleString()+'%');
+  var tb=document.getElementById('orders-dash-recent-tbody');
+  if(tb){
+    var recent=(tableList||[]).slice().sort(function(a,b){
+      var da=_ymd(a.startDate||a.createdAt)||_ymd(a.dueDate)||today;
+      var db=_ymd(b.startDate||b.createdAt)||_ymd(b.dueDate)||today;
+      return db-da;
+    }).slice(0,8);
+    tb.innerHTML=recent.map(function(o){
+      var pct=o.qty>0?Math.min(100,Math.round((o.produced||0)/o.qty*100)):0;
+      var badge={กำลังผลิต:'badge-blue',พร้อมส่ง:'badge-green',Delay:'badge-red',รอผลิต:'badge-yellow',เสร็จแล้ว:'badge-green',ส่งแล้ว:'badge-green'}[o.status]||'badge-blue';
+      return '<tr><td style="padding:5px 8px" class="mono">'+String(o.orderNo||'-').replace(/</g,'&lt;')+'</td>'
+        +'<td style="padding:5px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+String(o.jobName||'').replace(/</g,'&lt;')+'</td>'
+        +'<td style="padding:5px 8px;text-align:right" class="mono">'+((o.qty||0).toLocaleString())+'</td>'
+        +'<td style="padding:5px 8px;text-align:right" class="mono">'+((o.produced||0).toLocaleString())+' <span style="color:#3fb950;font-size:9px">'+pct+'%</span></td>'
+        +'<td style="padding:5px 8px;text-align:center"><span class="badge '+badge+'">'+(o.status||'')+'</span></td></tr>';
+    }).join('')||(liveAll.length?'<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">ไม่มีรายการตามตัวกรอง — ปรับค้นหา/สถานะ</td></tr>'
+      :'<tr><td colspan="5" style="padding:12px;text-align:center;color:var(--text3)">ยังไม่มี Order</td></tr>');
+  }
+  var donut=document.getElementById('orders-dash-donut');
+  var leg=document.getElementById('orders-dash-donut-legend');
+  if(donut&&donut.getContext){
+    var stMap={};
+    liveAll.forEach(function(o){ var k=o.status||'อื่นๆ'; stMap[k]=(stMap[k]||0)+1; });
+    var cols={รอผลิต:'#e3b341',กำลังผลิต:'#388bfd',พร้อมส่ง:'#3fb950',Delay:'#f85149',เสร็จแล้ว:'#a371f7',ส่งแล้ว:'#8b949e'};
+    var entries=Object.keys(stMap).map(function(k){ return { k:k, v:stMap[k], c:cols[k]||'#8b949e' }; }).sort(function(a,b){ return b.v-a.v; });
+    var tot=liveAll.length||1;
+    var ctx=donut.getContext('2d');
+    var sz=120, cx=sz/2, cy=sz/2, r0=22, r1=48;
+    ctx.clearRect(0,0,sz,sz);
+    var ang=-Math.PI/2;
+    entries.forEach(function(e){
+      var a=(e.v/tot)*Math.PI*2;
+      ctx.beginPath();
+      ctx.arc(cx,cy,r1,ang,ang+a);
+      ctx.arc(cx,cy,r0,ang+a,ang,true);
+      ctx.closePath();
+      ctx.fillStyle=e.c;
+      ctx.fill();
+      ang+=a;
+    });
+    if(leg) leg.innerHTML=entries.map(function(e){
+      return '<div style="display:flex;justify-content:space-between;gap:6px;margin:3px 0"><span><span style="color:'+e.c+'">●</span> '+e.k+'</span><b>'+e.v+'</b> <span style="color:var(--text3)">('+Math.round(e.v/tot*100)+'%)</span></div>';
+    }).join('')||'<span style="color:var(--text3)">ไม่มีข้อมูล</span>';
+  }
+  var top5el=document.getElementById('orders-dash-top5');
+  if(top5el){
+    var top=pipeAll.slice().sort(function(a,b){ return (b.qty||0)-(a.qty||0); }).slice(0,5);
+    var maxQ=top[0]&&top[0].qty||1;
+    top5el.innerHTML=top.map(function(o,i){
+      var w=Math.round((o.qty||0)/maxQ*100);
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px"><b>'+(i+1)+'.</b> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+String(o.jobName||o.orderNo||'').replace(/</g,'&lt;')+'</span><span class="mono">'+((o.qty||0).toLocaleString())+'</span></div>'
+        +'<div style="height:5px;border-radius:3px;background:var(--bg3);margin-top:3px;overflow:hidden"><div style="height:100%;width:'+w+'%;background:rgba(56,139,253,0.65);transition:width .35s"></div></div></div>';
+    }).join('')||'<span style="color:var(--text3)">ไม่มี Order ในแผน</span>';
+  }
+  var riskEl=document.getElementById('orders-dash-risk');
+  if(riskEl){
+    var risks=pipeAll.filter(function(o){
+      if(o.status==='Delay') return true;
+      var due=_ymd(o.dueDate);
+      return due&&due<today&&(o.produced||0)<(o.qty||0);
+    }).sort(function(a,b){ return (_ymd(a.dueDate)||today)-(_ymd(b.dueDate)||today); }).slice(0,6);
+    riskEl.innerHTML=risks.map(function(o){
+      var due=_ymd(o.dueDate);
+      var late=due?Math.ceil((today-due)/86400000):0;
+      var msg=o.status==='Delay'?'สถานะ Delay':('เลยกำหนด '+late+' วัน');
+      return '<div style="padding:6px;border-radius:6px;background:rgba(248,81,73,0.08);margin-bottom:6px;border:1px solid rgba(248,81,73,0.22)">'
+        +'<div style="font-weight:800;font-size:11px" class="mono">'+String(o.orderNo||'').replace(/</g,'&lt;')+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+String(o.jobName||'').replace(/</g,'&lt;')+' · กำหนด '+(o.dueDate||'—')+'</div>'
+        +'<div style="font-size:10px;color:#f85149;margin-top:2px">'+msg+'</div></div>';
+    }).join('')||'<span style="color:var(--text3)">ไม่มีงานเสี่ยงในแผน</span>';
+  }
+  var nP=pipeAll.length||1;
+  var nWait=pipeAll.filter(function(o){ return o.status==='รอผลิต'; }).length;
+  var nRun=pipeAll.filter(function(o){ return o.status==='กำลังผลิต'; }).length;
+  var nRisk=delayN;
+  _set('od-m1',(Math.round(avgPct*10)/10).toLocaleString()+'%');
+  _set('od-m2',(Math.round(nWait/nP*1000)/10).toLocaleString()+'%');
+  _set('od-m3',(Math.round(nRun/nP*1000)/10).toLocaleString()+'%');
+  _set('od-m4',(Math.round(nRisk/nP*1000)/10).toLocaleString()+'%');
+  function _spark(cid, col, pct){
+    var c=document.getElementById(cid); if(!c||!c.getContext) return;
+    var r=c.parentElement?c.parentElement.getBoundingClientRect():{width:100};
+    var w=Math.max(64, Math.floor(r.width||100)), h=32, dpr=window.devicePixelRatio||1;
+    c.width=Math.floor(w*dpr); c.height=Math.floor(h*dpr);
+    c.style.width=w+'px'; c.style.height=h+'px';
+    var x=c.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,w,h);
+    var seed=Math.floor((pct||0)*13+w), pts=[];
+    for(var i=0;i<9;i++) pts.push(0.55+0.4*Math.sin(seed*0.11+i*0.85)*(0.4+0.006*(pct||0)));
+    x.beginPath(); x.moveTo(0,h-pts[0]*h);
+    for(var j=1;j<pts.length;j++) x.lineTo(j*(w-1)/(pts.length-1), h-pts[j]*h);
+    x.strokeStyle=col; x.lineWidth=1.6; x.stroke();
+  }
+  _spark('orders-dash-sp1','#3fb950',avgPct);
+  _spark('orders-dash-sp2','#79c0ff',nWait/nP*100);
+  _spark('orders-dash-sp3','#388bfd',nRun/nP*100);
+  _spark('orders-dash-sp4','#f0883e',nRisk/nP*100);
+  var g=document.getElementById('orders-dash-gantt');
+  if(g&&g.getContext){
+    var pr=g.parentElement, gw=Math.max(420, Math.floor((pr&&pr.clientWidth)||g.clientWidth||600));
+    var gh=240, dpr=window.devicePixelRatio||1;
+    g.width=Math.floor(gw*dpr); g.height=Math.floor(gh*dpr);
+    g.style.width=gw+'px'; g.style.height=gh+'px';
+    var gx=g.getContext('2d'); gx.scale(dpr,dpr);
+    gx.clearRect(0,0,gw,gh);
+    var labelW=56, topH=22, rowH;
+    var machList=Array.from(uniqMach);
+    if(machList.length===0) machList=(typeof MACHINES!=='undefined'&&MACHINES.length)?MACHINES.slice(0,6).map(function(m){ return m.id; }):['—'];
+    machList=machList.sort().slice(0,8);
+    rowH=(gh-topH-4)/machList.length;
+    var ws=new Date(today);
+    var we=new Date(today); we.setDate(we.getDate()+7);
+    var span=we-ws||1;
+    var plotW=gw-labelW-8;
+    for(var di=0;di<7;di++){
+      var dx=labelW+4+di*(plotW/7);
+      gx.fillStyle='rgba(139,148,158,0.12)';
+      if(di%2===0) gx.fillRect(dx, topH, plotW/7, gh-topH);
+      gx.fillStyle='#8b949e';
+      gx.font='9px sans-serif';
+      var dd=new Date(ws); dd.setDate(dd.getDate()+di);
+      gx.fillText(String(dd.getDate())+'/'+(dd.getMonth()+1), dx+2, 14);
+    }
+    gx.strokeStyle='rgba(139,148,158,0.35)';
+    gx.beginPath();
+    gx.moveTo(labelW, topH); gx.lineTo(gw, topH);
+    gx.stroke();
+    machList.forEach(function(mid, ri){
+      var y=topH+ri*rowH+4, hBar=Math.max(14, rowH-8);
+      gx.fillStyle='#c9d1d9'; gx.font='10px sans-serif';
+      gx.fillText(String(mid).slice(0,8), 4, y+hBar*0.65);
+      var ords=pipeAll.filter(function(o){ return String((o.machine||'').trim().split(/\s+/)[0])===mid; });
+      ords.forEach(function(o){
+        var sD=_ymd(o.startDate||o.createdAt)||today;
+        var eD=_ymd(o.dueDate)||new Date(sD.getTime()+3*86400000);
+        if(eD<sD) eD=new Date(sD.getTime()+86400000);
+        var cs=Math.max(ws,sD), ce=Math.min(we, eD);
+        if(ce<=ws||cs>=we) return;
+        var x0=labelW+4+((cs-ws)/span)*plotW;
+        var x1=labelW+4+((ce-ws)/span)*plotW;
+        var bw=Math.max(4, x1-x0);
+        var col=o.status==='Delay'?'#f85149':o.status==='กำลังผลิต'?'#3fb950':o.status==='พร้อมส่ง'?'#d2a8ff':'#388bfd';
+        gx.fillStyle=col;
+        gx.globalAlpha=0.85;
+        gx.fillRect(x0, y, bw, hBar);
+        gx.globalAlpha=1;
+        gx.fillStyle='#f0f6fc';
+        gx.font='9px sans-serif';
+        var lab=(String(o.orderNo||'').slice(0,10))+' '+(o.qty>999?Math.round(o.qty/1000)+'k':(o.qty||0));
+        if(bw>36) gx.fillText(lab, x0+3, y+hBar*0.62);
+      });
+    });
+  }
 }
 function filterOrders(v){ renderOrdersTable(v, undefined); }
 function filterOrderStatus(v){ renderOrdersTable(undefined, v); }
@@ -32146,6 +32446,13 @@ function costDashLastNDates(n, lots){
   return arr;
 }
 
+function _costDashFmtAxisBaht(v){
+  v=+v||0;
+  if(v>=1e6) return (v/1e6).toFixed(1)+'M';
+  if(v>=1e3) return (v/1e3).toFixed(v>=1e5?0:1)+'K';
+  return String(Math.round(v));
+}
+
 function _costDashDrawDailyCombo(canvasId, labels, actualArr, bomArr, pctArr){
   var canvas=document.getElementById(canvasId);
   if(!canvas) return;
@@ -32155,65 +32462,77 @@ function _costDashDrawDailyCombo(canvasId, labels, actualArr, bomArr, pctArr){
   var H=canvas.height||210;
   canvas.width=W;
   ctx.clearRect(0,0,W,H);
-  var pad={l:46,r:44,t:16,b:30};
+  var pad={l:52,r:52,t:18,b:32};
   var cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
   var n=labels.length||1;
   var maxL=Math.max.apply(null,actualArr.concat(bomArr).concat([1]));
   var minP=Math.min.apply(null,pctArr.concat([0]));
   var maxP=Math.max.apply(null,pctArr.concat([0]));
-  var padP=Math.max(8,(maxP-minP)*0.12);
+  var padP=Math.max(5,(maxP-minP)*0.1);
   minP-=padP; maxP+=padP;
-  if(maxP-minP<15){ var mid=(maxP+minP)/2; minP=mid-10; maxP=mid+10; }
-  ctx.strokeStyle='rgba(139,148,158,0.15)'; ctx.lineWidth=1;
+  if(maxP-minP<12){ var mid=(maxP+minP)/2; minP=mid-8; maxP=mid+8; }
+  function yL(val){ return pad.t+ch-(Math.max(0,val)/maxL)*ch; }
+  function yP(pct){ return pad.t+ch-((pct-minP)/(maxP-minP||1))*ch; }
+  function xBarCenter(xi){
+    var bw=cw/(n*1.2+0.2);
+    return pad.l+(xi*1.2+0.2)*bw+bw*0.375;
+  }
+  var bw=cw/(n*1.2+0.2);
+  ctx.strokeStyle='rgba(139,148,158,0.1)'; ctx.lineWidth=1;
+  for(var vx=0;vx<n;vx++){
+    var xc=xBarCenter(vx);
+    ctx.beginPath(); ctx.moveTo(xc,pad.t); ctx.lineTo(xc,pad.t+ch); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(139,148,158,0.14)'; ctx.lineWidth=1;
   for(var g=0;g<=4;g++){
     var yy=pad.t+ch-(g/4)*ch;
     ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
-    ctx.fillStyle='rgba(139,148,158,0.55)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
-    ctx.fillText(String(Math.round(maxL*g/4)), pad.l-4, yy+3);
+    ctx.fillStyle='rgba(139,148,158,0.65)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(_costDashFmtAxisBaht(maxL*g/4), pad.l-5, yy+3);
   }
   for(g=0;g<=4;g++){
     var yy2=pad.t+ch-(g/4)*ch;
     var pv=minP+(maxP-minP)*(g/4);
-    ctx.fillStyle='rgba(248,136,62,0.65)'; ctx.textAlign='left'; ctx.font='9px IBM Plex Mono,monospace';
-    ctx.fillText((g===0||g===4)?(Math.round(pv*10)/10+'%'):'', W-pad.r+4, yy2+3);
+    ctx.fillStyle='rgba(240,136,62,0.85)'; ctx.textAlign='left'; ctx.font='9px IBM Plex Mono,monospace';
+    ctx.fillText((Math.round(pv*10)/10)+'%', W-pad.r+5, yy2+3);
   }
-  var bw=cw/(n*1.2+0.2);
   actualArr.forEach(function(v,xi){
     var bh=Math.max(0,(v/maxL)*ch);
     var x=pad.l+(xi*1.2+0.2)*bw;
     var y=pad.t+ch-bh;
     ctx.fillStyle='rgba(56,139,253,0.82)';
     ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(x,y,bw*0.75,bh,3); else ctx.rect(x,y,bw*0.75,bh);
+    if(ctx.roundRect) ctx.roundRect(x,y,bw*0.72,bh,4); else ctx.rect(x,y,bw*0.72,bh);
     ctx.fill();
   });
-  function yL(val){ return pad.t+ch-(Math.max(0,val)/maxL)*ch; }
-  function yP(pct){ return pad.t+ch-((pct-minP)/(maxP-minP))*ch; }
-  ctx.strokeStyle='rgba(63,185,80,0.95)'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+  ctx.strokeStyle='rgba(63,185,80,0.98)'; ctx.lineWidth=2.2; ctx.setLineDash([7,5]);
   ctx.beginPath();
   bomArr.forEach(function(v,xi){
-    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
-    var y=yL(v);
+    var x=xBarCenter(xi), y=yL(v);
     if(xi===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke(); ctx.setLineDash([]);
-  ctx.strokeStyle='rgba(240,136,62,0.95)'; ctx.lineWidth=2;
+  bomArr.forEach(function(v,xi){
+    var x=xBarCenter(xi), y=yL(v);
+    ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(63,185,80,0.95)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  });
+  ctx.strokeStyle='rgba(240,136,62,0.98)'; ctx.lineWidth=2;
   ctx.beginPath();
   pctArr.forEach(function(p,xi){
-    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
-    var y=yP(p);
+    var x=xBarCenter(xi), y=yP(p);
     if(xi===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
   pctArr.forEach(function(p,xi){
-    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
-    var y=yP(p);
-    ctx.fillStyle='#f0883e'; ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
+    var x=xBarCenter(xi), y=yP(p);
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#f0883e'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#f0883e'; ctx.beginPath(); ctx.arc(x,y,2.2,0,Math.PI*2); ctx.fill();
   });
-  ctx.fillStyle='rgba(139,148,158,0.8)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(139,148,158,0.88)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
   labels.forEach(function(l,xi){
-    var x=pad.l+(xi*1.2+0.2)*bw+bw*0.375;
-    ctx.fillText(String(l), x, H-8);
+    ctx.fillText(String(l), xBarCenter(xi), H-7);
   });
   ctx.textAlign='left';
 }
@@ -32263,49 +32582,65 @@ function _costDashDrawUnitLines(canvasId, labels, actPc, bomPc){
   var H=canvas.height||190;
   canvas.width=W;
   ctx.clearRect(0,0,W,H);
-  var pad={l:42,r:14,t:14,b:28};
+  var pad={l:48,r:18,t:16,b:30};
   var cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
-  var n=labels.length||1;
+  var n=Math.max(1,labels.length);
   var all=[];
   actPc.forEach(function(v){ if(isFinite(v)) all.push(v); });
   bomPc.forEach(function(v){ if(isFinite(v)) all.push(v); });
-  var maxV=Math.max.apply(null,all.concat([1]))*1.08;
+  var rawMax=all.length?Math.max.apply(null,all):1;
+  var maxV=Math.max(rawMax*1.12, 0.5);
   var minV=0;
-  ctx.strokeStyle='rgba(139,148,158,0.12)'; ctx.lineWidth=1;
+  function xAt(i){
+    if(n<=1) return pad.l+cw/2;
+    return pad.l+(i/(n-1))*cw;
+  }
+  function yAt(v){ return pad.t+ch-((v-minV)/(maxV-minV||1))*ch; }
+  ctx.strokeStyle='rgba(139,148,158,0.08)'; ctx.lineWidth=1;
+  for(var vi=0;vi<n;vi++){
+    var xv=xAt(vi);
+    ctx.beginPath(); ctx.moveTo(xv,pad.t); ctx.lineTo(xv,pad.t+ch); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(139,148,158,0.14)'; ctx.lineWidth=1;
   for(var g=0;g<=4;g++){
     var yy=pad.t+ch-(g/4)*ch;
     ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
-    ctx.fillStyle='rgba(139,148,158,0.55)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
-    ctx.fillText((maxV*g/4).toFixed(2), pad.l-4, yy+3);
+    ctx.fillStyle='rgba(139,148,158,0.6)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText((maxV*g/4).toFixed(2), pad.l-6, yy+3);
   }
-  function xAt(i){ return pad.l+(i/(n-1||1))*cw; }
-  function yAt(v){ return pad.t+ch-((v-minV)/(maxV-minV))*ch; }
-  ctx.strokeStyle='rgba(63,185,80,0.9)'; ctx.lineWidth=2; ctx.setLineDash([5,4]);
-  ctx.beginPath();
-  var started=false;
+  function strokeSeries(vals, dash){
+    ctx.setLineDash(dash||[]);
+    ctx.beginPath();
+    var pen=false;
+    for(var i=0;i<vals.length;i++){
+      if(!isFinite(vals[i])){ pen=false; continue; }
+      var x=xAt(i), y=yAt(vals[i]);
+      if(!pen){ ctx.moveTo(x,y); pen=true; }
+      else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle='rgba(63,185,80,0.95)'; ctx.lineWidth=2.2;
+  strokeSeries(bomPc,[6,5]);
   bomPc.forEach(function(v,i){
     if(!isFinite(v)) return;
     var x=xAt(i), y=yAt(v);
-    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    ctx.fillStyle='#ffffff';
+    ctx.strokeStyle='rgba(63,185,80,0.98)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(63,185,80,0.95)'; ctx.beginPath(); ctx.arc(x,y,2.2,0,Math.PI*2); ctx.fill();
   });
-  ctx.stroke(); ctx.setLineDash([]);
-  ctx.strokeStyle='rgba(56,139,253,0.95)'; ctx.lineWidth=2;
-  ctx.beginPath(); started=false;
+  ctx.strokeStyle='rgba(56,139,253,0.98)'; ctx.lineWidth=2.4;
+  strokeSeries(actPc,[]);
   actPc.forEach(function(v,i){
     if(!isFinite(v)) return;
     var x=xAt(i), y=yAt(v);
-    if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y);
+    ctx.fillStyle='#388bfd';
+    ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.beginPath(); ctx.arc(x,y,1.9,0,Math.PI*2); ctx.fill();
   });
-  ctx.stroke();
-  actPc.forEach(function(v,i){
-    if(!isFinite(v)) return;
-    ctx.fillStyle='#388bfd'; ctx.beginPath(); ctx.arc(xAt(i),yAt(v),4,0,Math.PI*2); ctx.fill();
-  });
-  bomPc.forEach(function(v,i){
-    if(!isFinite(v)) return;
-    ctx.fillStyle='#3fb950'; ctx.beginPath(); ctx.arc(xAt(i),yAt(v),4,0,Math.PI*2); ctx.fill();
-  });
-  ctx.fillStyle='rgba(139,148,158,0.8)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(139,148,158,0.88)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
   labels.forEach(function(l,i){ ctx.fillText(String(l), xAt(i), H-8); });
   ctx.textAlign='left';
 }
@@ -32379,11 +32714,17 @@ function renderCostDashboard(lots){
   setTimeout(function(){
     _costDashDrawDonut('cost-dash-donut-canvas', segs, 'รวม', '฿ '+fmt2(totalAct));
   }, 40);
+  var gbBW=0, gbBO=0;
+  lotsArr.forEach(function(l){
+    var bu=+(l.bomUnit||0), ok=+(l.okProd||0);
+    if(bu>0){ gbBW+=bu*ok; gbBO+=ok; }
+  });
+  var globalBomPc=gbBO>0?gbBW/gbBO:NaN;
   var actPc=[], bomPc=[];
   dates.forEach(function(d){
     var o=by[d]||{ act:0, ok:0, bomW:0, bomOk:0 };
     actPc.push(o.ok>0?o.act/o.ok:NaN);
-    bomPc.push(o.bomOk>0?o.bomW/o.bomOk:NaN);
+    bomPc.push(isFinite(globalBomPc)?globalBomPc:NaN);
   });
   setTimeout(function(){ _costDashDrawUnitLines('cost-dash-unit-canvas', labels, actPc, bomPc); }, 70);
   var ins=document.getElementById('cost-dash-insights');
@@ -38382,6 +38723,49 @@ function loadApprovalProc(){
   renderApprovalProcList();
 }
 
+function approvalProcEscAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+function approvalProcSyncStatusesFromMap(){
+  var needSaveProc = false;
+  (approvalProcDocs||[]).forEach(function(d){
+    if(typeof syncApprovalProcDocStatusWithApprovalMap==='function' && syncApprovalProcDocStatusWithApprovalMap(d)) needSaveProc = true;
+  });
+  if(needSaveProc && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
+}
+function approvalProcGetFilteredDocs(){
+  var filterOrder = (document.getElementById('ap-order-sel')||{}).value||'';
+  var filterMachine = (document.getElementById('approc-machine-sel')||{}).value||'';
+  return (approvalProcDocs||[]).filter(function(d){
+    return (!filterOrder || d.orderNo===filterOrder) &&
+      (!filterMachine || d.machine===filterMachine) &&
+      apDocMatchesWorkGroupFilter(d) &&
+      apDocMatchesListTab(d);
+  });
+}
+/** คลิกเปิด/พิมพ์/ลบในรายการใบอนุมัติ — ใช้ delegation แทน inline onclick เพื่อไม่ให้ id มีอักขระพิเศษแล้วลบไม่ได้ */
+function approvalProcBindListClickDelegation(){
+  if(window._apListClickDelegationBound) return;
+  var root = document.getElementById('page-approvalproc');
+  if(!root) return;
+  window._apListClickDelegationBound = true;
+  root.addEventListener('click', function(ev){
+    var btn = ev.target.closest('button[data-ap-action]');
+    if(!btn || !root.contains(btn)) return;
+    var id = btn.getAttribute('data-ap-id');
+    if(id==null || id==='') return;
+    var act = btn.getAttribute('data-ap-action');
+    ev.preventDefault();
+    if(act==='open'){
+      if(typeof openApprovalProcDetail==='function') openApprovalProcDetail(id);
+    } else if(act==='print'){
+      if(typeof printApprovalProcDoc==='function') printApprovalProcDoc(id);
+    } else if(act==='delete'){
+      if(typeof approvalProcDelete==='function') approvalProcDelete(id);
+    }
+  });
+}
+
 // ── helper: add entry to approvalLog from anywhere (not just from approval modal)
 function addToApprovalLog(key, label, by, action){
   if(!approvalLog) approvalLog=[];
@@ -38402,6 +38786,7 @@ function renderApprovalProcList(){
   apEnsureAssemblyRows();
   const tbody = document.getElementById('approvalproc-tbody');
   if(!tbody) return;
+  approvalProcBindListClickDelegation();
   const oSel = document.getElementById('ap-order-sel');
   if(oSel){
     var prevO = oSel.value;
@@ -38445,19 +38830,8 @@ function renderApprovalProcList(){
   if(dlJob){ dlJob.innerHTML='';
     jobs.forEach(j=>{ const opt=document.createElement('option'); opt.value=j.name; dlJob.appendChild(opt); });
   }
-  const filterOrder   = document.getElementById('ap-order-sel')?.value||'';
-  const filterMachine = document.getElementById('approc-machine-sel')?.value||'';
-  var needSaveProc = false;
-  approvalProcDocs.forEach(function(d){
-    if(syncApprovalProcDocStatusWithApprovalMap(d)) needSaveProc = true;
-  });
-  if(needSaveProc && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
-  const list = approvalProcDocs.filter(d=>
-    (!filterOrder   || d.orderNo===filterOrder) &&
-    (!filterMachine || d.machine===filterMachine) &&
-    apDocMatchesWorkGroupFilter(d) &&
-    apDocMatchesListTab(d)
-  );
+  approvalProcSyncStatusesFromMap();
+  const list = approvalProcGetFilteredDocs();
   const statusColor = {รออนุมัติ:'badge-yellow',รอผลิต:'badge-yellow',อนุมัติแล้ว:'badge-green',ไม่อนุมัติ:'badge-red',ปฏิเสธ:'badge-red',แก้ไข:'badge-yellow'};
   tbody.innerHTML = list.length ? list.map(d=>`<tr>
     <td class="mono" style="font-size:11px">${d.docNo}</td>
@@ -38469,9 +38843,9 @@ function renderApprovalProcList(){
     <td><span class="badge ${statusColor[d.status]||'badge-yellow'}">${d.status}</span></td>
     <td style="font-size:12px">${d.approvedBy||'-'}</td>
     <td class="flex gap-1">
-      <button class="btn btn-secondary btn-sm" onclick="openApprovalProcDetail('${d.id}')">📝 เปิด</button>
-      <button class="btn btn-sm" style="background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:#388bfd" onclick="printApprovalProcDoc('${d.id}')">🖨</button>
-      <button onclick="approvalProcDelete('${d.id}')" style="${_DEL_BTN}">🗑</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-ap-action="open" data-ap-id="${approvalProcEscAttr(d.id)}">📝 เปิด</button>
+      <button type="button" class="btn btn-sm" style="background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.3);color:#388bfd" data-ap-action="print" data-ap-id="${approvalProcEscAttr(d.id)}">🖨</button>
+      <button type="button" data-ap-action="delete" data-ap-id="${approvalProcEscAttr(d.id)}" style="${_DEL_BTN}">🗑</button>
     </td>
   </tr>`).join('')
   : '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">ยังไม่มีใบอนุมัติ กด "+ สร้างใบอนุมัติใหม่"</td></tr>';
@@ -43759,7 +44133,7 @@ function renderApprovalDocs(){
 // Per-page search filters
 // ════════════════════════════════════════════════════════════════
 function apSearchFilter(q){
-  q=q.toLowerCase();
+  q=String(q||'').toLowerCase();
   const rows=document.querySelectorAll('#approvalproc-tbody tr');
   rows.forEach(r=>{
     const txt=r.textContent.toLowerCase();
@@ -49843,7 +50217,8 @@ function _clRenderChart(){
           <option value="">ทุกเครื่อง</option>
         </select>
       </div>
-      <button class="btn btn-secondary btn-sm" style="margin-bottom:2px" onclick="renderApprovalProcList()">🔄 รีเฟรช</button>
+      <button type="button" class="btn btn-secondary btn-sm" style="margin-bottom:2px" onclick="renderApprovalProcList()">🔄 รีเฟรช</button>
+      <button type="button" class="btn btn-sm" style="margin-bottom:2px;background:rgba(248,81,73,0.12);border:1px solid rgba(248,81,73,0.45);color:#f85149;font-weight:700" onclick="approvalProcDeleteAllFiltered()" title="ลบเฉพาะรายการที่ตรงกับตัวกรองปัจจุบัน">🗑 ลบทั้งหมด (ตามตัวกรอง)</button>
     </div>
   </div>
 
@@ -51274,7 +51649,7 @@ function _clRenderChart(){
       <div style="height:190px;width:100%"><canvas id="cost-dash-unit-canvas" height="190" style="width:100%;display:block"></canvas></div>
       <div style="display:flex;gap:14px;font-size:9px;color:var(--text3);margin-top:6px">
         <span><span style="color:#388bfd;font-weight:700">●</span> ต้นทุนจริง/ชิ้น</span>
-        <span><span style="color:#3fb950;font-weight:700">●</span> BOM/ชิ้น (ถ่วงน้ำหนักวัน)</span>
+        <span><span style="color:#3fb950;font-weight:700">┅</span> BOM/ชิ้น (เส้นประ = มาตรฐานเฉลี่ยจาก Lot ในช่วง)</span>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:14px">
@@ -55254,12 +55629,45 @@ function pmPlanDelete(id){
 
 // ── ใบอนุมัติกระบวนการ ───────────────────────────────────────────
 function approvalProcDelete(id){
-  const d=approvalProcDocs.find(x=>x.id===id); if(!d) return;
-  _confirmDel('🗑 ลบใบอนุมัติ: <b>'+d.docNo+'</b><br>Order: '+(d.orderNo||'—'), function(){
-    const idx=approvalProcDocs.findIndex(x=>x.id===id); if(idx>=0) approvalProcDocs.splice(idx,1);
+  var sid = String(id==null?'':id).trim();
+  if(!sid) return;
+  var d = (approvalProcDocs||[]).find(function(x){ return String(x.id)===sid; });
+  if(!d){ if(typeof _infoToast==='function') _infoToast('ไม่พบใบอนุมัติ — ลองกดรีเฟรช'); return; }
+  _confirmDel('🗑 ลบใบอนุมัติ: <b>'+String(d.docNo||'').replace(/</g,'&lt;')+'</b><br>Order: '+(d.orderNo||'—'), function(){
+    var idx = (approvalProcDocs||[]).findIndex(function(x){ return String(x.id)===sid; });
+    if(idx<0) return;
+    approvalProcDocs.splice(idx,1);
     if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
+    if(String(_apCurrentId||'')===sid){
+      _apCurrentId=null;
+      var sec=document.getElementById('ap-detail-section');
+      if(sec) sec.style.display='none';
+    }
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
-    if(typeof _toast==='function') _toast('🗑 ลบใบอนุมัติ '+d.docNo+' แล้ว');
+    if(typeof _toast==='function') _toast('🗑 ลบใบอนุมัติ '+(d.docNo||'')+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
+  });
+}
+function approvalProcDeleteAllFiltered(){
+  approvalProcSyncStatusesFromMap();
+  var list = approvalProcGetFilteredDocs();
+  if(!list.length){
+    if(typeof _infoToast==='function') _infoToast('ไม่มีรายการตามตัวกรอง — ไม่มีอะไรให้ลบ');
+    return;
+  }
+  _confirmDel('🗑 ลบใบอนุมัติ <b>'+list.length+' รายการ</b> ตามตัวกรองปัจจุบัน (สายงาน / มุมมอง / Order / เครื่อง)<br><span style="font-size:11px;color:#8b949e">ลบถาวรจากรายการนี้ — ถ้าใช้ซิงก์คลาวด์ แนะนำให้รอบันทึกเสร็จหลังลบ</span>', function(){
+    var idSet = {};
+    list.forEach(function(doc){ if(doc && doc.id!=null) idSet[String(doc.id)] = true; });
+    approvalProcDocs = (approvalProcDocs||[]).filter(function(doc){ return !idSet[String(doc.id)]; });
+    if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
+    if(_apCurrentId && idSet[String(_apCurrentId)]){
+      _apCurrentId=null;
+      var sec=document.getElementById('ap-detail-section');
+      if(sec) sec.style.display='none';
+    }
+    if(typeof renderApprovalProcList==='function') renderApprovalProcList();
+    if(typeof _toast==='function') _toast('🗑 ลบ '+Object.keys(idSet).length+' ใบอนุมัติแล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
