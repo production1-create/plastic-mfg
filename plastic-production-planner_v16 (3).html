@@ -3977,13 +3977,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <!-- Tab: Stock -->
   <div id="tab-fg-stock">
+    <div id="fg-stock-dash-wrap" class="mb-3"></div>
     <div class="card mb-3">
       <div class="form-row">
         <div class="search-box form-group" style="max-width:300px">
           <span class="search-icon">🔍</span>
-          <input type="text" placeholder="ค้นหาสินค้า..." oninput="filterStock(this.value)">
+          <input type="text" id="fg-stock-search" placeholder="ค้นหาสินค้า..." oninput="filterStock(this.value)">
         </div>
-        <select style="max-width:160px" onchange="filterStockStatus(this.value)">
+        <select id="fg-stock-status" style="max-width:160px" onchange="filterStockStatus(this.value)">
           <option value="">ทุกสถานะ</option><option>ปกติ</option><option>ต่ำกว่า Min</option><option>เกิน Max</option>
         </select>
       </div>
@@ -23893,7 +23894,7 @@ function dashWidgetOrders(){
 }
 
 function dashWidgetApprovalQueue(){
-  var docs=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs:[];
+  var docs=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs.filter(apDocIsLive):[];
   var pend=docs.filter(function(d){
     var s=d.status||'';
     return s==='รออนุมัติ'||s==='รอผลิต'||!s;
@@ -25438,6 +25439,192 @@ function fgRefreshOutLotUI(){
     else hint.innerHTML='💡 แนะนำ FIFO: <b>'+_fgEscHtml(first.lot)+'</b> ('+Number(first.qty||0).toLocaleString()+' ชิ้น)';
   }
 }
+function fgDashMonthChange(sel){
+  try{ localStorage.setItem('_fgDashMonths', sel && sel.value ? sel.value : '12'); }catch(e){}
+  var q=(document.getElementById('fg-stock-search')||{}).value||'';
+  var st=(document.getElementById('fg-stock-status')||{}).value||'';
+  if(typeof renderStock==='function') renderStock(q,st);
+}
+function fgDashPricePerPcs(jobName){
+  var j=(typeof jobs!=='undefined'&&jobs)?jobs.find(function(x){ return x&&x.name===jobName; }):null;
+  return Math.max(0, Number(j&&j.bomUnitCost)||0);
+}
+/** แดชบอร์ด FG Stock — โครงสร้างคล้ายแดชบอร์ดวัตถุดิบ (KPI + เตือน + กราฟจ่ายออก + ตารางรายเดือน) */
+function renderFgStockDashboard(list){
+  var wrap=document.getElementById('fg-stock-dash-wrap');
+  if(!wrap) return;
+  if(!list||!list.length){ wrap.innerHTML=''; wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  var nM=parseInt((function(){ try{return localStorage.getItem('_fgDashMonths');}catch(e){return null;} })()||'12',10);
+  if(nM!==6 && nM!==12) nM=12;
+  var jobsSet={};
+  list.forEach(function(e){ jobsSet[e[0]]=1; });
+  var months=[];
+  var d=new Date();
+  d.setDate(1);
+  for(var i=nM-1;i>=0;i--){
+    var dd=new Date(d.getFullYear(), d.getMonth()-i, 1);
+    months.push(dd.toISOString().substring(0,7));
+  }
+  var thMon=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var labels=months.map(function(mo){
+    var p=mo.split('-');
+    return thMon[(parseInt(p[1],10)||1)-1]+'\''+String(p[0]).slice(-2);
+  });
+  function outPcsMonth(mo){
+    var sum=0;
+    Object.keys(fgLedger||{}).forEach(function(job){
+      if(!jobsSet[job]) return;
+      (fgLedger[job]||[]).forEach(function(r){
+        if(r.type!=='out') return;
+        if(String(r.date||'').substring(0,7)!==mo) return;
+        sum+=Math.abs(Number(r.qty)||0);
+      });
+    });
+    return sum;
+  }
+  var outSeries=months.map(outPcsMonth);
+  var valSeries=months.map(function(mo){
+    var w=0;
+    Object.keys(fgLedger||{}).forEach(function(job){
+      if(!jobsSet[job]) return;
+      var pr=fgDashPricePerPcs(job);
+      (fgLedger[job]||[]).forEach(function(r){
+        if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
+        w+=Math.abs(Number(r.qty)||0)*pr;
+      });
+    });
+    return w;
+  });
+  var totalStockVal=0, belowMinVal=0, nearMaxVal=0, ytdOutPcs=0;
+  var y0=(new Date()).getFullYear();
+  list.forEach(function(e){
+    var name=e[0], s=e[1]||{};
+    var pr=fgDashPricePerPcs(name);
+    var q=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0, mx=parseInt(s.max,10)||0;
+    totalStockVal+=q*pr;
+    if(q<mn) belowMinVal+=(mn-q)*pr;
+    if(mx>0 && q>mx*0.95) nearMaxVal+=(q-mx*0.95)*pr;
+  });
+  Object.keys(fgLedger||{}).forEach(function(job){
+    if(!jobsSet[job]) return;
+    (fgLedger[job]||[]).forEach(function(r){
+      if(r.type!=='out') return;
+      if(String(r.date||'').substring(0,4)!==String(y0)) return;
+      ytdOutPcs+=Math.abs(Number(r.qty)||0);
+    });
+  });
+  var totalQty=list.reduce(function(a,e){ return a+(parseInt(e[1]&&e[1].qty,10)||0); },0);
+  var avgStockPcs=list.length?totalQty/list.length:0;
+  var turnoverYtd=avgStockPcs>0.01?(ytdOutPcs/avgStockPcs):0;
+  var alerts=[];
+  list.forEach(function(e){
+    var name=e[0], s=e[1]||{};
+    var q=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0, mx=parseInt(s.max,10)||0;
+    if(q<mn) alerts.push({job:name,lv:'เร่งด่วน',msg:'ต่ำกว่า Min — เหลือ '+q.toLocaleString()+' ชิ้น',col:'#f85149'});
+    else if(mn>0 && q<mn*1.15) alerts.push({job:name,lv:'เฝ้าระวัง',msg:'ใกล้ Min — '+q.toLocaleString()+' ชิ้น',col:'#e3b341'});
+    else if(mx>0 && q>mx) alerts.push({job:name,lv:'เกิน Max',msg:'สต็อกเกินเป้า Max',col:'#f0883e'});
+  });
+  alerts=alerts.slice(0,8);
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  var sparkN=Math.min(6, months.length);
+  var sparkStart=months.length-sparkN;
+  var jobNames=list.map(function(e){ return e[0]; }).slice().sort();
+  wrap.innerHTML=
+    '<div style="border:1px solid rgba(57,197,207,0.35);border-radius:14px;padding:14px 16px;background:linear-gradient(165deg,rgba(57,197,207,0.09),transparent 55%),var(--bg2)">'
+    +'<div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">'
+      +'<div><div style="font-size:16px;font-weight:900;color:#39c5cf;letter-spacing:0.02em">แดชบอร์ด FG Stock</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:3px">กราฟจาก <b>บัญชีคุม FG (จ่ายออก)</b> รายเดือน · มูลค่าจาก <b>ต้นทุน BOM ฿/ชิ้น</b> ในเมนูงาน (ถ้าไม่มีต้นทุน = 0)</div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span style="font-size:10px;color:var(--text3);font-weight:700">ช่วงกราฟ</span>'
+        +'<select id="fg-dash-months" onchange="fgDashMonthChange(this)" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px">'
+          +'<option value="6"'+(nM===6?' selected':'')+'>6 เดือนล่าสุด</option>'
+          +'<option value="12"'+(nM===12?' selected':'')+'>12 เดือนล่าสุด</option>'
+        +'</select>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px">'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่า Stock รวม (ประมาณ)</div>'
+        +'<div style="font-size:20px;font-weight:900;color:var(--text);margin-top:4px">฿ '+Math.round(totalStockVal).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">จาก '+list.length+' งานในหน้าจอ (ตามค้นหา/สถานะ)</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">ต้นทุนเฉลี่ย / ชิ้น (ถ่วง)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#79c0ff;margin-top:4px">฿ '+(totalQty>0?(totalStockVal/Math.max(1e-6,totalQty)).toFixed(2):'0.00')+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">มูลค่า Stock ÷ จำนวนชิ้นรวม</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่าต่ำกว่า Min (ประมาณ)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#f85149;margin-top:4px">฿ '+Math.round(belowMinVal).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">ขาดจากขั้นต่ำ × ต้นทุน/ชิ้น</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่าเกิน 95% Max (ประมาณ)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#f0883e;margin-top:4px">฿ '+Math.max(0,Math.round(nearMaxVal)).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">ส่วนเกินกว่า 95% ของ Max</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">Turnover (YTD)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#3fb950;margin-top:4px">'+turnoverYtd.toFixed(2)+'×</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">จ่ายออกสะสมปีนี้ ÷ สต็อกเฉลี่ยต่องาน</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:minmax(220px,0.95fr) minmax(280px,1.05fr);gap:12px;margin-bottom:12px">'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg);max-height:220px;overflow:auto">'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">แจ้งเตือนอัตโนมัติ</div>'
+        +(alerts.length?alerts.map(function(a){
+          return '<div style="border-bottom:1px solid var(--border);padding:8px 0;font-size:11px">'
+            +'<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:'+a.col+'22;color:'+a.col+';border:1px solid '+a.col+'44">'+esc(a.lv)+'</span> '
+            +'<span style="font-size:10px;font-weight:800;color:var(--text)">'+esc(a.job)+'</span>'
+            +'<div style="color:var(--text2);margin-top:4px">'+esc(a.msg)+'</div></div>';
+        }).join(''):'<div style="font-size:11px;color:var(--text3)">ไม่มีรายการเตือนในหน้าจอนี้</div>')
+      +'</div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          +'<div style="font-size:12px;font-weight:800;color:var(--text)">แนวโน้มการจ่ายออก (รายเดือน)</div>'
+          +'<div style="font-size:10px;color:var(--text3)">ชิ้น</div>'
+        +'</div>'
+        +'<div style="height:200px;width:100%"><canvas id="fg-dash-canvas" height="200" style="width:100%;display:block"></canvas></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px">'
+          +'<span>รวมจ่ายออกช่วงนี้: <b style="color:#39c5cf">'+outSeries.reduce(function(a,b){return a+b;},0).toLocaleString()+' ชิ้น</b></span>'
+          +'<span>มูลค่าจ่ายออกรวม: <b style="color:#3fb950">฿ '+Math.round(valSeries.reduce(function(a,b){return a+b;},0)).toLocaleString()+'</b></span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg);overflow-x:auto">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">การจ่ายออกรายงาน (เดือนล่าสุด '+sparkN+' เดือน)</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:520px">'
+        +'<thead><tr style="background:var(--bg3)">'
+          +'<th style="padding:6px 8px;text-align:left;color:var(--text3)">ชื่องาน</th>'
+          +months.slice(sparkStart).map(function(mo){return '<th style="padding:6px 4px;text-align:center;color:var(--text3);white-space:nowrap">'+esc(mo)+'</th>';}).join('')
+          +'<th style="padding:6px 8px;text-align:right;color:var(--text3)">รวมช่วง</th>'
+        +'</tr></thead><tbody>'
+        +jobNames.map(function(job){
+          var row=months.slice(sparkStart).map(function(mo){
+            var pcs=0;
+            (fgLedger[job]||[]).forEach(function(r){
+              if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
+              pcs+=Math.abs(Number(r.qty)||0);
+            });
+            return '<td style="padding:5px 4px;text-align:center;font-family:monospace;color:var(--text2)">'+(pcs>0?pcs.toLocaleString():'—')+'</td>';
+          }).join('');
+          var tot=months.slice(sparkStart).reduce(function(a,mo){
+            var pcs=0;
+            (fgLedger[job]||[]).forEach(function(r){
+              if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
+              pcs+=Math.abs(Number(r.qty)||0);
+            });
+            return a+pcs;
+          },0);
+          return '<tr style="border-bottom:1px solid var(--border)">'
+            +'<td style="padding:6px 8px"><span style="font-weight:800;font-size:11px;color:var(--text)">'+esc(job)+'</span></td>'
+            +row
+            +'<td style="padding:6px 8px;text-align:right;font-weight:800;color:#39c5cf">'+tot.toLocaleString()+'</td>'
+          +'</tr>';
+        }).join('')
+      +'</tbody></table>'
+    +'</div>'
+  +'</div>';
+  setTimeout(function(){
+    if(typeof _rmDashDrawBars==='function') _rmDashDrawBars('fg-dash-canvas', labels, outSeries, 'rgba(57,197,207,0.85)');
+  }, 30);
+}
 function renderStock(filter='',statusFilter=''){
   let list=Object.entries(fgStock);
   if(filter) list=list.filter(([name])=>name.toLowerCase().includes(filter.toLowerCase()));
@@ -25501,6 +25688,7 @@ function renderStock(filter='',statusFilter=''){
   }
   if(cardsEl) cardsEl.innerHTML=list.map(function(e){ return cardHtml(e[0],e[1]); }).join('')||'<div style="font-size:12px;color:var(--text3);grid-column:1/-1">ยังไม่มีข้อมูล FG Stock</div>';
   if(tbody) tbody.innerHTML=list.map(function(e){ return rowHtml(e[0],e[1]); }).join('')||'<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--text3)">ไม่มีรายการ</td></tr>';
+  if(typeof renderFgStockDashboard==='function') renderFgStockDashboard(list);
 }
 function filterStock(v){ renderStock(v); }
 function filterStockStatus(v){ renderStock('',v); }
@@ -37181,7 +37369,7 @@ function doApproval(action){
       :`<span class="badge badge-red">✗ ปฏิเสธ: ${note}</span>`;
   } else if(key.startsWith('ap-')){
     const apId=key.replace('ap-','');
-    const procDoc=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs.find(x=>x.id===apId):null;
+    const procDoc=(typeof approvalProcDocs!=='undefined'&&approvalProcDocs)?approvalProcDocs.find(x=>x.id===apId&&apDocIsLive(x)):null;
     if(procDoc){
       procDoc.status = action==='approved' ? 'อนุมัติแล้ว' : 'ปฏิเสธ';
       procDoc.approvedBy = by;
@@ -37261,7 +37449,7 @@ function getApprovalBadge(key, label){
 }
 
 function syncApprovalProcDocStatusWithApprovalMap(d){
-  if(!d||!d.id) return false;
+  if(!d||!d.id||d._deleted) return false;
   var a=approvals['ap-'+d.id];
   if(!a) return false;
   var want = a.status==='approved' ? 'อนุมัติแล้ว' : (a.status==='rejected' ? 'ปฏิเสธ' : d.status||'รออนุมัติ');
@@ -38533,7 +38721,8 @@ document.addEventListener('click',function(e){
 
 // ===================== F-PD-I008: ใบอนุมัติกระบวนการฉีดพลาสติก =====================
 const APPROVAL_PROC_LS_KEY = '_approvalProcDocs';
-let approvalProcDocs = []; // [{id,docNo,date,orderNo,jobName,machine,moldNo,status,approvedBy,data:{},apWorkGroup,apCalcSnapshot}]
+let approvalProcDocs = []; // [{id,docNo,..., _deleted?, _deletedAt?, updatedAt?}] — ลบแบบ soft-delete เพื่อซิงก์ merge กับคลาวด์
+function apDocIsLive(d){ return !!(d && !d._deleted); }
 let _apCurrentId = null;
 
 function apTemplateByWorkGroup(wg){
@@ -38657,6 +38846,7 @@ function loadApprovalProcDocs(){
 function apNextDocSuffix(){
   var n = 0;
   approvalProcDocs.forEach(function(d){
+    if(!apDocIsLive(d)) return;
     var m = (d.docNo||'').match(/(\d+)$/);
     if(m) n = Math.max(n, parseInt(m[1], 10));
   });
@@ -38708,6 +38898,7 @@ function initApprovalProcDocs(){
   loadApprovalProcDocs();
   var needSave = false;
   approvalProcDocs.forEach(function(d){
+    if(!apDocIsLive(d)) return;
     if(d.apWorkGroup) return;
     needSave = true;
     var ox = orders.find(function(x){ return x.orderNo===d.orderNo; });
@@ -38729,6 +38920,7 @@ function approvalProcEscAttr(s){
 function approvalProcSyncStatusesFromMap(){
   var needSaveProc = false;
   (approvalProcDocs||[]).forEach(function(d){
+    if(!apDocIsLive(d)) return;
     if(typeof syncApprovalProcDocStatusWithApprovalMap==='function' && syncApprovalProcDocStatusWithApprovalMap(d)) needSaveProc = true;
   });
   if(needSaveProc && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
@@ -38737,6 +38929,7 @@ function approvalProcGetFilteredDocs(){
   var filterOrder = (document.getElementById('ap-order-sel')||{}).value||'';
   var filterMachine = (document.getElementById('approc-machine-sel')||{}).value||'';
   return (approvalProcDocs||[]).filter(function(d){
+    if(!apDocIsLive(d)) return false;
     return (!filterOrder || d.orderNo===filterOrder) &&
       (!filterMachine || d.machine===filterMachine) &&
       apDocMatchesWorkGroupFilter(d) &&
@@ -38857,7 +39050,8 @@ function openNewApprovalProc(){
   var wgCur=(window._apWorkGroup==='postprocess')?'postprocess':'injection';
   const newDoc = {id, docNo, date:new Date().toISOString().split('T')[0],
     orderNo:'', jobName:'', machine:'', moldNo:'', customer:'', cavity:'', weight:'',
-    status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:wgCur, apFormType:apTemplateByWorkGroup(wgCur)};
+    status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:wgCur, apFormType:apTemplateByWorkGroup(wgCur),
+    updatedAt:new Date().toISOString()};
   approvalProcDocs.unshift(newDoc);
   saveApprovalProcDocs();
   openApprovalProcDetail(id);
@@ -38865,8 +39059,8 @@ function openNewApprovalProc(){
 }
 
 function openApprovalProcDetail(id){
-  const d = approvalProcDocs.find(x=>x.id===id);
-  if(!d) return;
+  const d = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
+  if(!d){ if(typeof _infoToast==='function') _infoToast('ไม่พบใบอนุมัติหรือถูกลบแล้ว'); return; }
   if(syncApprovalProcDocStatusWithApprovalMap(d) && typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
   _apCurrentId = id;
   document.getElementById('ap-detail-section').style.display = '';
@@ -39228,7 +39422,7 @@ function apBackfillApprovalDocsFromOrders(){
 
 function apAutoEnsureForOrder(o){
   if(!o || !o.orderNo) return;
-  var existed=approvalProcDocs.find(function(x){ return x.orderNo===o.orderNo; });
+  var existed=approvalProcDocs.find(function(x){ return apDocIsLive(x) && x.orderNo===o.orderNo; });
   if(existed) return existed;
   var j = jobs.find(function(jj){ return jj.name===o.jobName; }) || {};
   var wg = _orderWorkGroup(o);
@@ -39253,7 +39447,8 @@ function apAutoEnsureForOrder(o){
     data: Object.assign({}, fields),
     apWorkGroup: wg,
     apFormType: apTemplateByWorkGroup(wg),
-    apCalcSnapshot: null
+    apCalcSnapshot: null,
+    updatedAt: new Date().toISOString()
   };
   newDoc.apCalcSnapshot = _apCalcMetrics(o,j,{overrideQty:0}).calcDisplay;
   approvalProcDocs.unshift(newDoc);
@@ -39555,8 +39750,8 @@ function ttQAClose(){
 
 function saveApprovalProc(){
   const id = document.getElementById('ap-doc-id').value;
-  const d  = approvalProcDocs.find(x=>x.id===id);
-  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบข้อมูล'); return; }
+  const d  = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
+  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบข้อมูลหรือใบนี้ถูกลบแล้ว'); return; }
   const prevStatus = d.status;
   var rad = document.querySelector('input[name="ap-status-radio"]:checked');
   var stFromUi = rad ? rad.value : (document.getElementById('ap-status')?.value||'รออนุมัติ');
@@ -39613,6 +39808,7 @@ function saveApprovalProc(){
   var ox = orders.find(function(x){ return x.orderNo===d.orderNo; });
   if(ox) d.apWorkGroup = _orderWorkGroup(ox);
   d.apCalcSnapshot = apCaptureApCalcSnapshot();
+  d.updatedAt = new Date().toISOString();
   saveApprovalProcDocs();
   if(prevStatus!==d.status && (d.status==='อนุมัติแล้ว'||d.status==='ปฏิเสธ')){
     if(!approvalLog) approvalLog=[];
@@ -39642,8 +39838,8 @@ function addApChangeRow(){
 
 function printApprovalProcDoc(docId){
   const id = docId || document.getElementById('ap-doc-id')?.value || (_apCurrentId||'');
-  const d  = approvalProcDocs.find(x=>x.id===id);
-  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติ'); return; }
+  const d  = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
+  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติหรือถูกลบแล้ว'); return; }
   if((d.apFormType||'')==='assembly-line'){
     apPrintAssemblyLineDoc(id);
     return;
@@ -40252,8 +40448,8 @@ function apSignMain(roleKey, roleLabel){
 
 function apPrintAssemblyLineDoc(docId){
   const id = docId || document.getElementById('ap-doc-id')?.value || (_apCurrentId||'');
-  const d  = approvalProcDocs.find(x=>x.id===id);
-  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติไลน์ประกอบ'); return; }
+  const d  = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
+  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบเอกสารใบอนุมัติไลน์ประกอบหรือถูกลบแล้ว'); return; }
   const curDocId = document.getElementById('ap-doc-id')?.value || '';
   const useLive = (curDocId === id);
   const fv = function(fid){
@@ -44069,7 +44265,7 @@ function renderApprovalDocs(){
   let allDocs=[];
 
   // From approvalProcDocs (F-PD-I008)
-  (approvalProcDocs||[]).forEach(d=>{
+  (approvalProcDocs||[]).filter(apDocIsLive).forEach(d=>{
     allDocs.push({type:'ใบอนุมัติกระบวนการ (F-PD-I008)',no:d.docNo,title:d.jobName,date:d.date,by:'-',status:d.status,approvedBy:d.approvedBy||'-',note:'เครื่อง '+d.machine,id:'proc-'+d.id});
   });
   // From actionPlans (F-QMR-010)
@@ -44148,7 +44344,7 @@ function orderSearchFilter(v){ filterOrders(v); }
 // ════════════════════════════════════════════════════════════════
 function apPrintWithCalc(){
   const id = document.getElementById('ap-doc-id')?.value;
-  const d  = approvalProcDocs.find(x=>x.id===id);
+  const d  = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
   if(!d){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก/เปิดใบอนุมัติก่อน'); return; }
   const apFv = (fid) => {
     const el = document.getElementById(fid);
@@ -45498,7 +45694,7 @@ const TPP_CONFIG = {
     },
     printSelected: (sel)=>{
       sel.forEach(id=>{
-        const d=(approvalProcDocs||[]).find(x=>x.docNo===id||x.id===id);
+        const d=(approvalProcDocs||[]).find(x=>apDocIsLive(x)&&(x.docNo===id||x.id===id));
         if(d) printApprovalProcDoc(d.id);
         else { const o=orders.find(x=>x.orderNo===id); if(o) printOrderDoc(o); }
       });
@@ -46303,7 +46499,7 @@ const TPP_CONFIG = {
       {id:'tpf-ap-status',label:'สถานะ',type:'select',opts:['ทั้งหมด','รออนุมัติ','อนุมัติแล้ว','ปฏิเสธ']},
       {id:'tpf-ap-search',label:'ค้นหา',type:'text',placeholder:'เลขที่เอกสาร / งาน...'},
     ],
-    getRecords: ()=>Object.values(approvalProcDocs||{}),
+    getRecords: ()=>(approvalProcDocs||[]).filter(apDocIsLive),
     filterRecords: (recs)=>{
       const s=document.getElementById('tpf-ap-status')?.value||'';
       const q=(document.getElementById('tpf-ap-search')?.value||'').toLowerCase();
@@ -46320,14 +46516,14 @@ const TPP_CONFIG = {
       badge: r.docNo||''
     }),
     getPreview: (ids)=>{
-      const r=Object.values(approvalProcDocs||{}).find(x=>(x.docNo||x.id)===ids[0]);
+      const r=(approvalProcDocs||[]).filter(apDocIsLive).find(x=>(x.docNo||x.id)===ids[0]);
       if(!r) return [];
       return [{l:'เลขที่',v:r.docNo},{l:'งาน',v:r.jobName},{l:'เครื่อง',v:r.machine},{l:'วันที่',v:r.date},{l:'สถานะ',v:r.status}];
     },
     printSelected: (sel)=>{
       sel.forEach(id=>{
-        const r=Object.values(approvalProcDocs||{}).find(x=>(x.docNo||x.id)===id);
-        if(r) printApprovalProcDoc(r);
+        const r=(approvalProcDocs||[]).filter(apDocIsLive).find(x=>(x.docNo||x.id)===id);
+        if(r) printApprovalProcDoc(r.id);
       });
     },
     signRoles: [{key:'engineer',label:'วิศวกรกระบวนการ'},{key:'qcmgr',label:'QC Manager'},{key:'prodmgr',label:'Production Manager'},{key:'approver',label:'ผู้อนุมัติ'}]
@@ -46343,7 +46539,7 @@ const TPP_CONFIG = {
     ],
     getRecords: ()=>{
       let all=[];
-      (approvalProcDocs||[]).forEach(d=>all.push({id:'proc-'+d.id,type:'ใบอนุมัติกระบวนการ',no:d.docNo,title:d.jobName,date:d.date,status:d.status}));
+      (approvalProcDocs||[]).filter(apDocIsLive).forEach(d=>all.push({id:'proc-'+d.id,type:'ใบอนุมัติกระบวนการ',no:d.docNo,title:d.jobName,date:d.date,status:d.status}));
       (actionPlans||[]).filter(a=>a && !a._deleted).forEach(a=>all.push({id:'ap-'+a.id,type:'Action Plan',no:'AP-'+a.id,title:a.issue||a.category,date:a.date,status:a.approvalStatus||a.status}));
       (approvalLog||[]).filter(l=>l.key.startsWith('bom-')).forEach(l=>all.push({id:'log-'+l.key,type:'BOM อนุมัติ',no:l.key,title:l.label||l.key,date:l.date,status:l.action==='approved'?'อนุมัติแล้ว':'รออนุมัติ'}));
       (typeof dcDocs!=='undefined'?dcDocs:[]).filter(d=>d.status==='รอรีวิว').forEach(d=>all.push({id:'dc-'+d.id,type:'DC เอกสาร',no:d.docNo,title:d.name,date:d.revDate,status:'รออนุมัติ'}));
@@ -47996,7 +48192,7 @@ function esLoadDocList(){
   if(!type) return;
   let docs = [];
   if(type==='approvalproc' && typeof approvalProcDocs!=='undefined')
-    docs = Object.values(approvalProcDocs).slice(0,20);
+    docs = (approvalProcDocs||[]).filter(apDocIsLive).slice(0,20);
   else if(type==='dailyrpt' && typeof dailyReports!=='undefined')
     docs = Object.values(dailyReports).slice(0,20);
   else if(type==='mixing' && typeof mixPlans!=='undefined')
@@ -48020,7 +48216,7 @@ function esLoadDoc(){
   setTimeout(()=>{
     let info = '';
     if(type==='approvalproc' && typeof approvalProcDocs!=='undefined'){
-      const d = approvalProcDocs[docId]||Object.values(approvalProcDocs).find(x=>x.id==docId||x.docNo==docId);
+      const d = (approvalProcDocs||[]).filter(apDocIsLive).find(x=>x.id==docId||x.docNo==docId);
       if(d) info = `เลขที่: ${d.docNo||'-'} | งาน: ${d.jobName||'-'} | วันที่: ${d.date||'-'} | สถานะ: ${d.status||'-'}`;
     } else if(type==='dailyrpt' && typeof dailyReports!=='undefined'){
       const d = Object.values(dailyReports).find(x=>x.id==docId||x.date==docId);
@@ -55633,10 +55829,16 @@ function approvalProcDelete(id){
   if(!sid) return;
   var d = (approvalProcDocs||[]).find(function(x){ return String(x.id)===sid; });
   if(!d){ if(typeof _infoToast==='function') _infoToast('ไม่พบใบอนุมัติ — ลองกดรีเฟรช'); return; }
+  if(!apDocIsLive(d)){ if(typeof _infoToast==='function') _infoToast('ใบนี้ถูกลบไปแล้ว'); return; }
   _confirmDel('🗑 ลบใบอนุมัติ: <b>'+String(d.docNo||'').replace(/</g,'&lt;')+'</b><br>Order: '+(d.orderNo||'—'), function(){
     var idx = (approvalProcDocs||[]).findIndex(function(x){ return String(x.id)===sid; });
     if(idx<0) return;
-    approvalProcDocs.splice(idx,1);
+    var nowIso=new Date().toISOString();
+    approvalProcDocs[idx]=Object.assign({}, approvalProcDocs[idx],{
+      _deleted:true,
+      _deletedAt:nowIso,
+      updatedAt:nowIso
+    });
     if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
     if(String(_apCurrentId||'')===sid){
       _apCurrentId=null;
@@ -55655,18 +55857,29 @@ function approvalProcDeleteAllFiltered(){
     if(typeof _infoToast==='function') _infoToast('ไม่มีรายการตามตัวกรอง — ไม่มีอะไรให้ลบ');
     return;
   }
-  _confirmDel('🗑 ลบใบอนุมัติ <b>'+list.length+' รายการ</b> ตามตัวกรองปัจจุบัน (สายงาน / มุมมอง / Order / เครื่อง)<br><span style="font-size:11px;color:#8b949e">ลบถาวรจากรายการนี้ — ถ้าใช้ซิงก์คลาวด์ แนะนำให้รอบันทึกเสร็จหลังลบ</span>', function(){
-    var idSet = {};
-    list.forEach(function(doc){ if(doc && doc.id!=null) idSet[String(doc.id)] = true; });
-    approvalProcDocs = (approvalProcDocs||[]).filter(function(doc){ return !idSet[String(doc.id)]; });
+  _confirmDel('🗑 ลบใบอนุมัติ <b>'+list.length+' รายการ</b> ตามตัวกรองปัจจุบัน (สายงาน / มุมมอง / Order / เครื่อง)<br><span style="font-size:11px;color:#8b949e">จะซิงก์การลบขึ้นคลาวด์แบบ soft-delete — กดบันทึกขึ้นคลาวด์หลังยืนยัน</span>', function(){
+    var nowIso=new Date().toISOString();
+    var n=0;
+    list.forEach(function(doc){
+      if(!doc||doc.id==null) return;
+      var ix=(approvalProcDocs||[]).findIndex(function(x){ return String(x.id)===String(doc.id); });
+      if(ix<0) return;
+      if(!apDocIsLive(approvalProcDocs[ix])) return;
+      approvalProcDocs[ix]=Object.assign({}, approvalProcDocs[ix],{
+        _deleted:true,
+        _deletedAt:nowIso,
+        updatedAt:nowIso
+      });
+      n++;
+    });
     if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
-    if(_apCurrentId && idSet[String(_apCurrentId)]){
+    if(_apCurrentId && list.some(function(doc){ return doc&&String(doc.id)===String(_apCurrentId); })){
       _apCurrentId=null;
       var sec=document.getElementById('ap-detail-section');
       if(sec) sec.style.display='none';
     }
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
-    if(typeof _toast==='function') _toast('🗑 ลบ '+Object.keys(idSet).length+' ใบอนุมัติแล้ว');
+    if(typeof _toast==='function') _toast('🗑 ลบ '+n+' ใบอนุมัติแล้ว');
     try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
