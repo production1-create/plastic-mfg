@@ -4885,6 +4885,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <!-- Tab: List -->
   <div id="tab-mold-list">
+    <div id="mold-dashboard-wrap" class="mb-3"></div>
     <div id="molds-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:14px;padding:4px 0"></div>
   </div>
   <!-- Tab: เบิก–รับ / ซ่อม / เวลารับส่ง -->
@@ -22418,7 +22419,10 @@ function renderRawmatStockDashboard(mats, demandKind){
 }
 
 function renderRawmat(){
-  const allMats=Object.keys(rawMatStock||{});
+  const allMats=Object.keys(rawMatStock||{}).filter(function(k){
+    var row=rawMatStock[k];
+    return !(row && row._deleted);
+  });
   const toNum = (v, fallback)=>{
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
@@ -24713,7 +24717,16 @@ function renderMachines(){
 function rmAddPlastic(){
   var name=(window.prompt('ชื่อเม็ดพลาสติก / วัตถุดิบใหม่ (เช่น PA6, TPU, EVA, สารหน่วงไฟ...):')||'').trim().toUpperCase();
   if(!name){return;}
-  if(rawMatStock[name]){_infoToast('⚠️ "'+name+'" มีอยู่แล้วในระบบ');return;}
+  if(rawMatStock[name] && !rawMatStock[name]._deleted){_infoToast('⚠️ "'+name+'" มีอยู่แล้วในระบบ');return;}
+  if(rawMatStock[name] && rawMatStock[name]._deleted){
+    rawMatStock[name]._deleted=false;
+    rawMatStock[name]._deletedAt='';
+    _stampStockBucket(rawMatStock,name);
+    saveRawMatStock();
+    renderRawmat();
+    if(typeof _toast==='function') _toast('✅ กู้คืนเม็ดพลาสติก "'+name+'" แล้ว');
+    return;
+  }
   rawMatStock[name]={qty:0,min:0,max:9999,grade:''};
   _stampStockBucket(rawMatStock,name);
   saveRawMatStock();
@@ -24724,7 +24737,10 @@ function rmAddPlastic(){
 function rmDeletePlastic(code){
   var qty=(rawMatStock[code]||{}).qty||0;
   _confirmDel('🗑 ลบเม็ดพลาสติก: <b>'+code+'</b>'+(qty>0?'<br><span style="color:#f85149">⚠️ ยังมี Stock '+qty.toLocaleString()+' kg อยู่</span>':'<br>Stock: 0 kg'), function(){
-    delete rawMatStock[code];
+    if(!rawMatStock[code]) return;
+    rawMatStock[code]._deleted=true;
+    rawMatStock[code]._deletedAt=new Date().toISOString();
+    _stampStockBucket(rawMatStock,code);
     saveRawMatStock();
     // ลบออกจาก PLASTICS array ด้วย (ถ้ามี)
     var idx=PLASTICS.indexOf(code);
@@ -25900,16 +25916,110 @@ function renderDelivery(){
 function _moldCardEsc(s){
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 }
+function _moldStatusKey(m){
+  var st=String((m&&m.status)||'').trim();
+  if(st==='ต้องทำ PM') return 'due';
+  if(st==='เฝ้าระวัง') return 'warn';
+  if(st==='ซ่อม') return 'repair';
+  return 'ok';
+}
+function renderMoldDashboard(allList, filteredList){
+  var wrap=document.getElementById('mold-dashboard-wrap');
+  if(!wrap) return;
+  var esc=_moldCardEsc;
+  var list=Array.isArray(allList)?allList:[];
+  var shown=Array.isArray(filteredList)?filteredList:list;
+  if(!list.length){ wrap.innerHTML=''; return; }
+
+  if(typeof loadMoldLedger==='function') loadMoldLedger();
+  var recent=(moldLedger||[]).slice(0,6);
+  var kpi={total:list.length,ok:0,warn:0,due:0,repair:0};
+  var healthIdx=0;
+  list.forEach(function(m){
+    var k=_moldStatusKey(m);
+    if(k==='ok') kpi.ok++;
+    else if(k==='warn') kpi.warn++;
+    else if(k==='due') kpi.due++;
+    else if(k==='repair') kpi.repair++;
+    var pm=Math.max(1,Number(m.pmShot)||1), shot=Math.max(0,Number(m.shot)||0);
+    healthIdx += Math.min(100,Math.round((shot/pm)*100));
+  });
+  var healthAvg=Math.round(healthIdx/Math.max(1,list.length));
+  var nearPm=list.slice().sort(function(a,b){
+    var pa=Math.max(1,Number(a.pmShot)||1), pb=Math.max(1,Number(b.pmShot)||1);
+    var aa=Math.max(0,Number(a.shot)||0)/pa, bb=Math.max(0,Number(b.shot)||0)/pb;
+    return bb-aa;
+  }).slice(0,6);
+
+  var q=((document.getElementById('mold-dash-search')||{}).value||'').trim();
+  var st=((document.getElementById('mold-dash-status')||{}).value||'all').trim();
+  var mkRate=function(v,tot){ return tot?((v/tot*100).toFixed(1)+'%'):'0.0%'; };
+  wrap.innerHTML=''
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px">'
+      +'<div class="card" style="padding:12px 14px;border-radius:12px"><div style="font-size:11px;color:var(--text3);font-weight:700">แม่พิมพ์ทั้งหมด</div><div style="font-size:30px;font-weight:900;color:#1f6feb;line-height:1.1">'+kpi.total+'</div><div style="font-size:11px;color:var(--text3)">แสดงตามตัวกรอง '+shown.length+' ชุด</div></div>'
+      +'<div class="card" style="padding:12px 14px;border-radius:12px"><div style="font-size:11px;color:var(--text3);font-weight:700">ใช้งานปกติ</div><div style="font-size:28px;font-weight:900;color:#16a34a;line-height:1.1">'+kpi.ok+' <span style="font-size:12px;color:var(--text3);font-weight:700">('+mkRate(kpi.ok,kpi.total)+')</span></div><div class="progress" style="height:6px;margin-top:8px"><div class="progress-fill" style="width:'+mkRate(kpi.ok,kpi.total)+';background:#22c55e"></div></div></div>'
+      +'<div class="card" style="padding:12px 14px;border-radius:12px"><div style="font-size:11px;color:var(--text3);font-weight:700">รอซ่อม/เฝ้าระวัง</div><div style="font-size:28px;font-weight:900;color:#d97706;line-height:1.1">'+(kpi.warn+kpi.repair)+' <span style="font-size:12px;color:var(--text3);font-weight:700">('+mkRate(kpi.warn+kpi.repair,kpi.total)+')</span></div><div class="progress" style="height:6px;margin-top:8px"><div class="progress-fill" style="width:'+mkRate(kpi.warn+kpi.repair,kpi.total)+';background:#f59e0b"></div></div></div>'
+      +'<div class="card" style="padding:12px 14px;border-radius:12px"><div style="font-size:11px;color:var(--text3);font-weight:700">ถึงกำหนด PM</div><div style="font-size:28px;font-weight:900;color:#dc2626;line-height:1.1">'+kpi.due+' <span style="font-size:12px;color:var(--text3);font-weight:700">('+mkRate(kpi.due,kpi.total)+')</span></div><div class="progress" style="height:6px;margin-top:8px"><div class="progress-fill" style="width:'+mkRate(kpi.due,kpi.total)+';background:#ef4444"></div></div></div>'
+      +'<div class="card" style="padding:12px 14px;border-radius:12px"><div style="font-size:11px;color:var(--text3);font-weight:700">ดัชนีอายุการใช้งาน</div><div style="font-size:28px;font-weight:900;color:#2563eb;line-height:1.1">'+healthAvg+'%</div><div style="font-size:11px;color:var(--text3)">ค่าเฉลี่ย Shot/รอบ PM</div></div>'
+    +'</div>'
+    +'<div class="card" style="padding:10px 12px;border-radius:12px;margin-bottom:10px;display:grid;grid-template-columns:minmax(220px,1.2fr) minmax(140px,.8fr) auto;gap:8px;align-items:center">'
+      +'<input id="mold-dash-search" value="'+esc(q)+'" oninput="renderMolds()" placeholder="🔍 ค้นหาแม่พิมพ์ / รุ่น / ลูกค้า / เครื่องจักร..." style="width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px">'
+      +'<select id="mold-dash-status" onchange="renderMolds()" style="padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px"><option value="all"'+(st==='all'?' selected':'')+'>ทุกสถานะ</option><option value="ok"'+(st==='ok'?' selected':'')+'>ใช้งานปกติ</option><option value="warn"'+(st==='warn'?' selected':'')+'>เฝ้าระวัง</option><option value="due"'+(st==='due'?' selected':'')+'>ถึงกำหนด PM</option><option value="repair"'+(st==='repair'?' selected':'')+'>ซ่อม</option></select>'
+      +'<button type="button" class="btn btn-secondary btn-sm" onclick="var qx=document.getElementById(\'mold-dash-search\');if(qx)qx.value=\'\';var sx=document.getElementById(\'mold-dash-status\');if(sx)sx.value=\'all\';renderMolds();">รีเซ็ตกรอง</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:10px">'
+      +'<div class="card" style="padding:10px 12px;border-radius:12px">'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">แม่พิมพ์ที่ใกล้กำหนด PM สูงสุด</div>'
+        +'<div style="display:grid;gap:6px">'+nearPm.map(function(m){
+          var pm=Math.max(1,Number(m.pmShot)||1), shot=Math.max(0,Number(m.shot)||0), pct=Math.min(100,Math.round((shot/pm)*100));
+          var rem=Math.max(0,pm-shot);
+          return '<div style="padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">'
+            +'<div style="display:flex;justify-content:space-between;gap:8px"><div><span class="mono" style="font-size:12px;font-weight:800;color:var(--text)">'+esc(m.code||'-')+'</span><div style="font-size:10px;color:var(--text3);margin-top:2px">'+esc((m.jobName||'-').substring(0,34))+'</div></div><div style="font-size:11px;font-weight:800;color:'+(pct>=90?'#ef4444':pct>=70?'#f59e0b':'#16a34a')+'">'+pct+'%</div></div>'
+            +'<div class="progress" style="height:6px;margin-top:6px"><div class="progress-fill" style="width:'+pct+'%;background:'+(pct>=90?'#ef4444':pct>=70?'#f59e0b':'#22c55e')+'"></div></div>'
+            +'<div style="font-size:10px;color:var(--text3);margin-top:4px">เหลือ '+rem.toLocaleString()+' shot ถึง PM</div>'
+          +'</div>';
+        }).join('')+'</div>'
+      +'</div>'
+      +'<div class="card" style="padding:10px 12px;border-radius:12px">'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">ประวัติการเคลื่อนไหวล่าสุด</div>'
+        +'<div style="display:grid;gap:6px">'+(recent.length?recent.map(function(r){
+          var dt=String(r.createdAt||'').replace('T',' ').substring(0,16);
+          var act={issue_to_prod:'เบิกไปผลิต',return_from_prod:'รับคืนจากผลิต',send_repair:'ส่งซ่อม/PM',return_from_repair:'รับคืนหลังซ่อม',in_use_repair:'ซ่อมระหว่างใช้งาน',auto_daily_report:'Auto รายงานผลิต'}[r.actionType]||r.actionType||'-';
+          return '<div style="padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">'
+            +'<div style="display:flex;justify-content:space-between;gap:8px"><span class="mono" style="font-size:11px;font-weight:800;color:#2563eb">'+esc(r.moldCode||'-')+'</span><span style="font-size:10px;color:var(--text3)">'+esc(dt||'-')+'</span></div>'
+            +'<div style="font-size:11px;color:var(--text2);margin-top:3px">'+esc(act)+'</div>'
+            +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Shot '+(Number(r.shotAt)||0).toLocaleString()+' · ชิ้น '+(Number(r.piecesQty)||0).toLocaleString()+'</div>'
+          +'</div>';
+        }).join(''):'<div style="font-size:11px;color:var(--text3);padding:10px;text-align:center">ยังไม่มีประวัติใน Ledger</div>')+'</div>'
+      +'</div>'
+    +'</div>';
+}
 function renderMolds(){
   var tgt=document.getElementById('molds-cards');
   if(!tgt) return;
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
   var agg=(typeof window._moldDailyShotAgg==='object'&&window._moldDailyShotAgg)?window._moldDailyShotAgg:{};
+  var allList=(moldData||[]).slice();
+  var q=((document.getElementById('mold-dash-search')||{}).value||'').trim().toLowerCase();
+  var st=((document.getElementById('mold-dash-status')||{}).value||'all').trim();
+  var filtered=allList.filter(function(m){
+    var sk=_moldStatusKey(m);
+    if(st!=='all' && sk!==st) return false;
+    if(!q) return true;
+    var hay=[m.code,m.jobName,m.customer,m.machine,m.assignMachine,m.status].join(' ').toLowerCase();
+    return hay.indexOf(q)>=0;
+  });
   if(!moldData.length){
+    renderMoldDashboard(allList, filtered);
     tgt.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text3)">ยังไม่มีแม่พิมพ์ — บันทึกที่ <b>ทะเบียนแม่พิมพ์</b> จะแสดงที่นี่อัตโนมัติ</div>';
     return;
   }
-  tgt.innerHTML=moldData.map(function(m){
+  renderMoldDashboard(allList, filtered);
+  if(!filtered.length){
+    tgt.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text3)">ไม่พบแม่พิมพ์ตามตัวกรองที่เลือก</div>';
+    return;
+  }
+  tgt.innerHTML=filtered.map(function(m){
     var pmDen=Math.max(1,m.pmShot||1);
     var shot=Math.max(0,Math.round(Number(m.shot)||0));
     var pct=Math.min(100,Math.round(shot/pmDen*100));
