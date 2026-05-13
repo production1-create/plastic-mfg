@@ -563,6 +563,7 @@
      * even if the incremental pull window happened to miss them.
      */
     const REHYDRATE_KEYS = [
+      "_approvalProcDocs",
       "_wiDocs",
       "_orders",
       "_rawMatLedger",
@@ -797,6 +798,38 @@
         return JSON.stringify(Object.values(union));
       }
       return JSON.stringify(merged);
+    }
+
+    // Approval Proc docs require strict tombstone handling so deletes
+    // propagate to every device and cannot be resurrected by stale rows.
+    function mergeApprovalProcDocs(localStr, remoteStr) {
+      const loc = safeJsonParse(localStr, []);
+      const rem = safeJsonParse(remoteStr, []);
+      if (!Array.isArray(loc) && !Array.isArray(rem)) return localStr || remoteStr || "";
+      if (!Array.isArray(loc)) return remoteStr || localStr || "";
+      if (!Array.isArray(rem)) return localStr || remoteStr || "";
+      const byId = {};
+      [...rem, ...loc].forEach((rec) => {
+        if (!rec || typeof rec !== "object") return;
+        const key = _recIdKey(rec, ["docNo", "id"]);
+        const prev = byId[key];
+        if (!prev) {
+          byId[key] = rec;
+          return;
+        }
+        const pd = !!prev._deleted;
+        const rd = !!rec._deleted;
+        if (pd !== rd) {
+          byId[key] = rd ? Object.assign({}, prev, rec) : prev;
+          return;
+        }
+        const tp = recordTs(prev);
+        const tr = recordTs(rec);
+        if (tr > tp) byId[key] = rec;
+        else if (tr < tp) byId[key] = prev;
+        else byId[key] = Object.assign({}, prev, rec);
+      });
+      return JSON.stringify(Object.values(byId));
     }
 
     /**
@@ -1116,6 +1149,7 @@
     function mergeStorageKey(key, localStr, remoteStr) {
       if (key === "pmf_users_v5") return mergeUsersValue(localStr, remoteStr);
       if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
+      if (key === "_approvalProcDocs") return mergeApprovalProcDocs(localStr, remoteStr);
       if (MERGE_SKIP_KEYS.has(key)) return localStr;
 
       // Object-keyed stores (e.g. _fgStock, _rawMatStock) — merge by bucket
@@ -1306,7 +1340,7 @@
               const cntMerged = _countRecords(merged);
               // _ttData: แถวซ้ำจาก ttRowKey เก่า (ไม่มี orderNo) ทำให้ merge แล้วจำนวนแถวน้อยลง
               // แม้ข้อมูลถูกต้อง — ห้าม skip push ไม่งั้นการลบ Order ไม่ขึ้นคลาวด์
-              const skipShrinkGuard = key === "_ttData";
+              const skipShrinkGuard = key === "_ttData" || key === "_approvalProcDocs";
               if (!skipShrinkGuard && cntMerged >= 0 && cntRemote > 0 && cntMerged < cntRemote) {
                 skippedShrink++;
                 continue;
