@@ -3543,6 +3543,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div id="rm-tab-stock">
     <!-- Pending PR banner -->
     <div id="rm-pr-banner" style="margin-bottom:10px"></div>
+    <div id="rm-stock-dash-wrap" style="margin-bottom:12px"></div>
     <!-- Sub tabs: แยกประเภทสต็อก -->
     <div class="tabs" style="margin-bottom:10px">
       <div class="tab active" id="rm-stock-tab-plastic" onclick="rmStockCatTab('plastic',this)">🧪 สต็อกเม็ด</div>
@@ -21761,6 +21762,265 @@ function getRawmatMonthlyUsage(material, kindOpt){
   return Math.round(prof.maxMonthly||0);
 }
 
+function rmDashMonthChange(sel){
+  try{ localStorage.setItem('_rmDashMonths', sel && sel.value ? sel.value : '12'); }catch(e){}
+  if(typeof renderRawmat==='function') renderRawmat();
+}
+
+function rmDashPricePerKg(mat){
+  var m=String(mat||'').trim();
+  if(!m) return 0;
+  try{
+    for(var i=(RAWMAT_REGISTRY||[]).length-1;i>=0;i--){
+      var r=RAWMAT_REGISTRY[i];
+      if(String(r&&r.code||'').trim().toUpperCase()===m.toUpperCase()) return Math.max(0, Number(r.price)||0);
+    }
+  }catch(e){}
+  return Math.max(0, Number((rawMatSettings[m]||{}).price)||0);
+}
+
+function _rmDashDrawBars(canvasId, labels, values, barColor){
+  var canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  var ctx=canvas.getContext('2d');
+  var W=canvas.parentElement?canvas.parentElement.clientWidth:600;
+  if(!(W>40)) W=600;
+  var H=canvas.height||200;
+  canvas.width=W;
+  ctx.clearRect(0,0,W,H);
+  var pad={l:48,r:14,t:14,b:34};
+  var cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+  var n=labels.length||1;
+  var maxV=Math.max.apply(null,values.concat([1]));
+  ctx.strokeStyle='rgba(139,148,158,0.12)'; ctx.lineWidth=1;
+  for(var g=0;g<=4;g++){
+    var yy=pad.t+ch-(g/4)*ch;
+    ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
+    ctx.fillStyle='rgba(139,148,158,0.55)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(String(Math.round(maxV*g/4)), pad.l-4, yy+3);
+  }
+  var bw=cw/(n*1.25+0.25);
+  values.forEach(function(v,xi){
+    var bh=Math.max(0,(v/maxV)*ch);
+    var x=pad.l+(xi*1.25+0.25)*bw;
+    var y=pad.t+ch-bh;
+    ctx.fillStyle=barColor||'rgba(0,102,255,0.78)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,bw*0.85,bh,3); else ctx.rect(x,y,bw*0.85,bh);
+    ctx.fill();
+  });
+  ctx.fillStyle='rgba(139,148,158,0.75)'; ctx.font='9px Inter,sans-serif'; ctx.textAlign='center';
+  labels.forEach(function(l,xi){
+    var cx=pad.l+(xi*1.25+0.25)*bw+bw*0.425;
+    ctx.fillText(String(l).substring(0,8), cx, H-10);
+  });
+  ctx.textAlign='left';
+}
+
+function renderRawmatStockDashboard(mats, demandKind){
+  var wrap=document.getElementById('rm-stock-dash-wrap');
+  if(!wrap) return;
+  if(!mats||!mats.length){ wrap.innerHTML=''; wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  var nM=parseInt((function(){ try{return localStorage.getItem('_rmDashMonths');}catch(e){return null;} })()||'12',10);
+  if(nM!==6 && nM!==12) nM=12;
+  var matsSet={};
+  mats.forEach(function(m){ matsSet[m]=1; });
+  var months=[];
+  var d=new Date();
+  d.setDate(1);
+  for(var i=nM-1;i>=0;i--){
+    var dd=new Date(d.getFullYear(), d.getMonth()-i, 1);
+    months.push(dd.toISOString().substring(0,7));
+  }
+  var thMon=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var labels=months.map(function(mo){
+    var p=mo.split('-');
+    return thMon[(parseInt(p[1],10)||1)-1]+'\''+String(p[0]).slice(-2);
+  });
+  function outKgMonth(mo){
+    var sum=0;
+    if(demandKind==='mb_color'){
+      (mbLedger||[]).forEach(function(r){
+        if(r.type!=='out') return;
+        if(!matsSet[r.code]) return;
+        if(String(r.date||'').substring(0,7)!==mo) return;
+        sum+=Math.abs(Number(r.qty)||0);
+      });
+    }else{
+      (rawMatLedger||[]).forEach(function(r){
+        if(r.type!=='out') return;
+        if(!matsSet[r.material]) return;
+        if(String(r.date||'').substring(0,7)!==mo) return;
+        sum+=Number(r.qty)||0;
+      });
+    }
+    return sum;
+  }
+  var outSeries=months.map(outKgMonth);
+  var valSeries=months.map(function(mo){
+    var w=0;
+    if(demandKind==='mb_color'){
+      (mbLedger||[]).forEach(function(r){
+        if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
+        if(!matsSet[r.code]) return;
+        w+=Math.abs(Number(r.qty)||0)*rmDashPricePerKg(r.code);
+      });
+    }else{
+      (rawMatLedger||[]).forEach(function(r){
+        if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
+        if(!matsSet[r.material]) return;
+        w+=(Number(r.qty)||0)*rmDashPricePerKg(r.material);
+      });
+    }
+    return w;
+  });
+  var totalStockVal=0, belowMinVal=0, nearMaxVal=0, ytdOutKg=0;
+  var y0=(new Date()).getFullYear();
+  mats.forEach(function(mat){
+    var s=rawMatStock[mat]||{qty:0,min:0,max:9999};
+    var pr=rmDashPricePerKg(mat);
+    var v=(Number(s.qty)||0)*pr;
+    totalStockVal+=v;
+    if((Number(s.qty)||0)<(Number(s.min)||0)) belowMinVal+=((Number(s.min)||0)-(Number(s.qty)||0))*pr;
+    if((Number(s.max)||0)>0 && (Number(s.qty)||0)>(Number(s.max)||0)*0.95) nearMaxVal+=((Number(s.qty)||0)-(Number(s.max)||0)*0.95)*pr;
+  });
+  (demandKind==='mb_color'?mbLedger:rawMatLedger).forEach(function(r){
+    var mo=String(r.date||'');
+    if(mo.substring(0,4)!==String(y0)) return;
+    if(demandKind==='mb_color'){
+      if(r.type!=='out'||!matsSet[r.code]) return;
+      ytdOutKg+=Math.abs(Number(r.qty)||0);
+    }else{
+      if(r.type!=='out'||!matsSet[r.material]) return;
+      ytdOutKg+=Number(r.qty)||0;
+    }
+  });
+  var avgStockKg=mats.reduce(function(a,m){return a+(Number((rawMatStock[m]||{}).qty)||0);},0)/(mats.length||1);
+  var turnoverYtd=avgStockKg>0.01?(ytdOutKg/avgStockKg):0;
+  var alerts=[];
+  mats.forEach(function(mat){
+    var s=rawMatStock[mat]||{qty:0,min:0,max:9999};
+    var q=Number(s.qty)||0, mn=Number(s.min)||0, mx=Number(s.max)||0;
+    if(q<mn) alerts.push({mat:mat,lv:'เร่งด่วน',msg:'ต่ำกว่า Min — เหลือ '+q.toLocaleString()+' kg',col:'#f85149'});
+    else if(mn>0 && q<mn*1.15) alerts.push({mat:mat,lv:'เฝ้าระวัง',msg:'ใกล้ Min — '+q.toLocaleString()+' kg',col:'#e3b341'});
+    else if(mx>0 && q>mx) alerts.push({mat:mat,lv:'เกิน Max',msg:'สต็อกเกินเป้า Max',col:'#f0883e'});
+  });
+  alerts=alerts.slice(0,8);
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+  var sparkN=Math.min(6, months.length);
+  var sparkStart=months.length-sparkN;
+  var unitLbl=(demandKind==='packaging')?'หน่วย':'kg';
+  wrap.innerHTML=
+    '<div style="border:1px solid rgba(0,102,255,0.28);border-radius:14px;padding:14px 16px;background:linear-gradient(165deg,rgba(0,102,255,0.07),transparent 55%),var(--bg2)">'
+    +'<div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px">'
+      +'<div><div style="font-size:16px;font-weight:900;color:#0066ff;letter-spacing:0.02em">แดชบอร์ดการใช้วัตถุดิบ</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:3px">กราฟจาก <b>บัญชีคุมเบิกออก</b> รายเดือน · สรุปมูลค่าจากราคาในเมนูนี้ (฿/kg)</div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span style="font-size:10px;color:var(--text3);font-weight:700">ช่วงกราฟ</span>'
+        +'<select id="rm-dash-months" onchange="rmDashMonthChange(this)" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px">'
+          +'<option value="6"'+(nM===6?' selected':'')+'>6 เดือนล่าสุด</option>'
+          +'<option value="12"'+(nM===12?' selected':'')+'>12 เดือนล่าสุด</option>'
+        +'</select>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px">'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่า Stock รวม</div>'
+        +'<div style="font-size:20px;font-weight:900;color:var(--text);margin-top:4px">฿ '+Math.round(totalStockVal).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">จาก '+mats.length+' รายการในหมวดนี้</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">ต้นทุนเฉลี่ย / kg</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#79c0ff;margin-top:4px">฿ '+((mats.reduce(function(a,m){return a+(Number((rawMatStock[m]||{}).qty)||0);},0)>0)?(totalStockVal/Math.max(1e-6,mats.reduce(function(a,m){return a+(Number((rawMatStock[m]||{}).qty)||0);},0))).toFixed(2):'0.00')+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">ถ่วงจากยอดคงเหลือปัจจุบัน</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่าต่ำกว่า Min (ประมาณ)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#f85149;margin-top:4px">฿ '+Math.round(belowMinVal).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">ขาดจากขั้นต่ำ × ราคา</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">มูลค่าเกิน 95% Max (ประมาณ)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#f0883e;margin-top:4px">฿ '+Math.max(0,Math.round(nearMaxVal)).toLocaleString()+'</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">ส่วนเกินกว่า 95% ของ Max</div></div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="font-size:10px;color:var(--text3);font-weight:700">Turnover (YTD)</div>'
+        +'<div style="font-size:18px;font-weight:900;color:#3fb950;margin-top:4px">'+turnoverYtd.toFixed(2)+'×</div>'
+        +'<div style="font-size:10px;color:var(--text3);margin-top:2px">เบิกสะสมปีนี้ ÷ สต็อกเฉลี่ย/รายการ</div></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:minmax(220px,0.95fr) minmax(280px,1.05fr);gap:12px;margin-bottom:12px">'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg);max-height:220px;overflow:auto">'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">แจ้งเตือนอัตโนมัติ</div>'
+        +(alerts.length?alerts.map(function(a){
+          return '<div style="border-bottom:1px solid var(--border);padding:8px 0;font-size:11px">'
+            +'<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:'+a.col+'22;color:'+a.col+';border:1px solid '+a.col+'44">'+esc(a.lv)+'</span> '
+            +'<span style="font-size:10px;font-weight:800;color:var(--text)">'+esc(a.mat)+'</span>'
+            +'<div style="color:var(--text2);margin-top:4px">'+esc(a.msg)+'</div></div>';
+        }).join(''):'<div style="font-size:11px;color:var(--text3)">ไม่มีรายการเตือนในหมวดนี้</div>')
+      +'</div>'
+      +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          +'<div style="font-size:12px;font-weight:800;color:var(--text)">แนวโน้มการเบิกใช้ (รายเดือน)</div>'
+          +'<div style="font-size:10px;color:var(--text3)">รวม '+unitLbl+'</div>'
+        +'</div>'
+        +'<div style="height:200px;width:100%"><canvas id="rm-dash-canvas" height="200" style="width:100%;display:block"></canvas></div>'
+        +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:4px">'
+          +'<span>รวมเบิกช่วงนี้: <b style="color:#0066ff">'+outSeries.reduce(function(a,b){return a+b;},0).toLocaleString(undefined,{maximumFractionDigits:1})+' '+unitLbl+'</b></span>'
+          +'<span>มูลค่าเบิกรวม: <b style="color:#3fb950">฿ '+Math.round(valSeries.reduce(function(a,b){return a+b;},0)).toLocaleString()+'</b></span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg);overflow-x:auto">'
+      +'<div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:8px">การใช้รายเม็ด / รายการ (เดือนล่าสุด '+sparkN+' เดือน)</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:520px">'
+        +'<thead><tr style="background:var(--bg3)">'
+          +'<th style="padding:6px 8px;text-align:left;color:var(--text3)">วัตถุดิบ</th>'
+          +months.slice(sparkStart).map(function(mo){return '<th style="padding:6px 4px;text-align:center;color:var(--text3);white-space:nowrap">'+esc(mo)+'</th>';}).join('')
+          +'<th style="padding:6px 8px;text-align:right;color:var(--text3)">รวมช่วง</th>'
+        +'</tr></thead><tbody>'
+        +mats.slice().sort().map(function(mat){
+          var row=months.slice(sparkStart).map(function(mo){
+            var kg=0;
+            if(demandKind==='mb_color'){
+              (mbLedger||[]).forEach(function(r){
+                if(r.type!=='out'||r.code!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                kg+=Math.abs(Number(r.qty)||0);
+              });
+            }else{
+              (rawMatLedger||[]).forEach(function(r){
+                if(r.type!=='out'||r.material!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                kg+=Number(r.qty)||0;
+              });
+            }
+            return '<td style="padding:5px 4px;text-align:center;font-family:monospace;color:var(--text2)">'+(kg>0?kg.toLocaleString(undefined,{maximumFractionDigits:1}):'—')+'</td>';
+          }).join('');
+          var tot=months.slice(sparkStart).reduce(function(a,mo){
+            var kg=0;
+            if(demandKind==='mb_color'){
+              (mbLedger||[]).forEach(function(r){
+                if(r.type!=='out'||r.code!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                kg+=Math.abs(Number(r.qty)||0);
+              });
+            }else{
+              (rawMatLedger||[]).forEach(function(r){
+                if(r.type!=='out'||r.material!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                kg+=Number(r.qty)||0;
+              });
+            }
+            return a+kg;
+          },0);
+          return '<tr style="border-bottom:1px solid var(--border)">'
+            +'<td style="padding:6px 8px"><span style="font-weight:800;font-size:11px;color:var(--text)">'+esc(mat)+'</span></td>'
+            +row
+            +'<td style="padding:6px 8px;text-align:right;font-weight:800;color:#0066ff">'+tot.toLocaleString(undefined,{maximumFractionDigits:1})+'</td>'
+          +'</tr>';
+        }).join('')
+      +'</tbody></table>'
+    +'</div>'
+  +'</div>';
+  setTimeout(function(){
+    _rmDashDrawBars('rm-dash-canvas', labels, outSeries, 'rgba(0,102,255,0.78)');
+  }, 30);
+}
+
 function renderRawmat(){
   const allMats=Object.keys(rawMatStock||{});
   const toNum = (v, fallback)=>{
@@ -21877,6 +22137,8 @@ function renderRawmat(){
       +'</div>';
     } else { bannerEl.innerHTML=''; }
   }
+
+  renderRawmatStockDashboard(mats, demandKind);
 
   if(cards) cards.innerHTML=mats.map(p=>{
     const s=rawMatStock[p]; const pct=Math.round(s.qty/(s.max||1)*100);
