@@ -3354,6 +3354,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="mix-feeder-filter-status" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px">
           <option value="">ทุกสถานะ</option>
           <option value="รอเดินงาน">⏳ รอเดินงาน</option>
+          <option value="กำลังป้อน">🔄 กำลังป้อน</option>
           <option value="เบิกแล้ว">✅ เบิกแล้ว</option>
         </select>
         <input type="date" id="mix-feeder-filter-date" onchange="renderMixFeeder()" style="padding:5px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;font-size:11px" title="กรองวันผลิต (TT)">
@@ -3364,12 +3365,28 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <option value="">ทุกเครื่องป้อนสี</option>
         </select>
         <button type="button" onclick="mixRebuildFromTT({merge:true});renderMixFeeder()" style="padding:5px 10px;background:rgba(86,211,100,0.12);border:1px solid rgba(86,211,100,0.35);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit" title="ดึงแผนป้อนสีจาก Time Table">📅 ซิงค์ TT</button>
+        <span style="width:1px;height:22px;background:var(--border);flex:0 0 auto"></span>
+        <span style="font-size:10px;color:var(--text3);font-weight:700">มุมมอง:</span>
+        <button type="button" id="mix-feeder-dash-view-both" class="btn btn-secondary btn-sm" onclick="mixFeederDashSetView('both')" style="font-size:10px;padding:4px 10px">แดชบอร์ด+ตาราง</button>
+        <button type="button" id="mix-feeder-dash-view-dash" class="btn btn-secondary btn-sm" onclick="mixFeederDashSetView('dash')" style="font-size:10px;padding:4px 10px">แดชบอร์ด</button>
+        <button type="button" id="mix-feeder-dash-view-table" class="btn btn-secondary btn-sm" onclick="mixFeederDashSetView('table')" style="font-size:10px;padding:4px 10px">ตาราง</button>
       </div>
+    </div>
+    <div id="mix-feeder-dashboard-panel" style="padding:12px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(0,102,255,0.06),transparent)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#0066ff;letter-spacing:0.02em">ติดตามความคืบหน้าป้อนสี (รายวัน)</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">เป้าเม็ด+MB ต่อวันตาม TT · กด <b>เริ่มป้อน</b> หลังอนุมัติ แล้วเลื่อน % ระหว่างเดินงาน · <b>ผสม/เบิก</b> เมื่อครบ</div>
+        </div>
+        <div id="mix-feeder-dash-updated" style="font-size:11px;color:var(--text3);white-space:nowrap"></div>
+      </div>
+      <div id="mix-feeder-dashboard-overall"></div>
+      <div id="mix-feeder-dashboard-cards" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:10px"></div>
     </div>
     <!-- Feeder Summary -->
     <div id="mix-feeder-summary" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)"></div>
     <!-- Feeder Table (รูปแบบใกล้เคียงแผนผสมถัง — จาก mixFeederPlans) -->
-    <div style="overflow-x:auto">
+    <div id="mix-feeder-table-panel" style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead>
           <tr style="background:var(--bg3)">
@@ -16860,6 +16877,9 @@ function mixUpsertFeederPlanFromTTEntry(en, ttProdDate, order){
     if(keep.stockIssuedAt) row.stockIssuedAt = keep.stockIssuedAt;
     if(keep.approvalStatus) row.approvalStatus = keep.approvalStatus;
     if(keep.updatedAt) row.updatedAt = keep.updatedAt;
+    if(isFinite(parseFloat(keep.feederProgressPct))) row.feederProgressPct = parseFloat(keep.feederProgressPct);
+    if(keep.feederStartedAt) row.feederStartedAt = keep.feederStartedAt;
+    if(keep.feederProgressUpdatedAt) row.feederProgressUpdatedAt = keep.feederProgressUpdatedAt;
     mixFeederPlans[idx]=row;
   }else{
     mixFeederPlans.unshift(row);
@@ -19642,6 +19662,7 @@ function mixExecuteFeederStockIssue(planId, opts){
   p.stockIssued=true;
   p.stockIssuedAt=new Date().toISOString();
   p.status='เบิกแล้ว';
+  p.feederProgressPct=100;
   p.updatedAt=new Date().toISOString();
   saveMixFeederPlans();
   mixPushStockIssueLog({
@@ -19806,6 +19827,7 @@ function renderMixFeeder(){
   var summEl = document.getElementById('mix-feeder-summary');
   if(summEl){
     var waitCt=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.status==='รอเดินงาน'; }).length;
+    var runCt=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.status==='กำลังป้อน'; }).length;
     var doneCt=mixFeederPlans.filter(function(p){ return p && !p._deleted && p.status==='เบิกแล้ว'; }).length;
     var lowCt=list.filter(function(p){
       var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
@@ -19824,6 +19846,7 @@ function renderMixFeeder(){
     summEl.innerHTML=[
       {icon:'📋',label:'แผนป้อนสีจาก TT',val:mixFeederPlans.filter(function(p){ return p && !p._deleted; }).length,col:'#79c0ff',bg:'rgba(121,192,255,0.08)',bd:'rgba(121,192,255,0.3)'},
       {icon:'⏳',label:'รอเดินงาน',val:waitCt,col:'#e3b341',bg:'rgba(227,179,65,0.08)',bd:'rgba(227,179,65,0.28)'},
+      {icon:'🔄',label:'กำลังป้อน',val:runCt,col:'#0066ff',bg:'rgba(0,102,255,0.08)',bd:'rgba(0,102,255,0.28)'},
       {icon:'✅',label:'เบิกแล้ว',val:doneCt,col:'#3fb950',bg:'rgba(63,185,80,0.08)',bd:'rgba(63,185,80,0.28)'},
       {icon:'⚙️',label:'งาน Feeder (BOM)',val:feederJobsAll.length,col:'#d2a8ff',bg:'rgba(210,168,255,0.08)',bd:'rgba(210,168,255,0.3)'},
       {icon:'⚠️',label:'เม็ด/MB ไม่พอ (ตามตัวกรอง)',val:lowCt,col:lowCt?'#f85149':'#3fb950',bg:lowCt?'rgba(248,81,73,0.08)':'rgba(63,185,80,0.08)',bd:lowCt?'rgba(248,81,73,0.3)':'rgba(63,185,80,0.3)'},
@@ -19865,6 +19888,7 @@ function renderMixFeeder(){
       var stockLabel=(hasEnough&&mbOk)?'✅ เม็ด+MB พอต่อวัน':'❌ ตรวจสูตร/สต็อก';
       var statusBadge={
         'รอเดินงาน':'badge-yellow',
+        'กำลังป้อน':'badge-blue',
         'เบิกแล้ว':'badge-green'
       }[p.status]||'badge-yellow';
       var feeder=FEEDER_REGISTRY&&FEEDER_REGISTRY.find(function(f){ return (f.code||f.id)===p.feederCode; });
@@ -19945,6 +19969,250 @@ function renderMixFeeder(){
       fb.innerHTML='';
     }
   }
+  if(typeof mixRenderFeederDashboard==='function') mixRenderFeederDashboard();
+}
+
+// ═══ แดชบอร์ดความคืบหน้า — แท็บเครื่องป้อนสี (รายวัน) ═══
+function mixFeederPlanTargetKg(p){
+  if(!p) return 0;
+  var j=mixResolveJobForPlan(p);
+  var pq=Math.max(0, parseFloat(p.plasticKgPerDay||0)||0);
+  var mq=Math.max(0, parseFloat(p.mbKgPerDay||0)||0);
+  if(!(mq>0) && j && pq>0) mq=+(pq*(parseFloat(j.mbRatio)||parseFloat(p.mbRatio)||0)/1000).toFixed(4);
+  return Math.max(0, pq+mq);
+}
+function mixFeederProgressPct(p){
+  if(!p) return 0;
+  if(p.stockIssued || p.status==='เบิกแล้ว') return 100;
+  if(p.status!=='กำลังป้อน') return 0;
+  var raw=parseFloat(p.feederProgressPct);
+  if(isFinite(raw)) return Math.max(0, Math.min(100, raw));
+  return 0;
+}
+function mixFeederPiecesMetric(p){
+  var tgt=Math.round(parseFloat(p.dayPcs)||0);
+  if(!(tgt>0)) return { target:0, mixed:0, remain:0 };
+  var pct=mixFeederProgressPct(p)/100;
+  var mixed=Math.round(tgt*pct);
+  return { target:tgt, mixed:mixed, remain:Math.max(0,tgt-mixed) };
+}
+function mixFeederDashGetView(){
+  try{ return localStorage.getItem('_mixFeederDashView')||'both'; }catch(e){ return 'both'; }
+}
+function mixFeederDashSetView(mode){
+  try{ localStorage.setItem('_mixFeederDashView', mode||'both'); }catch(e){}
+  mixFeederDashApplyView();
+}
+function mixFeederDashApplyView(){
+  var mode=mixFeederDashGetView();
+  var dash=document.getElementById('mix-feeder-dashboard-panel');
+  var tbl=document.getElementById('mix-feeder-table-panel');
+  ['mix-feeder-dash-view-both','mix-feeder-dash-view-dash','mix-feeder-dash-view-table'].forEach(function(id){
+    var b=document.getElementById(id); if(b){ b.style.outline='none'; b.style.opacity='0.65'; }
+  });
+  var activeId=mode==='dash'?'mix-feeder-dash-view-dash':(mode==='table'?'mix-feeder-dash-view-table':'mix-feeder-dash-view-both');
+  var ab=document.getElementById(activeId); if(ab){ ab.style.opacity='1'; ab.style.outline='2px solid #0066ff'; }
+  if(dash) dash.style.display=(mode==='table')?'none':'block';
+  if(tbl) tbl.style.display=(mode==='dash')?'none':'block';
+}
+function mixFeederStartDispensing(id){
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; }); if(!p) return;
+  if(p.status!=='รอเดินงาน'){
+    if(typeof _infoToast==='function') _infoToast('เริ่มป้อนได้เมื่อสถานะ "รอเดินงาน" เท่านั้น');
+    return;
+  }
+  var ak='mixfeeder-'+p.id;
+  var ap=(typeof approvals!=='undefined'&&approvals)?approvals[ak]:null;
+  if(!ap || ap.status!=='approved'){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนป้อนสีก่อน');
+    return;
+  }
+  if(p.stockIssued){
+    if(typeof _infoToast==='function') _infoToast('ช่องนี้เบิกสต็อกแล้ว');
+    return;
+  }
+  p.status='กำลังป้อน';
+  if(!isFinite(parseFloat(p.feederProgressPct))) p.feederProgressPct=0;
+  p.feederStartedAt=new Date().toISOString();
+  p.updatedAt=p.feederStartedAt;
+  saveMixFeederPlans();
+  if(typeof _toast==='function') _toast('🔄 เริ่มป้อนสี — ปรับ % ได้จากการ์ด');
+  renderMixFeeder();
+}
+function mixFeederDashPctChange(el){
+  var id=el.getAttribute('data-feeder-id');
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; });
+  if(!p || p.status!=='กำลังป้อน') return;
+  p.feederProgressPct=Math.max(0, Math.min(100, parseFloat(el.value)||0));
+  p.feederProgressUpdatedAt=new Date().toISOString();
+  saveMixFeederPlans();
+  mixRenderFeederDashboard();
+}
+function mixOpenFeederProgressDetail(id){
+  var body=document.getElementById('mix-feeder-progress-detail-body'); if(!body) return;
+  body.innerHTML=mixBuildFeederProgressDetailHtml(id);
+  if(typeof openModal==='function') openModal('modal-feeder-progress-detail');
+}
+function mixBuildFeederProgressDetailHtml(id){
+  var p=mixFeederPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; });
+  if(!p) return '<div style="padding:20px;color:var(--text3)">ไม่พบแผนป้อนสี</div>';
+  var tgt=mixFeederPlanTargetKg(p);
+  var pct=mixFeederProgressPct(p);
+  var mixed=tgt*(pct/100);
+  var rem=Math.max(0,tgt-mixed);
+  var pcs=mixFeederPiecesMetric(p);
+  var planH=8;
+  var elapsedH=0;
+  if(p.feederStartedAt){
+    var t0=new Date(p.feederStartedAt).getTime();
+    if(!isNaN(t0)) elapsedH=Math.max(0,(Date.now()-t0)/3600000);
+  }
+  var tgtRate=planH>0?tgt/planH:0;
+  var actRate=elapsedH>0?mixed/elapsedH:0;
+  var rateDelta=actRate-tgtRate;
+  var rateNote=rateDelta>=0.05?('เร็วกว่าแผน +'+(rateDelta).toFixed(1)+' kg/ชม.'):(rateDelta<=-0.05?('ช้ากว่าแผน '+(rateDelta).toFixed(1)+' kg/ชม.'):'ใกล้เคียงแผน');
+  var rateCol=rateDelta>=0.05?'#28a745':(rateDelta<=-0.05?'#f85149':'var(--text3)');
+  var badge=p.status||'—';
+  var badgeCol={'รอเดินงาน':'#e3b341','กำลังป้อน':'#0066ff','เบิกแล้ว':'#28a745'}[badge]||'#888';
+  var sub='Order: '+mixDashEsc(p.orderNo||'—')+' | '+mixDashEsc(p.jobName||'—')
+    +' <span style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:'+badgeCol+'22;color:'+badgeCol+';font-size:11px;font-weight:800">'+mixDashEsc(badge)+'</span>';
+  var deg=Math.max(0,Math.min(100,pct))*3.6;
+  return ''
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:10px">'+sub+'</div>'
+    +'<div style="display:grid;grid-template-columns:minmax(180px,0.9fr) minmax(240px,1.1fr);gap:14px">'
+      +'<div style="border:1px solid #e0e0e0;border-radius:12px;padding:14px;background:var(--bg)">'
+        +'<div style="font-weight:800;margin-bottom:8px;color:var(--text)">ความคืบหน้า (เป้า/วัน)</div>'
+        +'<div style="width:140px;height:140px;border-radius:50%;margin:0 auto;background:conic-gradient(#0066ff 0deg '+deg+'deg, #e8eaed '+deg+'deg 360deg);display:grid;place-items:center;box-shadow:inset 0 0 0 16px var(--bg2)"></div>'
+        +'<div style="text-align:center;margin-top:8px;font-size:12px;color:var(--text3)">ป้อนแล้ว <b style="color:#0066ff">'+pct.toFixed(1)+'%</b> ของเป้าวัน</div>'
+        +'<div style="text-align:center;font-size:11px;font-weight:700;color:var(--text)">'+mixed.toFixed(2)+' kg / '+tgt.toFixed(2)+' kg</div>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+        +mixDashMetricCard('⚖','น้ำหนักรวมที่ป้อนแล้ว', mixed.toFixed(2)+' kg', 'จากเป้าวัน '+tgt.toFixed(2)+' kg')
+        +mixDashMetricCard('⬚','น้ำหนักคงเหลือ (วันนี้)', rem.toFixed(2)+' kg', tgt>0?('คิดเป็น '+(100-pct).toFixed(1)+'%'):'—')
+        +mixDashMetricCard('🕐','เวลาที่ใช้ไป', (elapsedH>=1?elapsedH.toFixed(2)+' ชม.':Math.round(elapsedH*60)+' นาที'), 'หลังกดเริ่มป้อน · สมมติกะ ~'+planH+' ชม.')
+        +mixDashMetricCard('🧩','ชิ้นงาน (ตามเป้า/วัน)', (pcs.target?pcs.mixed.toLocaleString()+' / '+pcs.target.toLocaleString()+' ชิ้น':'—'), pcs.target?'ตาม % ความคืบหน้า':'ไม่มีเป้าชิ้น/วัน')
+        +mixDashMetricCard('✂','ชิ้นคงเหลือ', (pcs.target?pcs.remain.toLocaleString()+' ชิ้น':'—'), '—')
+        +mixDashMetricCard('⏱','อัตราเฉลี่ย (kg/ชม.)', (actRate>0?actRate.toFixed(2):'—'), 'เป้าเชิงทฤษฎี ~'+(tgtRate>0?tgtRate.toFixed(2):'—')+' · <span style="color:'+rateCol+'">'+rateNote+'</span>')
+      +'</div>'
+    +'</div>'
+    +'<div style="margin-top:14px;border:1px solid #e0e0e0;border-radius:12px;padding:12px;background:var(--bg)">'
+      +'<div style="font-weight:800;margin-bottom:6px;color:var(--text)">ความคืบหน้าโดยน้ำหนัก (เป้าวัน)</div>'
+      +'<div style="height:16px;background:#e8eaed;border-radius:8px;overflow:hidden"><div style="width:'+Math.min(100,pct)+'%;height:100%;background:linear-gradient(90deg,#0066ff,#4d94ff)"></div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;font-size:10px;color:var(--text3)">'
+        +'<div><div>เครื่องฉีด</div><b style="color:var(--text)">'+mixDashEsc(p.machine||'—')+'</b></div>'
+        +'<div><div>ป้อนสี</div><b style="color:var(--text)">'+mixDashEsc(p.feederCode||'—')+'</b></div>'
+        +'<div><div>อัปเดตล่าสุด</div><b style="color:var(--text)">'+(typeof mixDashFmtTime==='function'?mixDashFmtTime(p.feederProgressUpdatedAt||p.feederStartedAt):'—')+'</b></div>'
+        +'<div><div>ความคืบหน้า</div><b style="color:#0066ff">'+pct.toFixed(1)+'%</b></div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="margin-top:12px;border:1px solid #e0e0e0;border-radius:10px;padding:10px 12px;background:var(--bg3);display:flex;flex-wrap:wrap;gap:10px 14px;font-size:11px;align-items:center;justify-content:space-between">'
+      +'<span><b>วันผลิต TT</b> '+mixDashEsc(p.ttProdDate||p.date||'—')+'</span>'
+      +'<span><b>ช่วงเวลา</b> '+mixDashEsc(p.time||'—')+'</span>'
+      +'<span><b>LOT</b> '+mixDashEsc(p.lotNo||'—')+'</span>'
+      +'<span><b>เม็ด</b> '+mixDashEsc(p.plastic||'—')+'</span>'
+      +'<span><b>MB</b> '+mixDashEsc(p.mb||'—')+'</span>'
+    +'</div>';
+}
+function mixRenderFeederDashboard(){
+  var ov=document.getElementById('mix-feeder-dashboard-overall');
+  var cr=document.getElementById('mix-feeder-dashboard-cards');
+  var up=document.getElementById('mix-feeder-dash-updated');
+  if(!ov || !cr) return;
+  if(up) up.textContent='อัปเดตล่าสุด: '+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.';
+  var statusF=document.getElementById('mix-feeder-filter-status')?.value||'';
+  var dateF=document.getElementById('mix-feeder-filter-date')?.value||'';
+  var machF=document.getElementById('mix-feeder-filter-machine')?.value||'';
+  var feederF=document.getElementById('mix-feeder-filter-feeder')?.value||'';
+  var list=mixFeederPlans.filter(function(p){
+    if(!p||p._deleted) return false;
+    if(statusF && p.status!==statusF) return false;
+    var prodD=p.ttProdDate||p.prodDate||p.date||'';
+    if(dateF && prodD!==dateF) return false;
+    if(machF && String(p.machine||'')!==machF) return false;
+    if(feederF && String(p.feederCode||'')!==feederF) return false;
+    return true;
+  });
+  var active=list.filter(function(p){ return p.status==='กำลังป้อน'; });
+  var sumT=0, sumM=0;
+  active.forEach(function(p){
+    var tg=mixFeederPlanTargetKg(p);
+    sumT+=tg;
+    sumM+=tg*(mixFeederProgressPct(p)/100);
+  });
+  var aggPct=sumT>0?(sumM/sumT*100):0;
+  var aggDeg=Math.max(0,Math.min(100,aggPct))*3.6;
+  var stLine=['รอเดินงาน','กำลังป้อน','เบิกแล้ว'].map(function(st){
+    var n=list.filter(function(p){ return p.status===st; }).length;
+    var col=st==='กำลังป้อน'?'#0066ff':(st==='เบิกแล้ว'?'#28a745':'#e3b341');
+    return '<span style="display:inline-flex;align-items:center;gap:4px;margin:4px 8px 4px 0;font-size:11px"><span style="width:8px;height:8px;border-radius:50%;background:'+col+'"></span><b style="color:var(--text)">'+mixDashEsc(st)+'</b> <span style="color:var(--text3)">('+n+')</span></span>';
+  }).join('');
+  ov.innerHTML=
+    '<div style="display:grid;grid-template-columns:minmax(200px,1fr) minmax(260px,2fr);gap:14px;align-items:stretch">'
+      +'<div style="border:1px solid #e0e0e0;border-radius:12px;padding:14px;background:var(--bg);display:flex;flex-direction:column;align-items:center;gap:8px">'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text)">ความคืบหน้า (กำลังป้อน)</div>'
+        +'<div style="width:132px;height:132px;border-radius:50%;background:conic-gradient(#0066ff 0deg '+aggDeg+'deg, #e8eaed '+aggDeg+'deg 360deg);display:grid;place-items:center;box-shadow:inset 0 0 0 14px var(--bg2)"></div>'
+        +'<div style="text-align:center;font-size:11px;color:var(--text3)">ป้อนแล้ว <b style="color:#0066ff">'+aggPct.toFixed(1)+'%</b> ของน้ำหนักเป้าวัน (เฉพาะสถานะกำลังป้อน)</div>'
+        +'<div style="font-size:11px;font-weight:700;color:var(--text)">'+sumM.toFixed(2)+' kg / '+sumT.toFixed(2)+' kg</div>'
+      +'</div>'
+      +'<div style="border:1px solid #e0e0e0;border-radius:12px;padding:12px 14px;background:var(--bg)">'
+        +'<div style="font-size:11px;font-weight:800;color:var(--text2);margin-bottom:8px">สรุปตามสถานะ (จากตัวกรอง)</div>'
+        +'<div style="flex-wrap:wrap">'+stLine+'</div>'
+        +'<div style="margin-top:10px">'
+          +'<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px">ความคืบหน้าโดยน้ำหนัก (รวม)</div>'
+          +'<div style="height:14px;background:#e8eaed;border-radius:8px;overflow:hidden">'
+            +'<div style="width:'+Math.min(100,aggPct).toFixed(2)+'%;height:100%;background:linear-gradient(90deg,#0066ff,#4d94ff);transition:width .2s"></div>'
+          +'</div>'
+          +'<div style="text-align:right;font-size:11px;color:#0066ff;font-weight:800;margin-top:2px">'+aggPct.toFixed(1)+'%</div>'
+        +'</div>'
+        +(active.length?'<div style="font-size:10px;color:var(--text3);margin-top:8px">งานกำลังป้อน: <b>'+active.length+'</b> ช่อง</div>':'<div style="font-size:10px;color:var(--text3);margin-top:8px">ไม่มีสถานะกำลังป้อนในรายการนี้ — อนุมัติแผนแล้วกด <b>เริ่มป้อน</b> บนการ์ด</div>')
+      +'</div>'
+    +'</div>';
+  if(!list.length){
+    cr.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:22px;color:var(--text3);font-size:12px">ไม่มีแผนป้อนสีตามตัวกรอง — ซิงค์ TT หรือปรับตัวกรอง</div>';
+    mixFeederDashApplyView();
+    return;
+  }
+  cr.innerHTML=list.map(function(p){
+    function escId(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+    var pid=escId(p.id);
+    var tgt=mixFeederPlanTargetKg(p);
+    var pct=mixFeederProgressPct(p);
+    var mixed=tgt*(pct/100);
+    var rem=Math.max(0,tgt-mixed);
+    var pcs=mixFeederPiecesMetric(p);
+    var st=p.status||'—';
+    var badge={'รอเดินงาน':'#e3b341','กำลังป้อน':'#0066ff','เบิกแล้ว':'#28a745'}[st]||'#888';
+    var ap=(typeof approvals!=='undefined'&&approvals)?approvals['mixfeeder-'+p.id]:null;
+    var approved=ap&&ap.status==='approved';
+    var slider=(p.status==='กำลังป้อน')
+      ? '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text3)">ปรับความคืบหน้า (%)</label><input type="range" min="0" max="100" step="0.5" value="'+pct+'" data-feeder-id="'+String(p.id).replace(/"/g,'&quot;')+'" oninput="mixFeederDashPctChange(this)" style="width:100%"/></div>'
+      : '<div style="margin-top:6px;font-size:10px;color:var(--text3)">'+(p.status==='เบิกแล้ว'?'✅ เบิกสต็อกรายวันแล้ว':(approved?'กด <b>เริ่มป้อน</b> เพื่อบันทึก % ระหว่างเดินงาน':'ต้องอนุมัติแผนป้อนสีก่อน'))+'</div>';
+    var startBtn=(p.status==='รอเดินงาน'&&approved&&!p.stockIssued)
+      ? '<button type="button" class="btn btn-secondary btn-sm" onclick="mixFeederStartDispensing(\''+pid+'\')" style="font-size:10px;padding:3px 8px">เริ่มป้อน</button>'
+      : '';
+    return '<div style="border:1px solid #e0e0e0;border-radius:12px;padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'
+        +'<div><div style="font-size:10px;color:var(--text3)">แผนป้อนสี #'+mixDashEsc(p.id)+'</div>'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);line-height:1.25">'+mixDashEsc(p.orderNo||'')+(p.jobName?' · '+mixDashEsc(p.jobName):'')+'</div>'
+        +'<div style="font-size:10px;color:var(--text3)">TT '+mixDashEsc(p.ttProdDate||p.date||'—')+' · ช่อง '+(p.time||'—')+'</div></div>'
+        +'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:'+badge+'22;color:'+badge+';border:1px solid '+badge+'55">'+mixDashEsc(st)+'</span>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
+        +'<div style="font-size:26px;font-weight:900;color:#0066ff;font-family:monospace">'+pct.toFixed(1)+'%</div>'
+        +'<div style="flex:1">'
+          +'<div style="height:10px;background:#e8eaed;border-radius:6px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,#0066ff,#4d94ff)"></div></div>'
+          +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:3px"><span>เป้า '+tgt.toFixed(2)+' kg/วัน</span><span>ป้อน '+mixed.toFixed(2)+' kg</span><span>เหลือ '+rem.toFixed(2)+' kg</span></div>'
+        +'</div>'
+      +'</div>'
+      +(pcs.target?'<div style="font-size:10px;color:var(--text3)">ชิ้น: <b style="color:var(--text)">'+pcs.mixed.toLocaleString()+'</b> / '+pcs.target.toLocaleString()+' ชิ้น/วัน</div>':'')
+      +slider
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px">'
+        +startBtn
+        +'<button type="button" class="btn btn-primary btn-sm" onclick="mixOpenFeederProgressDetail(\''+pid+'\')" style="font-size:10px;padding:3px 10px;background:#0066ff;border-color:#0066ff">ดูรายละเอียด</button>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+  mixFeederDashApplyView();
 }
 
 // ── KPI Row ──────────────────────────────────────────────────────
@@ -21070,9 +21338,11 @@ function renderMixingFeederTT(){
       html+='<td style="padding:4px;border-left:1px solid var(--border);border-top:1px solid var(--border);vertical-align:top;min-height:64px;background:'+(isToday?'rgba(56,139,253,0.04)':'transparent')+'">';
       if(plans.length){
         plans.forEach(function(p){
-          var col=p.stockIssued?'#3fb950':(p.status==='เบิกแล้ว'?'#3fb950':'#79c0ff');
+          var col=p.stockIssued?'#3fb950':(p.status==='เบิกแล้ว'?'#3fb950':(p.status==='กำลังป้อน'?'#0066ff':'#79c0ff'));
           var apLbl='อนุมัติเบิกป้อนสี';
           var apHtml=(typeof getApprovalBadge==='function')?getApprovalBadge('mixfeeder-'+p.id, apLbl):'';
+          var stBadge=p.stockIssued?'เบิกแล้ว':(p.status==='กำลังป้อน'?'กำลังป้อน':'รอเดินงาน');
+          var stCls=p.stockIssued?'badge-green':(p.status==='กำลังป้อน'?'badge-blue':'badge-yellow');
           html+='<div style="background:rgba(0,0,0,0.15);border-left:3px solid '+col+';padding:5px 6px;border-radius:4px;margin-bottom:4px;font-size:10px">'
             +'<div style="font-weight:800;color:var(--accent2);font-family:monospace;font-size:9px">'+(p.machine||'—')+'</div>'
             +'<div style="font-weight:700;color:var(--text);max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(p.jobName||'')+'</div>'
@@ -21080,7 +21350,7 @@ function renderMixingFeederTT(){
             +'<div style="color:#3fb950">เม็ด '+((p.plasticKgPerDay||0).toFixed(2))+' kg/วัน</div>'
             +'<div style="color:#e3b341">MB '+((p.mbKgPerDay||0).toFixed(3))+' kg/วัน</div>'
             +'<div style="margin-top:4px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">'+apHtml
-            +(p.stockIssued?'<span class="badge badge-green" style="font-size:9px">เบิกแล้ว</span>':'')
+            +'<span class="badge '+stCls+'" style="font-size:9px">'+stBadge+'</span>'
             +'</div></div>';
         });
       } else {
@@ -47534,6 +47804,20 @@ function _clRenderChart(){
   <div id="mix-progress-detail-body" style="padding:4px 2px 8px"></div>
   <div class="flex gap-2" style="justify-content:flex-end;margin-top:8px;padding-top:10px;border-top:1px solid var(--border)">
     <button class="btn btn-secondary" onclick="closeModal('modal-mix-progress-detail')">ปิด</button>
+  </div>
+</div>
+</div>
+
+<!-- Feeder progress detail -->
+<div class="modal-overlay" id="modal-feeder-progress-detail">
+<div class="modal" style="max-width:760px;max-height:92vh;overflow:auto">
+  <div class="modal-header">
+    <div class="modal-title" style="color:#0066ff">ติดตามความคืบหน้าป้อนสี (รายวัน)</div>
+    <button class="modal-close" onclick="closeModal('modal-feeder-progress-detail')">✕</button>
+  </div>
+  <div id="mix-feeder-progress-detail-body" style="padding:4px 2px 8px"></div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:8px;padding-top:10px;border-top:1px solid var(--border)">
+    <button class="btn btn-secondary" onclick="closeModal('modal-feeder-progress-detail')">ปิด</button>
   </div>
 </div>
 </div>
