@@ -3062,7 +3062,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </div>
   <div class="card"><div class="tbl-wrap"><table>
     <thead><tr>
-      <th>ชื่องาน</th><th>Cavity</th><th>CT (วิ/ชิ้น)</th><th>EFF %</th><th>เป้า/ชม</th>
+      <th style="min-width:200px">ชิ้นงาน / รูป</th><th>Cavity</th><th>CT (วิ/ชิ้น)</th><th>EFF %</th><th>เป้า/ชม</th>
       <th>เครื่อง</th><th>Ton</th>
       <th style="white-space:nowrap;color:#79c0ff">ยี่ห้อเครื่อง</th>
       <th style="white-space:nowrap;color:#79c0ff">Model</th>
@@ -17927,6 +17927,85 @@ function bomPopulatePlasticSelectors(){
   }
 }
 
+function bomPartImageAttrEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+function bomPartImageUpdatePreview(){
+  var d=(document.getElementById('bom-part-image-data')&&document.getElementById('bom-part-image-data').value||'').trim();
+  var u=(document.getElementById('bom-part-image-url')&&document.getElementById('bom-part-image-url').value||'').trim();
+  var src=d||u;
+  var im=document.getElementById('bom-part-image-preview');
+  var ph=document.getElementById('bom-part-image-ph');
+  if(!im||!ph) return;
+  if(src){
+    im.style.display='block';
+    ph.style.display='none';
+    im.src=src;
+    im.onerror=function(){ im.style.display='none'; ph.style.display='flex'; };
+  }else{
+    im.removeAttribute('src');
+    im.style.display='none';
+    ph.style.display='flex';
+  }
+}
+function bomPartImageUrlInput(){
+  var u=(document.getElementById('bom-part-image-url')&&document.getElementById('bom-part-image-url').value||'').trim();
+  if(u.length>0){
+    var hid=document.getElementById('bom-part-image-data'); if(hid) hid.value='';
+    var fi=document.getElementById('bom-part-image-file'); if(fi) fi.value='';
+  }
+  bomPartImageUpdatePreview();
+}
+function bomPartImageFileChange(ev){
+  var inp=ev&&ev.target;
+  var f=inp&&inp.files&&inp.files[0];
+  if(!f){ return; }
+  if(f.size>1572864){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ไฟล์ใหญ่เกิน ~1.5MB กรุณาเลือกรูปที่เล็กกว่า');
+    inp.value='';
+    return;
+  }
+  var r=new FileReader();
+  r.onload=function(){
+    var hid=document.getElementById('bom-part-image-data');
+    if(hid) hid.value=r.result||'';
+    var urlEl=document.getElementById('bom-part-image-url'); if(urlEl) urlEl.value='';
+    bomPartImageUpdatePreview();
+  };
+  r.onerror=function(){ if(typeof _infoToast==='function') _infoToast('⚠️ อ่านไฟล์รูปไม่สำเร็จ'); inp.value=''; };
+  r.readAsDataURL(f);
+}
+function bomPartImageClear(){
+  var fi=document.getElementById('bom-part-image-file'); if(fi) fi.value='';
+  var hid=document.getElementById('bom-part-image-data'); if(hid) hid.value='';
+  var urlEl=document.getElementById('bom-part-image-url'); if(urlEl) urlEl.value='';
+  var de=document.getElementById('bom-part-image-desc'); if(de) de.value='';
+  bomPartImageUpdatePreview();
+}
+function bomSetPartImageFields(j){
+  var p=j&&j.partImage?String(j.partImage).trim():'';
+  var hid=document.getElementById('bom-part-image-data');
+  var urlEl=document.getElementById('bom-part-image-url');
+  var fi=document.getElementById('bom-part-image-file');
+  if(fi) fi.value='';
+  if(!p){
+    if(hid) hid.value='';
+    if(urlEl) urlEl.value='';
+  }else if(/^https?:\/\//i.test(p)){
+    if(urlEl) urlEl.value=p;
+    if(hid) hid.value='';
+  }else{
+    if(hid) hid.value=p;
+    if(urlEl) urlEl.value='';
+  }
+  var de=document.getElementById('bom-part-image-desc');
+  if(de) de.value=(j&&j.partImageDesc)?String(j.partImageDesc):'';
+  bomPartImageUpdatePreview();
+}
+function bomHtmlEscLite(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function renderBom(filter='',matFilter=''){
   if(typeof bomPopulatePlasticSelectors==='function') bomPopulatePlasticSelectors();
   if(!matFilter){
@@ -18017,8 +18096,15 @@ function renderBom(filter='',matFilter=''){
       : ((j.ton&&Number(j.ton)>0) ? '<span style="color:#ffa657;font-weight:700">'+j.ton+'T</span>' : '<span style="color:var(--text3)">—</span>');
     var _ctShotJ=parseFloat(j.ct)||0; var _cavJ=parseInt(j.cav,10)||0;
     var ctPieceDisp=(_ctShotJ>0&&_cavJ>0)?(+(_ctShotJ/_cavJ).toFixed(2)):(_ctShotJ>0?_ctShotJ:'—');
+    var imgSrc=(j.partImage&&String(j.partImage).trim())||'';
+    var partDesc=(j.partImageDesc&&String(j.partImageDesc).trim())||'';
+    var imgCell=imgSrc
+      ? '<img src="'+bomPartImageAttrEsc(imgSrc)+'" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--border);flex-shrink:0;background:var(--bg3)" loading="lazy" onerror="this.style.visibility=\'hidden\'">'
+      : '<div style="width:52px;height:52px;border-radius:8px;border:1px dashed var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text3);background:var(--bg2)" title="ยังไม่มีรูป">📷</div>';
+    var nameBlock='<div style="font-size:12px;font-weight:700;line-height:1.25">'+j.name+'</div>'
+      +(partDesc?'<div style="font-size:10px;color:var(--text3);margin-top:3px;line-height:1.35">'+bomHtmlEscLite(partDesc)+'</div>':'');
     return '<tr>'
-      +'<td style="font-size:12px;font-weight:600">'+j.name+'</td>'
+      +'<td style="vertical-align:middle;min-width:180px"><div style="display:flex;align-items:flex-start;gap:10px">'+imgCell+'<div style="min-width:0">'+nameBlock+'</div></div></td>'
       +'<td class="mono" style="text-align:center">'+j.cav+'</td>'
       +'<td class="mono" style="text-align:center" title="CT 1 shot: '+(_ctShotJ||'—')+' วิ">'+ctPieceDisp+'</td>'
       +'<td class="mono" style="text-align:center">'+j.eff+'%</td>'
@@ -18116,6 +18202,7 @@ function editBom(ref){
   if(ctnDisp) ctnDisp.textContent=pcsCtn>0?pcsCtn.toLocaleString()+' ชิ้น':'-';
   bomSetWorkGroupFromJob(j);
   if(!bomIsAssemblyWorkGroupSelected()) sv('bom-ton', j.ton||'');
+  if(typeof bomSetPartImageFields==='function') bomSetPartImageFields(j);
   // Reset UI state
   var badge=document.getElementById('bom-job-selected');if(badge){badge.style.display='block';var bn=document.getElementById('bom-job-selected-name');if(bn)bn.textContent=j.name;}
   var res=document.getElementById('bom-job-results');if(res)res.style.display='none';
@@ -18226,7 +18313,13 @@ function saveBom(){
       packNote:document.getElementById('bom-pack-note')?.value||'',
     },
     // 4-ingredient mixing formula
-    mixIngredients: (typeof bomGetMixIngredients==='function') ? bomGetMixIngredients() : []
+    mixIngredients: (typeof bomGetMixIngredients==='function') ? bomGetMixIngredients() : [],
+    partImage: (function(){
+      var d=(document.getElementById('bom-part-image-data')&&document.getElementById('bom-part-image-data').value||'').trim();
+      var u=(document.getElementById('bom-part-image-url')&&document.getElementById('bom-part-image-url').value||'').trim();
+      return d||u||'';
+    })(),
+    partImageDesc: (document.getElementById('bom-part-image-desc')&&document.getElementById('bom-part-image-desc').value||'').trim()
   };
   data.target=(data.cav>0&&data.ct>0)
     ? Math.floor((3600/data.ct)*data.cav*(data.eff/100))
@@ -18749,6 +18842,7 @@ function bomClearForm(){
       pel.value = all.length ? all[0] : '';
     }
   }
+  if(typeof bomSetPartImageFields==='function') bomSetPartImageFields(null);
   // Process steps will be inited by openAddBomModal after modal opens
 }
 
@@ -18858,6 +18952,7 @@ function bomSelectJob(name){
     bomEstimateCost();
     if(typeof bomUpdateFeederShotDisplay==='function') bomUpdateFeederShotDisplay();
   }, 80);
+  if(typeof bomSetPartImageFields==='function') bomSetPartImageFields(j);
   if(typeof _toast==='function') _toast('📥 โหลดข้อมูล "'+name+'" แล้ว');
 }
 
@@ -47699,6 +47794,34 @@ function _clRenderChart(){
         <option value="secondary">🔧 ไลน์รอง / กระบวนการหลัง</option>
       </select>
     </div>
+  </div>
+
+  <!-- รูปชิ้นงาน (แสดงในตาราง BOM) -->
+  <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:rgba(163,113,247,0.05)">
+    <div style="font-size:11px;font-weight:700;color:#a371f7;margin-bottom:8px">📷 รูปชิ้นงาน</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
+      <div style="flex-shrink:0;text-align:center">
+        <img id="bom-part-image-preview" alt="" style="display:none;width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border);background:var(--bg3)">
+        <div id="bom-part-image-ph" style="width:72px;height:72px;border-radius:10px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text3);background:var(--bg2)">📷</div>
+      </div>
+      <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px">
+        <div class="form-group" style="margin:0">
+          <div class="form-label">อัปโหลดรูป</div>
+          <input type="file" id="bom-part-image-file" accept="image/*" onchange="bomPartImageFileChange(event)" style="font-size:11px;max-width:100%">
+        </div>
+        <div class="form-group" style="margin:0">
+          <div class="form-label">หรือ URL รูป</div>
+          <input type="text" id="bom-part-image-url" placeholder="https://..." oninput="bomPartImageUrlInput()" style="width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box">
+        </div>
+        <input type="hidden" id="bom-part-image-data" value="">
+        <div class="form-group" style="margin:0">
+          <div class="form-label">คำอธิบายสั้นๆ (ใต้ชื่อในตาราง)</div>
+          <input type="text" id="bom-part-image-desc" maxlength="240" placeholder="เช่น 500ml clear molded container" style="width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box">
+        </div>
+        <button type="button" onclick="bomPartImageClear()" style="align-self:flex-start;padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;color:var(--text2)">ล้างรูป</button>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px">💡 รูปจากไฟล์เก็บในเบราว์เซอร์ (แนะนำ &lt; 1.5MB) หรือใส่ลิงก์ https แทน</div>
   </div>
 
   <!-- Main fields -->
