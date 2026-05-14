@@ -3410,7 +3410,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px">
         <div>
           <div style="font-size:14px;font-weight:800;color:#0066ff;letter-spacing:0.02em">ติดตามความคืบหน้าการผสมเม็ด</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">ภาพรวมงานที่กำลังผสม · การ์ดรายแผน (ตามตัวกรองด้านบน) · ปรับ % ได้เมื่อสถานะ <b>กำลังผสม</b></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">ภาพรวมงานที่กำลังผสม · <b>การ์ดรวมตาม Lot/งาน</b> (หลายวันผสมเป็นการ์ดเดียว) · กด <b>ดูรายละเอียด</b> เพื่อดูยอดรายวัน · ปรับ % ได้เมื่อสถานะ <b>กำลังผสม</b></div>
         </div>
         <div id="mix-dash-updated" style="font-size:11px;color:var(--text3);white-space:nowrap"></div>
       </div>
@@ -20941,6 +20941,78 @@ function mixDashboardFilteredPlans(){
     return true;
   });
 }
+function mixPlanLotGroupKey(p){
+  if(!p) return '';
+  var o=String(p.orderNo||'').trim();
+  if(!o) return 'solo:'+String(p.id);
+  return o+''+String(p.lotNo||'').trim()+''+String(p.machine||'').trim()+''+String(p.jobName||'').trim();
+}
+function mixDashDecodeGroupKey(enc){
+  try{ return decodeURIComponent(enc||''); }catch(e){ return ''; }
+}
+function mixDashPlansForLotGroupRaw(rawKey){
+  if(!rawKey) return [];
+  return mixPlans.filter(function(p){ return p && !p._deleted && mixPlanLotGroupKey(p)===rawKey; });
+}
+function mixDashSortMixPlansByMixDate(arr){
+  return arr.slice().sort(function(a,b){
+    var da=String(a.date||''), db=String(b.date||'');
+    if(da!==db) return da.localeCompare(db);
+    return String(a.time||'08:00').localeCompare(String(b.time||'08:00'));
+  });
+}
+function mixDashGroupRollupStatus(plans){
+  var sts=plans.map(function(p){ return p.status||'รอผสม'; });
+  if(sts.length && sts.every(function(s){ return s==='ผสมแล้ว'; })) return 'ผสมแล้ว';
+  if(sts.some(function(s){ return s==='กำลังผสม'; })) return 'กำลังผสม';
+  if(sts.some(function(s){ return s==='ขาดวัตถุดิบ'; })) return 'ขาดวัตถุดิบ';
+  if(sts.some(function(s){ return s==='จองวัตถุดิบแล้ว'; })) return 'จองวัตถุดิบแล้ว';
+  return 'รอผสม';
+}
+function mixDashAggregateLotGroup(plans){
+  var sumT=0, sumM=0;
+  plans.forEach(function(p){
+    var tg=mixPlanTargetTotalKg(p);
+    sumT+=tg;
+    sumM+=tg*(mixPlanProgressPct(p)/100);
+  });
+  return {
+    sumT:sumT,
+    sumM:sumM,
+    aggPct:sumT>0?(sumM/sumT*100):0,
+    status:mixDashGroupRollupStatus(plans),
+    n:plans.length
+  };
+}
+function mixDashGroupPiecesFromAgg(p0, aggPct){
+  if(!p0) return { target:0, mixed:0, remain:0 };
+  var j=findJobByFlexibleName(p0.jobName);
+  var qty=mixOrderQtyForPlan(p0);
+  var wt=j?jobEffectiveWtPerPc(j,0):0;
+  if(!(wt>0)||!(qty>0)) return { target:0, mixed:0, remain:0 };
+  var target=Math.round(qty);
+  var pct=Math.max(0, Math.min(100, aggPct))/100;
+  var mixed=Math.round(target*pct);
+  return { target:target, mixed:mixed, remain:Math.max(0,target-mixed) };
+}
+function mixDashboardLotGroups(list){
+  var m={};
+  list.forEach(function(p){
+    if(!p) return;
+    var k=mixPlanLotGroupKey(p);
+    if(!m[k]) m[k]=[];
+    m[k].push(p);
+  });
+  return Object.keys(m).map(function(key){
+    var arr=mixDashSortMixPlansByMixDate(m[key]);
+    return { key:key, plans:arr, agg:mixDashAggregateLotGroup(arr) };
+  }).sort(function(A,B){
+    var a=A.plans[0]||{}, b=B.plans[0]||{};
+    var da=String(a.date||''), db=String(b.date||'');
+    if(da!==db) return da.localeCompare(db);
+    return String(a.orderNo||'').localeCompare(String(b.orderNo||''));
+  });
+}
 function mixPlanTargetTotalKg(p){
   if(!p) return 0;
   var needRows = mixPlanPlasticNeedRows(p);
@@ -21047,31 +21119,37 @@ function mixRenderDashboard(){
       +'</div>'
     +'</div>';
 
-  if(!list.length){
+  var groups = mixDashboardLotGroups(list);
+  if(!groups.length){
     cr.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text3);font-size:12px">ไม่มีแผนตามตัวกรอง — ปรับตัวกรองหรือสร้างแผนจาก Order</div>';
     mixDashApplyView();
     return;
   }
-  cr.innerHTML = list.map(function(p){
-    var pid = String(p.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var tgt = mixPlanTargetTotalKg(p);
-    var pct = mixPlanProgressPct(p);
-    var mixed = tgt * (pct/100);
+  cr.innerHTML = groups.map(function(grp){
+    var plans = grp.plans;
+    var agg = grp.agg;
+    var p0 = plans[0];
+    var keyAttr = encodeURIComponent(grp.key).replace(/"/g,'&quot;');
+    var tgt = agg.sumT;
+    var pct = agg.aggPct;
+    var mixed = agg.sumM;
     var rem = Math.max(0, tgt-mixed);
-    var pcs = mixPlanPiecesMetric(p);
-    var st = p.status||'—';
+    var pcs = mixDashGroupPiecesFromAgg(p0, pct);
+    var st = agg.status||'—';
     var badge = {'รอผสม':'#e3b341','จองวัตถุดิบแล้ว':'#3fb950','กำลังผสม':'#0066ff','ผสมแล้ว':'#28a745','ขาดวัตถุดิบ':'#f85149'}[st]||'#888';
     var barW = pct;
-    var slider = (p.status==='กำลังผสม')
-      ? '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text3)">ปรับความคืบหน้า (%)</label><input type="range" min="0" max="100" step="0.5" value="'+pct+'" data-mix-id="'+String(p.id).replace(/"/g,'&quot;')+'" oninput="mixDashPctChange(this)" style="width:100%"/></div>'
-      : '<div style="margin-top:6px;font-size:10px;color:var(--text3)">'+(p.status==='ผสมแล้ว'?'✅ ครบแล้ว':'ตั้งสถานะเป็น <b>กำลังผสม</b> เพื่อบันทึก % ระหว่างทาง')+'</div>';
-    var startBtn = (p.status==='จองวัตถุดิบแล้ว')
-      ? '<button type="button" class="btn btn-secondary btn-sm" onclick="mixDashStartMixing(\''+pid+'\')" style="font-size:10px;padding:3px 8px">เริ่มผสม</button>'
+    var slider = (st==='กำลังผสม')
+      ? '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text3)">ปรับความคืบหน้า (% รวมทุกวัน — กำลังผสม)</label><input type="range" min="0" max="100" step="0.5" value="'+pct+'" data-mix-lot-grp="'+keyAttr+'" oninput="mixDashPctChange(this)" style="width:100%"/></div>'
+      : '<div style="margin-top:6px;font-size:10px;color:var(--text3)">'+(st==='ผสมแล้ว'?'✅ ครบแล้ว':'ตั้งสถานะเป็น <b>กำลังผสม</b> เพื่อบันทึก % ระหว่างทาง')+'</div>';
+    var startBtn = (st==='จองวัตถุดิบแล้ว')
+      ? '<button type="button" class="btn btn-secondary btn-sm" data-mix-lot-grp="'+keyAttr+'" onclick="mixDashStartLotMixingFromEl(this)" style="font-size:10px;padding:3px 8px">เริ่มผสม</button>'
       : '';
+    var lotLine = (p0.lotNo?('Lot '+mixDashEsc(p0.lotNo)+' · '):'')+(plans.length>1?('<span style="color:var(--text3)">รวม '+plans.length+' วันผสม</span>'):'');
     return '<div style="border:1px solid #e0e0e0;border-radius:12px;padding:12px;background:var(--bg);display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'
-        +'<div><div style="font-size:10px;color:var(--text3)">แผน #'+mixDashEsc(p.id)+'</div>'
-        +'<div style="font-size:12px;font-weight:800;color:var(--text);line-height:1.25">'+mixDashEsc(p.orderNo||'')+(p.jobName?' · '+mixDashEsc(p.jobName):'')+'</div></div>'
+        +'<div><div style="font-size:10px;color:var(--text3)">งาน / Lot (รวมทุกวันในตัวกรอง)</div>'
+        +'<div style="font-size:12px;font-weight:800;color:var(--text);line-height:1.25">'+mixDashEsc(p0.orderNo||'')+(p0.jobName?' · '+mixDashEsc(p0.jobName):'')+'</div>'
+        +'<div style="font-size:10px;color:#79c0ff;margin-top:2px">'+lotLine+'</div></div>'
         +'<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:'+badge+'22;color:'+badge+';border:1px solid '+badge+'55">'+mixDashEsc(st)+'</span>'
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
@@ -21081,26 +21159,72 @@ function mixRenderDashboard(){
           +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:3px"><span>เป้า '+tgt.toFixed(1)+' kg</span><span>ผสม '+mixed.toFixed(1)+' kg</span><span>เหลือ '+rem.toFixed(1)+' kg</span></div>'
         +'</div>'
       +'</div>'
-      +(pcs.target?'<div style="font-size:10px;color:var(--text3)">ชิ้น: <b style="color:var(--text)">'+pcs.mixed.toLocaleString()+'</b> / '+pcs.target.toLocaleString()+' ชิ้น</div>':'')
+      +(pcs.target?'<div style="font-size:10px;color:var(--text3)">ชิ้น (รวมความคืบหน้า): <b style="color:var(--text)">'+pcs.mixed.toLocaleString()+'</b> / '+pcs.target.toLocaleString()+' ชิ้น</div>':'')
       +slider
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px">'
         +startBtn
-        +'<button type="button" class="btn btn-primary btn-sm" onclick="mixOpenProgressDetail(\''+pid+'\')" style="font-size:10px;padding:3px 10px;background:#0066ff;border-color:#0066ff">ดูรายละเอียด</button>'
+        +'<button type="button" class="btn btn-primary btn-sm" data-mix-lot-grp="'+keyAttr+'" onclick="mixOpenLotProgressDetailFromEl(this)" style="font-size:10px;padding:3px 10px;background:#0066ff;border-color:#0066ff">ดูรายละเอียด</button>'
       +'</div>'
     +'</div>';
   }).join('');
   mixDashApplyView();
 }
 function mixDashPctChange(el){
+  var gk = el.getAttribute('data-mix-lot-grp');
+  var pct = Math.max(0, Math.min(100, parseFloat(el.value)||0));
+  if(gk){
+    var raw = mixDashDecodeGroupKey(gk);
+    if(!raw) return;
+    mixPlans.forEach(function(p){
+      if(!p || p._deleted) return;
+      if(mixPlanLotGroupKey(p)!==raw) return;
+      if(p.status!=='กำลังผสม') return;
+      p.mixProgressPct = pct;
+      p.mixProgressUpdatedAt = new Date().toISOString();
+    });
+    saveMixPlans();
+    mixRenderDashboard();
+    if(typeof mixRenderKPI==='function') mixRenderKPI();
+    return;
+  }
   var id = el.getAttribute('data-mix-id');
   var p = mixPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; });
   if(!p || p.status!=='กำลังผสม') return;
-  p.mixProgressPct = Math.max(0, Math.min(100, parseFloat(el.value)||0));
+  p.mixProgressPct = pct;
   p.mixProgressUpdatedAt = new Date().toISOString();
   saveMixPlans();
   mixRenderDashboard();
   if(typeof mixRenderKPI==='function') mixRenderKPI();
 }
+function mixDashStartLotMixingFromEl(btn){
+  var gk = btn && btn.getAttribute('data-mix-lot-grp');
+  var raw = mixDashDecodeGroupKey(gk||'');
+  if(!raw) return;
+  var rows = mixDashPlansForLotGroupRaw(raw);
+  var nok=0, nstarted=0;
+  rows.forEach(function(p){
+    if(p.status!=='จองวัตถุดิบแล้ว') return;
+    var ak='mixing-'+p.id;
+    var ap=approvals[ak];
+    if(!ap || ap.status!=='approved'){ nok++; return; }
+    p.status='กำลังผสม';
+    if(!isFinite(parseFloat(p.mixProgressPct))) p.mixProgressPct=0;
+    p.mixStartedAt = new Date().toISOString();
+    nstarted++;
+  });
+  saveMixPlans();
+  if(!nstarted){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ต้องอนุมัติแผนผสม (แต่ละวัน) ก่อนเริ่มผสม');
+    return;
+  }
+  if(nok && typeof _infoToast==='function') _infoToast('⚠️ เริ่มได้ '+nstarted+' วัน — อีก '+nok+' วันยังไม่อนุมัติ');
+  if(typeof _toast==='function') _toast('🔄 เริ่มผสม — บันทึกความคืบหน้าได้จากการ์ด');
+  renderMixTable();
+  if(typeof mixRenderKPI==='function') mixRenderKPI();
+  if(typeof mixRenderAlerts==='function') mixRenderAlerts();
+  mixRenderDashboard();
+}
+
 function mixDashStartMixing(id){
   var p=mixPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; }); if(!p) return;
   if(p.status!=='จองวัตถุดิบแล้ว'){
@@ -21127,6 +21251,61 @@ function mixOpenProgressDetail(id){
   body.innerHTML = mixBuildProgressDetailHtml(id);
   if(typeof openModal==='function') openModal('modal-mix-progress-detail');
 }
+function mixOpenLotProgressDetailFromEl(btn){
+  var gk = btn && btn.getAttribute('data-mix-lot-grp');
+  if(!gk) return;
+  var body=document.getElementById('mix-progress-detail-body'); if(!body) return;
+  body.innerHTML = mixBuildLotProgressDetailHtml(gk);
+  if(typeof openModal==='function') openModal('modal-mix-progress-detail');
+}
+function mixBuildLotProgressDetailHtml(enc){
+  var raw = mixDashDecodeGroupKey(enc||'');
+  if(!raw) return '<div style="padding:20px;color:var(--text3)">ไม่พบข้อมูล</div>';
+  var plans = mixDashSortMixPlansByMixDate(mixDashPlansForLotGroupRaw(raw));
+  if(!plans.length) return '<div style="padding:20px;color:var(--text3)">ไม่พบแผน</div>';
+  var p0 = plans[0];
+  var agg = mixDashAggregateLotGroup(plans);
+  var pcs = mixDashGroupPiecesFromAgg(p0, agg.aggPct);
+  var rows = plans.map(function(p){
+    var tg = mixPlanTargetTotalKg(p);
+    var pct = mixPlanProgressPct(p);
+    var mx = tg * (pct/100);
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      +'<td style="padding:8px;font-size:11px;white-space:nowrap">'+mixDashEsc(p.date||'—')+'</td>'
+      +'<td style="padding:8px;font-size:11px;white-space:nowrap">'+mixDashEsc(p.ttProdDate||p.prodDate||'—')+'</td>'
+      +'<td style="padding:8px;font-size:10px;color:var(--text3);max-width:140px;overflow:hidden;text-overflow:ellipsis" title="'+mixDashEsc(p.id)+'">'+mixDashEsc(p.id)+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px;font-weight:700">'+tg.toFixed(1)+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px;color:#0066ff">'+mx.toFixed(1)+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px">'+pct.toFixed(1)+'%</td>'
+      +'<td style="padding:8px;font-size:10px">'+mixDashEsc(p.status||'')+'</td>'
+    +'</tr>';
+  }).join('');
+  var sub = 'Order: '+mixDashEsc(p0.orderNo||'—')+' | งาน: '+mixDashEsc(p0.jobName||'—')
+    +' | Lot: '+mixDashEsc(p0.lotNo||'—')+' | เครื่อง: '+mixDashEsc(p0.machine||'—')
+    +' · <b>'+plans.length+'</b> วันผสม';
+  return ''
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.45">'+sub+'</div>'
+    +'<div style="margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">'
+      +mixDashMetricCard('⚖','น้ำหนักผสมแล้ว (รวม)', agg.sumM.toFixed(1)+' kg', 'จากเป้ารวม '+agg.sumT.toFixed(1)+' kg')
+      +mixDashMetricCard('⬚','เหลือ (รวม)', Math.max(0,agg.sumT-agg.sumM).toFixed(1)+' kg', 'ความคืบหน้าเฉลี่ยถ่วงน้ำหนัก '+agg.aggPct.toFixed(1)+'%')
+      +(pcs.target?mixDashMetricCard('🧩','ชิ้น (ประมาณ)', pcs.mixed.toLocaleString()+' / '+pcs.target.toLocaleString()+' ชิ้น', 'จาก % รวมของ Order'):'')
+    +'</div>'
+    +'<div style="font-weight:800;margin-bottom:6px;color:var(--text)">รายวัน — เป้า / ผสมแล้ว / %</div>'
+    +'<div class="tbl-wrap" style="max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:8px">'
+      +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+        +'<thead><tr style="background:var(--bg3)">'
+          +'<th style="padding:8px;text-align:left">วันผสมถัง</th>'
+          +'<th style="padding:8px;text-align:left">วันผลิต (TT)</th>'
+          +'<th style="padding:8px;text-align:left">รหัสแผน</th>'
+          +'<th style="padding:8px;text-align:right">เป้า (kg)</th>'
+          +'<th style="padding:8px;text-align:right">ผสมแล้ว (kg)</th>'
+          +'<th style="padding:8px;text-align:right">%</th>'
+          +'<th style="padding:8px;text-align:left">สถานะ</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div>'
+    +'<div style="margin-top:10px;font-size:10px;color:var(--text3)">💡 การ์ดหน้าหลักรวมทุกวันที่ตรง Order/Lot/เครื่อง/งาน — ตารางนี้แสดงรายวันทั้งหมดของ Lot นี้ (ไม่ถูกตัดด้วยตัวกรองวันที่)</div>';
+}
+
 function mixBuildProgressDetailHtml(id){
   var p=mixPlans.find(function(x){ return String(x.id)===String(id) && !x._deleted; });
   if(!p) return '<div style="padding:20px;color:var(--text3)">ไม่พบแผน</div>';
