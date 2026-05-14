@@ -7017,8 +7017,9 @@ var MOLD_DB = JSON.parse(localStorage.getItem('_moldDB')||'[]');
 
 function saveMoldDB(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_DB, ['code','id']); try{localStorage.setItem('_moldDB',JSON.stringify(MOLD_DB));}catch(e){} }
 
-function getMold(id){ return MOLD_DB.find(function(m){return m.id===id;})||null; }
-function getMoldByCode(code){ return MOLD_DB.find(function(m){return m.code===code;})||null; }
+function moldDbRowLive(m){ return !!(m && typeof m==='object' && !m._deleted); }
+function getMold(id){ return MOLD_DB.find(function(m){ return moldDbRowLive(m) && String(m.id)===String(id); })||null; }
+function getMoldByCode(code){ return MOLD_DB.find(function(m){ return moldDbRowLive(m) && String(m.code)===String(code); })||null; }
 
 function initMoldDB(){
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
@@ -8023,6 +8024,7 @@ function getMoldCodeByJobName(jobName){
     return String(fromReg.moldCode||fromReg.mold||'').trim();
   }
   var fromMold=((typeof MOLD_DB!=='undefined'&&MOLD_DB)?MOLD_DB:[]).find(function(m){
+    if(!moldDbRowLive(m)) return false;
     return _normalizeText(m&&m.name)===nrm || _normalizeText(m&&m.jobName)===nrm
       || jobNameCollapseSpaces(m&&m.name)===jobNameCollapseSpaces(name) || jobNameCollapseSpaces(m&&m.jobName)===jobNameCollapseSpaces(name);
   });
@@ -9075,7 +9077,7 @@ function moldAggregateShotsFromDailyReports(){
     var j = ((typeof jobs !== 'undefined' && jobs) ? jobs : []).find(function(jj){ return jj.name===rpt.jobName; }) || {};
     var code = String(rpt.moldCode || j.moldCode || getMoldCodeByJobName(rpt.jobName||'') || '').trim();
     if(!code) return;
-    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code; });
+    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code && moldDbRowLive(x); });
     var cavR = Math.max(1,
       parseInt(moldRow&&(moldRow.cavity||moldRow.cav),10)||
       parseInt(j&&j.cavity,10)||1);
@@ -9091,7 +9093,7 @@ function moldAggregateShotsFromDailyReports(){
   });
   Object.keys(byCode).forEach(function(code){
     var o = byCode[code];
-    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code; });
+    var moldRow = (MOLD_DB||[]).find(function(x){ return String(x.code)===code && moldDbRowLive(x); });
     var cav = Math.max(1,
       parseInt(moldRow&&(moldRow.cavity||moldRow.cav),10)||
       (o.breakdown.length ? o.breakdown[0].cav : 1));
@@ -9105,7 +9107,7 @@ function moldApplyDailyShotsToMoldDB(){
   var agg = moldAggregateShotsFromDailyReports();
   window._moldDailyShotAgg = agg;
   (MOLD_DB||[]).forEach(function(m){
-    if(!m || !m.code) return;
+    if(!m || !m.code || m._deleted) return;
     var a = agg[m.code];
     var fromDaily = a ? Math.max(0, Math.floor(Number(a.shots)||0)) : 0;
     if(m.shotOffsetBeforeRpt===undefined || m.shotOffsetBeforeRpt===null || m.shotOffsetBeforeRpt===''){
@@ -9126,7 +9128,7 @@ function moldApplyDailyShotsToMoldDB(){
 }
 function syncMoldDataFromMoldDB(){
   if(typeof moldApplyDailyShotsToMoldDB==='function') moldApplyDailyShotsToMoldDB();
-  moldData = (MOLD_DB||[]).map(function(m){
+  moldData = (MOLD_DB||[]).filter(function(m){ return moldDbRowLive(m); }).map(function(m){
     var shot = (m.totalShot!=null&&m.totalShot!=='')?Number(m.totalShot):Number(m.shot)||0;
     if(isNaN(shot)) shot=0;
     var pmShot = Number(m.pmInterval||m.pmShot)||500000;
@@ -9683,25 +9685,51 @@ function goBackMenu(){
 // ════════════════════════════════════════════════════════════════
 // MOLD REGISTRY JS — renderMoldRegistry, moldregEdit, moldregSave
 // ════════════════════════════════════════════════════════════════
+function moldregEscAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+/** คลิกแก้ไข/ลบในตารางทะเบียนแม่พิมพ์ — delegation กัน id มีอักขระพิเศษแล้ว onclick แตก */
+function moldregBindListClickDelegation(){
+  if(window._moldregListClickDelegationBound) return;
+  var root=document.getElementById('page-moldregistry');
+  if(!root) return;
+  window._moldregListClickDelegationBound=true;
+  root.addEventListener('click', function(ev){
+    var btn=ev.target.closest('button[data-moldreg-act]');
+    if(!btn||!root.contains(btn)) return;
+    var mid=btn.getAttribute('data-moldreg-id');
+    if(mid==null||mid==='') return;
+    var act=btn.getAttribute('data-moldreg-act');
+    ev.preventDefault();
+    if(act==='edit'){
+      if(typeof moldregEdit==='function') moldregEdit(mid);
+    } else if(act==='delete'){
+      if(typeof moldregDelete==='function') moldregDelete(mid);
+    }
+  });
+}
 function renderMoldRegistry(){
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
   var tbody = document.getElementById('moldreg-tbody');
   var summaryEl = document.getElementById('moldreg-summary');
   if(!tbody) return;
+  moldregBindListClickDelegation();
   if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_DB, ['code','id']);
   var search = (document.getElementById('moldreg-search')?.value||'').toLowerCase();
   var statusF = document.getElementById('moldreg-status')?.value||'';
   var list = MOLD_DB.filter(function(m){
+    if(!moldDbRowLive(m)) return false;
     if(statusF && m.status!==statusF) return false;
     if(search && !m.code.toLowerCase().includes(search) && !(m.name||m.jobName||'').toLowerCase().includes(search)) return false;
     return true;
   });
   // Summary
   if(summaryEl){
-    var total=MOLD_DB.length, ok=MOLD_DB.filter(function(m){return m.status==='ปกติ';}).length,
-        warn=MOLD_DB.filter(function(m){return m.status==='เฝ้าระวัง';}).length,
-        pm=MOLD_DB.filter(function(m){return m.status==='ต้องทำ PM';}).length,
-        fix=MOLD_DB.filter(function(m){return m.status==='ซ่อม';}).length;
+    var active=MOLD_DB.filter(moldDbRowLive);
+    var total=active.length, ok=active.filter(function(m){return m.status==='ปกติ';}).length,
+        warn=active.filter(function(m){return m.status==='เฝ้าระวัง';}).length,
+        pm=active.filter(function(m){return m.status==='ต้องทำ PM';}).length,
+        fix=active.filter(function(m){return m.status==='ซ่อม';}).length;
     summaryEl.innerHTML =
       '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">'
       +'<div style="font-size:10px;color:var(--text3)">ทั้งหมด</div><div style="font-size:22px;font-weight:800">'+total+'</div><div style="font-size:9px;color:var(--text3)">แม่พิมพ์</div></div>'
@@ -9739,8 +9767,8 @@ function renderMoldRegistry(){
         +'<span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;background:'+sc+'18;color:'+sc+';border:1px solid '+sc+'33">'+m.status+'</span>'
       +'</td>'
       +'<td style="padding:9px 8px;text-align:center">'
-        +'<button onclick="moldregEdit(\''+m.id+'\')" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">✏️ แก้ไข</button>'
-        +'<button onclick="moldregDelete(\''+m.id+'\')" style="'+_DEL_BTN+'">🗑</button>'
+        +'<button type="button" data-moldreg-act="edit" data-moldreg-id="'+moldregEscAttr(m.id)+'" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">✏️ แก้ไข</button>'
+        +'<button type="button" data-moldreg-act="delete" data-moldreg-id="'+moldregEscAttr(m.id)+'" style="'+_DEL_BTN+'">🗑</button>'
       +'</td></tr>';
   }).join('');
   if(!list.length) tbody.innerHTML='<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--text3)">ยังไม่มีข้อมูลแม่พิมพ์</td></tr>';
@@ -9755,7 +9783,8 @@ function moldregEditRefreshShots(){
 
 function moldregEdit(id){
   if(typeof moldApplyDailyShotsToMoldDB==='function') moldApplyDailyShotsToMoldDB();
-  var m = id ? MOLD_DB.find(function(x){return x.id===id;}) : null;
+  var sid=id==null||id===''?'' : String(id);
+  var m = sid ? MOLD_DB.find(function(x){ return String(x.id)===sid && moldDbRowLive(x); }) : null;
   var el = function(eid){ return document.getElementById('moldedit-'+eid); };
   document.getElementById('moldedit-title').textContent = m ? '🔧 '+m.code+' — แก้ไข' : '+ เพิ่มแม่พิมพ์ใหม่';
   ['id','code','name','customer','cavity','runner','material','weightKg','assignMachine','pmInterval','location','mfgYear','mfgBy','remark'].forEach(function(f){
@@ -9806,11 +9835,12 @@ function moldregSave(){
     pmInterval:parseInt(el('pmInterval'))||500000, shotOffsetBeforeRpt:offset, shotFromDailyReports:fromDaily, totalShot:totalShot,
     status:document.getElementById('moldedit-status')?.value||'ปกติ',
     location:el('location'), mfgYear:el('mfgYear'), mfgBy:el('mfgBy'), remark:el('remark'),
+    _deleted:false,
     updatedAt:new Date().toISOString().split('T')[0]
   };
   var pmS=Math.max(1,Number(obj.pmInterval)||500000);
   _moldApplyShotStatus(obj,totalShot,pmS);
-  var idx2 = MOLD_DB.findIndex(function(m){return m.id===id;});
+  var idx2 = MOLD_DB.findIndex(function(mm){ return String(mm.id)===String(id); });
   if(idx2>=0) MOLD_DB[idx2]=Object.assign({}, MOLD_DB[idx2], obj); else MOLD_DB.push(obj);
   saveMoldDB();
   initMoldDB(); // sync moldData
@@ -9823,7 +9853,7 @@ function moldregSave(){
 
 function moldregExportCSV(){
   var rows=[['ID','Code','ชื่องาน','ลูกค้า','Cavity','วัสดุ','เครื่อง','PM Interval','Total Shot','สถานะ','Location','Remark']];
-  MOLD_DB.forEach(function(m){
+  MOLD_DB.filter(moldDbRowLive).forEach(function(m){
     rows.push([m.id,m.code,m.name||m.jobName,m.customer,m.cavity,m.material,m.assignMachine,m.pmInterval,m.totalShot,m.status,m.location,m.remark]);
   });
   _exportCSV(rows,'mold_registry_'+new Date().toISOString().split('T')[0]+'.csv');
@@ -10558,7 +10588,7 @@ function bomCtShotFromPiece(ctPiece,cav){
 function bomApplyMoldRegistryHints(){
   var moldCode=(document.getElementById('bom-mold')?.value||'').trim();
   if(!moldCode||typeof MOLD_DB==='undefined') return;
-  var mold=MOLD_DB.find(function(m){return m.code===moldCode;});
+  var mold=MOLD_DB.find(function(m){return moldDbRowLive(m) && m.code===moldCode;});
   if(!mold) return;
   var cavEl=document.getElementById('bom-cav');
   var mcav=parseInt(mold.cavity!=null?mold.cavity:mold.cav,10)||0;
@@ -10778,7 +10808,7 @@ function exportEmployeesXL(){
 
 function exportMoldXL(){
   var rows=[['รหัส','Code','ชื่องาน','ลูกค้า','Cavity','Ton','เครื่อง','ช็อตปัจจุบัน','PM ทุก (shot)','สถานะ','ที่ตั้ง','ปีผลิต','ผู้ผลิต','หมายเหตุ']];
-  MOLD_DB.forEach(function(m){
+  MOLD_DB.filter(moldDbRowLive).forEach(function(m){
     rows.push([m.id,m.code,m.jobName||m.name||'',m.customer||'',m.cavity||m.cav||0,m.ton||0,m.machine||'',m.shot||0,m.pmShot||0,m.status||'',m.location||'',m.mfgYear||'',m.mfgBy||'',m.remark||'']);
   });
   _exportXLSX([{name:'ทะเบียนแม่พิมพ์',data:rows}],'mold_registry');
@@ -12009,7 +12039,7 @@ function jeMoldSearch(q){
   if(!query){dl.style.display='none';return;}
   var molds=(typeof MOLD_DB!=='undefined')?MOLD_DB:[];
   var matches=molds.filter(function(m){
-    return m.code.toLowerCase().includes(query)||(m.name||'').toLowerCase().includes(query)||(m.jobName||'').toLowerCase().includes(query);
+    return moldDbRowLive(m) && (m.code.toLowerCase().includes(query)||(m.name||'').toLowerCase().includes(query)||(m.jobName||'').toLowerCase().includes(query));
   }).slice(0,10);
   if(!matches.length){dl.style.display='none';return;}
   dl.style.display='block';
@@ -12037,7 +12067,7 @@ function jeMoldSearch(q){
 
 function jeSelectMold(code){
   var moldEl=document.getElementById('je-moldcode');if(moldEl)moldEl.value=code;
-  var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return m.code===code;}):null;
+  var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return moldDbRowLive(m) && m.code===code;}):null;
   var info=document.getElementById('je-mold-info');
   if(mold&&info){
     info.style.display='block';
@@ -19301,7 +19331,7 @@ function bomFillGrade(){
 function bomFillFromMold(){
   var moldCode=(document.getElementById('bom-mold')?.value||'').trim();
   if(!moldCode){_infoToast('⚠️ กรอกรหัสแม่พิมพ์ก่อน');return;}
-  var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return m.code===moldCode;}):null;
+  var mold=(typeof MOLD_DB!=='undefined')?MOLD_DB.find(function(m){return moldDbRowLive(m) && m.code===moldCode;}):null;
   if(!mold){_infoToast('ไม่พบแม่พิมพ์รหัส: '+moldCode);return;}
   var sv=function(id,v){var el=document.getElementById(id);if(el&&v)el.value=v;};
   var oldCav=parseInt(document.getElementById('bom-cav')?.value,10)||0;
@@ -24109,7 +24139,7 @@ function dashWidgetMix(){
 }
 
 function dashWidgetMolds(){
-  var duePM=MOLD_DB.filter(function(m){return m.shot>=(m.pmShot||99999);}).slice(0,5);
+  var duePM=MOLD_DB.filter(function(m){return moldDbRowLive(m) && m.shot>=(m.pmShot||99999);}).slice(0,5);
   var html=duePM.length?duePM.map(function(m){
     return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">'
       +'<div><span style="font-family:monospace;font-weight:700;color:var(--accent2);font-size:12px">'+m.code+'</span></div>'
@@ -26078,7 +26108,9 @@ function renderMolds(){
   }).join('');
 }
 function _moldDbRowByCode(code){
-  return (MOLD_DB||[]).find(function(x){ return x.code===code; })||null;
+  var c=String(code||'').trim();
+  var live=(MOLD_DB||[]).find(function(x){ return moldDbRowLive(x) && String(x.code||'')===c; });
+  return live||null;
 }
 function _moldApplyShotStatus(dbRow, shot, pmShot){
   if(!dbRow) return;
@@ -26126,12 +26158,13 @@ function saveMold(){
   var offset=Math.max(0,Math.round(shot-fromDaily));
   var total=offset+fromDaily;
   var st=total/pmShot>=0.9?'ต้องทำ PM':total/pmShot>=0.7?'เฝ้าระวัง':'ปกติ';
-  var existing=MOLD_DB.find(function(x){ return x.code===code; });
+  var existing=MOLD_DB.find(function(x){ return moldDbRowLive(x) && x.code===code; }) || MOLD_DB.find(function(x){ return x.code===code; });
   if(existing){
     existing.jobName=jobName; existing.name=jobName; existing.cavity=cav;
     existing.pmInterval=pmShot; existing.shotOffsetBeforeRpt=offset; existing.shotFromDailyReports=fromDaily;
     existing.totalShot=total; existing.remark=pmList;
     existing.status=st; existing.updatedAt=new Date().toISOString().split('T')[0];
+    existing._deleted=false;
   } else {
     MOLD_DB.push({
       id:'M'+String(Date.now()).slice(-8), code:code, name:jobName, jobName:jobName,
@@ -26163,7 +26196,7 @@ function moldLedgerOpenTab(code){
 function moldLedgerInitForm(preCode){
   var sel=document.getElementById('moldld-mold');
   if(sel){
-    sel.innerHTML='<option value="">— เลือกแม่พิมพ์ —</option>'+(MOLD_DB||[]).map(function(m){
+    sel.innerHTML='<option value="">— เลือกแม่พิมพ์ —</option>'+(MOLD_DB||[]).filter(moldDbRowLive).map(function(m){
       return '<option value="'+String(m.code).replace(/"/g,'&quot;')+'" data-id="'+String(m.id||'').replace(/"/g,'&quot;')+'">'+String(m.code).replace(/</g,'')+' — '+(String(m.name||m.jobName||'').replace(/</g,'').substring(0,40))+'</option>';
     }).join('');
     if(preCode) sel.value=preCode;
@@ -26211,7 +26244,7 @@ function moldLedgerUpsertFromDailyReport(rptKey, rpt){
   if(!rpt||!rptKey) return;
   var code=ensureDailyRptMoldCode(rpt);
   if(!code) return;
-  var mold=(MOLD_DB||[]).find(function(m){ return String(m.code||'')===String(code); })||null;
+  var mold=(MOLD_DB||[]).find(function(m){ return moldDbRowLive(m) && String(m.code||'')===String(code); })||null;
   var cav=Math.max(1,
     parseInt(mold&&(mold.cavity||mold.cav),10)||
     parseInt(((typeof jobs!=='undefined'&&jobs||[]).find(function(j){ return j.name===rpt.jobName; })||{}).cav,10)||
@@ -26300,7 +26333,7 @@ function renderMoldLedger(){
   }).join('')||'<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:20px">ยังไม่มีประวัติ</td></tr>';
   var fm=document.getElementById('moldld-filter-mold');
   if(fm&&fm.options.length<=1){
-    fm.innerHTML='<option value="">ทุกแม่พิมพ์</option>'+(MOLD_DB||[]).map(function(m){ return '<option value="'+String(m.code).replace(/"/g,'&quot;')+'">'+String(m.code).replace(/</g,'')+'</option>'; }).join('');
+    fm.innerHTML='<option value="">ทุกแม่พิมพ์</option>'+(MOLD_DB||[]).filter(moldDbRowLive).map(function(m){ return '<option value="'+String(m.code).replace(/"/g,'&quot;')+'">'+String(m.code).replace(/</g,'')+'</option>'; }).join('');
   }
 }
 
@@ -31249,7 +31282,7 @@ function doTrace(){
   var matchRW=(rwDocs||[]).filter(function(w){return w.job===ord.jobName;});
   var matchCond=(condStdList||[]).filter(function(c){return c.jobName===ord.jobName;});
   var matchPM=(machinePMPlan||[]).filter(function(p){return p.machineId===machId;}).slice(0,5);
-  var matchMoldPM=(MOLD_DB||[]).filter(function(m){return m.jobName===ord.jobName||m.code===j.mold;});
+  var matchMoldPM=(MOLD_DB||[]).filter(function(m){return moldDbRowLive(m) && (m.jobName===ord.jobName||m.code===j.mold);});
   var matchDev=(devRecords||[]).filter(function(d){return d.order===ord.orderNo||d.lot===ord.lotNo||d.job===ord.jobName;});
 
   var ngRows=[];
@@ -42641,6 +42674,7 @@ function renderAlertCenter(){
   // 2. แม่พิมพ์ — ถึงรอบ PM / เฝ้าระวัง / ซ่อม
   // ════════════════════════════════════════════════════════
   (MOLD_DB||[]).forEach(m=>{
+    if(!moldDbRowLive(m)) return;
     const pct = m.pmInterval>0 ? Math.round((m.totalShot||0)/m.pmInterval*100) : 0;
     if(m.status==='ซ่อม'){
       push({id:'mold-repair-'+m.id, cat:'mold', level:'critical',
@@ -45716,6 +45750,25 @@ function pmfSpliceAllRegistryMatches(arr, ref, fieldChain){
     var sameId=idStr && String(x.id)===idStr;
     var sameBiz=biz && pmfRegistryBizKey(x, fieldChain)===biz;
     if(sameId || sameBiz){ arr.splice(i,1); n++; }
+  }
+  return n;
+}
+/** ทำเครื่องหมายลบ (soft) ทุกแถวที่ id หรือ business key ตรงกับแถวอ้างอิง — ใช้กับซิงก์ Supabase ให้ merge ไม่ดึงแถวกลับหลัง splice */
+function pmfTombstoneRegistryMatches(arr, ref, fieldChain, stamp){
+  if(!Array.isArray(arr) || !ref || typeof ref!=='object' || !fieldChain || !fieldChain.length) return 0;
+  var ts=stamp || (new Date().toISOString());
+  var idStr=String(ref.id!=null ? ref.id : '').trim();
+  var biz=pmfRegistryBizKey(ref, fieldChain);
+  var n=0;
+  for(var i=0;i<arr.length;i++){
+    var x=arr[i];
+    if(!x || typeof x!=='object') continue;
+    var sameId=idStr && String(x.id)===idStr;
+    var sameBiz=biz && pmfRegistryBizKey(x, fieldChain)===biz;
+    if(sameId||sameBiz){
+      arr[i]=Object.assign({}, x, {_deleted:true, updatedAt:ts});
+      n++;
+    }
   }
   return n;
 }
@@ -56021,20 +56074,32 @@ function deleteBom(name){
 
 // ── ทะเบียนแม่พิมพ์ ──────────────────────────────────────────────
 function moldregDelete(id){
-  const m=MOLD_DB.find(x=>x.id===id); if(!m) return;
+  var sid=String(id==null?'':id).trim();
+  if(!sid) return;
+  const m=MOLD_DB.find(function(x){ return String(x.id)===sid && moldDbRowLive(x); });
+  if(!m) return;
+  var codeTrim=String(m.code||'').trim();
   _confirmDel('🗑 ลบแม่พิมพ์: <b>'+m.code+'</b><br>'+(m.name||m.jobName||''), function(){
-    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(MOLD_DB, m, ['code','id']);
+    var ts=new Date().toISOString();
+    if(typeof pmfTombstoneRegistryMatches==='function') pmfTombstoneRegistryMatches(MOLD_DB, m, ['code','id'], ts);
     else{
-      const ix=MOLD_DB.findIndex(x=>x.id===id); if(ix>=0) MOLD_DB.splice(ix,1);
+      const ix=MOLD_DB.findIndex(function(x){ return String(x.id)===sid; }); if(ix>=0) MOLD_DB[ix]=Object.assign({}, MOLD_DB[ix], {_deleted:true, updatedAt:ts});
+    }
+    if(typeof MOLD_REGISTRY!=='undefined' && Array.isArray(MOLD_REGISTRY) && typeof pmfTombstoneRegistryMatches==='function'){
+      pmfTombstoneRegistryMatches(MOLD_REGISTRY, m, ['code','id'], ts);
+      if(typeof saveMoldRegistry==='function') saveMoldRegistry();
     }
     saveMoldDB(); renderMoldRegistry();
     if(typeof moldLedger!=='undefined'&&Array.isArray(moldLedger)){
-      moldLedger=moldLedger.filter(function(r){ return r.moldId!==id&&r.moldCode!==m.code; });
+      moldLedger=moldLedger.filter(function(r){
+        return String(r.moldId||'')!==sid && String(r.moldCode||'').trim()!==codeTrim;
+      });
       if(typeof saveMoldLedger==='function') saveMoldLedger();
     }
     if(typeof initMoldDB==='function') initMoldDB();
     if(typeof renderMolds==='function') renderMolds();
     if(typeof renderMoldLedger==='function') renderMoldLedger();
+    if(typeof renderMoldRegistry==='function') renderMoldRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบแม่พิมพ์ '+m.code+' แล้ว');
     try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
@@ -57653,7 +57718,7 @@ var XL_CONFIG={
     headers:['รหัสแม่พิมพ์*','ชื่องาน/Job','ลูกค้า','Cavity','วัสดุ','เครื่องที่ใช้','PM ทุก(shot)','Total Shot','สถานะ','Location','ปีผลิต','ผู้ผลิต','หมายเหตุ'],
     required:[0],
     example:[['M-001','PART-001','ลูกค้า A','4','S45C','MC-01','500000','0','ปกติ','Rack A','2020','ญี่ปุ่น','']],
-    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var code=(r[0]||'').trim();if(!code)return;var obj={id:'M'+String(Date.now()+a).slice(-6),code:code,name:r[1]||code,jobName:r[1]||code,customer:r[2]||'',cavity:parseInt(r[3])||1,material:r[4]||'S45C',assignMachine:r[5]||'',pmInterval:parseInt(r[6])||500000,totalShot:parseInt(r[7])||0,status:r[8]||'ปกติ',location:r[9]||'',mfgYear:r[10]||'',mfgBy:r[11]||'',remark:r[12]||'',updatedAt:new Date().toISOString().split('T')[0]};var idx=MOLD_DB.findIndex(function(m){return m.code===code;});if(idx>=0){if(ow){MOLD_DB[idx]=Object.assign(MOLD_DB[idx],obj);u++;}else if(skip){s++;}else{MOLD_DB.push(obj);a++;}}else{MOLD_DB.push(obj);a++;}});saveMoldDB();if(typeof initMoldDB==='function')initMoldDB();if(typeof renderMoldRegistry==='function')renderMoldRegistry();if(typeof renderMolds==='function')renderMolds();if(typeof renderMoldLedger==='function')renderMoldLedger();return{added:a,skipped:s,updated:u};}},
+    save:function(rows,skip,ow){var a=0,s=0,u=0;rows.forEach(function(r){var code=(r[0]||'').trim();if(!code)return;var obj={id:'M'+String(Date.now()+a).slice(-6),code:code,name:r[1]||code,jobName:r[1]||code,customer:r[2]||'',cavity:parseInt(r[3])||1,material:r[4]||'S45C',assignMachine:r[5]||'',pmInterval:parseInt(r[6])||500000,totalShot:parseInt(r[7])||0,status:r[8]||'ปกติ',location:r[9]||'',mfgYear:r[10]||'',mfgBy:r[11]||'',remark:r[12]||'',_deleted:false,updatedAt:new Date().toISOString().split('T')[0]};var idx=MOLD_DB.findIndex(function(m){return m.code===code;});if(idx>=0){if(ow){MOLD_DB[idx]=Object.assign(MOLD_DB[idx],obj);u++;}else if(skip){s++;}else{MOLD_DB.push(obj);a++;}}else{MOLD_DB.push(obj);a++;}});saveMoldDB();if(typeof initMoldDB==='function')initMoldDB();if(typeof renderMoldRegistry==='function')renderMoldRegistry();if(typeof renderMolds==='function')renderMolds();if(typeof renderMoldLedger==='function')renderMoldLedger();return{added:a,skipped:s,updated:u};}},
   custreg:{title:'ทะเบียนลูกค้า',sub:'นำเข้าข้อมูลลูกค้า',
     headers:['รหัส*','ชื่อลูกค้า*','ผู้ติดต่อ','โทร','Email','ที่อยู่','เครดิต(วัน)','Tax ID','สถานะ','หมายเหตุ'],
     required:[0,1],

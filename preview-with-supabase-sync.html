@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-master-reg-del"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-mold-tombstone"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1196,7 +1196,12 @@
         const tr = recordTs(rec);
         if (tr > tp) by[k] = Object.assign({}, prev, rec);
         else if (tr < tp) by[k] = prev;
-        else by[k] = Object.assign({}, prev, rec);
+        else {
+          const pd = !!prev._deleted;
+          const rd = !!rec._deleted;
+          if (pd !== rd) by[k] = rd ? prev : rec;
+          else by[k] = Object.assign({}, prev, rec);
+        }
       });
       return JSON.stringify(noKey.concat(Object.values(by)));
     }
