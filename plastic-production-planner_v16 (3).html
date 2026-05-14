@@ -38833,6 +38833,45 @@ document.addEventListener('click',function(e){
 const APPROVAL_PROC_LS_KEY = '_approvalProcDocs';
 let approvalProcDocs = []; // [{id,docNo,..., _deleted?, _deletedAt?, updatedAt?}] — ลบแบบ soft-delete เพื่อซิงก์ merge กับคลาวด์
 function apDocIsLive(d){ return !!(d && !d._deleted); }
+/** คีย์ธุรกิจเดียวกับ merge ใน preview (docNo ก่อน id) — ใช้จับแถวซ้ำหลังซิงก์ */
+function apDocMergeKey(d){
+  if(!d||typeof d!=='object') return '';
+  var dn = String(d.docNo!=null?d.docNo:'').trim();
+  if(dn) return dn;
+  return String(d.id!=null?d.id:'').trim();
+}
+/**
+ * รวมแถวซ้ำใน approvalProcDocs (เช่น docNo เดียวกันแต่ id คนละค่าหลัง merge)
+ * ไม่งั้นลบแถวหนึ่งแล้ว find เจอแถวที่ลบแล้ว แต่ตารางยังโชว์แถวที่เหลืออยู่
+ */
+function approvalProcDedupeInPlace(){
+  if(!Array.isArray(approvalProcDocs) || !approvalProcDocs.length) return;
+  function ts(o){
+    if(!o||typeof o!=='object') return 0;
+    var t = Date.parse(o.updatedAt || o._deletedAt || o._updatedAt || o.savedAt || o.modifiedAt || o.createdAt || o.ts || 0);
+    return Number.isFinite(t) ? t : 0;
+  }
+  var by = {};
+  approvalProcDocs.forEach(function(rec){
+    if(!rec||typeof rec!=='object') return;
+    var key = apDocMergeKey(rec);
+    if(!key) key = '__orphan__::' + String(rec.id!=null?rec.id:Math.random());
+    var prev = by[key];
+    if(!prev){ by[key] = rec; return; }
+    var pd = !!prev._deleted, rd = !!rec._deleted;
+    if(pd !== rd){
+      by[key] = rd ? Object.assign({}, prev, rec) : prev;
+      return;
+    }
+    var tp = ts(prev), tr = ts(rec);
+    if(tr > tp) by[key] = rec;
+    else if(tr < tp) by[key] = prev;
+    else by[key] = Object.assign({}, prev, rec);
+  });
+  var out = Object.keys(by).map(function(k){ return by[k]; });
+  approvalProcDocs.length = 0;
+  out.forEach(function(x){ approvalProcDocs.push(x); });
+}
 let _apCurrentId = null;
 
 function apTemplateByWorkGroup(wg){
@@ -38943,6 +38982,7 @@ function apEnsureAssemblyRows(){
 }
 
 function saveApprovalProcDocs(){
+  if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
   try{ localStorage.setItem(APPROVAL_PROC_LS_KEY, JSON.stringify(approvalProcDocs)); }catch(e){}
 }
 function loadApprovalProcDocs(){
@@ -38951,6 +38991,7 @@ function loadApprovalProcDocs(){
     if(!raw) return;
     var arr = JSON.parse(raw);
     if(Array.isArray(arr)) approvalProcDocs = arr;
+    if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
   }catch(e){}
 }
 function apNextDocSuffix(){
@@ -39089,6 +39130,7 @@ function renderApprovalProcList(){
   apEnsureAssemblyRows();
   const tbody = document.getElementById('approvalproc-tbody');
   if(!tbody) return;
+  if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
   approvalProcBindListClickDelegation();
   const oSel = document.getElementById('ap-order-sel');
   if(oSel){
@@ -45713,6 +45755,14 @@ function pmfReloadFromStorage(){
     if(Array.isArray(apl) && typeof approvalLog!=='undefined'){
       approvalLog.length = 0;
       apl.forEach(function(x){ approvalLog.push(x); });
+    }
+  }catch(e){}
+  try{
+    var apd = _pmfSafeParse('_approvalProcDocs', null);
+    if(Array.isArray(apd) && typeof approvalProcDocs!=='undefined'){
+      approvalProcDocs.length = 0;
+      apd.forEach(function(x){ approvalProcDocs.push(x); });
+      if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
     }
   }catch(e){}
   try{
@@ -55942,23 +55992,34 @@ function pmPlanDelete(id){
 function approvalProcDelete(id){
   var sid = String(id==null?'':id).trim();
   if(!sid) return;
-  var d = (approvalProcDocs||[]).find(function(x){ return String(x.id)===sid; });
+  if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
+  var d = (approvalProcDocs||[]).find(function(x){ return String(x.id)===sid && apDocIsLive(x); });
+  if(!d){ d = (approvalProcDocs||[]).find(function(x){ return String(x.id)===sid; }); }
   if(!d){ if(typeof _infoToast==='function') _infoToast('ไม่พบใบอนุมัติ — ลองกดรีเฟรช'); return; }
   if(!apDocIsLive(d)){ if(typeof _infoToast==='function') _infoToast('ใบนี้ถูกลบไปแล้ว'); return; }
+  var docNoTrim = String(d.docNo!=null?d.docNo:'').trim();
   _confirmDel('🗑 ลบใบอนุมัติ: <b>'+String(d.docNo||'').replace(/</g,'&lt;')+'</b><br>Order: '+(d.orderNo||'—'), function(){
-    var idx = (approvalProcDocs||[]).findIndex(function(x){ return String(x.id)===sid; });
-    if(idx<0) return;
     var nowIso=new Date().toISOString();
-    approvalProcDocs[idx]=Object.assign({}, approvalProcDocs[idx],{
-      _deleted:true,
-      _deletedAt:nowIso,
-      updatedAt:nowIso
+    (approvalProcDocs||[]).forEach(function(x, idx){
+      if(!x) return;
+      var sameId = String(x.id)===sid;
+      var sameDoc = docNoTrim && String(x.docNo!=null?x.docNo:'').trim()===docNoTrim;
+      if(!sameId && !sameDoc) return;
+      if(!apDocIsLive(x)) return;
+      approvalProcDocs[idx]=Object.assign({}, approvalProcDocs[idx],{
+        _deleted:true,
+        _deletedAt:nowIso,
+        updatedAt:nowIso
+      });
     });
     if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
-    if(String(_apCurrentId||'')===sid){
-      _apCurrentId=null;
-      var sec=document.getElementById('ap-detail-section');
-      if(sec) sec.style.display='none';
+    if(_apCurrentId){
+      var curOpen = (approvalProcDocs||[]).find(function(x){ return x&&String(x.id)===String(_apCurrentId); });
+      if(!curOpen || !apDocIsLive(curOpen)){
+        _apCurrentId=null;
+        var sec=document.getElementById('ap-detail-section');
+        if(sec) sec.style.display='none';
+      }
     }
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
     if(typeof _toast==='function') _toast('🗑 ลบใบอนุมัติ '+(d.docNo||'')+' แล้ว');
@@ -55967,6 +56028,7 @@ function approvalProcDelete(id){
 }
 function approvalProcDeleteAllFiltered(){
   approvalProcSyncStatusesFromMap();
+  if(typeof approvalProcDedupeInPlace==='function') approvalProcDedupeInPlace();
   var list = approvalProcGetFilteredDocs();
   if(!list.length){
     if(typeof _infoToast==='function') _infoToast('ไม่มีรายการตามตัวกรอง — ไม่มีอะไรให้ลบ');
@@ -55977,21 +56039,30 @@ function approvalProcDeleteAllFiltered(){
     var n=0;
     list.forEach(function(doc){
       if(!doc||doc.id==null) return;
-      var ix=(approvalProcDocs||[]).findIndex(function(x){ return String(x.id)===String(doc.id); });
-      if(ix<0) return;
-      if(!apDocIsLive(approvalProcDocs[ix])) return;
-      approvalProcDocs[ix]=Object.assign({}, approvalProcDocs[ix],{
-        _deleted:true,
-        _deletedAt:nowIso,
-        updatedAt:nowIso
+      var sid = String(doc.id);
+      var docNoTrim = String(doc.docNo!=null?doc.docNo:'').trim();
+      (approvalProcDocs||[]).forEach(function(x, ix){
+        if(!x) return;
+        var sameId = String(x.id)===sid;
+        var sameDoc = docNoTrim && String(x.docNo!=null?x.docNo:'').trim()===docNoTrim;
+        if(!sameId && !sameDoc) return;
+        if(!apDocIsLive(x)) return;
+        approvalProcDocs[ix]=Object.assign({}, approvalProcDocs[ix],{
+          _deleted:true,
+          _deletedAt:nowIso,
+          updatedAt:nowIso
+        });
+        n++;
       });
-      n++;
     });
     if(typeof saveApprovalProcDocs==='function') saveApprovalProcDocs();
-    if(_apCurrentId && list.some(function(doc){ return doc&&String(doc.id)===String(_apCurrentId); })){
-      _apCurrentId=null;
-      var sec=document.getElementById('ap-detail-section');
-      if(sec) sec.style.display='none';
+    if(_apCurrentId){
+      var curOpen2 = (approvalProcDocs||[]).find(function(x){ return x&&String(x.id)===String(_apCurrentId); });
+      if(!curOpen2 || !apDocIsLive(curOpen2)){
+        _apCurrentId=null;
+        var sec=document.getElementById('ap-detail-section');
+        if(sec) sec.style.display='none';
+      }
     }
     if(typeof renderApprovalProcList==='function') renderApprovalProcList();
     if(typeof _toast==='function') _toast('🗑 ลบ '+n+' ใบอนุมัติแล้ว');

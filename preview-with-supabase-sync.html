@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260513-mold-dashboard"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-approval-proc-del"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -829,7 +829,35 @@
         else if (tr < tp) byId[key] = prev;
         else byId[key] = Object.assign({}, prev, rec);
       });
-      return JSON.stringify(Object.values(byId));
+      // รวมแถวที่ docNo เดียวกันแต่ id ต่างกัน (เคยเกิดหลัง merge หลายเครื่อง) — ไม่งั้น UI ลบแล้วแถวยังอยู่
+      const pass1 = Object.values(byId);
+      const byDn = Object.create(null);
+      const noDn = [];
+      pass1.forEach((rec) => {
+        if (!rec || typeof rec !== "object") return;
+        const dn = String(rec.docNo || "").trim();
+        if (!dn) {
+          noDn.push(rec);
+          return;
+        }
+        const prev = byDn[dn];
+        if (!prev) {
+          byDn[dn] = rec;
+          return;
+        }
+        const pd = !!prev._deleted;
+        const rd = !!rec._deleted;
+        if (pd !== rd) {
+          byDn[dn] = rd ? Object.assign({}, prev, rec) : prev;
+          return;
+        }
+        const tp = recordTs(prev);
+        const tr = recordTs(rec);
+        if (tr > tp) byDn[dn] = rec;
+        else if (tr < tp) byDn[dn] = prev;
+        else byDn[dn] = Object.assign({}, prev, rec);
+      });
+      return JSON.stringify(noDn.concat(Object.values(byDn)));
     }
 
     /**
