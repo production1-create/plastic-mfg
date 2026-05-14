@@ -3990,7 +3990,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
     </div>
     <div class="card mb-3" style="padding:12px 14px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;font-weight:700">📊 สต็อกตามงาน (การ์ด — เหมือนหน้าวัตถุดิบ)</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;font-weight:700">📊 สต็อกตามงาน (การ์ด)</div>
       <div id="fg-stock-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px"></div>
     </div>
     <div class="card"><div class="tbl-wrap"><table>
@@ -25899,7 +25899,8 @@ function renderStock(filter='',statusFilter=''){
       +'<td class="mono" style="font-size:12px">-'+(s.lastOut!=null?s.lastOut.toLocaleString():0)+'</td>'
       +'<td class="mono" style="font-size:12px">'+due.toLocaleDateString('th-TH')+'</td>'
       +'<td><button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">⚙ Min/Max</button>'
-      +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button></td>'
+      +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button>'
+      +' <button type="button" data-fgjb="'+b64+'" onclick="fgDeleteStockRow(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.35);color:#f85149;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px;font-weight:700" title="ลบรายการ Stock FG (ชื่องานนี้)">ลบ</button></td>'
     +'</tr>';
   }
   function cardHtml(name,s){
@@ -56183,6 +56184,37 @@ function saveFgAdj(){
   }
 }
 
+// ── ลบ Stock FG ทั้งชื่องาน (ยอด + Ledger) ─────────────────────────
+function fgDeleteStockRow(jobName){
+  jobName = String(jobName||'').trim();
+  if(!jobName || typeof fgStock==='undefined' || !fgStock[jobName]){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการ'); return; }
+  var s=fgStock[jobName]||{};
+  var qty=parseInt(s.qty,10)||0;
+  var disp=jobName.length>60?jobName.substring(0,58)+'…':jobName;
+  _confirmDel('🗑 ลบ Stock FG ของงานนี้<br><b>'+_fgEscHtml(disp)+'</b><br>คงเหลือ: '+qty.toLocaleString()+' ชิ้น<br><span style="font-size:11px;color:#8b949e">ลบยอดและประวัติบัญชีคุม (Ledger) ของชื่องานนี้ — ข้อมูล Order ไม่ถูกลบ</span>', function(){
+    try{ delete fgStock[jobName]; }catch(_){}
+    try{ if(fgLedger[jobName]) delete fgLedger[jobName]; }catch(_){}
+    saveFgStock();
+    saveFgLedger();
+    var fjSel=document.getElementById('fg-led-job');
+    if(fjSel){
+      var was=(fjSel.value||'')===jobName;
+      fjSel.innerHTML='<option value="">ทุกงาน</option>'+Object.keys(fgStock).map(function(n){
+        return '<option value="'+_fgEscHtml(n)+'">'+_fgEscHtml(n.substring(0,30))+'</option>';
+      }).join('');
+      if(was) fjSel.value='';
+    }
+    var qEl=document.getElementById('fg-stock-search');
+    var stEl=document.getElementById('fg-stock-status');
+    var q=(qEl&&qEl.value)||'';
+    var st=(stEl&&stEl.value)||'';
+    if(typeof renderStock==='function') renderStock(q,st);
+    if(typeof renderFgLedger==='function') renderFgLedger();
+    if(typeof _toast==='function') _toast('🗑 ลบ Stock FG: '+disp);
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
+  });
+}
+
 // ── ลบรายการใน FG Ledger ─────────────────────────────────────────
 function deleteFgLedgerEntry(fgId){
   // ค้นหาใน fgLedger ทุก job
@@ -56201,6 +56233,7 @@ function deleteFgLedgerEntry(fgId){
       saveFgLedger();
       renderFgLedger();
       if(typeof _toast==='function') _toast('🗑 ลบรายการ FG Ledger แล้ว');
+      try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
     });
 }
 
