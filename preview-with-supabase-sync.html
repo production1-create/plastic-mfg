@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-fg-stock-del"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-fg-tombstone-as121"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -900,8 +900,13 @@
         const ta = recordTs(a);
         const tb = recordTs(b);
         if (tb > ta) out[id] = typeof b === "object" && b && typeof a === "object" && a ? Object.assign({}, a, b) : b;
-        else if (ta > tb) out[id] = typeof a === "object" && a && typeof b === "object" && b ? Object.assign({}, b, a) : a;
-        else out[id] = typeof a === "object" && typeof b === "object" ? Object.assign({}, b, a) : a;
+        else         if (ta > tb) out[id] = typeof a === "object" && a && typeof b === "object" && b ? Object.assign({}, b, a) : a;
+        else {
+          const ad = !!(a && typeof a === "object" && a._deleted);
+          const bd = !!(b && typeof b === "object" && b._deleted);
+          if (ad !== bd) out[id] = ad ? a : b;
+          else out[id] = typeof a === "object" && typeof b === "object" ? Object.assign({}, b, a) : a;
+        }
       });
       // Safety belt — never lose keys that exist in either input
       const cntLoc = Object.keys(loc).length;

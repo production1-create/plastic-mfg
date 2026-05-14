@@ -9038,6 +9038,16 @@ function loadFgStock(){
 function saveFgLedger(){
   try{ localStorage.setItem('_fgLedger', JSON.stringify(fgLedger)); }catch(e){}
 }
+function fgPruneLedgerForDeletedStock(){
+  try{
+    if(!fgLedger||!fgStock) return;
+    var ch=false;
+    Object.keys(fgLedger).forEach(function(j){
+      if(fgStock[j]&&fgStock[j]._deleted){ try{ delete fgLedger[j]; }catch(_){} ch=true; }
+    });
+    if(ch&&typeof saveFgLedger==='function') saveFgLedger();
+  }catch(_){}
+}
 function loadFgLedger(){
   try{ var d=localStorage.getItem('_fgLedger'); if(d) fgLedger=JSON.parse(d); }catch(e){}
   // Migration: ensure every fgLedger entry has a stable _fgId for cross-device merge
@@ -9055,6 +9065,7 @@ function loadFgLedger(){
     });
     if(changed){ try{ localStorage.setItem('_fgLedger', JSON.stringify(fgLedger)); }catch(_){} }
   }catch(_){}
+  try{ fgPruneLedgerForDeletedStock(); }catch(_){}
 }
 let moldData = [];
 /** เบิก–รับ / ซ่อม / เตรียมแม่พิมพ์ — บันทึกร่วมฝ่ายผลิต–ฝ่ายแม่พิมพ์ */
@@ -13239,7 +13250,7 @@ function rmChartRender(){
 
   // Filter ledger for this material in range
   var entries = rawMatLedger.filter(function(r){
-    if(!rmLedgerMaterialEquals(r.material,mat)) return false;
+    if(!rmLedgerMatMatchesBucket(r.material,mat)) return false;
     var d = new Date(r.date); return d >= fromDate && d <= toDate;
   }).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
 
@@ -22631,7 +22642,7 @@ function renderRawmatStockDashboard(mats, demandKind){
               });
             }else{
               (rawMatLedger||[]).forEach(function(r){
-                if(r.type!=='out'||!rmLedgerMaterialEquals(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
+                if(r.type!=='out'||!rmLedgerMatMatchesBucket(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
                 kg+=Number(r.qty)||0;
               });
             }
@@ -22646,7 +22657,7 @@ function renderRawmatStockDashboard(mats, demandKind){
               });
             }else{
               (rawMatLedger||[]).forEach(function(r){
-                if(r.type!=='out'||!rmLedgerMaterialEquals(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
+                if(r.type!=='out'||!rmLedgerMatMatchesBucket(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
                 kg+=Number(r.qty)||0;
               });
             }
@@ -22798,7 +22809,7 @@ function renderRawmat(){
     const pendingKg=[...purchaseRequests,...rawMatPRList].filter(pr=>(pr.status==='pending'||pr.status==='รออนุมัติ')&&pr.material===p).reduce((a,pr)=>a+(pr.qty||0),0);
     return `<div class="card" style="${low?'border:1px solid var(--red)':''}">
       <div class="flex justify-between items-center mb-2">
-        <span class="badge mat-${p}">${p}</span>
+        <span class="badge mat-${p}">${rmPlasticStockLabel(p)}</span>
         <span class="badge ${low?'badge-red':s.qty>s.max?'badge-yellow':'badge-green'}" style="font-size:10px">${status}</span>
       </div>
       <div class="kpi-value mono" style="font-size:20px;color:${col}">${s.qty.toLocaleString()}<span style="font-size:11px;color:var(--text3)"> ${unitLbl}</span></div>
@@ -22837,7 +22848,7 @@ function renderRawmat(){
     const nextArrival=[...purchaseRequests,...rawMatPRList].filter(pr=>(pr.status==='pending'||pr.status==='รออนุมัติ')&&pr.material===p&&pr.expectedDate).sort((a,b)=>a.expectedDate.localeCompare(b.expectedDate))[0];
     const orderInfo=reg&&reg.orderAvailDate?(reg.orderAvailDate<=today?'<span style="color:#3fb950;font-size:9px">✅ สั่งได้</span>':'<span style="color:#e3b341;font-size:9px">⏳ '+reg.orderAvailDate+'</span>'):'';
     return `<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-      <td style="padding:8px 12px"><span class="badge mat-${p}">${p}</span></td>
+      <td style="padding:8px 12px"><span class="badge mat-${p}">${rmPlasticStockLabel(p)}</span></td>
       <td style="padding:8px;font-size:11px;color:var(--text2)">${grade}</td>
       <td style="padding:8px;text-align:center;font-size:11px;color:#e3b341;font-weight:700">${price>0?price.toLocaleString()+' ฿':'—'}</td>
       <td style="padding:8px;font-size:11px;color:var(--text3)">${suppName}</td>
@@ -25078,7 +25089,7 @@ function renderRawmatChart(){
 
   if(!isMB){
     rawMatLedger.forEach(r=>{
-      if(filterMats.length && !filterMats.some(function(m){ return rmLedgerMaterialEquals(m,r.material); })) return;
+      if(filterMats.length && !filterMats.some(function(m){ return rmLedgerMatMatchesBucket(r.material,m); })) return;
       const mo = r.date?.substring(0,7);
       const idx = months.indexOf(mo);
       if(idx<0) return;
@@ -25137,7 +25148,7 @@ function renderRawmatChart(){
     ropTbody.innerHTML = mats.map(mat=>{
       const s   = rawMatStock[mat]||{qty:0,min:0};
       const cfg = rawMatSettings[mat]||{ltDays:14,minOrderQty:500};
-      const used = rawMatLedger.filter(r=>rmLedgerMaterialEquals(r.material,mat)&&r.type==='out'&&months.includes(r.date?.substring(0,7))).reduce((a,r)=>a+(r.qty||0),0);
+      const used = rawMatLedger.filter(r=>rmLedgerMatMatchesBucket(r.material,mat)&&r.type==='out'&&months.includes(r.date?.substring(0,7))).reduce((a,r)=>a+(r.qty||0),0);
       const avgUse = nMonths>0 ? used/nMonths : 0;
       const rop   = Math.ceil(avgUse * (cfg.ltDays||14) / 30);
       const needOrder = s.qty <= (s.min||rop);
@@ -25438,11 +25449,12 @@ function _fgJobFromB64(b){
 function fgResolveFgStockJobKey(input){
   var j=String(input==null?'':input).trim();
   if(!j||typeof fgStock==='undefined'||!fgStock) return '';
-  if(fgStock[j]) return j;
+  if(fgStock[j]&&!fgStock[j]._deleted) return j;
   try{
     var jn=typeof j.normalize==='function'?j.normalize('NFKC'):j;
     for(var k in fgStock){
       if(!Object.prototype.hasOwnProperty.call(fgStock,k)) continue;
+      if(fgStock[k]&&fgStock[k]._deleted) continue;
       var kk=String(k).trim();
       var kn=(typeof kk.normalize==='function'?kk.normalize('NFKC'):kk);
       if(kn===jn) return k;
@@ -25451,6 +25463,7 @@ function fgResolveFgStockJobKey(input){
   var jc=j.replace(/\s+/g,'');
   for(var k2 in fgStock){
     if(!Object.prototype.hasOwnProperty.call(fgStock,k2)) continue;
+    if(fgStock[k2]&&fgStock[k2]._deleted) continue;
     if(String(k2).trim().replace(/\s+/g,'')===jc) return k2;
   }
   return j;
@@ -25458,12 +25471,15 @@ function fgResolveFgStockJobKey(input){
 function fgBtnJob(el){
   return fgResolveFgStockJobKey(_fgJobFromB64(el&&el.getAttribute?el.getAttribute('data-fgjb'):''));
 }
+function fgActiveJobKeys(){
+  return Object.keys(fgStock||{}).filter(function(n){ var s=fgStock[n]; return s&&!s._deleted; });
+}
 function _fgEscHtml(t){
   return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function openFgMinMaxModal(jobName){
   var j=fgResolveFgStockJobKey(String(jobName||'').trim());
-  if(!j || !fgStock[j]){
+  if(!j || !fgStock[j] || fgStock[j]._deleted){
     if(typeof _infoToast==='function') _infoToast('ไม่พบข้อมูลสต็อกงานนี้');
     return;
   }
@@ -25480,7 +25496,7 @@ function openFgMinMaxModal(jobName){
 }
 function saveFgMinMaxModal(){
   var j=(document.getElementById('fg-mm-job')||{}).value||'';
-  if(!j || !fgStock[j]){ if(typeof _infoToast==='function') _infoToast('ไม่พบงาน'); return; }
+  if(!j || !fgStock[j] || fgStock[j]._deleted){ if(typeof _infoToast==='function') _infoToast('ไม่พบงาน'); return; }
   var minV=parseInt((document.getElementById('fg-mm-min')||{}).value,10);
   var maxV=parseInt((document.getElementById('fg-mm-max')||{}).value,10);
   if(!isFinite(minV) || minV<0){ if(typeof _infoToast==='function') _infoToast('Min ไม่ถูกต้อง'); return; }
@@ -25498,6 +25514,10 @@ function saveFgMinMaxModal(){
 function fgOpenOrderForLowStock(jobName){
   var jn=fgResolveFgStockJobKey(String(jobName||'').trim());
   if(!jn){ return; }
+  if(fgStock[jn]&&fgStock[jn]._deleted){
+    if(typeof _infoToast==='function') _infoToast('งานนี้ถูกลบออกจาก Stock FG แล้ว — กู้คืนด้วยการรับเข้า FG');
+    return;
+  }
   var s=fgStock[jn]||{qty:0,min:500,max:8000};
   var jr=typeof getJobByName==='function'?getJobByName(jn):null;
   if(!jr){
@@ -25914,7 +25934,7 @@ function renderFgStockDashboard(list){
   }, 30);
 }
 function renderStock(filter='',statusFilter=''){
-  let list=Object.entries(fgStock);
+  let list=Object.entries(fgStock).filter(function(e){ return !(e[1]&&e[1]._deleted); });
   if(filter) list=list.filter(([name])=>name.toLowerCase().includes(filter.toLowerCase()));
   if(statusFilter==='ต่ำกว่า Min') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)<(parseInt(s.min,10)||0));
   else if(statusFilter==='เกิน Max') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)>(parseInt(s.max,10)||0));
@@ -25988,7 +26008,7 @@ function renderFgLedger(){
   const typeFilter=document.getElementById('fg-led-type')?.value||'';
   let rows=[];
   if(jobFilter){ rows=(fgLedger[jobFilter]||[]).map(r=>({...r,jobName:jobFilter})); }
-  else { Object.entries(fgLedger).forEach(([name,arr])=>arr.forEach(r=>rows.push({...r,jobName:name}))); }
+  else { Object.entries(fgLedger).forEach(function(e){ var name=e[0], arr=e[1]; if(fgStock[name]&&fgStock[name]._deleted) return; if(!Array.isArray(arr)) return; arr.forEach(function(r){ rows.push(Object.assign({}, r, {jobName:name})); }); }); }
   rows=rows.filter(r=>(!month||r.date.startsWith(month))&&(!typeFilter||r.type===typeFilter));
   rows.sort((a,b)=>b.date.localeCompare(a.date));
   window.rows_fg=rows;
@@ -26032,6 +26052,10 @@ function doStockIn(){
   const date=document.getElementById('si-date')?.value||new Date().toISOString().split('T')[0];
   if(!name||!qty){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือกงานและระบุจำนวน'); return; }
   if(!lot){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก Lot จาก Order หรือพิมพ์เลข Lot ที่รับเข้า'); return; }
+  if(fgStock[name]&&fgStock[name]._deleted){
+    delete fgStock[name]._deleted;
+    delete fgStock[name]._deletedAt;
+  }
   if(!fgStock[name]) fgStock[name]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
   if(fgStock[name]){fgStock[name].qty+=qty;fgStock[name].lastIn=qty;fgStock[name].lastLot=lot;}
   _stampStockBucket(fgStock,name);
@@ -26048,6 +26072,7 @@ function doStockOut(){
   const date=document.getElementById('so-date')?.value||new Date().toISOString().split('T')[0];
   if(!name||!qty){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือกงานและระบุจำนวน'); return; }
   if(!lot){ if(typeof _infoToast==="function") _infoToast('กรุณาเลือก Lot ที่ต้องการจ่ายออก'); return; }
+  if(fgStock[name]&&fgStock[name]._deleted){ if(typeof _infoToast==="function") _infoToast('งานนี้ถูกลบจาก Stock FG แล้ว'); return; }
   var lotsMerged=fgLotListMergedForJob(name);
   var positive=lotsMerged.filter(function(x){ return (x.qty||0)>0; });
   var lotObj=positive.find(function(x){ return x.lot===lot; })||null;
@@ -26649,7 +26674,7 @@ function openModal(id){
   }
   if(id==='modal-stock-in'){
     const siJob=document.getElementById('si-job');
-    if(siJob){ siJob.innerHTML='<option value="">-- เลือกงาน --</option>'+Object.keys(fgStock).map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join(''); siJob.onchange=function(){ if(typeof fgRefreshSiLotSelect==='function') fgRefreshSiLotSelect(); }; }
+    if(siJob){ siJob.innerHTML='<option value="">-- เลือกงาน --</option>'+fgActiveJobKeys().map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join(''); siJob.onchange=function(){ if(typeof fgRefreshSiLotSelect==='function') fgRefreshSiLotSelect(); }; }
     const siMan=document.getElementById('si-lot-manual');
     if(siMan){ siMan.value=''; siMan.oninput=function(){ var ls=document.getElementById('si-lot-order'); if(ls&&this.value.trim()) ls.value=''; }; }
     if(typeof fgRefreshSiLotSelect==='function') fgRefreshSiLotSelect();
@@ -26658,7 +26683,7 @@ function openModal(id){
   }
   if(id==='modal-stock-out'){
     const soJob=document.getElementById('so-job');
-    if(soJob) soJob.innerHTML='<option value="">-- เลือกงาน --</option>'+Object.keys(fgStock).map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join('');
+    if(soJob) soJob.innerHTML='<option value="">-- เลือกงาน --</option>'+fgActiveJobKeys().map(n=>`<option value="${n}">${n.substring(0,35)}</option>`).join('');
     if(soJob && typeof fgRefreshOutLotUI==='function') soJob.onchange=fgRefreshOutLotUI;
     if(typeof fgRefreshOutLotUI==='function') fgRefreshOutLotUI();
     const soDate=document.getElementById('so-date');
@@ -28918,11 +28943,60 @@ function rmMatNorm(s){
 function rmLedgerMaterialEquals(a,b){
   return !!a && !!b && rmMatNorm(a)===rmMatNorm(b);
 }
+/** กลุ่มชื่อเม็ดที่อ้างถึงตัวเดียวกัน (เช่น AS121 กับ AS SAN W) — ลำดับตัวแรก = ชื่อแสดงหลัก */
+function rmPlasticSynonymGroups(){
+  return [
+    ['AS SAN W','AS121','AS121U','AS127','ASSANW','AS-SAN-W']
+  ];
+}
+function rmPlasticSynonymKey(s){
+  return String(s==null?'':s).trim().replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+}
+function rmFindPlasticSynonymGroup(normOrKey){
+  var target=rmPlasticSynonymKey(normOrKey);
+  if(!target) return null;
+  var groups=rmPlasticSynonymGroups();
+  for(var gi=0;gi<groups.length;gi++){
+    var g=groups[gi];
+    for(var j=0;j<g.length;j++){
+      if(rmPlasticSynonymKey(g[j])===target) return g;
+    }
+  }
+  return null;
+}
+/** ชื่อแสดงบนการ์ด/ตาราง — คีย์ในระบบยังเป็นรหัสที่มีใน rawMatStock */
+function rmPlasticStockLabel(stockKey){
+  if(!stockKey) return '';
+  var g=rmFindPlasticSynonymGroup(stockKey);
+  if(g&&g.length) return g[0];
+  return String(stockKey);
+}
+/** เทียบรายการ Ledger กับคีย์สต็อก (รองรับ synonym) */
+function rmLedgerMatMatchesBucket(ledgerMat, bucketKey){
+  if(!ledgerMat||!bucketKey) return false;
+  if(rmLedgerMaterialEquals(ledgerMat,bucketKey)) return true;
+  try{
+    if(rmResolvePlasticStockKey(ledgerMat)===bucketKey) return true;
+  }catch(e){}
+  return false;
+}
 /** ใช้คีย์เดียวกับ rawMatStock ถ้ามีอยู่แล้ว — ledger กับ stock จะไม่หลุดกัน */
 function rmResolvePlasticStockKey(input){
   var cleaned=String(input||'').trim().replace(/\s+/g,' ');
   if(!cleaned) return '';
   var n=rmMatNorm(cleaned);
+  var grp=rmFindPlasticSynonymGroup(cleaned)||rmFindPlasticSynonymGroup(n);
+  if(grp){
+    try{
+      if(typeof rawMatStock!=='undefined'&&rawMatStock){
+        for(var gi=0;gi<grp.length;gi++){
+          var cand=grp[gi];
+          if(rawMatStock[cand]&&!rawMatStock[cand]._deleted) return cand;
+        }
+      }
+    }catch(e){}
+    return grp[0];
+  }
   try{
     for(var k in rawMatStock){
       if(!Object.prototype.hasOwnProperty.call(rawMatStock,k)) continue;
@@ -29647,6 +29721,10 @@ function saveDailyRpt(){
       // ── Update FG Stock ──
       var _job = _ord.jobName;
       if(_job){
+        if(fgStock[_job]&&fgStock[_job]._deleted){
+          delete fgStock[_job]._deleted;
+          delete fgStock[_job]._deletedAt;
+        }
         if(!fgStock[_job]) fgStock[_job]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
         fgStock[_job].qty = _total;
         fgStock[_job].lastIn = _total;
@@ -34587,7 +34665,7 @@ function renderPage(id){
     renderFgLedger();
     const fjSel=document.getElementById('fg-led-job');
     if(fjSel&&fjSel.options.length<=1){
-      fjSel.innerHTML='<option value="">ทุกงาน</option>'+Object.keys(fgStock).map(n=>`<option value="${n}">${n.substring(0,30)}</option>`).join('');
+      fjSel.innerHTML='<option value="">ทุกงาน</option>'+fgActiveJobKeys().map(n=>`<option value="${n}">${n.substring(0,30)}</option>`).join('');
     }
     const fgMon=document.getElementById('fg-led-month');
     if(fgMon&&!fgMon.value) fgMon.value=new Date().toISOString().substring(0,7);
@@ -46228,6 +46306,7 @@ function pmfReloadFromStorage(){
       _pmfReplaceObjectInPlace(fgLedger, fgl);
     }
   }catch(e){}
+  try{ if(typeof fgPruneLedgerForDeletedStock==='function') fgPruneLedgerForDeletedStock(); }catch(_){}
   try{
     var rml = _pmfSafeParse('_rawMatLedger', null);
     if(Array.isArray(rml) && typeof rawMatLedger!=='undefined'){
@@ -46534,7 +46613,7 @@ const TPP_CONFIG = {
     docNo: 'F-PD-I004 / F-PD-I005',
     sub: 'เลือกรายการรับ/จ่าย FG เพื่อพิมพ์ใบเอกสาร',
     filters: [
-      {id:'tpf-fg-job',label:'ชื่องาน',type:'select',opts:()=>['ทั้งหมด',...Object.keys(fgStock)]},
+      {id:'tpf-fg-job',label:'ชื่องาน',type:'select',opts:()=>['ทั้งหมด',...fgActiveJobKeys()]},
       {id:'tpf-fg-type',label:'ประเภท',type:'select',opts:['ทั้งหมด','รับเข้า','จ่ายออก']},
       {id:'tpf-fg-month',label:'เดือน',type:'month'},
     ],
@@ -56130,7 +56209,7 @@ function openFgAdj(jobName){
   var jPick=fgResolveFgStockJobKey(String(jobName||'').trim());
   var sel=document.getElementById('fgadj-job');
   if(sel){
-    sel.innerHTML=Object.keys(fgStock).map(function(n){
+    sel.innerHTML=fgActiveJobKeys().map(function(n){
       return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(n===jPick?' selected':'')+'>'+n.substring(0,40)+'</option>';
     }).join('');
   }
@@ -56146,7 +56225,7 @@ function openFgAdj(jobName){
 
 function fgAdjOnJobChange(){
   var job=document.getElementById('fgadj-job')?.value||'';
-  var cur=(fgStock[job]!==undefined)?(fgStock[job].qty||0):0;
+  var cur=(fgStock[job]&&!fgStock[job]._deleted)?(fgStock[job].qty||0):0;
   var el=document.getElementById('fgadj-system-qty');
   if(el) el.textContent=cur.toLocaleString();
   var lotSel=document.getElementById('fgadj-lot');
@@ -56176,7 +56255,7 @@ function fgAdjOnJobChange(){
 
 function fgAdjCalcDiff(){
   var job=document.getElementById('fgadj-job')?.value||'';
-  var cur=(fgStock[job]!==undefined)?(fgStock[job].qty||0):0;
+  var cur=(fgStock[job]&&!fgStock[job]._deleted)?(fgStock[job].qty||0):0;
   var actual=parseFloat(document.getElementById('fgadj-actual-qty')?.value);
   var bar=document.getElementById('fgadj-diff-bar');
   if(!bar||isNaN(actual)){ if(bar) bar.style.display='none'; return; }
@@ -56216,11 +56295,12 @@ function saveFgAdj(){
   errEl.style.display='none';
 
   if(!job){ errEl.textContent='⚠️ กรุณาเลือกชื่องาน (FG)'; errEl.style.display='block'; return; }
+  if(fgStock[job]&&fgStock[job]._deleted){ errEl.textContent='⚠️ งานนี้ถูกลบจาก Stock FG แล้ว — เลือกงานอื่น'; errEl.style.display='block'; return; }
   if(!lot){ errEl.textContent='⚠️ กรุณาเลือก Lot ที่ต้องการปรับยอด'; errEl.style.display='block'; return; }
   if(actualStr===''||isNaN(actualQty)||actualQty<0){ errEl.textContent='⚠️ กรุณาระบุยอดจริงที่นับได้ (ต้องไม่ติดลบ)'; errEl.style.display='block'; return; }
   if(!by){ errEl.textContent='⚠️ กรุณาระบุชื่อผู้ตรวจนับ/ผู้ปรับ'; errEl.style.display='block'; return; }
 
-  var oldQty=(fgStock[job]!==undefined)?fgStock[job].qty:0;
+  var oldQty=(fgStock[job]&&!fgStock[job]._deleted)?fgStock[job].qty:0;
   var diff=Math.round(actualQty)-oldQty;
   var entryId='FGADJ-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
 
@@ -56268,19 +56348,26 @@ function saveFgAdj(){
 // ── ลบ Stock FG ทั้งชื่องาน (ยอด + Ledger) ─────────────────────────
 function fgDeleteStockRow(jobName){
   var key=fgResolveFgStockJobKey(String(jobName||'').trim());
-  if(!key || typeof fgStock==='undefined' || !fgStock[key]){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการ'); return; }
+  if(!key || typeof fgStock==='undefined' || !fgStock[key] || fgStock[key]._deleted){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการ'); return; }
   var s=fgStock[key]||{};
   var qty=parseInt(s.qty,10)||0;
   var disp=key.length>60?key.substring(0,58)+'…':key;
   _confirmDel('🗑 ลบ Stock FG ของงานนี้<br><b>'+_fgEscHtml(disp)+'</b><br>คงเหลือ: '+qty.toLocaleString()+' ชิ้น<br><span style="font-size:11px;color:#8b949e">ลบยอดและประวัติบัญชีคุม (Ledger) ของชื่องานนี้ — ข้อมูล Order ไม่ถูกลบ</span>', function(){
-    try{ delete fgStock[key]; }catch(_){}
+    try{
+      fgStock[key]=Object.assign({}, fgStock[key]||{}, {
+        qty:0,lastIn:0,lastOut:0,lastLot:'',
+        _deleted:true,
+        _deletedAt:new Date().toISOString()
+      });
+      _stampStockBucket(fgStock,key);
+    }catch(_){}
     try{ if(fgLedger[key]) delete fgLedger[key]; }catch(_){}
     saveFgStock();
     saveFgLedger();
     var fjSel=document.getElementById('fg-led-job');
     if(fjSel){
       var was=(fjSel.value||'')===key;
-      fjSel.innerHTML='<option value="">ทุกงาน</option>'+Object.keys(fgStock).map(function(n){
+      fjSel.innerHTML='<option value="">ทุกงาน</option>'+fgActiveJobKeys().map(function(n){
         return '<option value="'+_fgEscHtml(n)+'">'+_fgEscHtml(n.substring(0,30))+'</option>';
       }).join('');
       if(was) fjSel.value='';
