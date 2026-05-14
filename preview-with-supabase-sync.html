@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-approval-proc-del"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-master-reg-del"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1174,6 +1174,33 @@
       return JSON.stringify(Math.max(a, b));
     }
 
+    /** หลัง mergeArrayById — พับแถวที่ code ซ้ำแต่ id ต่างกัน (ทะเบียน MASTER DATA) */
+    function foldRegistryArrayDupesByField(jsonStr, fieldName) {
+      const arr = safeJsonParse(jsonStr, []);
+      if (!Array.isArray(arr)) return jsonStr;
+      const by = Object.create(null);
+      const noKey = [];
+      arr.forEach((rec) => {
+        if (!rec || typeof rec !== "object") return;
+        const k = String(rec[fieldName] || "").trim();
+        if (!k) {
+          noKey.push(rec);
+          return;
+        }
+        const prev = by[k];
+        if (!prev) {
+          by[k] = rec;
+          return;
+        }
+        const tp = recordTs(prev);
+        const tr = recordTs(rec);
+        if (tr > tp) by[k] = Object.assign({}, prev, rec);
+        else if (tr < tp) by[k] = prev;
+        else by[k] = Object.assign({}, prev, rec);
+      });
+      return JSON.stringify(noKey.concat(Object.values(by)));
+    }
+
     function mergeStorageKey(key, localStr, remoteStr) {
       if (key === "pmf_users_v5") return mergeUsersValue(localStr, remoteStr);
       if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
@@ -1194,7 +1221,13 @@
       }
 
       const idField = ARRAY_MERGE_BY_ID[key];
-      if (idField) return mergeArrayById(localStr, remoteStr, idField);
+      if (idField) {
+        let merged = mergeArrayById(localStr, remoteStr, idField);
+        if (["_customerDB", "_supplierRegistry", "_rawmatRegistry", "_moldDB", "_moldRegistry", "_grinderRegistry", "_feederRegistry", "_kpiTargets"].includes(key)) {
+          merged = foldRegistryArrayDupesByField(merged, "code");
+        }
+        return merged;
+      }
 
       switch (key) {
         case "_machineDB":

@@ -6943,6 +6943,7 @@ function loadMachines(){
 }
 
 function saveMachines(){
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MACHINES, ['id']);
   try{
     localStorage.setItem('_machines', JSON.stringify(MACHINES));
   }catch(e){
@@ -7014,7 +7015,7 @@ loadMachines();
 // ════════════════════════════════════════════════════════════════
 var MOLD_DB = JSON.parse(localStorage.getItem('_moldDB')||'[]');
 
-function saveMoldDB(){ try{localStorage.setItem('_moldDB',JSON.stringify(MOLD_DB));}catch(e){} }
+function saveMoldDB(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_DB, ['code','id']); try{localStorage.setItem('_moldDB',JSON.stringify(MOLD_DB));}catch(e){} }
 
 function getMold(id){ return MOLD_DB.find(function(m){return m.id===id;})||null; }
 function getMoldByCode(code){ return MOLD_DB.find(function(m){return m.code===code;})||null; }
@@ -7028,7 +7029,7 @@ function initMoldDB(){
 // ════════════════════════════════════════════════════════════════
 var CUSTOMER_DB = JSON.parse(localStorage.getItem('_customerDB')||'[]');
 
-function saveCustomerDB(){ try{localStorage.setItem('_customerDB',JSON.stringify(CUSTOMER_DB));}catch(e){} }
+function saveCustomerDB(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CUSTOMER_DB, ['code','id']); try{localStorage.setItem('_customerDB',JSON.stringify(CUSTOMER_DB));}catch(e){} }
 
 function getCustomer(id){ return CUSTOMER_DB.find(function(c){return c.id===id;})||null; }
 function getCustomerByName(name){ return CUSTOMER_DB.find(function(c){return c.name===name;})||null; }
@@ -7059,7 +7060,7 @@ function initCustomerDB(){
 // ════════════════════════════════════════════════════════════════
 var SPEC_DB = JSON.parse(localStorage.getItem('_specDB')||'[]');
 
-function saveSpecDB(){ try{localStorage.setItem('_specDB',JSON.stringify(SPEC_DB));}catch(e){} }
+function saveSpecDB(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SPEC_DB, ['id']); try{localStorage.setItem('_specDB',JSON.stringify(SPEC_DB));}catch(e){} }
 
 function getSpec(id){ return SPEC_DB.find(function(s){return s.id===id;})||null; }
 function getSpecByJob(jobName){ return SPEC_DB.filter(function(s){return s.jobName===jobName;}); }
@@ -7109,7 +7110,7 @@ function initMachineDB(){
 // MOLD REGISTRY — ทะเบียนแม่พิมพ์
 // ═══════════════════════════════════════════════════════════════
 var MOLD_REGISTRY = JSON.parse(localStorage.getItem('_moldRegistry')||'null') || [];  // ล้าง sample molds — ใช้ข้อมูลจาก localStorage;
-function saveMoldRegistry(){ try{ localStorage.setItem('_moldRegistry',JSON.stringify(MOLD_REGISTRY)); }catch(e){} }
+function saveMoldRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_REGISTRY, ['code','id']); try{ localStorage.setItem('_moldRegistry',JSON.stringify(MOLD_REGISTRY)); }catch(e){} }
 function getMoldById(id){ return MOLD_REGISTRY.find(function(m){return m.id===id;})||null; }
 
 function getMoldsForMachine(machId){ return MOLD_REGISTRY.filter(function(m){return m.machine===machId;}); }
@@ -7124,7 +7125,7 @@ function getMoldPmStatus(mold){
 // CUSTOMER REGISTRY — ทะเบียนลูกค้า
 // ═══════════════════════════════════════════════════════════════
 var CUSTOMER_REGISTRY = JSON.parse(localStorage.getItem('_customerRegistry')||'null') || [];  // ล้าง sample customers;
-function saveCustomerRegistry(){ try{ localStorage.setItem('_customerRegistry',JSON.stringify(CUSTOMER_REGISTRY)); }catch(e){} }
+function saveCustomerRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CUSTOMER_REGISTRY, ['code','id']); try{ localStorage.setItem('_customerRegistry',JSON.stringify(CUSTOMER_REGISTRY)); }catch(e){} }
 function getCustomerById(id){ return CUSTOMER_REGISTRY.find(function(c){return c.id===id;})||null; }
 
 function _normalizeText(v){
@@ -7159,7 +7160,7 @@ function getAllCustomerNames(){
 }
 
 var QC_SPEC_REGISTRY = (function(){try{var _q=localStorage.getItem('_qcSpecRegistry');return _q?JSON.parse(_q):[];}catch(e){return [];}})();
-function saveQcSpecRegistry(){ try{ localStorage.setItem('_qcSpecRegistry',JSON.stringify(QC_SPEC_REGISTRY)); }catch(e){} }
+function saveQcSpecRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(QC_SPEC_REGISTRY, ['id']); try{ localStorage.setItem('_qcSpecRegistry',JSON.stringify(QC_SPEC_REGISTRY)); }catch(e){} }
 function getQcSpecByJob(jobName){
   var reg = QC_SPEC_REGISTRY.find(function(s){return s.jobName===jobName;});
   if(reg) return reg;
@@ -7191,9 +7192,9 @@ var CL_ENTRIES = JSON.parse(localStorage.getItem('_clEntries')||'null') || [];
 var CL_BOM_CONFIG = JSON.parse(localStorage.getItem('_clBomConfig')||'null') || {};
 // Structure: { jobName: { useRegrind: true/false, maxRatio: 20, grinderCode: 'GR-01', plasticType:'PP' } }
 
-function saveGrinderRegistry(){ try{localStorage.setItem('_grinderRegistry',JSON.stringify(GRINDER_REGISTRY));}catch(e){} }
-function saveFeederRegistry(){  try{localStorage.setItem('_feederRegistry',JSON.stringify(FEEDER_REGISTRY));}catch(e){} }
-function saveCLEntries(){        try{localStorage.setItem('_clEntries',JSON.stringify(CL_ENTRIES));}catch(e){} }
+function saveGrinderRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(GRINDER_REGISTRY, ['code','id']); try{localStorage.setItem('_grinderRegistry',JSON.stringify(GRINDER_REGISTRY));}catch(e){} }
+function saveFeederRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(FEEDER_REGISTRY, ['code','id']); try{localStorage.setItem('_feederRegistry',JSON.stringify(FEEDER_REGISTRY));}catch(e){} }
+function saveCLEntries(){        if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CL_ENTRIES, ['id']); try{localStorage.setItem('_clEntries',JSON.stringify(CL_ENTRIES));}catch(e){} }
 function saveCLBomConfig(){      try{localStorage.setItem('_clBomConfig',JSON.stringify(CL_BOM_CONFIG));}catch(e){} }
 
 /** ISO timestamp for Supabase multi-client merge (preview Phase 1) */
@@ -7253,7 +7254,7 @@ function initJobRegistry(){
     saveJobRegistry();
   }
 }
-function saveJobRegistry(){ try{localStorage.setItem('_jobRegistry',JSON.stringify(JOB_REGISTRY));}catch(e){} }
+function saveJobRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(JOB_REGISTRY, ['id']); try{localStorage.setItem('_jobRegistry',JSON.stringify(JOB_REGISTRY));}catch(e){} }
 function getJobById(id){ return JOB_REGISTRY.find(function(j){return j.id===id;})||null; }
 function getJobByName(name){
   var raw=String(name||'').trim();
@@ -7316,7 +7317,7 @@ function initEmployeeRegistry(){
   }
   if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
 }
-function saveEmployeeRegistry(){ try{localStorage.setItem('_employeeRegistry',JSON.stringify(EMPLOYEE_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
+function saveEmployeeRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(EMPLOYEE_REGISTRY, ['id']); try{localStorage.setItem('_employeeRegistry',JSON.stringify(EMPLOYEE_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
 function getEmployeeById(id){ return EMPLOYEE_REGISTRY.find(function(e){return e.id===id;})||null; }
 function getEmployeesByDept(dept){ return EMPLOYEE_REGISTRY.filter(function(e){return e.dept===dept&&e.status==='active';}); }
 function getEmployeesByMachine(machId){ return EMPLOYEE_REGISTRY.filter(function(e){return e.machine===machId&&e.status==='active';}); }
@@ -7360,7 +7361,7 @@ var RAWMAT_REGISTRY = JSON.parse(localStorage.getItem('_rawmatRegistry')||'null'
   ];
   return plasticItems.concat(pkgItems);
 })();
-function saveRawmatRegistry(){ try{localStorage.setItem('_rawmatRegistry',JSON.stringify(RAWMAT_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
+function saveRawmatRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(RAWMAT_REGISTRY, ['code','id']); try{localStorage.setItem('_rawmatRegistry',JSON.stringify(RAWMAT_REGISTRY));}catch(e){} if(typeof ecoOnDataMutation==='function') ecoOnDataMutation(); }
 function getRawmatByCode(code){ return RAWMAT_REGISTRY.find(function(r){return r.code===code;})||null; }
 function getRawmatById(id){ return RAWMAT_REGISTRY.find(function(r){return r.id===id;})||null; }
 
@@ -7368,7 +7369,7 @@ function getRawmatById(id){ return RAWMAT_REGISTRY.find(function(r){return r.id=
 // SUPPLIER REGISTRY — ทะเบียน Supplier / ผู้จัดหา
 // ════════════════════════════════════════════════════════════════
 var SUPPLIER_REGISTRY = JSON.parse(localStorage.getItem('_supplierRegistry')||'null') || [];
-function saveSupplierRegistry(){ try{localStorage.setItem('_supplierRegistry',JSON.stringify(SUPPLIER_REGISTRY));}catch(e){} }
+function saveSupplierRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SUPPLIER_REGISTRY, ['code','id']); try{localStorage.setItem('_supplierRegistry',JSON.stringify(SUPPLIER_REGISTRY));}catch(e){} }
 function getSupplierById(id){ return SUPPLIER_REGISTRY.find(function(s){return s.id===id;})||null; }
 function getSuppliersByCategory(cat){ return SUPPLIER_REGISTRY.filter(function(s){return (!cat||s.category===cat)&&s.status==='active';}); }
 
@@ -7406,14 +7407,14 @@ var PM_CHECKLIST_REGISTRY = JSON.parse(localStorage.getItem('_pmChecklistRegistr
   });
   return items;
 })();
-function savePMChecklistRegistry(){ try{localStorage.setItem('_pmChecklistRegistry',JSON.stringify(PM_CHECKLIST_REGISTRY));}catch(e){} }
+function savePMChecklistRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(PM_CHECKLIST_REGISTRY, ['id']); try{localStorage.setItem('_pmChecklistRegistry',JSON.stringify(PM_CHECKLIST_REGISTRY));}catch(e){} }
 function getPMChecklistByType(type){ return PM_CHECKLIST_REGISTRY.filter(function(c){return c.type===type&&c.status==='active';}).sort(function(a,b){return a.seq-b.seq;}); }
 
 // ════════════════════════════════════════════════════════════════
 // KPI TARGETS REGISTRY — ทะเบียนเป้าหมาย KPI
 // ════════════════════════════════════════════════════════════════
 var KPI_TARGETS = JSON.parse(localStorage.getItem('_kpiTargets')||'null') || [];
-function saveKpiTargets(){ try{localStorage.setItem('_kpiTargets',JSON.stringify(KPI_TARGETS));}catch(e){} }
+function saveKpiTargets(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(KPI_TARGETS, ['code','id']); try{localStorage.setItem('_kpiTargets',JSON.stringify(KPI_TARGETS));}catch(e){} }
 function getKpiByCode(code){ return KPI_TARGETS.find(function(k){return k.code===code;})||null; }
 function getKpiTarget(code){ var k=getKpiByCode(code); return k?k.target:null; }
 
@@ -7435,7 +7436,7 @@ let ZONES = JSON.parse(localStorage.getItem('_zones')||'null') || [
     machines:['I041','I042','I043','I044','I045','I046','I047','I048','I049','I050'],
     supervisor:'', operators:[], headcount:0 },
 ];
-function saveZones(){ try{ localStorage.setItem('_zones',JSON.stringify(ZONES)); }catch(e){} }
+function saveZones(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(ZONES, ['id']); try{ localStorage.setItem('_zones',JSON.stringify(ZONES)); }catch(e){} }
 function getMachineZone(machId){
   return ZONES.find(z=>z.machines.includes(machId))||null;
 }
@@ -9687,6 +9688,7 @@ function renderMoldRegistry(){
   var tbody = document.getElementById('moldreg-tbody');
   var summaryEl = document.getElementById('moldreg-summary');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_DB, ['code','id']);
   var search = (document.getElementById('moldreg-search')?.value||'').toLowerCase();
   var statusF = document.getElementById('moldreg-status')?.value||'';
   var list = MOLD_DB.filter(function(m){
@@ -9834,6 +9836,7 @@ function renderCustomerRegistry(){
   var tbody=document.getElementById('custreg-tbody');
   var summaryEl=document.getElementById('custreg-summary');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CUSTOMER_DB, ['code','id']);
   var search=(document.getElementById('custreg-search')?.value||'').toLowerCase();
   var statusF=document.getElementById('custreg-status')?.value||'';
   var list=CUSTOMER_DB.filter(function(c){
@@ -9916,6 +9919,7 @@ function renderSpecRegistry(){
   var tbody=document.getElementById('specreg-tbody');
   var summaryEl=document.getElementById('specreg-summary');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SPEC_DB, ['id']);
   var search=(document.getElementById('specreg-search')?.value||'').toLowerCase();
   var typeF=document.getElementById('specreg-type')?.value||'';
   var list=SPEC_DB.filter(function(s){
@@ -11012,6 +11016,7 @@ var BRAND_CONFIG = {
 
 function renderMachineRegistry(){
   if(!document.getElementById('mreg-tbody')) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MACHINES, ['id']);
   var search = (document.getElementById('mreg-search')?.value||'').toLowerCase();
   var brandF  = document.getElementById('mreg-brand-filter')?.value||'';
 
@@ -11719,6 +11724,7 @@ function renderJobRegistry(){
   var tbody=document.getElementById('jobreg-tbody');
   var summEl=document.getElementById('jobreg-summary');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(JOB_REGISTRY, ['id']);
   var search=(document.getElementById('jobreg-search')?.value||'').toLowerCase();
   var custF=document.getElementById('jobreg-customer')?.value||'';
   var machF=document.getElementById('jobreg-machine')?.value||'';
@@ -12193,6 +12199,7 @@ function renderEmpRegistry(){
   var tbody=document.getElementById('empreg-tbody');
   var summEl=document.getElementById('empreg-summary');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(EMPLOYEE_REGISTRY, ['id']);
   var search=(document.getElementById('empreg-search')?.value||'').toLowerCase();
   var deptF=document.getElementById('empreg-dept')?.value||'';
   var statF=document.getElementById('empreg-status')?.value||'';
@@ -12348,6 +12355,7 @@ function renderRawmatRegistry(){
   var tbody=document.getElementById('rawmatreg-tbody');
   var kpiEl=document.getElementById('rawmatreg-kpi');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(RAWMAT_REGISTRY, ['code','id']);
   var search=(document.getElementById('rawmatreg-search')?.value||'').toLowerCase();
   var seg=(document.getElementById('rawmatreg-seg')?.value)||'plastic';
   rawmatregSyncTabStyles();
@@ -12570,6 +12578,7 @@ function suppregSetSeg(seg){
 function renderSupplierRegistry(){
   var tbody=document.getElementById('suppreg-tbody'); var kpiEl=document.getElementById('suppreg-kpi');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SUPPLIER_REGISTRY, ['code','id']);
   var search=(document.getElementById('suppreg-search')?.value||'').toLowerCase();
   var seg=(document.getElementById('suppreg-seg')?.value)||'plastic';
   suppregSyncTabStyles();
@@ -12661,6 +12670,7 @@ function pmclShowTab(tab){
 function renderPmChecklistRegistry(){
   var tbody=document.getElementById('pmcl-tbody'); var kpiEl=document.getElementById('pmcl-kpi');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(PM_CHECKLIST_REGISTRY, ['id']);
   var list=getPMChecklistByType(_pmclCurrentTab);
   if(kpiEl){
     var daily=getPMChecklistByType('daily').length, weekly=getPMChecklistByType('weekly').length, monthly=getPMChecklistByType('monthly').length;
@@ -12714,8 +12724,11 @@ function pmclSave(){
 }
 function pmclDelete(id){
   _confirmDel('🗑 ลบรายการตรวจ PM นี้?', function(){
-    PM_CHECKLIST_REGISTRY=PM_CHECKLIST_REGISTRY.filter(function(c){return c.id!==id;});
+    var cur=PM_CHECKLIST_REGISTRY.find(function(c){ return String(c.id)===String(id); });
+    if(cur && typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(PM_CHECKLIST_REGISTRY, cur, ['id']);
+    else PM_CHECKLIST_REGISTRY=PM_CHECKLIST_REGISTRY.filter(function(c){return c.id!==id;});
     savePMChecklistRegistry(); renderPmChecklistRegistry();
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 function pmclExport(){
@@ -12730,6 +12743,7 @@ function pmclExport(){
 function renderKpiTargets(){
   var tbody=document.getElementById('kpitarget-tbody'); var kpiEl=document.getElementById('kpitarget-kpi');
   if(!tbody) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(KPI_TARGETS, ['code','id']);
   var catF=document.getElementById('kpitarget-cat')?.value||'';
   var list=KPI_TARGETS.filter(function(k){ if(catF&&k.category!==catF)return false; return true; });
   if(kpiEl){
@@ -15962,6 +15976,7 @@ function openZoneManager(zoneId){
 function zmRenderList(){
   const el = document.getElementById('zm-zone-list');
   if(!el) return;
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(ZONES, ['id']);
   el.innerHTML = ZONES.map(z=>{
     const isActive = _zmEditZoneId === z.id;
     const bg   = isActive ? z.color+'22' : 'var(--bg2)';
@@ -16186,6 +16201,7 @@ function zmDeleteZone(zoneId){
     const editor = document.getElementById('zm-editor');
     if(editor) editor.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3)">เลือก Zone ทางซ้ายเพื่อแก้ไข</div>';
     if(typeof _toast==='function') _toast('🗑 ลบ Zone '+zoneId+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
@@ -42903,7 +42919,7 @@ function _renderAlertCards(){
 // ════════════════════════════════════════════════════════════════
 var machGroups = JSON.parse(localStorage.getItem('_machGroups')||'[]');
 
-function saveMachGroups(){ try{localStorage.setItem('_machGroups',JSON.stringify(machGroups));}catch(e){} }
+function saveMachGroups(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(machGroups, ['id']); try{localStorage.setItem('_machGroups',JSON.stringify(machGroups));}catch(e){} }
 
 // Plastic purge difficulty matrix: ค่ายิ่งสูง = ไล่ท่อยากกว่า (ต้องใช้เวลามากกว่า)
 const PURGE_MATRIX = {
@@ -42925,6 +42941,7 @@ function colorDifficulty(fromMB, toMB){
 }
 
 function mgRender(){
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(machGroups, ['id']);
   // Populate MB filter datalist & select
   var mbColors=[...new Set(jobs.map(j=>j.mb||'-').filter(Boolean))].sort();
   var mbDL=document.getElementById('mg-mb-datalist');
@@ -43147,9 +43164,11 @@ function mgDelete(id){
   var g=machGroups.find(function(x){return x.id===id;});
   if(!g) return;
   if(!confirm('ลบ Group "'+g.name+'"?')) return;
-  machGroups=machGroups.filter(function(x){return x.id!==id;});
+  if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(machGroups, g, ['id']);
+  else machGroups=machGroups.filter(function(x){return x.id!==id;});
   saveMachGroups();
   mgRender();
+  try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
 }
 
 function mgAddToGroupPrompt(machId){
@@ -45652,6 +45671,54 @@ function _pmfReplaceObjectInPlace(targetObj, sourceObj){
     Object.keys(sourceObj).forEach(function(k){ targetObj[k]=sourceObj[k]; });
   }
 }
+/** คีย์ธุรกิจ — ใช้ฟิลด์แรกที่ไม่ว่าง ตามลำดับ (สอดคล้อง merge Supabase หลาย id / code เดียวกัน) */
+function pmfRegistryBizKey(rec, fieldChain){
+  if(!rec || typeof rec!=='object' || !fieldChain || !fieldChain.length) return '';
+  for(var fi=0; fi<fieldChain.length; fi++){
+    var f=fieldChain[fi], v=rec[f];
+    if(v!==undefined && v!==null && String(v).trim()!=='') return String(v).trim();
+  }
+  return '';
+}
+function pmfRegistryTs(rec){
+  if(!rec || typeof rec!=='object') return 0;
+  var t=Date.parse(rec.updatedAt || rec.updated_at || rec.createdAt || rec.ts || 0);
+  return Number.isFinite(t) ? t : 0;
+}
+/** รวมแถวซ้ำใน array ทะเบียน (เช่น code เดียวกัน id คนละค่า) */
+function pmfDedupeRegistryBiz(arr, fieldChain){
+  if(!Array.isArray(arr) || !arr.length || !fieldChain || !fieldChain.length) return;
+  var by={}, tail=[];
+  arr.forEach(function(rec){
+    if(!rec || typeof rec!=='object') return;
+    var k=pmfRegistryBizKey(rec, fieldChain);
+    if(!k){ tail.push(rec); return; }
+    var prev=by[k];
+    if(!prev){ by[k]=rec; return; }
+    var tp=pmfRegistryTs(prev), tr=pmfRegistryTs(rec);
+    if(tr>tp) by[k]=Object.assign({}, prev, rec);
+    else if(tr<tp) by[k]=Object.assign({}, rec, prev);
+    else by[k]=Object.assign({}, prev, rec);
+  });
+  var out=Object.values(by).concat(tail);
+  arr.length=0;
+  out.forEach(function(x){ arr.push(x); });
+}
+/** ลบทุกแถวที่ id หรือ business key ตรงกับแถวอ้างอิง (ลูปย้อนหลังเพื่อ splice หลายแถว) */
+function pmfSpliceAllRegistryMatches(arr, ref, fieldChain){
+  if(!Array.isArray(arr) || !ref || typeof ref!=='object' || !fieldChain || !fieldChain.length) return 0;
+  var idStr=String(ref.id!=null ? ref.id : '').trim();
+  var biz=pmfRegistryBizKey(ref, fieldChain);
+  var n=0;
+  for(var i=arr.length-1; i>=0; i--){
+    var x=arr[i];
+    if(!x || typeof x!=='object') continue;
+    var sameId=idStr && String(x.id)===idStr;
+    var sameBiz=biz && pmfRegistryBizKey(x, fieldChain)===biz;
+    if(sameId || sameBiz){ arr.splice(i,1); n++; }
+  }
+  return n;
+}
 function pmfReloadFromStorage(){
   try{
     var j = _pmfSafeParse('_jobs', null);
@@ -45665,6 +45732,149 @@ function pmfReloadFromStorage(){
     if(Array.isArray(jr) && typeof JOB_REGISTRY!=='undefined'){
       JOB_REGISTRY.length = 0;
       jr.forEach(function(x){ JOB_REGISTRY.push(x); });
+    }
+  }catch(e){}
+  // ── MASTER DATA / ทะเบียน — โหลดจาก localStorage หลัง parent pull+merge (memory เดิมค้าง) ──
+  try{
+    var mach = _pmfSafeParse('_machines', null);
+    if(Array.isArray(mach) && typeof MACHINES!=='undefined'){
+      MACHINES.length = 0;
+      mach.forEach(function(x){ MACHINES.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MACHINES, ['id']);
+    }
+  }catch(e){}
+  try{
+    var mchdb = _pmfSafeParse('_machineDB', null);
+    if(mchdb && typeof mchdb==='object' && !Array.isArray(mchdb) && typeof MACHINE_DB!=='undefined'){
+      _pmfReplaceObjectInPlace(MACHINE_DB, mchdb);
+    }
+  }catch(e){}
+  try{
+    var mdb = _pmfSafeParse('_moldDB', null);
+    if(Array.isArray(mdb) && typeof MOLD_DB!=='undefined'){
+      MOLD_DB.length = 0;
+      mdb.forEach(function(x){ MOLD_DB.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_DB, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var mrg = _pmfSafeParse('_moldRegistry', null);
+    if(Array.isArray(mrg) && typeof MOLD_REGISTRY!=='undefined'){
+      MOLD_REGISTRY.length = 0;
+      mrg.forEach(function(x){ MOLD_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(MOLD_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var cdb = _pmfSafeParse('_customerDB', null);
+    if(Array.isArray(cdb) && typeof CUSTOMER_DB!=='undefined'){
+      CUSTOMER_DB.length = 0;
+      cdb.forEach(function(x){ CUSTOMER_DB.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CUSTOMER_DB, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var creg = _pmfSafeParse('_customerRegistry', null);
+    if(Array.isArray(creg) && typeof CUSTOMER_REGISTRY!=='undefined'){
+      CUSTOMER_REGISTRY.length = 0;
+      creg.forEach(function(x){ CUSTOMER_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CUSTOMER_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var spdb = _pmfSafeParse('_specDB', null);
+    if(Array.isArray(spdb) && typeof SPEC_DB!=='undefined'){
+      SPEC_DB.length = 0;
+      spdb.forEach(function(x){ SPEC_DB.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SPEC_DB, ['id']);
+    }
+  }catch(e){}
+  try{
+    var qcs = _pmfSafeParse('_qcSpecRegistry', null);
+    if(Array.isArray(qcs) && typeof QC_SPEC_REGISTRY!=='undefined'){
+      QC_SPEC_REGISTRY.length = 0;
+      qcs.forEach(function(x){ QC_SPEC_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(QC_SPEC_REGISTRY, ['id']);
+    }
+  }catch(e){}
+  try{
+    var rmr = _pmfSafeParse('_rawmatRegistry', null);
+    if(Array.isArray(rmr) && typeof RAWMAT_REGISTRY!=='undefined'){
+      RAWMAT_REGISTRY.length = 0;
+      rmr.forEach(function(x){ RAWMAT_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(RAWMAT_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var sup = _pmfSafeParse('_supplierRegistry', null);
+    if(Array.isArray(sup) && typeof SUPPLIER_REGISTRY!=='undefined'){
+      SUPPLIER_REGISTRY.length = 0;
+      sup.forEach(function(x){ SUPPLIER_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(SUPPLIER_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var emp = _pmfSafeParse('_employeeRegistry', null);
+    if(Array.isArray(emp) && typeof EMPLOYEE_REGISTRY!=='undefined'){
+      EMPLOYEE_REGISTRY.length = 0;
+      emp.forEach(function(x){ EMPLOYEE_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(EMPLOYEE_REGISTRY, ['id']);
+    }
+  }catch(e){}
+  try{
+    var gr = _pmfSafeParse('_grinderRegistry', null);
+    if(Array.isArray(gr) && typeof GRINDER_REGISTRY!=='undefined'){
+      GRINDER_REGISTRY.length = 0;
+      gr.forEach(function(x){ GRINDER_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(GRINDER_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var fd = _pmfSafeParse('_feederRegistry', null);
+    if(Array.isArray(fd) && typeof FEEDER_REGISTRY!=='undefined'){
+      FEEDER_REGISTRY.length = 0;
+      fd.forEach(function(x){ FEEDER_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(FEEDER_REGISTRY, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var cle = _pmfSafeParse('_clEntries', null);
+    if(Array.isArray(cle) && typeof CL_ENTRIES!=='undefined'){
+      CL_ENTRIES.length = 0;
+      cle.forEach(function(x){ CL_ENTRIES.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(CL_ENTRIES, ['id']);
+    }
+  }catch(e){}
+  try{
+    var pmr = _pmfSafeParse('_pmChecklistRegistry', null);
+    if(Array.isArray(pmr) && typeof PM_CHECKLIST_REGISTRY!=='undefined'){
+      PM_CHECKLIST_REGISTRY.length = 0;
+      pmr.forEach(function(x){ PM_CHECKLIST_REGISTRY.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(PM_CHECKLIST_REGISTRY, ['id']);
+    }
+  }catch(e){}
+  try{
+    var kpi = _pmfSafeParse('_kpiTargets', null);
+    if(Array.isArray(kpi) && typeof KPI_TARGETS!=='undefined'){
+      KPI_TARGETS.length = 0;
+      kpi.forEach(function(x){ KPI_TARGETS.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(KPI_TARGETS, ['code','id']);
+    }
+  }catch(e){}
+  try{
+    var zn = _pmfSafeParse('_zones', null);
+    if(Array.isArray(zn) && typeof ZONES!=='undefined'){
+      ZONES.length = 0;
+      zn.forEach(function(x){ ZONES.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(ZONES, ['id']);
+    }
+  }catch(e){}
+  try{
+    var mg = _pmfSafeParse('_machGroups', null);
+    if(Array.isArray(mg) && typeof machGroups!=='undefined'){
+      machGroups.length = 0;
+      mg.forEach(function(x){ machGroups.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(machGroups, ['id']);
     }
   }catch(e){}
   try{
@@ -55813,7 +56023,10 @@ function deleteBom(name){
 function moldregDelete(id){
   const m=MOLD_DB.find(x=>x.id===id); if(!m) return;
   _confirmDel('🗑 ลบแม่พิมพ์: <b>'+m.code+'</b><br>'+(m.name||m.jobName||''), function(){
-    const idx=MOLD_DB.findIndex(x=>x.id===id); if(idx>=0) MOLD_DB.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(MOLD_DB, m, ['code','id']);
+    else{
+      const ix=MOLD_DB.findIndex(x=>x.id===id); if(ix>=0) MOLD_DB.splice(ix,1);
+    }
     saveMoldDB(); renderMoldRegistry();
     if(typeof moldLedger!=='undefined'&&Array.isArray(moldLedger)){
       moldLedger=moldLedger.filter(function(r){ return r.moldId!==id&&r.moldCode!==m.code; });
@@ -55823,36 +56036,52 @@ function moldregDelete(id){
     if(typeof renderMolds==='function') renderMolds();
     if(typeof renderMoldLedger==='function') renderMoldLedger();
     if(typeof _toast==='function') _toast('🗑 ลบแม่พิมพ์ '+m.code+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียนลูกค้า ────────────────────────────────────────────────
 function custregDelete(id){
-  const c=CUSTOMER_DB.find(x=>x.id===id); if(!c) return;
+  const c=CUSTOMER_DB.find(x=>String(x.id)===String(id)); if(!c) return;
   _confirmDel('🗑 ลบลูกค้า: <b>'+c.name+'</b>', function(){
-    const idx=CUSTOMER_DB.findIndex(x=>x.id===id); if(idx>=0) CUSTOMER_DB.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(CUSTOMER_DB, c, ['code','id']);
+    else{
+      const idx=CUSTOMER_DB.findIndex(x=>x.id===id); if(idx>=0) CUSTOMER_DB.splice(idx,1);
+    }
     saveCustomerDB(); renderCustomerRegistry();
+    if(typeof populateOrderForm==='function') populateOrderForm();
     if(typeof _toast==='function') _toast('🗑 ลบลูกค้า '+c.name+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียน Spec ─────────────────────────────────────────────────
 function specregDelete(id){
-  const s=SPEC_DB.find(x=>x.id===id); if(!s) return;
+  const s=SPEC_DB.find(x=>String(x.id)===String(id)); if(!s) return;
   _confirmDel('🗑 ลบ Spec: <b>'+(s.specCode||s.checkItem)+'</b><br>งาน: '+s.jobName, function(){
-    const idx=SPEC_DB.findIndex(x=>x.id===id); if(idx>=0) SPEC_DB.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(SPEC_DB, s, ['id']);
+    else{
+      const idx=SPEC_DB.findIndex(x=>x.id===id); if(idx>=0) SPEC_DB.splice(idx,1);
+    }
     saveSpecDB(); renderSpecRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบ Spec '+s.specCode+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียนเครื่องจักร ───────────────────────────────────────────
 function machineDelete(id){
   _confirmDel('🗑 ลบเครื่องจักร: <b>'+id+'</b><br><span style="color:#f85149;font-size:11px">⚠️ ข้อมูลเครื่องนี้จะถูกลบออกจากระบบ</span>', function(){
-    const idx=MACHINES.findIndex(m=>m.id===id); if(idx>=0) MACHINES.splice(idx,1);
+    var ref={ id:id };
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(MACHINES, ref, ['id']);
+    else{
+      const idx=MACHINES.findIndex(m=>m.id===id); if(idx>=0) MACHINES.splice(idx,1);
+    }
     if(MACHINE_DB[id]) delete MACHINE_DB[id];
+    saveMachines();
     saveMachineDB(); renderMachineRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบเครื่อง '+id+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
@@ -55875,48 +56104,65 @@ function jobregDelete(id){
     saveJobRegistry();
     renderJobRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบงาน '+j.name+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียนพนักงาน ───────────────────────────────────────────────
 function empregDelete(id){
-  const e=EMPLOYEE_REGISTRY.find(x=>x.id===id); if(!e) return;
+  const e=EMPLOYEE_REGISTRY.find(x=>String(x.id)===String(id)); if(!e) return;
   _confirmDel('🗑 ลบพนักงาน: <b>'+e.name+'</b><br>รหัส: '+e.id, function(){
-    const idx=EMPLOYEE_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) EMPLOYEE_REGISTRY.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(EMPLOYEE_REGISTRY, e, ['id']);
+    else{
+      const idx=EMPLOYEE_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) EMPLOYEE_REGISTRY.splice(idx,1);
+    }
     saveEmployeeRegistry();
     if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
     renderEmpRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบพนักงาน '+e.name+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียนวัตถุดิบ ──────────────────────────────────────────────
 function rawmatregDelete(id){
-  const r=RAWMAT_REGISTRY.find(x=>x.id===id); if(!r) return;
+  const r=RAWMAT_REGISTRY.find(x=>String(x.id)===String(id)); if(!r) return;
   _confirmDel('🗑 ลบวัตถุดิบ: <b>'+r.code+'</b> — '+(r.name||r.code), function(){
-    const idx=RAWMAT_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) RAWMAT_REGISTRY.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(RAWMAT_REGISTRY, r, ['code','id']);
+    else{
+      const idx=RAWMAT_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) RAWMAT_REGISTRY.splice(idx,1);
+    }
     saveRawmatRegistry(); renderRawmatRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบวัตถุดิบ '+r.code+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── ทะเบียน Supplier ─────────────────────────────────────────────
 function suppregDelete(id){
-  const s=SUPPLIER_REGISTRY.find(x=>x.id===id); if(!s) return;
+  const s=SUPPLIER_REGISTRY.find(x=>String(x.id)===String(id)); if(!s) return;
   _confirmDel('🗑 ลบ Supplier: <b>'+s.name+'</b><br>รหัส: '+s.code, function(){
-    const idx=SUPPLIER_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) SUPPLIER_REGISTRY.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(SUPPLIER_REGISTRY, s, ['code','id']);
+    else{
+      const idx=SUPPLIER_REGISTRY.findIndex(x=>x.id===id); if(idx>=0) SUPPLIER_REGISTRY.splice(idx,1);
+    }
     saveSupplierRegistry(); renderSupplierRegistry();
     if(typeof _toast==='function') _toast('🗑 ลบ Supplier '+s.name+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
 // ── เป้าหมาย KPI ─────────────────────────────────────────────────
 function kpiTargetDelete(id){
-  const k=KPI_TARGETS.find(x=>x.id===id); if(!k) return;
+  const k=KPI_TARGETS.find(x=>String(x.id)===String(id)); if(!k) return;
   _confirmDel('🗑 ลบ KPI: <b>'+k.name+'</b><br>รหัส: '+k.code, function(){
-    const idx=KPI_TARGETS.findIndex(x=>x.id===id); if(idx>=0) KPI_TARGETS.splice(idx,1);
+    if(typeof pmfSpliceAllRegistryMatches==='function') pmfSpliceAllRegistryMatches(KPI_TARGETS, k, ['code','id']);
+    else{
+      const idx=KPI_TARGETS.findIndex(x=>x.id===id); if(idx>=0) KPI_TARGETS.splice(idx,1);
+    }
     saveKpiTargets(); renderKpiTargets();
     if(typeof _toast==='function') _toast('🗑 ลบ KPI '+k.name+' แล้ว');
+    try{ if(window.parent && window.parent!==window) window.parent.postMessage({ type:'pmf-save-now' }, '*'); }catch(_){ }
   });
 }
 
