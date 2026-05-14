@@ -6885,7 +6885,7 @@ function _confirmDel(msg, onConfirm){
   t.id='_cdel_toast';
   t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);'
     +'background:#161b22;border:1px solid rgba(248,81,73,0.55);color:#e6edf3;'
-    +'padding:14px 20px;border-radius:12px;z-index:99999;font-size:13px;'
+    +'padding:14px 20px;border-radius:12px;z-index:2147483000;font-size:13px;'
     +'font-family:inherit;box-shadow:0 6px 24px rgba(0,0,0,0.5);text-align:center;'
     +'min-width:300px;max-width:480px;animation:_fadeIn .15s ease';
   t.innerHTML='<div style="margin-bottom:10px;line-height:1.5">'+msg+'</div>'
@@ -6899,8 +6899,6 @@ function _confirmDel(msg, onConfirm){
   var close=function(){ var el=document.getElementById('_cdel_toast'); if(el) el.remove(); };
   document.getElementById('_cdel_no').onclick=close;
   document.getElementById('_cdel_yes').onclick=function(){ close(); onConfirm(); };
-  // auto-dismiss after 10 sec
-  setTimeout(close, 10000);
 }
 // ── Inline info-toast (แทน if(typeof _infoToast==="function") _infoToast()); else console.warn()) ─────────────────────────────
 function _infoToast(msg){
@@ -12893,7 +12891,7 @@ function renderRawmatLedger(){
   mat=document.getElementById('led-material')?.value||'';
 
   var rows=allRows.filter(function(r){
-    if(mat&&r._mat!==mat) return false;
+    if(mat&&!rmLedgerMaterialEquals(r._mat,mat)) return false;
     if(month&&!(String(r.date||'').startsWith(month))) return false;
     if(typeF&&r.type!==typeF) return false;
     if(jobQ&&String(r._job||'').toLowerCase().indexOf(jobQ)<0) return false;
@@ -12903,7 +12901,20 @@ function renderRawmatLedger(){
     }
     return true;
   });
-  if(!rows.length){tbody.innerHTML='<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีรายการ</td></tr>';return;}
+  if(!rows.length){
+    var hint='';
+    if(mat&&month){
+      var anyMat=(scope==='plastic'?rawRows:scope==='mb'?mbRows:allRows).some(function(r){ return rmLedgerMaterialEquals(r._mat,mat); });
+      var inMonth=(scope==='plastic'?rawRows:scope==='mb'?mbRows:allRows).some(function(r){
+        return rmLedgerMaterialEquals(r._mat,mat)&&String(r.date||'').startsWith(month);
+      });
+      if(anyMat&&!inMonth){
+        hint='<div style="margin-top:10px;font-size:11px;color:var(--text2)">มีรายการของรหัสนี้ในเดือนอื่น — ลอง <button type="button" onclick="document.getElementById(\'led-month\').value=\'\';renderRawmatLedger();" style="padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--accent2);cursor:pointer;font-size:11px;font-weight:700">ล้างตัวกรองเดือน</button></div>';
+      }
+    }
+    tbody.innerHTML='<tr><td colspan="11" style="padding:20px;text-align:center;color:var(--text3)">ยังไม่มีรายการ'+hint+'</td></tr>';
+    return;
+  }
   tbody.innerHTML=rows.slice(0,300).map(function(r){
     var isIn=r.type==='in';
     var isAdj=r.type==='adj';
@@ -12961,8 +12972,12 @@ function rmtSetType(t){
 }
 
 function rmtOnMatChange(){
-  var mat=document.getElementById('rmt-material')?.value||'';
-  var reg=RAWMAT_REGISTRY.find(function(r){return r.code===mat;})||null;
+  var raw=document.getElementById('rmt-material')?.value||'';
+  var reg=null;
+  for(var ri=(RAWMAT_REGISTRY||[]).length-1;ri>=0;ri--){
+    var rc=RAWMAT_REGISTRY[ri];
+    if(rc&&rmLedgerMaterialEquals(rc.code,raw)){ reg=rc; break; }
+  }
   // Populate grade datalist
   var dl=document.getElementById('rmt-grade-list');
   if(dl){
@@ -13006,8 +13021,12 @@ function rmtAdjPack(type, delta){
 }
 
 function rmtCalcFromPack(){
-  var mat=document.getElementById('rmt-material')?.value||'';
-  var reg=RAWMAT_REGISTRY.find(function(r){return r.code===mat;})||null;
+  var raw=document.getElementById('rmt-material')?.value||'';
+  var reg=null;
+  for(var ri=(RAWMAT_REGISTRY||[]).length-1;ri>=0;ri--){
+    var rc=RAWMAT_REGISTRY[ri];
+    if(rc&&rmLedgerMaterialEquals(rc.code,raw)){ reg=rc; break; }
+  }
   var bagSize=reg?+(reg.bagSize||25):25;
   var bbSize=reg?+(reg.bigBagSize||650):650;
   var bags=parseInt(document.getElementById('rmt-bag-count')?.value)||0;
@@ -13027,7 +13046,7 @@ function rmtCalcFromPack(){
 }
 
 function rmtUpdateBalancePreview(){
-  var mat=document.getElementById('rmt-material')?.value||'';
+  var mat=rmResolvePlasticStockKey(document.getElementById('rmt-material')?.value||'');
   var qty=parseFloat(document.getElementById('rmt-qty')?.value)||0;
   var type=document.getElementById('rmt-type')?.value||'in';
   var preview=document.getElementById('rmt-balance-preview');
@@ -13086,7 +13105,7 @@ function rmOpenTx(txType){
 
 function saveRawmatTx(){
   var type=document.getElementById('rmt-type').value;
-  var mat=document.getElementById('rmt-material').value;
+  var mat=rmResolvePlasticStockKey(document.getElementById('rmt-material').value);
   var qty=parseFloat(document.getElementById('rmt-qty').value)||0;
   var date=document.getElementById('rmt-date').value||new Date().toISOString().split('T')[0];
   if(!mat||qty<=0){if(typeof _infoToast==="function") _infoToast('กรุณากรอกวัตถุดิบและจำนวน');return;}
@@ -13220,7 +13239,7 @@ function rmChartRender(){
 
   // Filter ledger for this material in range
   var entries = rawMatLedger.filter(function(r){
-    if(r.material !== mat) return false;
+    if(!rmLedgerMaterialEquals(r.material,mat)) return false;
     var d = new Date(r.date); return d >= fromDate && d <= toDate;
   }).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
 
@@ -22446,8 +22465,12 @@ function renderRawmatStockDashboard(mats, demandKind){
   wrap.style.display='block';
   var nM=parseInt((function(){ try{return localStorage.getItem('_rmDashMonths');}catch(e){return null;} })()||'12',10);
   if(nM!==6 && nM!==12) nM=12;
-  var matsSet={};
-  mats.forEach(function(m){ matsSet[m]=1; });
+  function rmMatInMatsList(rowMat){
+    var n=rmMatNorm(rowMat);
+    if(!n) return false;
+    for(var mi=0;mi<mats.length;mi++){ if(rmMatNorm(mats[mi])===n) return true; }
+    return false;
+  }
   var months=[];
   var d=new Date();
   d.setDate(1);
@@ -22465,14 +22488,14 @@ function renderRawmatStockDashboard(mats, demandKind){
     if(demandKind==='mb_color'){
       (mbLedger||[]).forEach(function(r){
         if(r.type!=='out') return;
-        if(!matsSet[r.code]) return;
+        if(!rmMatInMatsList(r.code)) return;
         if(String(r.date||'').substring(0,7)!==mo) return;
         sum+=Math.abs(Number(r.qty)||0);
       });
     }else{
       (rawMatLedger||[]).forEach(function(r){
         if(r.type!=='out') return;
-        if(!matsSet[r.material]) return;
+        if(!rmMatInMatsList(r.material)) return;
         if(String(r.date||'').substring(0,7)!==mo) return;
         sum+=Number(r.qty)||0;
       });
@@ -22485,13 +22508,13 @@ function renderRawmatStockDashboard(mats, demandKind){
     if(demandKind==='mb_color'){
       (mbLedger||[]).forEach(function(r){
         if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
-        if(!matsSet[r.code]) return;
+        if(!rmMatInMatsList(r.code)) return;
         w+=Math.abs(Number(r.qty)||0)*rmDashPricePerKg(r.code);
       });
     }else{
       (rawMatLedger||[]).forEach(function(r){
         if(r.type!=='out'||String(r.date||'').substring(0,7)!==mo) return;
-        if(!matsSet[r.material]) return;
+        if(!rmMatInMatsList(r.material)) return;
         w+=(Number(r.qty)||0)*rmDashPricePerKg(r.material);
       });
     }
@@ -22511,10 +22534,10 @@ function renderRawmatStockDashboard(mats, demandKind){
     var mo=String(r.date||'');
     if(mo.substring(0,4)!==String(y0)) return;
     if(demandKind==='mb_color'){
-      if(r.type!=='out'||!matsSet[r.code]) return;
+      if(r.type!=='out'||!rmMatInMatsList(r.code)) return;
       ytdOutKg+=Math.abs(Number(r.qty)||0);
     }else{
-      if(r.type!=='out'||!matsSet[r.material]) return;
+      if(r.type!=='out'||!rmMatInMatsList(r.material)) return;
       ytdOutKg+=Number(r.qty)||0;
     }
   });
@@ -22608,7 +22631,7 @@ function renderRawmatStockDashboard(mats, demandKind){
               });
             }else{
               (rawMatLedger||[]).forEach(function(r){
-                if(r.type!=='out'||r.material!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                if(r.type!=='out'||!rmLedgerMaterialEquals(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
                 kg+=Number(r.qty)||0;
               });
             }
@@ -22623,7 +22646,7 @@ function renderRawmatStockDashboard(mats, demandKind){
               });
             }else{
               (rawMatLedger||[]).forEach(function(r){
-                if(r.type!=='out'||r.material!==mat||String(r.date||'').substring(0,7)!==mo) return;
+                if(r.type!=='out'||!rmLedgerMaterialEquals(r.material,mat)||String(r.date||'').substring(0,7)!==mo) return;
                 kg+=Number(r.qty)||0;
               });
             }
@@ -25055,7 +25078,7 @@ function renderRawmatChart(){
 
   if(!isMB){
     rawMatLedger.forEach(r=>{
-      if(filterMats.length && !filterMats.includes(r.material)) return;
+      if(filterMats.length && !filterMats.some(function(m){ return rmLedgerMaterialEquals(m,r.material); })) return;
       const mo = r.date?.substring(0,7);
       const idx = months.indexOf(mo);
       if(idx<0) return;
@@ -25114,7 +25137,7 @@ function renderRawmatChart(){
     ropTbody.innerHTML = mats.map(mat=>{
       const s   = rawMatStock[mat]||{qty:0,min:0};
       const cfg = rawMatSettings[mat]||{ltDays:14,minOrderQty:500};
-      const used = rawMatLedger.filter(r=>r.material===mat&&r.type==='out'&&months.includes(r.date?.substring(0,7))).reduce((a,r)=>a+(r.qty||0),0);
+      const used = rawMatLedger.filter(r=>rmLedgerMaterialEquals(r.material,mat)&&r.type==='out'&&months.includes(r.date?.substring(0,7))).reduce((a,r)=>a+(r.qty||0),0);
       const avgUse = nMonths>0 ? used/nMonths : 0;
       const rop   = Math.ceil(avgUse * (cfg.ltDays||14) / 30);
       const needOrder = s.qty <= (s.min||rop);
@@ -25411,11 +25434,35 @@ function _fgJobB64(name){
 function _fgJobFromB64(b){
   try{ return decodeURIComponent(escape(atob(String(b||'')))); }catch(e){ return ''; }
 }
+/** หาคีย์จริงใน fgStock เมื่อชื่องานตรงความหมายแต่สะกด/ช่องว่างไม่ตรงกับคีย์ในอ็อบเจกต์ */
+function fgResolveFgStockJobKey(input){
+  var j=String(input==null?'':input).trim();
+  if(!j||typeof fgStock==='undefined'||!fgStock) return '';
+  if(fgStock[j]) return j;
+  try{
+    var jn=typeof j.normalize==='function'?j.normalize('NFKC'):j;
+    for(var k in fgStock){
+      if(!Object.prototype.hasOwnProperty.call(fgStock,k)) continue;
+      var kk=String(k).trim();
+      var kn=(typeof kk.normalize==='function'?kk.normalize('NFKC'):kk);
+      if(kn===jn) return k;
+    }
+  }catch(_){}
+  var jc=j.replace(/\s+/g,'');
+  for(var k2 in fgStock){
+    if(!Object.prototype.hasOwnProperty.call(fgStock,k2)) continue;
+    if(String(k2).trim().replace(/\s+/g,'')===jc) return k2;
+  }
+  return j;
+}
+function fgBtnJob(el){
+  return fgResolveFgStockJobKey(_fgJobFromB64(el&&el.getAttribute?el.getAttribute('data-fgjb'):''));
+}
 function _fgEscHtml(t){
   return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function openFgMinMaxModal(jobName){
-  var j=String(jobName||'').trim();
+  var j=fgResolveFgStockJobKey(String(jobName||'').trim());
   if(!j || !fgStock[j]){
     if(typeof _infoToast==='function') _infoToast('ไม่พบข้อมูลสต็อกงานนี้');
     return;
@@ -25449,7 +25496,7 @@ function saveFgMinMaxModal(){
 }
 /** จาก FG ต่ำกว่า Min — เปิดหน้า Order + โมดัลเติมจำนวน แล้วหลังบันทึกไปหน้าใบอนุมัติ (รออนุมัติสั่งผลิต) */
 function fgOpenOrderForLowStock(jobName){
-  var jn=String(jobName||'').trim();
+  var jn=fgResolveFgStockJobKey(String(jobName||'').trim());
   if(!jn){ return; }
   var s=fgStock[jn]||{qty:0,min:500,max:8000};
   var jr=typeof getJobByName==='function'?getJobByName(jn):null;
@@ -25898,9 +25945,9 @@ function renderStock(filter='',statusFilter=''){
       +'<td class="mono" style="font-size:12px">+'+(s.lastIn!=null?s.lastIn.toLocaleString():0)+'</td>'
       +'<td class="mono" style="font-size:12px">-'+(s.lastOut!=null?s.lastOut.toLocaleString():0)+'</td>'
       +'<td class="mono" style="font-size:12px">'+due.toLocaleDateString('th-TH')+'</td>'
-      +'<td><button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">⚙ Min/Max</button>'
-      +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button>'
-      +' <button type="button" data-fgjb="'+b64+'" onclick="fgDeleteStockRow(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))" style="padding:3px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.35);color:#f85149;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px;font-weight:700" title="ลบรายการ Stock FG (ชื่องานนี้)">ลบ</button></td>'
+      +'<td><button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(fgBtnJob(this))">⚙ Min/Max</button>'
+      +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(fgBtnJob(this))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button>'
+      +' <button type="button" data-fgjb="'+b64+'" onclick="fgDeleteStockRow(fgBtnJob(this))" style="padding:3px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.35);color:#f85149;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px;font-weight:700" title="ลบรายการ Stock FG (ชื่องานนี้)">ลบ</button></td>'
     +'</tr>';
   }
   function cardHtml(name,s){
@@ -25924,8 +25971,8 @@ function renderStock(filter='',statusFilter=''){
       +'<div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: '+mn.toLocaleString()+' | Max: '+mx.toLocaleString()+'</div>'
       +'<div style="font-size:10px;color:var(--text3);margin-top:3px">Lot คงเหลือ (สูงสุด 4):</div>'
       +'<div style="margin-top:2px">'+fgLotMiniHtml(name,4)+'</div>'
-      +(low?'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;font-weight:700" data-fgjb="'+b64+'" onclick="fgOpenOrderForLowStock(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">📋 เพิ่ม Order (รออนุมัติสั่งผลิต)</button>'
-        :'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(_fgJobFromB64(this.getAttribute(\'data-fgjb\')))">⚙ ตั้ง Min/Max</button>')
+      +(low?'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;font-weight:700" data-fgjb="'+b64+'" onclick="fgOpenOrderForLowStock(fgBtnJob(this))">📋 เพิ่ม Order (รออนุมัติสั่งผลิต)</button>'
+        :'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(fgBtnJob(this))">⚙ ตั้ง Min/Max</button>')
     +'</div>';
   }
   if(cardsEl) cardsEl.innerHTML=list.map(function(e){ return cardHtml(e[0],e[1]); }).join('')||'<div style="font-size:12px;color:var(--text3);grid-column:1/-1">ยังไม่มีข้อมูล FG Stock</div>';
@@ -28864,6 +28911,39 @@ var rawMatLedger = JSON.parse(localStorage.getItem('_rawMatLedger')||'[]');
 })();
 // Save ledger to localStorage
 function saveRawMatLedger(){ try{localStorage.setItem('_rawMatLedger',JSON.stringify(rawMatLedger));}catch(e){} }
+/** เทียบรหัสเม็ดแบบยืดหยุ่น: ช่องว่างต่างกัน / AS SAN W vs AS SANW → ถือเป็นตัวเดียวกัน */
+function rmMatNorm(s){
+  return String(s==null?'':s).trim().replace(/\s+/g,'').toUpperCase();
+}
+function rmLedgerMaterialEquals(a,b){
+  return !!a && !!b && rmMatNorm(a)===rmMatNorm(b);
+}
+/** ใช้คีย์เดียวกับ rawMatStock ถ้ามีอยู่แล้ว — ledger กับ stock จะไม่หลุดกัน */
+function rmResolvePlasticStockKey(input){
+  var cleaned=String(input||'').trim().replace(/\s+/g,' ');
+  if(!cleaned) return '';
+  var n=rmMatNorm(cleaned);
+  try{
+    for(var k in rawMatStock){
+      if(!Object.prototype.hasOwnProperty.call(rawMatStock,k)) continue;
+      if(rawMatStock[k]&&rawMatStock[k]._deleted) continue;
+      if(rmMatNorm(k)===n) return k;
+    }
+  }catch(e){}
+  return cleaned;
+}
+(function rmMigrateLedgerMaterialCodes(){
+  try{
+    if(!Array.isArray(rawMatLedger)) return;
+    var changed=false;
+    rawMatLedger.forEach(function(r){
+      if(!r||typeof r!=='object'||!r.material) return;
+      var canon=rmResolvePlasticStockKey(r.material);
+      if(canon && canon!==r.material){ r.material=canon; changed=true; }
+    });
+    if(changed) saveRawMatLedger();
+  }catch(e){}
+})();
 var rawMatPRList = JSON.parse(localStorage.getItem('_rawMatPRList')||'[]'); // PR list with expected arrival date
 function saveRawMatPRList(){ try{localStorage.setItem('_rawMatPRList',JSON.stringify(rawMatPRList));}catch(e){} }
 // FG ledger
@@ -54562,7 +54642,7 @@ function openStockAdj(mat){
 }
 
 function adjOnMatChange(){
-  var mat=document.getElementById('adj-material')?.value||'';
+  var mat=rmResolvePlasticStockKey(document.getElementById('adj-material')?.value||'');
   var cur=(rawMatStock[mat]!==undefined) ? (rawMatStock[mat].qty||0) : 0;
   var el=document.getElementById('adj-system-qty');
   if(el) el.textContent=cur.toLocaleString();
@@ -54573,7 +54653,7 @@ function adjOnMatChange(){
 }
 
 function adjCalcDiff(){
-  var mat=document.getElementById('adj-material')?.value||'';
+  var mat=rmResolvePlasticStockKey(document.getElementById('adj-material')?.value||'');
   var cur=rawMatStock[mat]?.qty||0;
   var actual=parseFloat(document.getElementById('adj-actual-qty').value);
   var bar=document.getElementById('adj-diff-bar');
@@ -54599,7 +54679,7 @@ function adjCalcDiff(){
 }
 
 function saveStockAdj(){
-  var mat=document.getElementById('adj-material')?.value||'';
+  var mat=rmResolvePlasticStockKey(document.getElementById('adj-material')?.value||'');
   var actualQtyStr=document.getElementById('adj-actual-qty')?.value||'';
   var actualQty=parseFloat(actualQtyStr);
   var by=(document.getElementById('adj-by')?.value||'').trim();
@@ -56047,10 +56127,11 @@ function rgDeleteLedger(id){
 // ════════════════════════════════════════════════════════════════
 
 function openFgAdj(jobName){
+  var jPick=fgResolveFgStockJobKey(String(jobName||'').trim());
   var sel=document.getElementById('fgadj-job');
   if(sel){
     sel.innerHTML=Object.keys(fgStock).map(function(n){
-      return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(n===jobName?' selected':'')+'>'+n.substring(0,40)+'</option>';
+      return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(n===jPick?' selected':'')+'>'+n.substring(0,40)+'</option>';
     }).join('');
   }
   document.getElementById('fgadj-date').value=new Date().toISOString().split('T')[0];
@@ -56186,19 +56267,19 @@ function saveFgAdj(){
 
 // ── ลบ Stock FG ทั้งชื่องาน (ยอด + Ledger) ─────────────────────────
 function fgDeleteStockRow(jobName){
-  jobName = String(jobName||'').trim();
-  if(!jobName || typeof fgStock==='undefined' || !fgStock[jobName]){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการ'); return; }
-  var s=fgStock[jobName]||{};
+  var key=fgResolveFgStockJobKey(String(jobName||'').trim());
+  if(!key || typeof fgStock==='undefined' || !fgStock[key]){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการ'); return; }
+  var s=fgStock[key]||{};
   var qty=parseInt(s.qty,10)||0;
-  var disp=jobName.length>60?jobName.substring(0,58)+'…':jobName;
+  var disp=key.length>60?key.substring(0,58)+'…':key;
   _confirmDel('🗑 ลบ Stock FG ของงานนี้<br><b>'+_fgEscHtml(disp)+'</b><br>คงเหลือ: '+qty.toLocaleString()+' ชิ้น<br><span style="font-size:11px;color:#8b949e">ลบยอดและประวัติบัญชีคุม (Ledger) ของชื่องานนี้ — ข้อมูล Order ไม่ถูกลบ</span>', function(){
-    try{ delete fgStock[jobName]; }catch(_){}
-    try{ if(fgLedger[jobName]) delete fgLedger[jobName]; }catch(_){}
+    try{ delete fgStock[key]; }catch(_){}
+    try{ if(fgLedger[key]) delete fgLedger[key]; }catch(_){}
     saveFgStock();
     saveFgLedger();
     var fjSel=document.getElementById('fg-led-job');
     if(fjSel){
-      var was=(fjSel.value||'')===jobName;
+      var was=(fjSel.value||'')===key;
       fjSel.innerHTML='<option value="">ทุกงาน</option>'+Object.keys(fgStock).map(function(n){
         return '<option value="'+_fgEscHtml(n)+'">'+_fgEscHtml(n.substring(0,30))+'</option>';
       }).join('');

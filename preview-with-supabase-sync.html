@@ -1212,6 +1212,45 @@
       if (key === "_approvalProcDocs") return mergeApprovalProcDocs(localStr, remoteStr);
       if (MERGE_SKIP_KEYS.has(key)) return localStr;
 
+      /** Align ledger material string to _rawMatStock bucket keys (spaces / AS SAN W vs AS SANW). */
+      function rmMatNormPmf(s) {
+        return String(s == null ? "" : s)
+          .trim()
+          .replace(/\s+/g, "")
+          .toUpperCase();
+      }
+      function normalizeRawMatLedgerMerged(mergedStr) {
+        try {
+          const arr = JSON.parse(mergedStr);
+          if (!Array.isArray(arr)) return mergedStr;
+          let stock = {};
+          try {
+            stock = JSON.parse(localStorage.getItem("_rawMatStock") || "{}");
+          } catch (_) {
+            stock = {};
+          }
+          if (!stock || typeof stock !== "object") stock = {};
+          let changed = false;
+          arr.forEach((r) => {
+            if (!r || typeof r !== "object" || !r.material) return;
+            const n = rmMatNormPmf(r.material);
+            if (!n) return;
+            for (const k of Object.keys(stock)) {
+              if (!Object.prototype.hasOwnProperty.call(stock, k)) continue;
+              if (stock[k] && stock[k]._deleted) continue;
+              if (rmMatNormPmf(k) === n && k !== r.material) {
+                r.material = k;
+                changed = true;
+                break;
+              }
+            }
+          });
+          return changed ? JSON.stringify(arr) : mergedStr;
+        } catch (_) {
+          return mergedStr;
+        }
+      }
+
       // Object-keyed stores (e.g. _fgStock, _rawMatStock) — merge by bucket
       if (OBJECT_BY_KEY_STORES.has(key)) {
         return mergeObjectValuesByTs(localStr, remoteStr);
@@ -1231,6 +1270,7 @@
         if (["_customerDB", "_supplierRegistry", "_rawmatRegistry", "_moldDB", "_moldRegistry", "_grinderRegistry", "_feederRegistry", "_kpiTargets"].includes(key)) {
           merged = foldRegistryArrayDupesByField(merged, "code");
         }
+        if (key === "_rawMatLedger") merged = normalizeRawMatLedgerMerged(merged);
         return merged;
       }
 
