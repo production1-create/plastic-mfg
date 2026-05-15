@@ -5341,14 +5341,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <!-- Shift filter -->
         <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:11px">
-          <button id="rpt-sf-all" onclick="rptShiftFilter('all')" style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:inherit">ทุกกะ</button>
-          <button id="rpt-sf-day" onclick="rptShiftFilter('กะเช้า')" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">☀️ กะเช้า</button>
+          <button type="button" id="rpt-sf-all" onclick="rptShiftFilter('all')" style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:inherit">ทุกกะ</button>
+          <button type="button" id="rpt-sf-day" onclick="rptShiftFilter('กะเช้า')" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">☀️ กะเช้า</button>
           
-          <button id="rpt-sf-ngt" onclick="rptShiftFilter('กะดึก')" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">🌙 กะดึก</button>
+          <button type="button" id="rpt-sf-ngt" onclick="rptShiftFilter('กะดึก')" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">🌙 กะดึก</button>
         </div>
-        <button onclick="rptAutoFillTarget()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">⚡ เติมเป้าอัตโนมัติ</button>
-        <button onclick="rptAutoFillGoodNoNg()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.35);color:var(--green);border-radius:6px;cursor:pointer;font-size:11px">✅ เติมงานดีอัตโนมัติ</button>
-        <button onclick="rptFillOperatorsFromHR()" style="padding:4px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.25);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px">👷 เติมชื่อพนักงาน (HR)</button>
+        <button type="button" onclick="rptAutoFillTarget()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">⚡ เติมเป้าอัตโนมัติ</button>
+        <button type="button" onclick="rptAutoFillGoodNoNg()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.35);color:var(--green);border-radius:6px;cursor:pointer;font-size:11px">✅ เติมงานดีอัตโนมัติ</button>
+        <button type="button" onclick="rptFillOperatorsFromHR()" style="padding:4px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.25);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px">👷 เติมชื่อพนักงาน (HR)</button>
       </div>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:11px">
@@ -10998,7 +10998,9 @@ function renderOrderTracking(){
   rpts.forEach(function(rpt){
     if(!dayMap[rpt.date]) dayMap[rpt.date]={day:{p:0,n:0,lt:0},night:{p:0,n:0,lt:0}};
     (rpt.rows||[]).forEach(function(row){
-      var sk=(row.shift==='กะดึก'||row.hour>=20||row.hour<8)?'night':'day';
+      var hn = rptNormHour(row.hour);
+      if(!Number.isFinite(hn)) hn = parseInt(row.hour,10)||0;
+      var sk = (hn>=8 && hn<=20) ? 'day' : 'night';
       dayMap[rpt.date][sk].p+=row.produced||0;
       dayMap[rpt.date][sk].n+=row.ng||0;
       dayMap[rpt.date][sk].lt+=row.ltMins||0;
@@ -14811,7 +14813,11 @@ function renderDash(){
   const shiftProd   = {day:0, night:0};
   const shiftNG     = {day:0, night:0};
   const shiftLT     = {day:0, night:0};
-  const SHIFT_MAP   = h => (h>=8&&h<20)?'กะเช้า':'กะดึก';
+  const SHIFT_MAP   = h => {
+    const hn = parseInt(h, 10);
+    const x = Number.isFinite(hn) ? hn : 8;
+    return (x >= 8 && x <= 20) ? 'day' : 'night';
+  };
 
   filtRpts.forEach(rpt => {
     rpt.rows.forEach(r => {
@@ -26644,7 +26650,7 @@ function loadHistory(){
   const hours=Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
   let rows='',total=0,totalNg=0;
   hours.forEach(h=>{
-    const shift=(parseInt(h)>=8&&parseInt(h)<20)?'กะเช้า':'กะดึก';
+    const shift=(parseInt(h,10)>=8&&parseInt(h,10)<=20)?'กะเช้า':'กะดึก';
     const qty=0; // ข้อมูลจาก dailyReports
     const ng=Math.floor(qty*0.015);
     const eff=0;
@@ -29150,11 +29156,30 @@ function getActiveEmpList(){
   return src.filter(function(e){ return (e.status||'active')==='active' && e.name; });
 }
 
+function rptNormHour(h){
+  if(h==null||h==='') return NaN;
+  if(typeof h==='string'){
+    var m = String(h).trim().match(/^(\d{1,2})(?::00)?$/);
+    if(m) return parseInt(m[1],10);
+    var n = parseInt(h,10);
+    return Number.isFinite(n)?n:NaN;
+  }
+  var x = Number(h);
+  return Number.isFinite(x)?x:NaN;
+}
+/** กะเช้า 08:00–20:00 (รวม 20:00), กะดึก 21:00–07:00 — สอดคล้องป้ายในระบบ */
+function rptCanonicalShiftForHour(hn){
+  if(!Number.isFinite(hn)) return 'กะดึก';
+  return (hn>=8 && hn<=20) ? 'กะเช้า' : 'กะดึก';
+}
 function rptHourOrder(h, shift){
-  var hh = parseInt(h)||0;
-  if(shift==='กะดึก') return hh>=20 ? hh : hh+24; // 20..23 then 00..07
-  if(shift==='กะเช้า') return hh>=8 && hh<20 ? hh : hh+24;
-  return hh>=8 ? hh : hh+24; // all: day first, then night
+  var hh = rptNormHour(h);
+  if(!Number.isFinite(hh)) hh = 0;
+  if(shift==='กะดึก') return hh>=21 ? hh : hh+24;
+  if(shift==='กะเช้า') return hh>=8 && hh<=20 ? hh : hh+24;
+  if(hh>=8 && hh<=20) return hh;
+  if(hh>=21) return hh;
+  return hh+24;
 }
 
 function _rptEscAttr(s){
@@ -29169,13 +29194,17 @@ function rptRowNgSum(r){
 }
 function rptRowGoodInputValue(r){
   if(!r) return '';
+  var ngSum = rptRowNgSum(r);
+  var p = r.produced||0;
   if(r.goodQty!=null && r.goodQty!==''){
     var g = parseInt(r.goodQty,10);
-    return Number.isFinite(g) ? Math.max(0,g) : 0;
+    if(Number.isFinite(g)){
+      if(g===0 && p>0 && ngSum===0) return p;
+      return Math.max(0,g);
+    }
   }
-  var ngSum = rptRowNgSum(r);
-  if(ngSum>0) return Math.max(0,(r.produced||0)-ngSum);
-  return r.produced||0;
+  if(ngSum>0) return Math.max(0,p-ngSum);
+  return p;
 }
 function rptPersistQuickOps(){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
@@ -29184,6 +29213,16 @@ function rptPersistQuickOps(){
   var n = document.getElementById('rpt-op-night');
   rpt._quickOpDay = d ? (d.value||'') : '';
   rpt._quickOpNight = n ? (n.value||'') : '';
+}
+function rptNormalizeHourlyRowsInPlace(rpt){
+  if(!rpt || !rpt.rows) return;
+  rpt.rows.forEach(function(row){
+    var h = rptNormHour(row.hour);
+    if(!Number.isFinite(h)) h = 0;
+    row.hour = h;
+    row.shift = rptCanonicalShiftForHour(h);
+    if(row.goodQty===0 && (row.produced||0)>0 && rptRowNgSum(row)===0) delete row.goodQty;
+  });
 }
 function rptApplyShiftOperator(shift){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
@@ -29204,19 +29243,25 @@ function rptApplyShiftOperator(shift){
   if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' แล้ว');
 }
 function rptAutoFillGoodNoNg(){
-  if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  if(!currentRptKey||!dailyReports[currentRptKey]){
+    if(typeof _infoToast==='function') _infoToast('กรุณาเปิดรายงานก่อน');
+    return;
+  }
   var rpt = dailyReports[currentRptKey];
   var ts = new Date().toISOString();
   var n = 0;
   rpt.rows.forEach(function(r){
     if(rptRowNgSum(r)>0) return;
+    if(r.goodQty===0 && (r.produced||0)>0) delete r.goodQty;
     r.goodQty = Math.max(0, r.produced||0);
     r._updatedAt = ts;
     n++;
   });
   rpt._updatedAt = ts;
+  try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
   renderDailyRpt();
   if(typeof _toast==='function') _toast('✅ เติมยอดงานดี = ผลิตได้ ('+n+' ชม.) สำหรับชั่วโมงที่ไม่มี NG แล้ว');
+  else if(typeof _infoToast==='function') _infoToast('เติมงานดี '+n+' ชั่วโมงแล้ว');
 }
 
 function initBatchData(){
@@ -29255,6 +29300,8 @@ function renderDailyRpt(){
   document.getElementById('rpt-header-cards').style.display='grid';
   document.getElementById('rpt-job-bar').style.display='block';
   document.getElementById('rpt-table-wrap').style.display='block';
+
+  rptNormalizeHourlyRowsInPlace(rpt);
 
   // ── Job info bar ──
   var machDisp = document.getElementById('rpt-machine-display');
@@ -29803,6 +29850,7 @@ function saveDailyRpt(){
   rpt.remark     = document.getElementById('rpt-remark')?.value || '';
   ensureDailyRptMoldCode(rpt);
   rptPersistQuickOps();
+  rptNormalizeHourlyRowsInPlace(rpt);
   rpt.savedAt    = new Date().toISOString();
   rpt._updatedAt = rpt.savedAt;
   (rpt.rows||[]).forEach(function(row){ row._updatedAt = rpt.savedAt; });
@@ -30071,13 +30119,13 @@ function printDailyRpt(){
   // QC check times (inline copy for print popup)
   const _QC_TIMES = {day:['10:00','12:00','15:00','18:00'],night:['22:00','01:00','04:00','07:00']};
 
-  // แบ่งแถวตามกะ: กะเช้า 08:00-20:00 (hour 8-19), กะดึก 20:00-08:00 (hour 20-23 และ 0-7)
-  const dayRows   = rpt.rows.filter(r => r.hour >= 8 && r.hour < 20);
-  const nightRows = rpt.rows.filter(r => r.hour >= 20 || r.hour < 8);
-  // เรียงลำดับกะดึกให้ถูกต้อง: 20,21,22,23,0,1,...,7
+  // แบ่งแถวตามกะ: กะเช้า 08:00-20:00 (hour 8-20), กะดึก 21:00-08:00 (hour 21-23 และ 0-7)
+  const dayRows   = rpt.rows.filter(r => r.hour >= 8 && r.hour <= 20);
+  const nightRows = rpt.rows.filter(r => r.hour > 20 || r.hour < 8);
+  // เรียงลำดับกะดึกให้ถูกต้อง: 21,22,23,0,1,...,7
   nightRows.sort((a,b)=>{
-    const na = a.hour >= 20 ? a.hour : a.hour + 24;
-    const nb = b.hour >= 20 ? b.hour : b.hour + 24;
+    const na = a.hour >= 21 ? a.hour : a.hour + 24;
+    const nb = b.hour >= 21 ? b.hour : b.hour + 24;
     return na - nb;
   });
   const allRows = rpt.rows;
@@ -32695,7 +32743,7 @@ function _createDailyRptFromTT(machine, date, orderNo){
     supervisor: '', qc: '', remark: '',
     fromTT: true, fromApproval: false, approvalStatus: '', _updatedAt:new Date().toISOString(),
     rows: hours.map(function(h){
-      var shift = (h>=8&&h<20)?'กะเช้า':'กะดึก';
+      var shift = (h>=8&&h<=20)?'กะเช้า':'กะดึก';
       return {hour:h, shift:shift, operator:'', target:j.target||0,
               produced:0, ng:0, ngItems:[], ngDefect:'', ltMins:0, ltReason:'', ltDetail:'', ngDetail:'',
               _updatedAt:new Date().toISOString()};

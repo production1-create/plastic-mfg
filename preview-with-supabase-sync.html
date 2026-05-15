@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-dailyrpt-merge-good"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-dailyrpt-hourkey"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -706,25 +706,28 @@
         const n = Number(h);
         return Number.isFinite(n) ? n : NaN;
       }
-      function hourOrder(h, shift) {
-        const hh = normHour(h);
-        if (!Number.isFinite(hh)) return 999;
-        if (shift === "กะดึก") return hh >= 20 ? hh : hh + 24;
-        if (shift === "กะเช้า") return hh >= 8 && hh < 20 ? hh : hh + 24;
-        return hh >= 8 ? hh : hh + 24;
+      /** สอดคล้องกับแพลนเนอร์: กะเช้า 08–20 (รวม 20:00), กะดึกที่เหลือ */
+      function canonicalShift(hn) {
+        return hn >= 8 && hn <= 20 ? "กะเช้า" : "กะดึก";
+      }
+      function slotOrder(hn) {
+        if (!Number.isFinite(hn)) return 999;
+        if (hn >= 8 && hn <= 20) return hn;
+        if (hn >= 21) return hn;
+        return hn + 24;
       }
       const byHour = {};
       [...(remoteRows || []), ...(localRows || [])].forEach((r) => {
         if (!r || typeof r !== "object") return;
         const hn = normHour(r.hour);
         if (!Number.isFinite(hn)) return;
-        const sh = String(r.shift || "").trim();
-        const key = `${sh}_${hn}`;
+        const shift = canonicalShift(hn);
+        const key = String(hn);
         const prev = byHour[key];
-        const row = Object.assign({}, r, { hour: hn, shift: sh || r.shift });
+        const row = Object.assign({}, r, { hour: hn, shift });
         if (!prev || toTs(row._updatedAt || row.updatedAt) >= toTs(prev._updatedAt || prev.updatedAt)) byHour[key] = row;
       });
-      return Object.values(byHour).sort((x, y) => hourOrder(x.hour, x.shift) - hourOrder(y.hour, y.shift));
+      return Object.values(byHour).sort((x, y) => slotOrder(normHour(x.hour)) - slotOrder(normHour(y.hour)));
     }
 
     function mergeDailyReportsValue(localStr, remoteStr) {
