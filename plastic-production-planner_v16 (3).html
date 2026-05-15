@@ -12682,6 +12682,7 @@ function rawmatregSave(){
   rawMatStock[code].max=obj.maxStock;
   rawMatStock[code].grade=obj.grade;
   _stampStockBucket(rawMatStock,code);
+  if(typeof rmConsolidateSynonymStockBuckets==='function') code=rmConsolidateSynonymStockBuckets(code);
   if(typeof saveRawMatStock==='function') saveRawMatStock();
   saveRawmatRegistry(); closeModal('modal-rawmat-edit'); renderRawmatRegistry();
   if(typeof renderRawmat==='function') renderRawmat();
@@ -22795,6 +22796,7 @@ function renderRawmatStockDashboard(mats, demandKind){
 }
 
 function renderRawmat(){
+  if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
   const allMats=(function(){
     var seen=Object.create(null);
     var list=[];
@@ -25130,6 +25132,7 @@ function rmAddPlastic(){
   }
   rawMatStock[name]={qty:0,min:0,max:9999,grade:''};
   _stampStockBucket(rawMatStock,name);
+  if(typeof rmConsolidateSynonymStockBuckets==='function') name=rmConsolidateSynonymStockBuckets(name);
   saveRawMatStock();
   renderRawmat();
   if(typeof _toast==='function') _toast('✅ เพิ่มเม็ดพลาสติก "'+name+'" แล้ว — กด 📥 เพื่อรับ Batch เข้า');
@@ -29107,6 +29110,92 @@ function rmFindPlasticSynonymGroup(normOrKey){
   }
   return null;
 }
+function rmSynonymGroupId(grp){
+  return grp&&grp.length?rmPlasticSynonymKey(grp[0]):'';
+}
+/** คีย์สต็อกทั้งหมดในกลุ่ม synonym เดียวกัน (เช่น AS SAN W + AS121) */
+function rmStockKeysForPlasticGroup(codeOrKey){
+  var gid=rmSynonymGroupId(rmFindPlasticSynonymGroup(codeOrKey));
+  if(!gid){
+    var k=String(codeOrKey||'').trim();
+    return k? [k] : [];
+  }
+  var keys=[];
+  try{
+    Object.keys(rawMatStock||{}).forEach(function(k){
+      if(rawMatStock[k]&&rawMatStock[k]._deleted) return;
+      if(rmSynonymGroupId(rmFindPlasticSynonymGroup(k))===gid) keys.push(k);
+    });
+  }catch(e){}
+  return keys;
+}
+/** รวมยอดสต็อกหลายคีย์ในกลุ่ม synonym → คีย์เดียว (กันเม็ด AS SAN W หายหลังบันทึก) */
+function rmConsolidateSynonymStockBuckets(preferredKey){
+  if(!preferredKey||typeof rawMatStock==='undefined'||!rawMatStock) return preferredKey||'';
+  var keys=rmStockKeysForPlasticGroup(preferredKey);
+  if(keys.length<=1) return keys[0]||preferredKey;
+  var target=keys.indexOf(preferredKey)>=0?preferredKey:null;
+  if(!target){
+    var best=keys[0], bt=0;
+    keys.forEach(function(k){
+      var t=Date.parse((rawMatStock[k]&&rawMatStock[k].updatedAt)||0)||0;
+      if(t>=bt){ bt=t; best=k; }
+    });
+    target=best;
+  }
+  if(!rawMatStock[target]) rawMatStock[target]={qty:0,min:0,max:9999,grade:''};
+  var tot=rawMatStock[target];
+  keys.forEach(function(k){
+    if(k===target) return;
+    var o=rawMatStock[k];
+    if(!o) return;
+    tot.qty=(tot.qty||0)+(o.qty||0);
+    var ot=Date.parse(o.updatedAt||0)||0;
+    var tt=Date.parse(tot.updatedAt||0)||0;
+    if(ot>=tt){
+      if(o.grade) tot.grade=o.grade;
+      if(o.min!=null) tot.min=o.min;
+      if(o.max!=null) tot.max=o.max;
+    }
+    delete rawMatStock[k];
+  });
+  _stampStockBucket(rawMatStock,target);
+  return target;
+}
+function rmConsolidateAllSynonymStockBuckets(){
+  if(typeof rawMatStock==='undefined'||!rawMatStock) return;
+  var n0=Object.keys(rawMatStock).length;
+  var seen=Object.create(null);
+  rmPlasticSynonymGroups().forEach(function(grp){
+    var gid=rmSynonymGroupId(grp);
+    if(!gid||seen[gid]) return;
+    seen[gid]=true;
+    var pref=grp[0];
+    for(var i=0;i<grp.length;i++){
+      if(rawMatStock[grp[i]]&&!rawMatStock[grp[i]]._deleted){ pref=grp[i]; break; }
+    }
+    rmConsolidateSynonymStockBuckets(pref);
+  });
+  if(Object.keys(rawMatStock).length!==n0){
+    if(typeof saveRawMatStock==='function') saveRawMatStock();
+  }
+  try{
+    if(Array.isArray(rawMatLedger)){
+      var ledCh=false;
+      rawMatLedger.forEach(function(r){
+        if(!r||!r.material) return;
+        var canon=rmResolvePlasticStockKey(r.material);
+        if(canon&&canon!==r.material){ r.material=canon; ledCh=true; }
+      });
+      if(ledCh&&typeof saveRawMatLedger==='function') saveRawMatLedger();
+    }
+  }catch(e){}
+}
+(function rmInitStockSynonymConsolidate(){
+  try{
+    if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
+  }catch(e){}
+})();
 /** ชื่อแสดงบนการ์ด/ตาราง — คีย์ในระบบยังเป็นรหัสที่มีใน rawMatStock */
 function rmPlasticStockLabel(stockKey){
   if(!stockKey) return '';
@@ -29128,6 +29217,16 @@ function rmResolvePlasticStockKey(input){
   var cleaned=String(input||'').trim().replace(/\s+/g,' ');
   if(!cleaned) return '';
   var n=rmMatNorm(cleaned);
+  try{
+    if(typeof rawMatStock!=='undefined'&&rawMatStock){
+      if(rawMatStock[cleaned]&&!rawMatStock[cleaned]._deleted) return cleaned;
+      for(var k in rawMatStock){
+        if(!Object.prototype.hasOwnProperty.call(rawMatStock,k)) continue;
+        if(rawMatStock[k]&&rawMatStock[k]._deleted) continue;
+        if(rmMatNorm(k)===n) return k;
+      }
+    }
+  }catch(e){}
   var grp=rmFindPlasticSynonymGroup(cleaned)||rmFindPlasticSynonymGroup(n);
   if(grp){
     try{
@@ -29140,13 +29239,6 @@ function rmResolvePlasticStockKey(input){
     }catch(e){}
     return grp[0];
   }
-  try{
-    for(var k in rawMatStock){
-      if(!Object.prototype.hasOwnProperty.call(rawMatStock,k)) continue;
-      if(rawMatStock[k]&&rawMatStock[k]._deleted) continue;
-      if(rmMatNorm(k)===n) return k;
-    }
-  }catch(e){}
   return cleaned;
 }
 (function rmMigrateLedgerMaterialCodes(){
@@ -46752,6 +46844,7 @@ function pmfReloadFromStorage(){
     var rms = _pmfSafeParse('_rawMatStock', null);
     if(rms && typeof rms==='object' && typeof rawMatStock!=='undefined'){
       _pmfReplaceObjectInPlace(rawMatStock, rms);
+      if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
     }
   }catch(e){}
   try{
