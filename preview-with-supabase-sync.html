@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-as-san-w-sync"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-count-fix"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1236,113 +1236,114 @@
       return JSON.stringify(noKey.concat(Object.values(by)));
     }
 
+    /** Align ledger / stock material keys (spaces, AS SAN W vs AS SANW). */
+    function rmMatNormPmf(s) {
+      return String(s == null ? "" : s)
+        .trim()
+        .replace(/\s+/g, "")
+        .toUpperCase();
+    }
+    const RAWMAT_PLASTIC_SYNONYM_GROUPS = [
+      ["AS SAN W", "AS121", "AS121U", "AS127", "ASSANW", "AS-SAN-W"],
+    ];
+    function rmPlasticSynonymKeyPmf(s) {
+      return String(s == null ? "" : s)
+        .trim()
+        .replace(/[^A-Za-z0-9]/g, "")
+        .toUpperCase();
+    }
+    function rmFindPlasticSynonymGroupPmf(code) {
+      const target = rmPlasticSynonymKeyPmf(code);
+      if (!target) return null;
+      for (const g of RAWMAT_PLASTIC_SYNONYM_GROUPS) {
+        if (g.some((x) => rmPlasticSynonymKeyPmf(x) === target)) return g;
+      }
+      return null;
+    }
+    function rmSynonymGroupIdPmf(grp) {
+      return grp && grp.length ? rmPlasticSynonymKeyPmf(grp[0]) : "";
+    }
+    /** รวมคีย์ synonym ใน _rawMatStock เป็นคีย์เดียว (AS SAN W) ก่อน/หลัง merge ตามเวลา */
+    function mergeRawMatStockValue(localStr, remoteStr) {
+      const merged = mergeMachineDb(localStr, remoteStr);
+      const obj = safeJsonParse(merged, {});
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return merged;
+      const byGid = Object.create(null);
+      Object.keys(obj).forEach((k) => {
+        const row = obj[k];
+        if (!row || typeof row !== "object") return;
+        const grp = rmFindPlasticSynonymGroupPmf(k);
+        if (!grp) return;
+        const gid = rmSynonymGroupIdPmf(grp);
+        if (!byGid[gid]) byGid[gid] = { target: grp[0], keys: [] };
+        byGid[gid].keys.push(k);
+      });
+      Object.values(byGid).forEach(({ target, keys }) => {
+        if (keys.length <= 1) {
+          const only = keys[0];
+          if (only && only !== target && obj[only] && !obj[only]._deleted) {
+            const prev = obj[target];
+            obj[target] = prev && typeof prev === "object"
+              ? Object.assign({}, prev, obj[only])
+              : Object.assign({}, obj[only]);
+            delete obj[only];
+          }
+          return;
+        }
+        let tot =
+          obj[target] && typeof obj[target] === "object"
+            ? Object.assign({}, obj[target])
+            : { qty: 0, min: 0, max: 9999, grade: "" };
+        let bestTs = recordTs(tot);
+        keys.forEach((k) => {
+          if (k === target) return;
+          const o = obj[k];
+          if (!o || typeof o !== "object") return;
+          if (!o._deleted) tot.qty = (tot.qty || 0) + (o.qty || 0);
+          const ts = recordTs(o);
+          if (ts >= bestTs) {
+            bestTs = ts;
+            if (o.grade) tot.grade = o.grade;
+            if (o.min != null) tot.min = o.min;
+            if (o.max != null) tot.max = o.max;
+            tot.updatedAt = o.updatedAt || o._updatedAt || tot.updatedAt;
+          }
+          delete obj[k];
+        });
+        if (!tot._deleted) {
+          if (!tot.updatedAt) tot.updatedAt = new Date().toISOString();
+          obj[target] = tot;
+        }
+      });
+      return JSON.stringify(obj);
+    }
+    function _countRawMatStockBuckets(v) {
+      try {
+        const j = typeof v === "string" ? JSON.parse(v) : v;
+        if (!j || typeof j !== "object" || Array.isArray(j)) return -1;
+        const seen = new Set();
+        let n = 0;
+        Object.keys(j).forEach((k) => {
+          const row = j[k];
+          if (!row || typeof row !== "object") return;
+          const grp = rmFindPlasticSynonymGroupPmf(k);
+          const id = grp ? rmSynonymGroupIdPmf(grp) : "__" + k;
+          if (seen.has(id)) return;
+          seen.add(id);
+          n += 1;
+        });
+        return n;
+      } catch (_) {
+        return -1;
+      }
+    }
+
     function mergeStorageKey(key, localStr, remoteStr) {
       if (key === "pmf_users_v5") return mergeUsersValue(localStr, remoteStr);
       if (key === "_dailyReports") return mergeDailyReportsValue(localStr, remoteStr);
       if (key === "_approvalProcDocs") return mergeApprovalProcDocs(localStr, remoteStr);
       if (MERGE_SKIP_KEYS.has(key)) return localStr;
 
-      /** Align ledger material string to _rawMatStock bucket keys (spaces / AS SAN W vs AS SANW). */
-      function rmMatNormPmf(s) {
-        return String(s == null ? "" : s)
-          .trim()
-          .replace(/\s+/g, "")
-          .toUpperCase();
-      }
-      const RAWMAT_PLASTIC_SYNONYM_GROUPS = [
-        ["AS SAN W", "AS121", "AS121U", "AS127", "ASSANW", "AS-SAN-W"],
-      ];
-      function rmPlasticSynonymKeyPmf(s) {
-        return String(s == null ? "" : s)
-          .trim()
-          .replace(/[^A-Za-z0-9]/g, "")
-          .toUpperCase();
-      }
-      function rmFindPlasticSynonymGroupPmf(code) {
-        const target = rmPlasticSynonymKeyPmf(code);
-        if (!target) return null;
-        for (const g of RAWMAT_PLASTIC_SYNONYM_GROUPS) {
-          if (g.some((x) => rmPlasticSynonymKeyPmf(x) === target)) return g;
-        }
-        return null;
-      }
-      function rmSynonymGroupIdPmf(grp) {
-        return grp && grp.length ? rmPlasticSynonymKeyPmf(grp[0]) : "";
-      }
-      /** รวมคีย์ synonym ใน _rawMatStock เป็นคีย์เดียว (AS SAN W) ก่อน/หลัง merge ตามเวลา */
-      function mergeRawMatStockValue(localStr, remoteStr) {
-        const merged = mergeMachineDb(localStr, remoteStr);
-        const obj = safeJsonParse(merged, {});
-        if (!obj || typeof obj !== "object" || Array.isArray(obj)) return merged;
-        const byGid = Object.create(null);
-        Object.keys(obj).forEach((k) => {
-          const row = obj[k];
-          if (!row || typeof row !== "object") return;
-          const grp = rmFindPlasticSynonymGroupPmf(k);
-          if (!grp) return;
-          const gid = rmSynonymGroupIdPmf(grp);
-          if (!byGid[gid]) byGid[gid] = { target: grp[0], keys: [] };
-          byGid[gid].keys.push(k);
-        });
-        Object.values(byGid).forEach(({ target, keys }) => {
-          if (keys.length <= 1) {
-            const only = keys[0];
-            if (only && only !== target && obj[only] && !obj[only]._deleted) {
-              const prev = obj[target];
-              obj[target] = prev && typeof prev === "object"
-                ? Object.assign({}, prev, obj[only])
-                : Object.assign({}, obj[only]);
-              delete obj[only];
-            }
-            return;
-          }
-          let tot =
-            obj[target] && typeof obj[target] === "object"
-              ? Object.assign({}, obj[target])
-              : { qty: 0, min: 0, max: 9999, grade: "" };
-          let bestTs = recordTs(tot);
-          keys.forEach((k) => {
-            if (k === target) return;
-            const o = obj[k];
-            if (!o || typeof o !== "object") return;
-            if (!o._deleted) tot.qty = (tot.qty || 0) + (o.qty || 0);
-            const ts = recordTs(o);
-            if (ts >= bestTs) {
-              bestTs = ts;
-              if (o.grade) tot.grade = o.grade;
-              if (o.min != null) tot.min = o.min;
-              if (o.max != null) tot.max = o.max;
-              tot.updatedAt = o.updatedAt || o._updatedAt || tot.updatedAt;
-            }
-            delete obj[k];
-          });
-          if (!tot._deleted) {
-            if (!tot.updatedAt) tot.updatedAt = new Date().toISOString();
-            obj[target] = tot;
-          }
-        });
-        return JSON.stringify(obj);
-      }
-      function _countRawMatStockBuckets(v) {
-        try {
-          const j = typeof v === "string" ? JSON.parse(v) : v;
-          if (!j || typeof j !== "object" || Array.isArray(j)) return -1;
-          const seen = new Set();
-          let n = 0;
-          Object.keys(j).forEach((k) => {
-            const row = j[k];
-            if (!row || typeof row !== "object") return;
-            const grp = rmFindPlasticSynonymGroupPmf(k);
-            const id = grp ? rmSynonymGroupIdPmf(grp) : "__" + k;
-            if (seen.has(id)) return;
-            seen.add(id);
-            n += 1;
-          });
-          return n;
-        } catch (_) {
-          return -1;
-        }
-      }
       function normalizeRawMatLedgerMerged(mergedStr) {
         try {
           const arr = JSON.parse(mergedStr);
