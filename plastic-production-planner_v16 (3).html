@@ -1099,6 +1099,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
 </script>
 </head>
 <body>
+<datalist id="rpt-emp-datalist"></datalist>
 
 <!-- ===== LOGIN SCREEN ===== -->
 <div id="login-screen">
@@ -5346,8 +5347,16 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
           <button id="rpt-sf-ngt" onclick="rptShiftFilter('กะดึก')" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">🌙 กะดึก</button>
         </div>
         <button onclick="rptAutoFillTarget()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">⚡ เติมเป้าอัตโนมัติ</button>
-        <button onclick="rptFillOperatorsFromHR()" style="padding:4px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.25);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px">👷 เติมชื่อพนักงาน</button>
+        <button onclick="rptAutoFillGoodNoNg()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.35);color:var(--green);border-radius:6px;cursor:pointer;font-size:11px">✅ เติมงานดีอัตโนมัติ</button>
+        <button onclick="rptFillOperatorsFromHR()" style="padding:4px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.25);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px">👷 เติมชื่อพนักงาน (HR)</button>
       </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:11px">
+      <span style="color:var(--text3);font-weight:600">เติมชื่อตามกะ (พิมพ์ครั้งเดียว แล้วกดปุ่ม):</span>
+      <label style="display:flex;align-items:center;gap:4px"><span class="badge badge-blue" style="font-size:9px">กะเช้า</span><input id="rpt-op-day" type="text" list="rpt-emp-datalist" placeholder="ชื่อพนักงานกะเช้า" autocomplete="off" onchange="rptPersistQuickOps()" onblur="rptPersistQuickOps()" style="min-width:140px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px"></label>
+      <button type="button" onclick="rptApplyShiftOperator('กะเช้า')" style="padding:4px 10px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.35);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">เติมทุกชม. กะเช้า</button>
+      <label style="display:flex;align-items:center;gap:4px"><span class="badge badge-purple" style="font-size:9px">กะดึก</span><input id="rpt-op-night" type="text" list="rpt-emp-datalist" placeholder="ชื่อพนักงานกะดึก" autocomplete="off" onchange="rptPersistQuickOps()" onblur="rptPersistQuickOps()" style="min-width:140px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px"></label>
+      <button type="button" onclick="rptApplyShiftOperator('กะดึก')" style="padding:4px 10px;background:rgba(210,168,255,0.12);border:1px solid rgba(210,168,255,0.35);color:#d2a8ff;border-radius:6px;cursor:pointer;font-size:11px">เติมทุกชม. กะดึก</button>
     </div>
     <div style="overflow-x:auto">
       <div class="hr-row">
@@ -29148,6 +29157,68 @@ function rptHourOrder(h, shift){
   return hh>=8 ? hh : hh+24; // all: day first, then night
 }
 
+function _rptEscAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+function rptRowNgSum(r){
+  if(!r) return 0;
+  if(r.ngItems && r.ngItems.length){
+    return r.ngItems.reduce(function(s,n){ return s+(parseInt(n.qty,10)||0); },0);
+  }
+  return parseInt(r.ng,10)||0;
+}
+function rptRowGoodInputValue(r){
+  if(!r) return '';
+  if(r.goodQty!=null && r.goodQty!==''){
+    var g = parseInt(r.goodQty,10);
+    return Number.isFinite(g) ? Math.max(0,g) : 0;
+  }
+  var ngSum = rptRowNgSum(r);
+  if(ngSum>0) return Math.max(0,(r.produced||0)-ngSum);
+  return r.produced||0;
+}
+function rptPersistQuickOps(){
+  if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  var rpt = dailyReports[currentRptKey];
+  var d = document.getElementById('rpt-op-day');
+  var n = document.getElementById('rpt-op-night');
+  rpt._quickOpDay = d ? (d.value||'') : '';
+  rpt._quickOpNight = n ? (n.value||'') : '';
+}
+function rptApplyShiftOperator(shift){
+  if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  rptPersistQuickOps();
+  var rpt = dailyReports[currentRptKey];
+  var name = (shift==='กะเช้า' ? (rpt._quickOpDay||'') : (rpt._quickOpNight||'')).trim();
+  if(!name){
+    if(typeof _toast==='function') _toast('⚠️ ใส่ชื่อพนักงานในช่อง '+shift+' ด้านบนก่อน');
+    else if(typeof _infoToast==='function') _infoToast('ใส่ชื่อพนักงานในช่อง '+shift+' ก่อน');
+    return;
+  }
+  var ts = new Date().toISOString();
+  rpt.rows.forEach(function(r){
+    if(r.shift===shift){ r.operator = name; r._updatedAt = ts; }
+  });
+  rpt._updatedAt = ts;
+  renderDailyRpt();
+  if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' แล้ว');
+}
+function rptAutoFillGoodNoNg(){
+  if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  var rpt = dailyReports[currentRptKey];
+  var ts = new Date().toISOString();
+  var n = 0;
+  rpt.rows.forEach(function(r){
+    if(rptRowNgSum(r)>0) return;
+    r.goodQty = Math.max(0, r.produced||0);
+    r._updatedAt = ts;
+    n++;
+  });
+  rpt._updatedAt = ts;
+  renderDailyRpt();
+  if(typeof _toast==='function') _toast('✅ เติมยอดงานดี = ผลิตได้ ('+n+' ชม.) สำหรับชั่วโมงที่ไม่มี NG แล้ว');
+}
+
 function initBatchData(){
   // batchMatStock / batchMbStock โหลดจาก localStorage
   // ไม่ inject ข้อมูลจำลอง
@@ -29249,6 +29320,18 @@ function renderDailyRpt(){
   document.getElementById('rpt-total-target').textContent = totalTgt.toLocaleString();
   document.getElementById('rpt-ng-rate').textContent = ngRate+'%';
 
+  // ── Employee datalist (searchable operator) ──
+  var dl = document.getElementById('rpt-emp-datalist');
+  if(dl){
+    dl.innerHTML = getActiveEmpList().map(function(e){
+      return '<option value="'+_rptEscAttr(e.name)+'"></option>';
+    }).join('');
+  }
+  var _opDayEl = document.getElementById('rpt-op-day');
+  var _opNgtEl = document.getElementById('rpt-op-night');
+  if(_opDayEl) _opDayEl.value = rpt._quickOpDay||'';
+  if(_opNgtEl) _opNgtEl.value = rpt._quickOpNight||'';
+
   // ── Hourly rows ──
   var html = '';
   var renderRows = (rpt.rows||[]).slice().sort(function(a,b){
@@ -29257,8 +29340,9 @@ function renderDailyRpt(){
   renderRows.forEach(function(r){
     var idx = rpt.rows.indexOf(r);
     if(_rptShiftFilter!=='all' && r.shift!==_rptShiftFilter) return;
+    var okGood = rptRowGoodInputValue(r)||0;
     var ok     = r.produced||0;
-    var effHr  = r.target>0 ? Math.round(ok/r.target*100) : 0;
+    var effHr  = r.target>0 ? Math.round(okGood/r.target*100) : 0;
     var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
     var shiftCol = r.shift==='กะเช้า'?'rgba(121,192,255,0.07)':'rgba(210,168,255,0.07)';
     // NG items display
@@ -29269,20 +29353,11 @@ function renderDailyRpt(){
     html += '<div class="hr-row" style="background:'+shiftCol+';">';
     html += '<div class="hr-cell"><span class="mono" style="font-size:12px;font-weight:700">'+String(r.hour).padStart(2,'0')+':00</span></div>';
     html += '<div class="hr-cell"><span class="badge '+(r.shift==='กะเช้า'?'badge-blue':'badge-purple')+'" style="font-size:9px">'+r.shift+'</span></div>';
-    // Operator — now a select
-    html += '<div class="hr-cell" style="min-width:100px">';
-    var empOpts = '<option value="'+( r.operator||'')+'">'+(r.operator||'เลือก')+'</option>';
-    var machEmps = getActiveEmpList();
-    if(machEmps.length){
-      empOpts = '<option value="">เลือก</option>' + machEmps.map(function(e){
-        return '<option value="'+e.name+'"'+(e.name===r.operator?' selected':'')+'>'+e.name+'</option>';
-      }).join('');
-    }
-    html += '<select class="hr-input" onchange="updateRptRow('+idx+',\'operator\',this.value)" style="width:95px;font-size:10px;padding:2px 4px">'+empOpts+'</select>';
-    html += '</div>';
+    html += '<div class="hr-cell" style="min-width:120px"><input class="hr-input" type="text" list="rpt-emp-datalist" value="'+_rptEscAttr(r.operator||'')+'" placeholder="พิมพ์ค้นหา..." autocomplete="off" onchange="updateRptRow('+idx+',\'operator\',this.value)" onblur="updateRptRow('+idx+',\'operator\',this.value)" style="width:100%;max-width:140px;font-size:10px;padding:2px 4px"></div>';
     html += '<div class="hr-cell mono" style="font-size:11px;color:var(--text3)">'+r.target.toLocaleString()+'</div>';
-    html += '<div class="hr-cell"><input class="hr-input" type="number" value="'+(r.produced||'')+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'produced\',+this.value)" onchange="updateRptRow('+idx+',\'produced\',+this.value)" style="font-weight:700;width:65px;color:var(--accent3)"></div>';
-    html += '<div class="hr-cell" style="color:var(--green);font-weight:700;font-family:monospace">'+(ok>0?ok.toLocaleString():'-')+'</div>';
+    html += '<div class="hr-cell"><input class="hr-input" type="number" value="'+(r.produced!=null&&r.produced!==''?r.produced:'')+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'produced\',this.value)" onchange="updateRptRow('+idx+',\'produced\',this.value)" style="font-weight:700;width:65px;color:var(--accent3)"></div>';
+    var gDisp = rptRowGoodInputValue(r);
+    html += '<div class="hr-cell"><input class="hr-input hr-good" type="number" value="'+gDisp+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'goodQty\',this.value)" onchange="updateRptRow('+idx+',\'goodQty\',this.value)" style="font-weight:700;width:65px;color:var(--green)"></div>';
     // NG cell
     html += '<div class="hr-cell" style="cursor:pointer;min-width:120px" onclick="openHrEntryModal('+idx+')">';
     if(ngItems.length){
@@ -29301,8 +29376,8 @@ function renderDailyRpt(){
       html += '<span style="color:var(--text3);font-size:10px;border:1px dashed var(--border);padding:2px 6px;border-radius:4px">+ LT</span>';
     }
     html += '</div>';
-    // EFF
-    html += '<div class="hr-cell"><span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+(r.produced>0?effHr+'%':'-')+'</span></div>';
+    // EFF (จากงานดี / เป้า)
+    html += '<div class="hr-cell"><span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+((r.produced||0)>0||okGood>0?effHr+'%':'-')+'</span></div>';
     // Edit
     html += '<div class="hr-cell"><button onclick="openHrEntryModal('+idx+')" style="padding:3px 8px;font-size:10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:#388bfd;border-radius:4px;cursor:pointer">✏</button></div>';
     html += '</div>';
@@ -29386,27 +29461,40 @@ function renderDailyRpt(){
 
 function updateRptRow(idx, field, val){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
-  dailyReports[currentRptKey].rows[idx][field] = val;
-  dailyReports[currentRptKey].rows[idx]._updatedAt = new Date().toISOString();
-  // Re-render just the changed row's OK and EFF cells for instant feedback
+  var row = dailyReports[currentRptKey].rows[idx];
+  if(field==='goodQty'){
+    if(val===''||val===null||typeof val==='undefined'){
+      delete row.goodQty;
+    } else {
+      var gv = typeof val==='number' && Number.isFinite(val) ? val : parseInt(String(val).replace(/\s/g,''),10);
+      if(!Number.isFinite(gv) || gv<0) gv = 0;
+      row.goodQty = gv;
+    }
+  } else if(field==='produced'||field==='target'){
+    var pv = typeof val==='number' && Number.isFinite(val) ? val : parseInt(String(val).replace(/\s/g,''),10);
+    if(!Number.isFinite(pv) || pv<0) pv = 0;
+    row[field] = pv;
+  } else {
+    row[field] = val;
+  }
+  row._updatedAt = new Date().toISOString();
   var rpt = dailyReports[currentRptKey];
-  var r   = rpt.rows[idx];
-  if(field==='produced'||field==='ng'){
+  var r   = row;
+  if(field==='produced'||field==='goodQty'||field==='operator'){
     var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
-    // Find the correct row by scanning rendered rows (filtered view)
     var rendered = 0;
-    rpt.rows.forEach(function(row, i){
-      if(_rptShiftFilter!=='all' && row.shift!==_rptShiftFilter) return;
+    rpt.rows.forEach(function(row2, i){
+      if(_rptShiftFilter!=='all' && row2.shift!==_rptShiftFilter) return;
       if(i===idx){
         var domRow = rows[rendered];
         if(domRow){
           var cells = domRow.querySelectorAll('.hr-cell');
-          // cell 5 = OK (green), cell 8 = EFF
-          var ok = (r.produced||0);
-          var effHr = r.target>0 ? Math.round(ok/r.target*100) : 0;
+          var okGood = rptRowGoodInputValue(r)||0;
+          var effHr = r.target>0 ? Math.round(okGood/r.target*100) : 0;
           var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
-          if(cells[5]) cells[5].innerHTML = ok>0 ? '<span style="font-weight:700;font-family:monospace;color:var(--green)">'+ok.toLocaleString()+'</span>' : '-';
-          if(cells[8]) cells[8].innerHTML = r.produced>0 ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
+          var gInp = cells[5] && cells[5].querySelector ? cells[5].querySelector('input.hr-good') : null;
+          if(gInp) gInp.value = String(rptRowGoodInputValue(r));
+          if(cells[8]) cells[8].innerHTML = ((r.produced||0)>0||okGood>0) ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
         }
       }
       rendered++;
@@ -29621,6 +29709,7 @@ function saveHrEntry(){
   r.ltMins    = parseInt(el('hre-lt-mins')?.value)||0;
   r.ltReason  = el('hre-lt-reason')?.value||'';
   r.ltDetail  = el('hre-lt-detail')?.value||'';
+  r.goodQty   = Math.max(0, (r.produced||0)-(r.ng||0));
   r._updatedAt = new Date().toISOString();
   closeModal('modal-hr-entry');
   renderDailyRpt();
@@ -29643,6 +29732,7 @@ function saveNgEntry(){
   r.ng=parseInt(document.getElementById('ng-qty').value)||0;
   r.ngDefect=upsertNgDefectName(document.getElementById('ng-defect-type').value)||'อื่นๆ';
   r.ngDetail=document.getElementById('ng-detail').value;
+  r.goodQty = Math.max(0, (r.produced||0)-(r.ng||0));
   r._updatedAt = new Date().toISOString();
   closeModal('modal-ng-detail');
   renderDailyRpt();
@@ -29712,8 +29802,10 @@ function saveDailyRpt(){
   rpt.qc         = qcEl  ? qcEl.value  : '';
   rpt.remark     = document.getElementById('rpt-remark')?.value || '';
   ensureDailyRptMoldCode(rpt);
+  rptPersistQuickOps();
   rpt.savedAt    = new Date().toISOString();
   rpt._updatedAt = rpt.savedAt;
+  (rpt.rows||[]).forEach(function(row){ row._updatedAt = rpt.savedAt; });
   // Update machine running status in dashboard
   var m = MACHINES.find(function(x){ return x.id===rpt.machine; });
   if(m){

@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-fg-tombstone-as121"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-dailyrpt-merge-good"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -695,14 +695,36 @@
     }
 
     function mergeRowsByHour(localRows, remoteRows) {
+      function normHour(h) {
+        if (h == null || h === "") return NaN;
+        if (typeof h === "string") {
+          const m = String(h).trim().match(/^(\d{1,2})(?::00)?$/);
+          if (m) return parseInt(m[1], 10);
+          const n = parseInt(h, 10);
+          return Number.isFinite(n) ? n : NaN;
+        }
+        const n = Number(h);
+        return Number.isFinite(n) ? n : NaN;
+      }
+      function hourOrder(h, shift) {
+        const hh = normHour(h);
+        if (!Number.isFinite(hh)) return 999;
+        if (shift === "กะดึก") return hh >= 20 ? hh : hh + 24;
+        if (shift === "กะเช้า") return hh >= 8 && hh < 20 ? hh : hh + 24;
+        return hh >= 8 ? hh : hh + 24;
+      }
       const byHour = {};
       [...(remoteRows || []), ...(localRows || [])].forEach((r) => {
-        if (!r || typeof r.hour === "undefined") return;
-        const key = `${r.shift || ""}_${r.hour}`;
+        if (!r || typeof r !== "object") return;
+        const hn = normHour(r.hour);
+        if (!Number.isFinite(hn)) return;
+        const sh = String(r.shift || "").trim();
+        const key = `${sh}_${hn}`;
         const prev = byHour[key];
-        if (!prev || toTs(r._updatedAt || r.updatedAt) >= toTs(prev._updatedAt || prev.updatedAt)) byHour[key] = r;
+        const row = Object.assign({}, r, { hour: hn, shift: sh || r.shift });
+        if (!prev || toTs(row._updatedAt || row.updatedAt) >= toTs(prev._updatedAt || prev.updatedAt)) byHour[key] = row;
       });
-      return Object.values(byHour).sort((x, y) => (x.hour || 0) - (y.hour || 0));
+      return Object.values(byHour).sort((x, y) => hourOrder(x.hour, x.shift) - hourOrder(y.hour, y.shift));
     }
 
     function mergeDailyReportsValue(localStr, remoteStr) {
@@ -715,7 +737,7 @@
         if (!la || !rb) return;
         const preferLocal = toTs(la._updatedAt || la.savedAt) >= toTs(rb._updatedAt || rb.savedAt);
         const base = preferLocal ? { ...rb, ...la } : { ...la, ...rb };
-        base.rows = mergeRowsByHour(la.rows, rb.rows);
+        base.rows = mergeRowsByHour(la.rows || [], rb.rows || []);
         merged[k] = base;
       });
       return JSON.stringify(merged);
