@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-count-fix"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-stock-persist"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1310,7 +1310,11 @@
           }
           delete obj[k];
         });
-        if (!tot._deleted) {
+        if ((tot.qty || 0) > 0) {
+          delete tot._deleted;
+          delete tot._deletedAt;
+        }
+        if ((tot.qty || 0) > 0 || !tot._deleted) {
           if (!tot.updatedAt) tot.updatedAt = new Date().toISOString();
           obj[target] = tot;
         }
@@ -1507,6 +1511,8 @@
     }
 
     let pushInFlight = false;
+    let lastPushFinishedAt = 0;
+    let lastLocalStockTouchAt = 0;
     async function pushNow() {
       if (!frameReady) return;
       const block = pushBlockedReason();
@@ -1630,6 +1636,7 @@
       } finally {
         setLoading(false);
         pushInFlight = false;
+        lastPushFinishedAt = Date.now();
       }
     }
 
@@ -1948,6 +1955,9 @@
     }
 
     function _scheduleRealtimePull() {
+      if (pushInFlight) return;
+      if (Date.now() - lastPushFinishedAt < 3500) return;
+      if (Date.now() - lastLocalStockTouchAt < 3500) return;
       if (rtPullTimer) clearTimeout(rtPullTimer);
       rtPullTimer = setTimeout(() => {
         rtPullTimer = null;
@@ -2166,6 +2176,13 @@
       if (!isSave) return;
       e.preventDefault();
       doSaveNow();
+    });
+
+    window.addEventListener("message", (ev) => {
+      try {
+        if (!ev || !ev.data || ev.data.type !== "pmf-stock-touched") return;
+        if (ev.data.key === "_rawMatStock") lastLocalStockTouchAt = ev.data.at || Date.now();
+      } catch (_) {}
     });
 
     document.getElementById("back-prev-menu").addEventListener("click", () => {

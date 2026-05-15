@@ -12677,13 +12677,14 @@ function rawmatregSave(){
   _pmfTouchUpdatedAt(obj);
   var idx2=RAWMAT_REGISTRY.findIndex(function(r){return r.id===id;}); if(idx2>=0) RAWMAT_REGISTRY[idx2]=obj; else RAWMAT_REGISTRY.push(obj);
   // Sync stock min/max — ensure bucket exists แล้วบันทึก rawMatStock เพื่อให้ซิงค์ข้ามเครื่อง
-  if(!rawMatStock[code]) rawMatStock[code]={qty:0,min:0,max:9999,grade:''};
+  code=rmEnsurePlasticStockCanon(code);
   rawMatStock[code].min=obj.minStock;
   rawMatStock[code].max=obj.maxStock;
   rawMatStock[code].grade=obj.grade;
+  obj.code=code;
   _stampStockBucket(rawMatStock,code);
-  if(typeof rmConsolidateSynonymStockBuckets==='function') code=rmConsolidateSynonymStockBuckets(code);
   if(typeof saveRawMatStock==='function') saveRawMatStock();
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'pmf-stock-touched',key:'_rawMatStock',at:Date.now()},'*'); }catch(_){}
   saveRawmatRegistry(); closeModal('modal-rawmat-edit'); renderRawmatRegistry();
   if(typeof renderRawmat==='function') renderRawmat();
   if(typeof _toast==='function') _toast('✅ บันทึกวัตถุดิบ '+code+' แล้ว');
@@ -13227,7 +13228,7 @@ function rmOpenTx(txType){
 function saveRawmatTx(){
   var type=document.getElementById('rmt-type').value;
   var selRaw=(document.getElementById('rmt-material').value||'').trim();
-  var mat=rmConsolidateSynonymStockBuckets(selRaw||rmResolvePlasticStockKey(selRaw));
+  var mat=rmEnsurePlasticStockCanon(selRaw);
   var qty=parseFloat(document.getElementById('rmt-qty').value)||0;
   var date=document.getElementById('rmt-date').value||new Date().toISOString().split('T')[0];
   if(!mat||qty<=0){if(typeof _infoToast==="function") _infoToast('กรุณากรอกวัตถุดิบและจำนวน');return;}
@@ -13257,6 +13258,7 @@ function saveRawmatTx(){
   _stampStockBucket(rawMatStock,mat);
   if(typeof rmConsolidateSynonymStockBuckets==='function') mat=rmConsolidateSynonymStockBuckets(mat);
   saveRawMatStock();
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'pmf-stock-touched',key:'_rawMatStock',at:Date.now()},'*'); }catch(_){}
   var suppObj=SUPPLIER_REGISTRY.find(function(s){return s.id===suppId;})||null;
   var entry={
     _id: _ledgerUid('RML'),
@@ -22798,7 +22800,6 @@ function renderRawmatStockDashboard(mats, demandKind){
 }
 
 function renderRawmat(){
-  if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
   const allMats=(function(){
     var seen=Object.create(null);
     var list=[];
@@ -22877,9 +22878,6 @@ function renderRawmat(){
   // Auto-calc Min/Max from monthly order usage + supplier LT.
   mats.forEach((p)=>{
     if(!rawMatStock[p]) rawMatStock[p] = {qty:0,min:0,max:9999,grade:''};
-    var view0=rmGetPlasticStockView(p);
-    rawMatStock[p].qty=view0.qty;
-    if(view0.grade) rawMatStock[p].grade=view0.grade;
     const s = rawMatStock[p];
     const reg = regForStock(p, s);
     const cfg = rawMatSettings[p]||{};
@@ -29165,8 +29163,24 @@ function rmConsolidateSynonymStockBuckets(preferredKey){
     }
     delete rawMatStock[k];
   });
+  if((tot.qty||0)>0){
+    delete tot._deleted;
+    delete tot._deletedAt;
+  }
   _stampStockBucket(rawMatStock,target);
   return target;
+}
+/** คีย์สต็อกหลัก (AS SAN W) — รวม synonym แล้วยกเลิก _deleted ถ้ามียอด */
+function rmEnsurePlasticStockCanon(codeOrKey){
+  var canon=rmCanonStockListKey(String(codeOrKey||'').trim());
+  if(!canon) return '';
+  if(typeof rmConsolidateSynonymStockBuckets==='function') canon=rmConsolidateSynonymStockBuckets(canon);
+  if(!rawMatStock[canon]) rawMatStock[canon]={qty:0,min:0,max:9999,grade:''};
+  if(rawMatStock[canon]._deleted){
+    delete rawMatStock[canon]._deleted;
+    delete rawMatStock[canon]._deletedAt;
+  }
+  return canon;
 }
 function rmConsolidateAllSynonymStockBuckets(){
   if(typeof rawMatStock==='undefined'||!rawMatStock) return;
@@ -29218,9 +29232,11 @@ function rmGetPlasticStockView(stockKey){
   var base=rawMatStock[canon]||rawMatStock[keys[0]]||{qty:0,min:0,max:9999,grade:''};
   var qty=0, min=base.min!=null?base.min:0, max=base.max!=null?base.max:9999, grade=base.grade||'';
   var bestTs=0;
+  var anyLive=false;
   keys.forEach(function(k){
     var s=rawMatStock[k];
-    if(!s||s._deleted) return;
+    if(!s) return;
+    if(!s._deleted) anyLive=true;
     qty+=(s.qty||0);
     var ts=Date.parse(s.updatedAt||0)||0;
     if(ts>=bestTs){
@@ -29230,7 +29246,8 @@ function rmGetPlasticStockView(stockKey){
       if(s.max!=null) max=s.max;
     }
   });
-  return {key:canon, qty:qty, min:min, max:max, grade:grade, _deleted:!!(rawMatStock[canon]&&rawMatStock[canon]._deleted)};
+  var deleted=!anyLive && !!(rawMatStock[canon]&&rawMatStock[canon]._deleted);
+  return {key:canon, qty:qty, min:min, max:max, grade:grade, _deleted:deleted};
 }
 /** ชื่อแสดงบนการ์ด/ตาราง — คีย์ในระบบยังเป็นรหัสที่มีใน rawMatStock */
 function rmPlasticStockLabel(stockKey){
@@ -46880,7 +46897,10 @@ function pmfReloadFromStorage(){
     var rms = _pmfSafeParse('_rawMatStock', null);
     if(rms && typeof rms==='object' && typeof rawMatStock!=='undefined'){
       _pmfReplaceObjectInPlace(rawMatStock, rms);
-      if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
+      if(typeof rmConsolidateAllSynonymStockBuckets==='function'){
+        rmConsolidateAllSynonymStockBuckets();
+        if(typeof saveRawMatStock==='function') saveRawMatStock();
+      }
     }
   }catch(e){}
   try{
@@ -55351,7 +55371,7 @@ function adjCalcDiff(){
 
 function saveStockAdj(){
   var selRaw=(document.getElementById('adj-material')?.value||'').trim();
-  var mat=rmConsolidateSynonymStockBuckets(selRaw||rmResolvePlasticStockKey(selRaw));
+  var mat=rmEnsurePlasticStockCanon(selRaw);
   var actualQtyStr=document.getElementById('adj-actual-qty')?.value||'';
   var actualQty=parseFloat(actualQtyStr);
   var by=(document.getElementById('adj-by')?.value||'').trim();
@@ -55374,19 +55394,14 @@ function saveStockAdj(){
   if(actualQtyStr===''||isNaN(actualQty)||actualQty<0){ errEl.textContent='⚠️ กรุณาระบุยอดจริงที่นับได้ (ต้องไม่ติดลบ)'; errEl.style.display='block'; return; }
   if(!by){ errEl.textContent='⚠️ กรุณาระบุชื่อผู้ตรวจนับ/ผู้ปรับ'; errEl.style.display='block'; return; }
 
-  if(rawMatStock[mat]&&rawMatStock[mat]._deleted){
-    delete rawMatStock[mat]._deleted;
-    delete rawMatStock[mat]._deletedAt;
-  }
-  var oldQty=(rawMatStock[mat]&&!rawMatStock[mat]._deleted)?rawMatStock[mat].qty:0;
+  var oldQty=rawMatStock[mat].qty||0;
   var diff=+(actualQty-oldQty).toFixed(3);
 
-  // ── Update stock ──
-  if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:''};
   rawMatStock[mat].qty=actualQty;
   _stampStockBucket(rawMatStock,mat);
   if(typeof rmConsolidateSynonymStockBuckets==='function') mat=rmConsolidateSynonymStockBuckets(mat);
   saveRawMatStock();
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'pmf-stock-touched',key:'_rawMatStock',at:Date.now()},'*'); }catch(_){}
 
   // ── Ledger entry ──
   var entryId='ADJ-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
