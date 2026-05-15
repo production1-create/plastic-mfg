@@ -1089,6 +1089,88 @@ select.ap-input { padding:2px 4px; }
 /* Light mode app icon tiles */
 body.light-mode .hs-app { background: #fff; border-color: transparent; }
 body.light-mode .hs-app:hover { background: #f0f4ff; border-color: #c4d0e0; }
+
+/* ── NOTHING MODE — หน้าเมนูหลัก (ไอคอนเส้น + จุดแดง; ใช้คู่กับ .light-mode สำหรับตัวแปรสีภายในแอป) ── */
+body.nothing-mode #home-screen { background: #ffffff !important; }
+body.nothing-mode .hs-topbar,
+body.nothing-mode .hs-search-bar {
+  background: #ffffff !important;
+  border-color: #000000 !important;
+}
+body.nothing-mode .hs-brand-name { color: #000 !important; }
+body.nothing-mode .hs-brand-sub { color: #333 !important; }
+body.nothing-mode .hs-section-title {
+  color: #000 !important;
+  opacity: 0.55;
+  border-color: #000 !important;
+}
+body.nothing-mode .hs-search-input {
+  background: #fff !important;
+  border: 1px solid #000 !important;
+  border-radius: 999px !important;
+  color: #000 !important;
+}
+body.nothing-mode .hs-search-input:focus {
+  border-color: #000 !important;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.12) !important;
+}
+body.nothing-mode .hs-app {
+  background: #ffffff !important;
+  border: 1px solid #000 !important;
+  border-radius: 22% !important;
+}
+body.nothing-mode .hs-app:hover {
+  background: #f5f5f5 !important;
+  border-color: #000 !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important;
+}
+body.nothing-mode .hs-app-img {
+  background: #ffffff !important;
+  border: 1px solid #000 !important;
+  border-radius: 22% !important;
+  box-shadow: none !important;
+  position: relative;
+}
+body.nothing-mode .hs-app:hover .hs-app-img { box-shadow: none !important; }
+body.nothing-mode .hs-app-label {
+  color: #000 !important;
+  font-weight: 600 !important;
+}
+body.nothing-mode .hs-app-seq {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #000 !important;
+}
+body.nothing-mode .hs-user-chip,
+body.nothing-mode .hs-logout {
+  border-color: #000 !important;
+  color: #000 !important;
+  background: #fff !important;
+}
+body.nothing-mode .nothing-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+}
+body.nothing-mode .nothing-icon-wrap svg { display: block; }
+body.nothing-mode .nothing-led {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  background: #ff0000;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-sizing: border-box;
+}
+body.nothing-mode .hs-app.hs-match .hs-app-img {
+  box-shadow: 0 0 0 2px #000, 0 0 0 5px rgba(255,0,0,0.28) !important;
+}
+body.nothing-mode .theme-toggle-icon { transform: none !important; }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
@@ -1179,7 +1261,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
     </div>
     <div class="hs-right">
-      <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-toggle-btn" title="สลับ Light/Dark Mode">
+      <button class="theme-toggle-btn" onclick="cycleTheme()" id="theme-toggle-btn" title="สลับธีม: Dark → Light → Nothing → Dark">
         <span class="theme-toggle-icon" id="theme-toggle-icon">🌙</span>
         <span id="theme-toggle-label">Dark</span>
       </button>
@@ -1219,7 +1301,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <button type="button" id="pv-back" class="pv-back-btn" onclick="goHome()">&#8592; หน้าหลัก</button>
     <span id="pv-title">-</span>
     <div id="pv-right">
-      <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-toggle-btn2">
+      <button class="theme-toggle-btn" onclick="cycleTheme()" id="theme-toggle-btn2" title="สลับธีม: Dark → Light → Nothing → Dark">
         <span class="theme-toggle-icon" id="theme-toggle-icon2">🌙</span>
         <span id="theme-toggle-label2">Dark</span>
       </button>
@@ -9542,49 +9624,62 @@ document.addEventListener('keydown', function(e){
 });
 
 // ════════════════════════════════════════════════════════════════
-// THEME SYSTEM — Light / Dark Mode
+// THEME SYSTEM — Dark / Light / Nothing (Nothing = เมนูไอคอนเส้น + จุดแดง)
 // ════════════════════════════════════════════════════════════════
 (function(){
-  // Apply saved theme immediately before paint to avoid flash
   var saved = localStorage.getItem('_theme') || 'dark';
-  if(saved === 'light') document.body.classList.add('light-mode');
+  if(saved === 'light') {
+    document.body.classList.add('light-mode');
+  } else if(saved === 'nothing') {
+    document.body.classList.add('light-mode');
+    document.body.classList.add('nothing-mode');
+  }
 })();
 
-function toggleTheme(){
-  var isLight = document.body.classList.toggle('light-mode');
-  var theme = isLight ? 'light' : 'dark';
-  try{ localStorage.setItem('_theme', theme); }catch(e){}
-  _updateThemeBtn(isLight);
-  // Re-apply icon bg colors for the new theme
-  document.querySelectorAll('.hs-app').forEach(function(el){
-    var secId = el.dataset.sec;
-    var idx = parseInt(el.dataset.idx)||0;
-    var imgEl = el.querySelector('.hs-app-img');
-    if(!imgEl) return;
-    if(isLight){
-      var arr = (SECTION_COLORS[secId]||[]);
-      imgEl.style.background = arr[idx % (arr.length||1)] || '#f0f4ff';
-    } else {
-      var arr2 = (DARK_COLORS[secId]||[]);
-      imgEl.style.background = arr2[idx] || '#1a1a2e';
-    }
-  });
-  if(typeof _toast==='function') _toast(isLight ? '☀️ เปลี่ยนเป็น Light Mode' : '🌙 เปลี่ยนเป็น Dark Mode');
+function _getAppTheme(){
+  if(document.body.classList.contains('nothing-mode')) return 'nothing';
+  if(document.body.classList.contains('light-mode')) return 'light';
+  return 'dark';
 }
 
-function _updateThemeBtn(isLight){
+function cycleTheme(){
+  var b = document.body;
+  var next;
+  if(b.classList.contains('nothing-mode')){
+    b.classList.remove('nothing-mode');
+    b.classList.remove('light-mode');
+    next = 'dark';
+  } else if(b.classList.contains('light-mode')){
+    b.classList.add('nothing-mode');
+    next = 'nothing';
+  } else {
+    b.classList.add('light-mode');
+    next = 'light';
+  }
+  try{ localStorage.setItem('_theme', next); }catch(e){}
+  _updateThemeBtn();
+  if(document.getElementById('hs-grid-area') && typeof renderHomeScreen === 'function') renderHomeScreen();
+  if(typeof _toast === 'function'){
+    _toast(next === 'dark' ? '🌙 Dark Mode' : (next === 'light' ? '☀️ Light Mode' : '◉ Nothing Mode'));
+  }
+}
+
+function toggleTheme(){ cycleTheme(); }
+
+function _updateThemeBtn(){
+  var t = _getAppTheme();
+  var ic = t === 'nothing' ? '◉' : (t === 'light' ? '☀️' : '🌙');
+  var lb = t === 'nothing' ? 'Nothing' : (t === 'light' ? 'Light' : 'Dark');
   ['','2'].forEach(function(s){
     var iconEl  = document.getElementById('theme-toggle-icon'+s);
     var labelEl = document.getElementById('theme-toggle-label'+s);
-    if(iconEl)  iconEl.textContent  = isLight ? '☀️' : '🌙';
-    if(labelEl) labelEl.textContent = isLight ? 'Light' : 'Dark';
+    if(iconEl)  iconEl.textContent  = ic;
+    if(labelEl) labelEl.textContent = lb;
   });
 }
 
-// Sync button state on page load
 document.addEventListener('DOMContentLoaded', function(){
-  var isLight = document.body.classList.contains('light-mode');
-  _updateThemeBtn(isLight);
+  _updateThemeBtn();
   if(typeof ttRefreshPlasticFromJobs==='function') ttRefreshPlasticFromJobs();
 });
 
@@ -45758,6 +45853,7 @@ var DARK_COLORS = {};
 });
 
 function getIconBg(secId, itemIdx){
+  if(document.body.classList.contains('nothing-mode')) return '#ffffff';
   var isLight = document.body.classList.contains('light-mode');
   if(isLight){
     var arr = SECTION_COLORS[secId]||[];
@@ -45766,6 +45862,111 @@ function getIconBg(secId, itemIdx){
     var arr2 = DARK_COLORS[secId]||[];
     return arr2[itemIdx] || '#1a1a2e';
   }
+}
+
+/** Nothing mode — minimalist line icons + optional red LED (หน้าเมนูหลัก) */
+function nothingMenuSvg(kind, led){
+  var paths = nothingMenuSvgPaths[kind] || nothingMenuSvgPaths.set;
+  var L = led ? '<span class="nothing-led" aria-hidden="true"></span>' : '';
+  return '<span class="nothing-icon-wrap"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#000" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>' + L + '</span>';
+}
+var nothingMenuSvgPaths = {
+  sup: '<circle cx="8.5" cy="12" r="2.35"/><circle cx="15.5" cy="12" r="2.35"/>',
+  item: '<path d="M8 17.5 L15.5 6.5"/><path d="M14.5 5.5 L18 9"/><line x1="16.2" y1="7.2" x2="18.5" y2="9.5"/>',
+  cus: '<line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="7" x2="12" y2="17"/><circle cx="8" cy="6" r="1.15"/><circle cx="12" cy="6" r="1.15"/><circle cx="17" cy="6.5" r="1.35" fill="#000" stroke="none"/>',
+  ord: '<line x1="5" y1="8" x2="19" y2="8"/><line x1="5" y1="12" x2="16" y2="12"/><line x1="5" y1="16" x2="11" y2="16"/>',
+  stk: '<circle cx="12" cy="12" r="6.5"/>',
+  del: '<line x1="4" y1="9" x2="18" y2="9"/><line x1="4" y1="13" x2="20" y2="13"/><line x1="4" y1="17" x2="14" y2="17"/>',
+  rpt: '<circle cx="6" cy="7" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="14" cy="7" r="1"/><circle cx="18" cy="7" r="1"/><circle cx="6" cy="12" r="1"/><circle cx="10" cy="12" r="1"/><circle cx="14" cy="12" r="1"/><circle cx="18" cy="12" r="1"/><circle cx="6" cy="17" r="1"/><circle cx="10" cy="17" r="1"/><circle cx="14" cy="17" r="1"/><circle cx="18" cy="17" r="1"/>',
+  set: '<circle cx="12" cy="12" r="7"/>',
+  usr: '<circle cx="12" cy="9" r="3.4"/><path d="M6 19.5c0-3.8 2.7-6 6-6s6 2.2 6 6"/>',
+  lnk: '<path d="M9.5 12a2.5 2.5 0 1 1-2.5-2.5"/><path d="M14.5 12a2.5 2.5 0 1 0 2.5 2.5"/><line x1="10.5" y1="12" x2="13.5" y2="12"/>',
+  sch: '<rect x="5" y="6" width="14" height="13" rx="1.5"/><line x1="5" y1="10.5" x2="19" y2="10.5"/><line x1="9" y1="4.5" x2="9" y2="7"/><line x1="15" y1="4.5" x2="15" y2="7"/><circle cx="8" cy="14" r="0.85"/><circle cx="12" cy="14" r="0.85"/><circle cx="16" cy="14" r="0.85"/>',
+  alr: '<circle cx="12" cy="12" r="7"/>',
+  fol: '<path d="M5 9.5h5l1.5-2H19V18a1.5 1.5 0 0 1-1.5 1.5H6.5A1.5 1.5 0 0 1 5 18Z"/>',
+  src: '<circle cx="10.5" cy="10.5" r="5"/><line x1="14.2" y1="14.2" x2="19" y2="19"/>',
+  add: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  chk: '<circle cx="12" cy="12" r="7"/><path d="M8.3 12.4l2.4 2.4 5.2-5.8"/>'
+};
+var nothingMenuIconRule = {
+  '_': ['set', true],
+  'supplierreg': ['sup', false],
+  'rawmatreg': ['item', true],
+  'customers': ['cus', true],
+  'jobreg|injection': ['sup', true],
+  'jobreg|assembly': ['add', true],
+  'jobreg|secondary': ['lnk', true],
+  'jobreg': ['sup', true],
+  'moldregistry': ['stk', false],
+  'empreg': ['usr', true],
+  'machregistry': ['set', true],
+  'closedloop': ['lnk', true],
+  'machgroup': ['lnk', true],
+  'bom': ['rpt', true],
+  'engineering-change': ['item', true],
+  'costanalysis': ['rpt', true],
+  'qcinspect': ['src', true],
+  'condstd': ['ord', true],
+  'wi': ['fol', true],
+  'orders|injection': ['ord', true],
+  'orders|postprocess': ['item', true],
+  'order-await': ['stk', false],
+  'stock': ['stk', false],
+  'timetable': ['sch', true],
+  'setup-tt': ['sch', true],
+  'setup-std': ['ord', true],
+  'rawmat': ['item', true],
+  'mixing': ['item', true],
+  'mix-prod-receive': ['chk', true],
+  'setup': ['set', true],
+  'molds': ['fol', true],
+  'approvalproc|injection': ['ord', true],
+  'approvalproc|postprocess': ['ord', true],
+  'approvalproc': ['ord', true],
+  'approvalproc-done|injection': ['chk', true],
+  'approvalproc-done|postprocess': ['chk', true],
+  'approvalproc-done': ['chk', true],
+  'dailyrpt': ['rpt', true],
+  'conddaily': ['alr', true],
+  'machines': ['cus', true],
+  'hourlyboard': ['del', true],
+  'dashboard': ['rpt', true],
+  'carbon-footprint': ['stk', true],
+  'line-summary': ['rpt', true],
+  'nganalysis': ['alr', true],
+  'condcompare': ['rpt', true],
+  'mbstock': ['item', true],
+  'history': ['alr', true],
+  'actionplan': ['ord', true],
+  'delivery': ['del', true],
+  'shipment-history': ['fol', true],
+  'traceability': ['lnk', true],
+  'kpitargets': ['add', true],
+  'kpipresent': ['rpt', true],
+  'tps': ['del', true],
+  'wi-rework': ['lnk', true],
+  'wi-deviation': ['alr', true],
+  'specregistry': ['item', true],
+  'qcspecs': ['item', true],
+  'limitsample': ['item', true],
+  'barcode': ['rpt', true],
+  'qrtrack': ['lnk', true],
+  'hr': ['usr', true],
+  'deptmachcare': ['lnk', true],
+  'machinepm': ['set', true],
+  'pmchecklist': ['ord', true],
+  'dc': ['fol', true],
+  'approvallog': ['chk', true],
+  'approvaldocs': ['fol', true],
+  'esignature': ['usr', true],
+  'globalsearch': ['src', false],
+  'admin': ['set', true]
+};
+function nothingMenuIconInner(pageId, workGroup){
+  var wg = (workGroup && String(workGroup)) || '';
+  var compound = wg ? (pageId + '|' + wg) : pageId;
+  var rule = nothingMenuIconRule[compound] || nothingMenuIconRule[pageId] || nothingMenuIconRule['_'];
+  return nothingMenuSvg(rule[0], !!rule[1]);
 }
 
 function renderHomeScreen(){
@@ -45781,6 +45982,7 @@ function renderHomeScreen(){
   if(AUTH && AUTH.pages && AUTH.pages.includes('approvalproc')) allowed.add('approvalproc-done');
   if(AUTH && AUTH.pages && AUTH.pages.includes('mixing')) allowed.add('mix-prod-receive');
 
+  var isNothing = document.body.classList.contains('nothing-mode');
   var isLt = document.body.classList.contains('light-mode');
   var html = '';
   (window.HOME_PAGES||[]).forEach(function(sec){
@@ -45791,11 +45993,11 @@ function renderHomeScreen(){
     html += '<div class="hs-app-grid">';
     visItems.forEach(function(item){
       var origIdx = sec.items.indexOf(item);
-      var bgArr = isLt ? (SECTION_COLORS[sec.id]||[]) : null;
-      var bgColor = bgArr ? (bgArr[origIdx % (bgArr.length||1)] || '#f0f4ff') : item.color;
+      var bgArr = (isLt && !isNothing) ? (SECTION_COLORS[sec.id]||[]) : null;
+      var bgColor = isNothing ? '#ffffff' : (bgArr ? (bgArr[origIdx % (bgArr.length||1)] || '#f0f4ff') : item.color);
       html += '<div class="hs-app" data-page="' + item.id + '" data-sec="' + sec.id + '" data-idx="' + origIdx + '" data-label="' + item.label + '"'
         + (item.workGroup ? ' data-workgroup="' + item.workGroup + '"' : '') + '>';
-      html += '<div class="hs-app-img" style="background:' + bgColor + '">' + item.icon + '</div>';
+      html += '<div class="hs-app-img" style="background:' + bgColor + '">' + (isNothing ? nothingMenuIconInner(item.id, item.workGroup) : item.icon) + '</div>';
       html += '<span class="hs-app-label">' + item.label + '</span>';
       html += '<span class="hs-app-seq">' + item.seq + '</span>';
       html += '</div>';
