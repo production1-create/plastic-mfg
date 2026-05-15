@@ -5364,7 +5364,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div class="hr-cell hr-head" style="min-width:60px">กะ</div>
         <div class="hr-cell hr-head" style="min-width:100px">ผู้ปฏิบัติ</div>
         <div class="hr-cell hr-head" style="min-width:65px">เป้า</div>
-        <div class="hr-cell hr-head" style="min-width:75px">ผลิตได้</div>
+        <div class="hr-cell hr-head" style="min-width:75px">ผลิตได้ <span style="font-size:8px;color:var(--text3);font-weight:600">(อัตโนมัติ)</span></div>
         <div class="hr-cell hr-head" style="color:var(--green);min-width:65px">ดีได้</div>
         <div class="hr-cell hr-head" style="color:var(--red);min-width:130px">NG รายอาการ</div>
         <div class="hr-cell hr-head" style="color:var(--yellow);min-width:120px">Loss Time</div>
@@ -11000,7 +11000,7 @@ function renderOrderTracking(){
     (rpt.rows||[]).forEach(function(row){
       var hn = rptNormHour(row.hour);
       if(!Number.isFinite(hn)) hn = parseInt(row.hour,10)||0;
-      var sk = (hn>=8 && hn<=20) ? 'day' : 'night';
+      var sk = (hn>=8 && hn<20) ? 'day' : 'night';
       dayMap[rpt.date][sk].p+=row.produced||0;
       dayMap[rpt.date][sk].n+=row.ng||0;
       dayMap[rpt.date][sk].lt+=row.ltMins||0;
@@ -14816,7 +14816,7 @@ function renderDash(){
   const SHIFT_MAP   = h => {
     const hn = parseInt(h, 10);
     const x = Number.isFinite(hn) ? hn : 8;
-    return (x >= 8 && x <= 20) ? 'day' : 'night';
+    return (x >= 8 && x < 20) ? 'day' : 'night';
   };
 
   filtRpts.forEach(rpt => {
@@ -26650,7 +26650,7 @@ function loadHistory(){
   const hours=Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
   let rows='',total=0,totalNg=0;
   hours.forEach(h=>{
-    const shift=(parseInt(h,10)>=8&&parseInt(h,10)<=20)?'กะเช้า':'กะดึก';
+    const shift=(parseInt(h,10)>=8&&parseInt(h,10)<20)?'กะเช้า':'กะดึก';
     const qty=0; // ข้อมูลจาก dailyReports
     const ng=Math.floor(qty*0.015);
     const eff=0;
@@ -29167,18 +29167,18 @@ function rptNormHour(h){
   var x = Number(h);
   return Number.isFinite(x)?x:NaN;
 }
-/** กะเช้า 08:00–20:00 (รวม 20:00), กะดึก 21:00–07:00 — สอดคล้องป้ายในระบบ */
+/** กะเช้า 08:00–19:00 (ชม. 8–19), กะดึก 20:00–07:00 (ชม. 20–23 แล้ว 0–7) */
 function rptCanonicalShiftForHour(hn){
   if(!Number.isFinite(hn)) return 'กะดึก';
-  return (hn>=8 && hn<=20) ? 'กะเช้า' : 'กะดึก';
+  return (hn>=8 && hn<20) ? 'กะเช้า' : 'กะดึก';
 }
 function rptHourOrder(h, shift){
   var hh = rptNormHour(h);
   if(!Number.isFinite(hh)) hh = 0;
-  if(shift==='กะดึก') return hh>=21 ? hh : hh+24;
-  if(shift==='กะเช้า') return hh>=8 && hh<=20 ? hh : hh+24;
-  if(hh>=8 && hh<=20) return hh;
-  if(hh>=21) return hh;
+  if(shift==='กะดึก') return hh>=20 ? hh : hh+24;
+  if(shift==='กะเช้า') return hh>=8 && hh<20 ? hh : hh+24;
+  if(hh>=8 && hh<20) return hh;
+  if(hh>=20) return hh;
   return hh+24;
 }
 
@@ -29206,6 +29206,20 @@ function rptRowGoodInputValue(r){
   if(ngSum>0) return Math.max(0,p-ngSum);
   return p;
 }
+/** ผลิตได้ = ดีได้ + NG รวม (ชิ้นรวมออกจากเครื่อง) — ใช้ goodQty เป็นหลักถ้ามี */
+function rptSyncProducedFromGoodAndNg(row){
+  if(!row) return;
+  var ng = rptRowNgSum(row);
+  var g;
+  if(row.goodQty!=null && row.goodQty!==''){
+    g = parseInt(row.goodQty,10)||0;
+    if(!Number.isFinite(g) || g<0) g = 0;
+  } else {
+    g = Math.max(0, (row.produced||0) - ng);
+  }
+  row.produced = Math.max(0, g + ng);
+  row.ng = ng;
+}
 function rptPersistQuickOps(){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
@@ -29222,6 +29236,8 @@ function rptNormalizeHourlyRowsInPlace(rpt){
     row.hour = h;
     row.shift = rptCanonicalShiftForHour(h);
     if(row.goodQty===0 && (row.produced||0)>0 && rptRowNgSum(row)===0) delete row.goodQty;
+    if(row.goodQty===0 && rptRowNgSum(row)>0) delete row.goodQty;
+    rptSyncProducedFromGoodAndNg(row);
   });
 }
 function rptApplyShiftOperator(shift){
@@ -29390,10 +29406,10 @@ function renderDailyRpt(){
 
   // ── KPI Summary ──
   var filtRows = _rptShiftFilter==='all' ? rpt.rows : rpt.rows.filter(function(r){ return r.shift===_rptShiftFilter; });
-  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
-  var totalNg  = filtRows.reduce(function(s,r){ return s+r.ng; },0);
+  var totalOk  = filtRows.reduce(function(s,r){ return s+(rptRowGoodInputValue(r)||0); },0);
+  var totalNg  = filtRows.reduce(function(s,r){ return s+rptRowNgSum(r); },0);
   var totalLt  = filtRows.reduce(function(s,r){ return s+r.ltMins; },0);
-  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0)+(r.ng||0); },0);
+  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0); },0);
   var totalTgt = filtRows.reduce(function(s,r){ return s+r.target; },0);
   var eff  = totalTgt>0 ? Math.round(totalOk/totalTgt*100) : 0;
   var ngRate = totalProd>0 ? (totalNg/totalProd*100).toFixed(2) : '0.00';
@@ -29439,7 +29455,7 @@ function renderDailyRpt(){
     html += '<div class="hr-cell"><span class="badge '+(r.shift==='กะเช้า'?'badge-blue':'badge-purple')+'" style="font-size:9px">'+r.shift+'</span></div>';
     html += '<div class="hr-cell" style="min-width:120px"><input class="hr-input" type="text" list="rpt-emp-datalist" value="'+_rptEscAttr(r.operator||'')+'" placeholder="พิมพ์ค้นหา..." autocomplete="off" onchange="updateRptRow('+idx+',\'operator\',this.value)" onblur="updateRptRow('+idx+',\'operator\',this.value)" style="width:100%;max-width:140px;font-size:10px;padding:2px 4px"></div>';
     html += '<div class="hr-cell mono" style="font-size:11px;color:var(--text3)">'+r.target.toLocaleString()+'</div>';
-    html += '<div class="hr-cell"><input class="hr-input" type="number" value="'+(r.produced!=null&&r.produced!==''?r.produced:'')+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'produced\',this.value)" onchange="updateRptRow('+idx+',\'produced\',this.value)" style="font-weight:700;width:65px;color:var(--accent3)"></div>';
+    html += '<div class="hr-cell"><span class="mono hr-prod-out" style="font-weight:700;font-size:12px;color:var(--accent3);min-width:48px;display:inline-block">'+(r.produced!=null&&r.produced!==''?Number(r.produced):'0')+'</span></div>';
     var gDisp = rptRowGoodInputValue(r);
     html += '<div class="hr-cell"><input class="hr-input hr-good" type="number" value="'+gDisp+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'goodQty\',this.value)" onchange="updateRptRow('+idx+',\'goodQty\',this.value)" style="font-weight:700;width:65px;color:var(--green)"></div>';
     // NG cell
@@ -29554,13 +29570,19 @@ function updateRptRow(idx, field, val){
       if(!Number.isFinite(gv) || gv<0) gv = 0;
       row.goodQty = gv;
     }
-  } else if(field==='produced'||field==='target'){
+  } else if(field==='target'){
     var pv = typeof val==='number' && Number.isFinite(val) ? val : parseInt(String(val).replace(/\s/g,''),10);
     if(!Number.isFinite(pv) || pv<0) pv = 0;
-    row[field] = pv;
+    row.target = pv;
+  } else if(field==='produced'){
+    var pv2 = typeof val==='number' && Number.isFinite(val) ? val : parseInt(String(val).replace(/\s/g,''),10);
+    if(!Number.isFinite(pv2) || pv2<0) pv2 = 0;
+    var ngSum = rptRowNgSum(row);
+    row.goodQty = Math.max(0, pv2 - ngSum);
   } else {
     row[field] = val;
   }
+  if(field!=='target') rptSyncProducedFromGoodAndNg(row);
   row._updatedAt = new Date().toISOString();
   var rpt = dailyReports[currentRptKey];
   var r   = row;
@@ -29576,6 +29598,8 @@ function updateRptRow(idx, field, val){
           var okGood = rptRowGoodInputValue(r)||0;
           var effHr = r.target>0 ? Math.round(okGood/r.target*100) : 0;
           var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
+          var prodOut = cells[4] && cells[4].querySelector ? cells[4].querySelector('.hr-prod-out') : null;
+          if(prodOut) prodOut.textContent = String(r.produced!=null&&r.produced!==''?Number(r.produced):0);
           var gInp = cells[5] && cells[5].querySelector ? cells[5].querySelector('input.hr-good') : null;
           if(gInp) gInp.value = String(rptRowGoodInputValue(r));
           if(cells[8]) cells[8].innerHTML = ((r.produced||0)>0||okGood>0) ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
@@ -29592,10 +29616,10 @@ function rptUpdateSummary(){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
   var filtRows = _rptShiftFilter==='all' ? rpt.rows : rpt.rows.filter(function(r){ return r.shift===_rptShiftFilter; });
-  var totalOk  = filtRows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
-  var totalNg  = filtRows.reduce(function(s,r){ return s+r.ng; },0);
+  var totalOk  = filtRows.reduce(function(s,r){ return s+(rptRowGoodInputValue(r)||0); },0);
+  var totalNg  = filtRows.reduce(function(s,r){ return s+rptRowNgSum(r); },0);
   var totalLt  = filtRows.reduce(function(s,r){ return s+r.ltMins; },0);
-  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0)+(r.ng||0); },0);
+  var totalProd= filtRows.reduce(function(s,r){ return s+(r.produced||0); },0);
   var totalTgt = filtRows.reduce(function(s,r){ return s+r.target; },0);
   var eff = totalTgt>0 ? Math.round(totalOk/totalTgt*100) : 0;
   var ngRate = totalProd>0 ? (totalNg/totalProd*100).toFixed(2) : '0.00';
@@ -29704,7 +29728,11 @@ function openHrEntryModal(idx){
   var el  = function(id){ return document.getElementById(id); };
 
   el('hre-title').textContent = 'ชั่วโมง '+String(r.hour).padStart(2,'0')+':00 — '+rpt.jobName+' | เครื่อง '+rpt.machine;
-  el('hre-produced').value    = r.produced||0;
+  var gEl = el('hre-good');
+  if(gEl){
+    var gv = rptRowGoodInputValue(r);
+    gEl.value = (gv===''||gv==null) ? '' : String(gv);
+  }
   el('hre-target').textContent= (r.target||0).toLocaleString();
 
   // Operator as employee select
@@ -29784,7 +29812,6 @@ function saveHrEntry(){
   if(_hrEntryIdx===null||!currentRptKey||!dailyReports[currentRptKey]) return;
   var r  = dailyReports[currentRptKey].rows[_hrEntryIdx];
   var el = function(id){ return document.getElementById(id); };
-  r.produced  = parseInt(el('hre-produced')?.value)||0;
   r.operator  = el('hre-operator')?.value||'';
   // Collect NG from _hreNgTemp
   _hreNgSync();
@@ -29794,7 +29821,10 @@ function saveHrEntry(){
   r.ltMins    = parseInt(el('hre-lt-mins')?.value)||0;
   r.ltReason  = el('hre-lt-reason')?.value||'';
   r.ltDetail  = el('hre-lt-detail')?.value||'';
-  r.goodQty   = Math.max(0, (r.produced||0)-(r.ng||0));
+  var gRaw = el('hre-good') ? el('hre-good').value : '';
+  if(gRaw===''||gRaw==null||typeof gRaw==='undefined') delete r.goodQty;
+  else r.goodQty = Math.max(0, parseInt(String(gRaw).replace(/\s/g,''),10)||0);
+  rptSyncProducedFromGoodAndNg(r);
   r._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   closeModal('modal-hr-entry');
@@ -29818,7 +29848,7 @@ function saveNgEntry(){
   r.ng=parseInt(document.getElementById('ng-qty').value)||0;
   r.ngDefect=upsertNgDefectName(document.getElementById('ng-defect-type').value)||'อื่นๆ';
   r.ngDetail=document.getElementById('ng-detail').value;
-  r.goodQty = Math.max(0, (r.produced||0)-(r.ng||0));
+  rptSyncProducedFromGoodAndNg(r);
   r._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   closeModal('modal-ng-detail');
@@ -29898,7 +29928,7 @@ function saveDailyRpt(){
   // Update machine running status in dashboard
   var m = MACHINES.find(function(x){ return x.id===rpt.machine; });
   if(m){
-    var totalOk = rpt.rows.reduce(function(s,r){ return s+Math.max(0,r.produced||0); },0);
+    var totalOk = rpt.rows.reduce(function(s,r){ return s+(rptRowGoodInputValue(r)||0); },0);
     m.todayOk = totalOk;
   }
   // Refresh TT cards if visible
@@ -30158,48 +30188,56 @@ function printDailyRpt(){
     else if(typeof _infoToast==="function") _infoToast('กรุณาเลือกรายงานก่อน: คลิก "สอบกลับ & พิมพ์" เพื่อเลือกรายงาน');
     return; 
   }
+  rptNormalizeHourlyRowsInPlace(rpt);
   const j = jobs.find(jj=>jj.name===rpt.jobName)||{};
   const ngTypes = ['จุดดำ','สีเพี้ยน','รอยขีดข่วน','รอยย่น','รอยพ่น','ฟองอากาศ','ไม่ได้ Spec','เกลียวบี้','คราบน้ำมัน','ฉีดไม่เต็ม'];
   const lossTypes = ['ติดพิมพ์','ขัดพิมพ์','คนไม่พอ','รอเม็ด','เครื่องเสีย'];
   // QC check times (inline copy for print popup)
   const _QC_TIMES = {day:['10:00','12:00','15:00','18:00'],night:['22:00','01:00','04:00','07:00']};
 
-  // แบ่งแถวตามกะ: กะเช้า 08:00-20:00 (hour 8-20), กะดึก 21:00-08:00 (hour 21-23 และ 0-7)
-  const dayRows   = rpt.rows.filter(r => r.hour >= 8 && r.hour <= 20);
-  const nightRows = rpt.rows.filter(r => r.hour > 20 || r.hour < 8);
-  // เรียงลำดับกะดึกให้ถูกต้อง: 21,22,23,0,1,...,7
+  // แบ่งแถวตามกะ: กะเช้า 08:00-19:00 (hour 8-19), กะดึก 20:00-08:00 (hour 20-23 และ 0-7)
+  const dayRows   = rpt.rows.filter(r => r.hour >= 8 && r.hour < 20);
+  const nightRows = rpt.rows.filter(r => r.hour >= 20 || r.hour < 8);
+  // เรียงลำดับกะดึกให้ถูกต้อง: 20,21,22,23,0,1,...,7
   nightRows.sort((a,b)=>{
-    const na = a.hour >= 21 ? a.hour : a.hour + 24;
-    const nb = b.hour >= 21 ? b.hour : b.hour + 24;
+    const na = a.hour >= 20 ? a.hour : a.hour + 24;
+    const nb = b.hour >= 20 ? b.hour : b.hour + 24;
     return na - nb;
   });
   const allRows = rpt.rows;
-  const totalProd = allRows.reduce((a,r)=>a+r.produced,0);
-  const totalNg   = allRows.reduce((a,r)=>a+r.ng,0);
-  const eff = totalProd>0?((totalProd/(totalProd+totalNg))*100).toFixed(1):0;
+  const totalOk   = allRows.reduce((a,r)=>a+(rptRowGoodInputValue(r)||0),0);
+  const totalNg   = allRows.reduce((a,r)=>a+rptRowNgSum(r),0);
+  const totalProd = allRows.reduce((a,r)=>a+(r.produced||0),0);
+  const totalTgt  = allRows.reduce((a,r)=>a+(r.target||0),0);
+  const eff = totalTgt>0 ? ((totalOk/totalTgt)*100).toFixed(1) : '0';
 
   // Helper: สร้าง section ตารางบันทึกการผลิตสำหรับแต่ละกะ
   function makeShiftTable(rows, shiftLabel, shiftColor, bgHeader){
     if(!rows.length) return `<tr><td colspan="23" style="padding:6px;color:#999;font-style:italic">ไม่มีข้อมูล${shiftLabel}</td></tr>`;
     const sProd = rows.reduce((a,r)=>a+(r.produced||0),0);
-    const sNg   = rows.reduce((a,r)=>a+(r.ng||0),0);
-    const sEff  = sProd>0?((sProd/(sProd+sNg))*100).toFixed(1):0;
+    const sNg   = rows.reduce((a,r)=>a+rptRowNgSum(r),0);
+    const sGood = rows.reduce((a,r)=>a+(rptRowGoodInputValue(r)||0),0);
+    const sTgt  = rows.reduce((a,r)=>a+(r.target||0),0);
+    const sEff  = sTgt>0?((sGood/sTgt)*100).toFixed(1):0;
     // Determine shift type to pick correct QC inspector name
     const isDay = shiftLabel==='กะเช้า';
     const shiftQC = isDay ? (rpt.qcDay||rpt.qc||'') : (rpt.qcNight||rpt.qc||'');
     const shiftSup = rpt.supervisor||'';
     const rowsHtml = rows.map(r=>{
-      const pct = r.target>0 ? ((r.produced/r.target)*100).toFixed(0)+'%' : '-';
-      const ngPct = r.produced>0 ? ((r.ng/r.produced)*100).toFixed(1)+'%' : '-';
+      var gV = rptRowGoodInputValue(r)||0;
+      var ngS = rptRowNgSum(r);
+      var prod = r.produced||0;
+      const pct = r.target>0 ? ((gV/r.target)*100).toFixed(0)+'%' : '-';
+      const ngPct = prod>0 ? ((ngS/prod)*100).toFixed(1)+'%' : '-';
       const nextH = r.hour === 23 ? 0 : r.hour+1;
       const opName = r.operator||'';
       return `<tr>
         <td>${String(r.hour).padStart(2,'0')}:00-${String(nextH).padStart(2,'0')}:00</td>
         <td>${r.target||0}</td>
-        <td style="font-weight:${r.produced>0?'700':'400'}">${r.produced||0}</td>
+        <td style="font-weight:${prod>0?'700':'400'}">${prod}</td>
         <td style="color:${parseFloat(pct)>=90?'#1a6b2f':'#b91c1c'}">${pct}</td>
         ${ngTypes.map(()=>'<td></td>').join('')}
-        <td style="color:#b91c1c;font-weight:${r.ng>0?'700':'400'}">${r.ng||0}</td>
+        <td style="color:#b91c1c;font-weight:${ngS>0?'700':'400'}">${ngS||0}</td>
         <td>${ngPct}</td>
         <td style="font-size:7pt">${opName}</td>
         <td style="font-size:7pt">${shiftQC}</td>
@@ -30455,7 +30493,7 @@ function printDailyRpt(){
   <div class="info-row" style="margin-top:4px">
     <div class="info-cell"><span class="lbl">เป้าหมาย %EFF</span>90%</div>
     <div class="info-cell"><span class="lbl">%EFF จริง (รวม)</span>${eff}%</div>
-    <div class="info-cell"><span class="lbl">ยอดงานดีรวม</span>${(totalProd-totalNg).toLocaleString()} ชิ้น</div>
+    <div class="info-cell"><span class="lbl">ยอดงานดีรวม</span>${totalOk.toLocaleString()} ชิ้น</div>
     <div class="info-cell"><span class="lbl">ยอดงานดีกล่องเต็ม</span>________________</div>
   </div>
   <div class="note-box"><strong>หมายเหตุ:</strong> ${rpt.remark||''}</div>
@@ -31876,7 +31914,7 @@ function doTrace(){
     +ab.map(function(b){return '<tr><td class="mono" style="font-size:11px">'+b.batchNo+'</td><td><span class="badge '+(b.type==='mat'?'mat-'+b.material:'badge-purple')+'">'+(b.type==='mat'?b.material:b.colorName)+'</span></td><td style="font-size:12px">'+(b.grade||b.colorCode||'-')+'</td><td style="font-size:12px">'+(b.supplier||'-')+'</td><td class="mono" style="font-size:11px">'+(b.dateIn||'-')+'</td><td class="mono" style="font-size:11px">'+(b.coa||'-')+'</td></tr>';}).join('')+'</tbody></table></div>';
 
   var docs=[];
-  matchReports.forEach(function(x){var rpt=x.rpt,key=x.key;var prod=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);var ng=(rpt.rows||[]).reduce(function(s,r){return s+(r.ng||0);},0);var dt=(rpt.rows||[]).reduce(function(s,r){return s+(r.ltMins||0);},0);docs.push({cat:'rpt',catLabel:'ใบรายงานการผลิต',title:'รายงาน: '+rpt.machine+' · '+rpt.date,detail:'ผลิต '+prod.toLocaleString()+' | NG '+ng+' | DT '+dt+' นาที',meta:'Lot: '+(rpt.lotNo||'-'),status:ng>0?'NG '+ng+' ชิ้น':'OK',statusColor:ng>0?'#f85149':'#3fb950',pageId:'dailyrpt',rptKey:key,actionLabel:'📝 เปิดใบรายงาน →'});});
+  matchReports.forEach(function(x){var rpt=x.rpt,key=x.key;var ok=(rpt.rows||[]).reduce(function(s,r){return s+(rptRowGoodInputValue(r)||0);},0);var ng=(rpt.rows||[]).reduce(function(s,r){return s+rptRowNgSum(r);},0);var prod=ok+ng;var dt=(rpt.rows||[]).reduce(function(s,r){return s+(r.ltMins||0);},0);docs.push({cat:'rpt',catLabel:'ใบรายงานการผลิต',title:'รายงาน: '+rpt.machine+' · '+rpt.date,detail:'ผลิต '+prod.toLocaleString()+' | NG '+ng+' | DT '+dt+' นาที',meta:'Lot: '+(rpt.lotNo||'-'),status:ng>0?'NG '+ng+' ชิ้น':'OK',statusColor:ng>0?'#f85149':'#3fb950',pageId:'dailyrpt',rptKey:key,actionLabel:'📝 เปิดใบรายงาน →'});});
 
   var apList=typeof approvalProcList!=='undefined'?approvalProcList:[];
   var apMatch=apList.filter(function(a){return a.jobName===ord.jobName;});
@@ -31915,9 +31953,9 @@ function doTrace(){
 
   document.getElementById('trace-reports').innerHTML=matchReports.length
     ?matchReports.map(function(x){var rpt=x.rpt,key=x.key;
-      var prod=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);
-      var ng=(rpt.rows||[]).reduce(function(s,r){return s+(r.ng||0);},0);
-      var ok=Math.max(0,prod-ng);var dt=(rpt.rows||[]).reduce(function(s,r){return s+(r.ltMins||0);},0);
+      var ok=(rpt.rows||[]).reduce(function(s,r){return s+(rptRowGoodInputValue(r)||0);},0);
+      var ng=(rpt.rows||[]).reduce(function(s,r){return s+rptRowNgSum(r);},0);
+      var prod=ok+ng;var dt=(rpt.rows||[]).reduce(function(s,r){return s+(r.ltMins||0);},0);
       var ngP=prod>0?(ng/prod*100).toFixed(1):'0.0';var ngC=parseFloat(ngP)>3?'#f85149':parseFloat(ngP)>1?'#e3b341':'#3fb950';
       return '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">'
         +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">'
@@ -31940,9 +31978,9 @@ function doTrace(){
   var balEl=document.getElementById('trace-balance');
   if(balEl){
     var planQty=ord.qty||0;
-    var totProdB=matchReports.reduce(function(s,x){return s+(x.rpt.rows||[]).reduce(function(ss,r){return ss+(r.produced||0);},0);},0);
-    var totNGB=matchReports.reduce(function(s,x){return s+(x.rpt.rows||[]).reduce(function(ss,r){return ss+(r.ng||0);},0);},0);
-    var totOKB=Math.max(0,totProdB-totNGB);
+    var totOKB=matchReports.reduce(function(s,x){return s+(x.rpt.rows||[]).reduce(function(ss,r){return ss+(rptRowGoodInputValue(r)||0);},0);},0);
+    var totNGB=matchReports.reduce(function(s,x){return s+(x.rpt.rows||[]).reduce(function(ss,r){return ss+rptRowNgSum(r);},0);},0);
+    var totProdB=totOKB+totNGB;
     var fgQty=(fgStock[j.name]||{qty:0}).qty||0;
     var deliveredQty=0;
     // Try to calculate from FG ledger or orders delivered qty
@@ -32597,7 +32635,7 @@ function rptUpdateMatCost(){
   var mcEl=document.getElementById('rpt-mat-cost-mb');if(mcEl)mcEl.textContent=fmt(mc)+' ฿';
   if(j&&j.bomUnitCost&&currentRptKey){
     var rpt=dailyReports[currentRptKey];
-    var okProd=(rpt.rows||[]).reduce(function(s,r){return s+Math.max(0,(r.produced||0)-(r.ng||0));},0);
+    var okProd=(rpt.rows||[]).reduce(function(s,r){return s+(rptRowGoodInputValue(r)||0);},0);
     var bomTotal=j.bomUnitCost*(okProd||1);var diff=total-bomTotal;var pct=bomTotal>0?diff/bomTotal*100:0;
     var vEl=document.getElementById('rpt-mat-vs-bom');
     if(vEl){vEl.textContent=(pct>0?'+':'')+pct.toFixed(1)+'%';vEl.style.color=pct>10?'#f85149':pct>0?'#e3b341':'#3fb950';}
@@ -32614,8 +32652,8 @@ function rptSendToCost(){
   var mp=(cs.matPricePerKg&&j&&cs.matPricePerKg[j.plastic])||50;var mbp=cs.mbPricePerKg||180;
   var matCost=pKg*mp+mbKg*mbp;
   var totalProd=(rpt.rows||[]).reduce(function(s,r){return s+(r.produced||0);},0);
-  var totalNg=(rpt.rows||[]).reduce(function(s,r){return s+(r.ng||0);},0);
-  var okSend=Math.max(0,totalProd-totalNg);
+  var totalNg=(rpt.rows||[]).reduce(function(s,r){return s+rptRowNgSum(r);},0);
+  var okSend=(rpt.rows||[]).reduce(function(s,r){return s+(rptRowGoodInputValue(r)||0);},0);
   var hrs=(rpt.rows||[]).filter(function(r){return r.produced>0||r.ltMins>0;}).length;
   var exH = typeof costExtraHrPerHr === 'function' ? costExtraHrPerHr() : 0;
   var labCost=hrs*((cs.electricPerHr||35)+(cs.laborPerHr||45)+(cs.machineDepHr||20)+exH);
@@ -32788,7 +32826,7 @@ function _createDailyRptFromTT(machine, date, orderNo){
     supervisor: '', qc: '', remark: '',
     fromTT: true, fromApproval: false, approvalStatus: '', _updatedAt:new Date().toISOString(),
     rows: hours.map(function(h){
-      var shift = (h>=8&&h<=20)?'กะเช้า':'กะดึก';
+      var shift = (h>=8&&h<20)?'กะเช้า':'กะดึก';
       return {hour:h, shift:shift, operator:'', target:j.target||0,
               produced:0, ng:0, ngItems:[], ngDefect:'', ltMins:0, ltReason:'', ltDetail:'', ngDetail:'',
               _updatedAt:new Date().toISOString()};
@@ -33258,13 +33296,13 @@ function _calcLotCost(rpt){
   // Core cost calculation for one daily report (lot)
   const j = jobs.find(jj=>jj.name===rpt.jobName);
   const cs = COST_SETTINGS;
-  const totalProd = rpt.rows.reduce((s,r)=>s+r.produced,0);
-  const totalNg   = rpt.rows.reduce((s,r)=>s+r.ng,0);
+  const totalProd = rpt.rows.reduce((s,r)=>s+(r.produced||0),0);
+  const totalNg   = rpt.rows.reduce((s,r)=>s+rptRowNgSum(r),0);
   // Count hours actually running (produced > 0) for variable cost
   const runHrs    = rpt.rows.filter(r=>r.produced>0).length;
   // Total scheduled hours (all rows recorded)
   const schedHrs  = rpt.rows.filter(r=>r.produced>0||r.ltMins>0).length || runHrs;
-  const okProd    = Math.max(0, totalProd - totalNg);
+  const okProd    = rpt.rows.reduce((s,r)=>s+(rptRowGoodInputValue(r)||0),0);
   const wtPerPc   = jobEffectiveWtPerPc(j,5);       // g per piece (effective wt)
   // Material: actual production × weight (including NG — all consumed)
   const matKg     = totalProd * wtPerPc / 1000;
@@ -48354,12 +48392,15 @@ function printCostReport(){
 
 
 function calcHreOk(){
-  const prod = parseInt(document.getElementById('hre-produced')?.value)||0;
-  const ngTotal = (_hreNgTemp||[]).reduce((s,n)=>s+n.qty,0);
+  _hreNgSync();
+  const gRaw = document.getElementById('hre-good') ? document.getElementById('hre-good').value : '';
+  const good = Math.max(0, parseInt(String(gRaw||'').replace(/\s/g,''),10)||0);
+  const ngTotal = (_hreNgTemp||[]).reduce((s,n)=>s+(parseInt(n.qty,10)||0),0);
+  const prodTot = good + ngTotal;
   const ngEl = document.getElementById('hre-ng-total');
-  const okEl = document.getElementById('hre-ok-calc');
+  const ptEl = document.getElementById('hre-produced-total');
   if(ngEl) ngEl.textContent = ngTotal.toLocaleString();
-  if(okEl) okEl.textContent = Math.max(0,prod).toLocaleString();
+  if(ptEl) ptEl.textContent = prodTot.toLocaleString();
 }
 function closePrintPanel(){
   document.getElementById('tpp-overlay').classList.remove('open');
@@ -48371,8 +48412,8 @@ function printOrderDoc(o){
   const j=jobs.find(jj=>jj.name===o.jobName)||{};
   const rptKey=Object.keys(dailyReports).find(k=>k.startsWith(o.machine||j.machine||''));
   const rpt=rptKey?dailyReports[rptKey]:null;
-  const totalOk=rpt?rpt.rows.reduce((a,r)=>a+r.produced,0):o.produced||0;
-  const totalNg=rpt?rpt.rows.reduce((a,r)=>a+r.ng,0):0;
+  const totalOk=rpt?rpt.rows.reduce((a,r)=>a+(rptRowGoodInputValue(r)||0),0):o.produced||0;
+  const totalNg=rpt?rpt.rows.reduce((a,r)=>a+rptRowNgSum(r),0):0;
   const matBatch=batchMatStock.find(b=>b.material===j.plastic)||{batchNo:'-'};
   const html = docHeader(DOC_NUMS.dailyRpt,'ใบสรุปผลการผลิต','Production Order Summary — F-PD-I007','01')
   + `<table class="info-grid"><tr>
@@ -52322,9 +52363,9 @@ function _clRenderChart(){
       </select>
     </div>
     <div>
-      <div class="form-label">ผลิตได้ (ชิ้น)</div>
-      <input type="number" id="hre-produced" min="0" oninput="calcHreOk()" onchange="calcHreOk()"
-        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--accent3);padding:7px 10px;border-radius:6px;font-size:16px;font-weight:700;text-align:center">
+      <div class="form-label">✅ ดีได้ (ชิ้น) — กรอกช่องนี้</div>
+      <input type="number" id="hre-good" min="0" oninput="calcHreOk()" onchange="calcHreOk()"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--green);padding:7px 10px;border-radius:6px;font-size:16px;font-weight:700;text-align:center">
     </div>
     <div style="text-align:center">
       <div class="form-label">เป้า/ชม</div>
@@ -52335,8 +52376,8 @@ function _clRenderChart(){
       <div class="mono" id="hre-ng-total" style="font-size:16px;color:var(--red);padding:8px 0;font-weight:700">0</div>
     </div>
     <div style="text-align:center">
-      <div class="form-label">✅ ดีได้ (ชิ้น)</div>
-      <div class="mono" id="hre-ok-calc" style="font-size:18px;color:var(--green);padding:8px 0;font-weight:800">0</div>
+      <div class="form-label">ผลิตได้ (รวม อัตโนมัติ)</div>
+      <div class="mono" id="hre-produced-total" style="font-size:18px;color:var(--accent3);padding:8px 0;font-weight:800">0</div>
     </div>
   </div>
 

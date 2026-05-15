@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-dailyrpt-autosave"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260514-good-driven-prod"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -706,14 +706,14 @@
         const n = Number(h);
         return Number.isFinite(n) ? n : NaN;
       }
-      /** สอดคล้องกับแพลนเนอร์: กะเช้า 08–20 (รวม 20:00), กะดึกที่เหลือ */
+      /** กะเช้า ชม. 8–19, กะดึก ชม. 20–23 แล้ว 0–7 */
       function canonicalShift(hn) {
-        return hn >= 8 && hn <= 20 ? "กะเช้า" : "กะดึก";
+        return hn >= 8 && hn < 20 ? "กะเช้า" : "กะดึก";
       }
       function slotOrder(hn) {
         if (!Number.isFinite(hn)) return 999;
-        if (hn >= 8 && hn <= 20) return hn;
-        if (hn >= 21) return hn;
+        if (hn >= 8 && hn < 20) return hn;
+        if (hn >= 20) return hn;
         return hn + 24;
       }
       const byHour = {};
