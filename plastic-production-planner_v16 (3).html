@@ -29239,9 +29239,46 @@ function rptApplyShiftOperator(shift){
     if(r.shift===shift){ r.operator = name; r._updatedAt = ts; }
   });
   rpt._updatedAt = ts;
+  rptPersistDailyReports(true);
   renderDailyRpt();
   if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' แล้ว');
 }
+
+var _rptDailyReportsSaveTimer = null;
+/** บันทึก dailyReports ลง localStorage — immediate=true บันทึกทันที; false = debounce ~350ms (ลดภาระตอนพิมพ์) */
+function rptPersistDailyReports(immediate){
+  var write = function(){
+    _rptDailyReportsSaveTimer = null;
+    try{
+      if(typeof currentRptKey!=='undefined' && currentRptKey && typeof dailyReports!=='undefined' && dailyReports[currentRptKey]){
+        dailyReports[currentRptKey]._updatedAt = new Date().toISOString();
+      }
+      if(typeof dailyReports!=='undefined')
+        localStorage.setItem('_dailyReports', JSON.stringify(dailyReports));
+    }catch(e){}
+  };
+  if(immediate){
+    if(_rptDailyReportsSaveTimer){
+      clearTimeout(_rptDailyReportsSaveTimer);
+      _rptDailyReportsSaveTimer = null;
+    }
+    write();
+    return;
+  }
+  if(_rptDailyReportsSaveTimer) clearTimeout(_rptDailyReportsSaveTimer);
+  _rptDailyReportsSaveTimer = setTimeout(write, 350);
+}
+(function(){
+  var flushed = false;
+  function onLeave(){
+    if(flushed) return;
+    flushed = true;
+    try{ if(typeof rptPersistDailyReports==='function') rptPersistDailyReports(true); }catch(_){}
+  }
+  window.addEventListener('pagehide', onLeave);
+  window.addEventListener('beforeunload', onLeave);
+})();
+
 function rptAutoFillGoodNoNg(){
   if(!currentRptKey||!dailyReports[currentRptKey]){
     if(typeof _infoToast==='function') _infoToast('กรุณาเปิดรายงานก่อน');
@@ -29258,7 +29295,7 @@ function rptAutoFillGoodNoNg(){
     n++;
   });
   rpt._updatedAt = ts;
-  try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
+  rptPersistDailyReports(true);
   renderDailyRpt();
   if(typeof _toast==='function') _toast('✅ เติมยอดงานดี = ผลิตได้ ('+n+' ชม.) สำหรับชั่วโมงที่ไม่มี NG แล้ว');
   else if(typeof _infoToast==='function') _infoToast('เติมงานดี '+n+' ชั่วโมงแล้ว');
@@ -29548,6 +29585,7 @@ function updateRptRow(idx, field, val){
     });
   }
   rptUpdateSummary();
+  rptPersistDailyReports(false);
 }
 
 function rptUpdateSummary(){
@@ -29758,6 +29796,7 @@ function saveHrEntry(){
   r.ltDetail  = el('hre-lt-detail')?.value||'';
   r.goodQty   = Math.max(0, (r.produced||0)-(r.ng||0));
   r._updatedAt = new Date().toISOString();
+  rptPersistDailyReports(true);
   closeModal('modal-hr-entry');
   renderDailyRpt();
 }
@@ -29781,6 +29820,7 @@ function saveNgEntry(){
   r.ngDetail=document.getElementById('ng-detail').value;
   r.goodQty = Math.max(0, (r.produced||0)-(r.ng||0));
   r._updatedAt = new Date().toISOString();
+  rptPersistDailyReports(true);
   closeModal('modal-ng-detail');
   renderDailyRpt();
 }
@@ -29801,6 +29841,7 @@ function saveLtEntry(){
   r.ltReason=cat.options[cat.selectedIndex].text;
   r.ltDetail=document.getElementById('lt-detail').value;
   r._updatedAt = new Date().toISOString();
+  rptPersistDailyReports(true);
   closeModal('modal-lt-detail');
   renderDailyRpt();
 }
@@ -29869,7 +29910,11 @@ function saveDailyRpt(){
   rptUpdateNavBadge();
   // Save QC / Packing / Material extra fields
   if(typeof _saveDailyRptExtra==='function') _saveDailyRptExtra();
-  // ── Persist dailyReports to localStorage ──
+  // ── Persist dailyReports to localStorage (ยกเลิก debounce ค้างก่อนเขียนชุดเต็มจากปุ่มบันทึก) ──
+  if(typeof _rptDailyReportsSaveTimer!=='undefined' && _rptDailyReportsSaveTimer){
+    clearTimeout(_rptDailyReportsSaveTimer);
+    _rptDailyReportsSaveTimer = null;
+  }
   try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
   if(typeof moldLedgerUpsertFromDailyReport==='function'){
     moldLedgerUpsertFromDailyReport(currentRptKey, rpt);
@@ -32784,6 +32829,7 @@ function rptAutoFillTarget(){
   if(!tgt){ if(typeof _infoToast==="function") _infoToast('ไม่พบข้อมูลเป้าในงาน '+rpt.jobName); return; }
   rpt.rows.forEach(function(r){ r.target = tgt; });
   rpt.targetHr = tgt;
+  rptPersistDailyReports(true);
   renderDailyRpt();
   if(typeof _toast==='function') _toast('⚡ เติมเป้า '+tgt.toLocaleString()+' ชิ้น/ชม ทุกชั่วโมงแล้ว');
 }
@@ -32802,6 +32848,7 @@ function rptFillOperatorsFromHR(){
   if(!machEmp.length) machEmp = empSrc;
   if(!machEmp.length){ if(typeof _toast==='function') _toast('ไม่พบพนักงานที่ผูกกับเครื่อง '+rpt.machine); return; }
   rpt.rows.forEach(function(r,i){ if(!r.operator) r.operator = machEmp[i%machEmp.length].name; });
+  rptPersistDailyReports(true);
   renderDailyRpt();
   if(typeof _toast==='function') _toast('👷 เติมชื่อพนักงาน '+machEmp.map(function(e){return e.name;}).join(', ')+' แล้ว');
 }
