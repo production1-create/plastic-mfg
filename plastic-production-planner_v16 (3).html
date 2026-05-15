@@ -13226,7 +13226,8 @@ function rmOpenTx(txType){
 
 function saveRawmatTx(){
   var type=document.getElementById('rmt-type').value;
-  var mat=rmResolvePlasticStockKey(document.getElementById('rmt-material').value);
+  var selRaw=(document.getElementById('rmt-material').value||'').trim();
+  var mat=rmConsolidateSynonymStockBuckets(selRaw||rmResolvePlasticStockKey(selRaw));
   var qty=parseFloat(document.getElementById('rmt-qty').value)||0;
   var date=document.getElementById('rmt-date').value||new Date().toISOString().split('T')[0];
   if(!mat||qty<=0){if(typeof _infoToast==="function") _infoToast('กรุณากรอกวัตถุดิบและจำนวน');return;}
@@ -13254,6 +13255,7 @@ function saveRawmatTx(){
   }
   var bal=rawMatStock[mat].qty;
   _stampStockBucket(rawMatStock,mat);
+  if(typeof rmConsolidateSynonymStockBuckets==='function') mat=rmConsolidateSynonymStockBuckets(mat);
   saveRawMatStock();
   var suppObj=SUPPLIER_REGISTRY.find(function(s){return s.id===suppId;})||null;
   var entry={
@@ -22807,9 +22809,10 @@ function renderRawmat(){
       var row0=rawMatStock[k];
       if(row0&&row0._deleted) return;
       var canon;
-      try{ canon=rmResolvePlasticStockKey(k); }catch(e){ canon=k; }
+      try{ canon=rmCanonStockListKey(k); }catch(e){ canon=k; }
       if(!canon) return;
-      if(rawMatStock[canon]&&rawMatStock[canon]._deleted) return;
+      var view=rmGetPlasticStockView(canon);
+      if(view._deleted) return;
       if(seen[canon]) return;
       seen[canon]=true;
       list.push(canon);
@@ -22874,6 +22877,9 @@ function renderRawmat(){
   // Auto-calc Min/Max from monthly order usage + supplier LT.
   mats.forEach((p)=>{
     if(!rawMatStock[p]) rawMatStock[p] = {qty:0,min:0,max:9999,grade:''};
+    var view0=rmGetPlasticStockView(p);
+    rawMatStock[p].qty=view0.qty;
+    if(view0.grade) rawMatStock[p].grade=view0.grade;
     const s = rawMatStock[p];
     const reg = regForStock(p, s);
     const cfg = rawMatSettings[p]||{};
@@ -29196,6 +29202,36 @@ function rmConsolidateAllSynonymStockBuckets(){
     if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
   }catch(e){}
 })();
+/** คีย์เดียวต่อกลุ่ม synonym สำหรับรายการ Stock (กันการ์ด AS121 + AS SAN W ซ้ำ) */
+function rmCanonStockListKey(rawCode){
+  var k=String(rawCode||'').trim();
+  if(!k) return '';
+  var grp=rmFindPlasticSynonymGroup(k);
+  if(grp&&grp.length) return grp[0];
+  return k;
+}
+/** อ่านยอดสต็อกรวมทุกคีย์ในกลุ่ม synonym (ก่อน/หลัง consolidate) */
+function rmGetPlasticStockView(stockKey){
+  var canon=rmCanonStockListKey(stockKey);
+  var keys=rmStockKeysForPlasticGroup(canon);
+  if(!keys.length) keys=[canon];
+  var base=rawMatStock[canon]||rawMatStock[keys[0]]||{qty:0,min:0,max:9999,grade:''};
+  var qty=0, min=base.min!=null?base.min:0, max=base.max!=null?base.max:9999, grade=base.grade||'';
+  var bestTs=0;
+  keys.forEach(function(k){
+    var s=rawMatStock[k];
+    if(!s||s._deleted) return;
+    qty+=(s.qty||0);
+    var ts=Date.parse(s.updatedAt||0)||0;
+    if(ts>=bestTs){
+      bestTs=ts;
+      if(s.grade) grade=s.grade;
+      if(s.min!=null) min=s.min;
+      if(s.max!=null) max=s.max;
+    }
+  });
+  return {key:canon, qty:qty, min:min, max:max, grade:grade, _deleted:!!(rawMatStock[canon]&&rawMatStock[canon]._deleted)};
+}
 /** ชื่อแสดงบนการ์ด/ตาราง — คีย์ในระบบยังเป็นรหัสที่มีใน rawMatStock */
 function rmPlasticStockLabel(stockKey){
   if(!stockKey) return '';
@@ -55314,7 +55350,8 @@ function adjCalcDiff(){
 }
 
 function saveStockAdj(){
-  var mat=rmResolvePlasticStockKey(document.getElementById('adj-material')?.value||'');
+  var selRaw=(document.getElementById('adj-material')?.value||'').trim();
+  var mat=rmConsolidateSynonymStockBuckets(selRaw||rmResolvePlasticStockKey(selRaw));
   var actualQtyStr=document.getElementById('adj-actual-qty')?.value||'';
   var actualQty=parseFloat(actualQtyStr);
   var by=(document.getElementById('adj-by')?.value||'').trim();
@@ -55348,6 +55385,7 @@ function saveStockAdj(){
   if(!rawMatStock[mat]) rawMatStock[mat]={qty:0,min:0,max:9999,grade:''};
   rawMatStock[mat].qty=actualQty;
   _stampStockBucket(rawMatStock,mat);
+  if(typeof rmConsolidateSynonymStockBuckets==='function') mat=rmConsolidateSynonymStockBuckets(mat);
   saveRawMatStock();
 
   // ── Ledger entry ──
