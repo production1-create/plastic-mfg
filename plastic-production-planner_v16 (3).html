@@ -323,6 +323,30 @@ body {
 /* Search match glow */
 .hs-app.hs-match .hs-app-img { box-shadow: 0 0 0 2.5px var(--ios-accent), 0 4px 16px rgba(0,170,142,0.28); }
 
+/* Order line dept tiles O1–O7 — readable in light & dark */
+.hs-order-line-icon {
+  font-weight: 900;
+  font-size: 17px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #79c0ff;
+}
+body.light-mode .hs-order-line-icon { color: #1a56db; }
+body.nothing-mode .hs-order-line-icon { color: #000; }
+
+/* Approval line dept tiles A1–A7 */
+.hs-approval-line-icon {
+  font-weight: 900;
+  font-size: 17px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #a371f7;
+}
+body.light-mode .hs-approval-line-icon { color: #7c3aed; }
+body.nothing-mode .hs-approval-line-icon { color: #000; }
+
 /* ════════════════════════════════════
    PAGE VIEW (opened on icon tap)
 ════════════════════════════════════ */
@@ -1404,6 +1428,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="nav-label">🏭 เตรียมการผลิต</div>
     <!-- 17 --> <div class="nav-item" onclick="showPage('rawmat',this)"><span class="nav-icon">📦</span><span class="nav-seq">19</span> วัตถุดิบ Batch</div>
     <!-- 18 --> <div class="nav-item" onclick="showPage('molds',this)"><span class="nav-icon">🔧</span><span class="nav-seq">20</span> แม่พิมพ์ & PM</div>
+    <!-- 21 --><div class="nav-item" onclick="showPage('approvalproc',this,'all')"><span class="nav-icon">✅</span><span class="nav-seq">21</span> ใบอนุมัติรวม (7 แผนก)</div>
+    <!-- A1 --><div class="nav-item" onclick="showPage('approvalproc-a1',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A1</span><span class="nav-seq">A1</span> ใบอนุมัติ ฉีด Zone 1</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a2',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A2</span><span class="nav-seq">A2</span> ใบอนุมัติ ฉีด Zone 2</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a3',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A3</span><span class="nav-seq">A3</span> ใบอนุมัติ ฉีด Zone 3</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a4',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A4</span><span class="nav-seq">A4</span> ใบอนุมัติ ฉีด Zone 4</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a5',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A5</span><span class="nav-seq">A5</span> ใบอนุมัติ ฉีดยานยนต์</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a6',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A6</span><span class="nav-seq">A6</span> ใบอนุมัติ แผนกประกอบ</div>
+    <div class="nav-item" onclick="showPage('approvalproc-a7',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">A7</span><span class="nav-seq">A7</span> ใบอนุมัติ พ่น·สกรีน</div>
     <!-- 21A --><div class="nav-item" onclick="showPage('approvalproc',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">21A</span> ใบอนุมัติ (เครื่องฉีด)</div>
     <!-- 21B --><div class="nav-item" onclick="showPage('approvalproc',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">21B</span> ใบอนุมัติ (ประกอบ·สกรีน·พ่น)</div>
     <!-- 21C --><div class="nav-item" onclick="showPage('approvalproc-done',this,'injection')"><span class="nav-icon">✅</span><span class="nav-seq">21C</span> ใบอนุมัติ — จบ Lot (ฉีด)</div>
@@ -9368,8 +9400,16 @@ var _navMenuList = [
   {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
   {id:'jobreg',       label:'ทะเบียนงาน (ไลน์ประกอบ)', icon:'🧩', group:'🏭 การผลิต',     keywords:'งาน job ประกอบ assembly', workGroup:'assembly'},
   {id:'jobreg',       label:'ทะเบียนงาน (ไลน์รอง/กระบวนการหลัง)', icon:'🔧', group:'🏭 การผลิต', keywords:'งาน job กระบวนการหลัง secondary', workGroup:'secondary'},
+  {id:'approvalproc', label:'ใบอนุมัติรวม (7 แผนก)',       icon:'✅', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval รวม ภาพรวม', workGroup:'all'},
   {id:'approvalproc', label:'ใบอนุมัติ (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ฉีด injection', workGroup:'injection'},
   {id:'approvalproc', label:'ใบอนุมัติ (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'ใบอนุมัติ approval ประกอบ assembly', workGroup:'postprocess'},
+  {id:'approvalproc-a1', label:'ใบอนุมัติ ฉีด Zone 1',     icon:'A1', group:'🏭 การผลิต',     keywords:'approval a1 zone1'},
+  {id:'approvalproc-a2', label:'ใบอนุมัติ ฉีด Zone 2',     icon:'A2', group:'🏭 การผลิต',     keywords:'approval a2 zone2'},
+  {id:'approvalproc-a3', label:'ใบอนุมัติ ฉีด Zone 3',     icon:'A3', group:'🏭 การผลิต',     keywords:'approval a3 zone3 cpr09'},
+  {id:'approvalproc-a4', label:'ใบอนุมัติ ฉีด Zone 4',     icon:'A4', group:'🏭 การผลิต',     keywords:'approval a4 zone4'},
+  {id:'approvalproc-a5', label:'ใบอนุมัติ ฉีดยานยนต์',     icon:'A5', group:'🏭 การผลิต',     keywords:'approval a5 automotive'},
+  {id:'approvalproc-a6', label:'ใบอนุมัติ แผนกประกอบ',    icon:'A6', group:'🏭 การผลิต',     keywords:'approval a6 assembly'},
+  {id:'approvalproc-a7', label:'ใบอนุมัติ พ่น สกรีน',      icon:'A7', group:'🏭 การผลิต',     keywords:'approval a7 spray screen'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ฉีด)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ครบจำนวน archive', workGroup:'injection'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ประกอบ', workGroup:'postprocess'},
   {id:'timetable',    label:'Time Table',              icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule'},
@@ -9722,9 +9762,15 @@ function showPage(id, el, workGroup){
   var pageId = id;
   var domPageId = (id==='approvalproc-done') ? 'approvalproc' : id;
   var lineDept = _ordersPageIdToWorkGroup(id);
+  var apLineDept = _approvalPageIdToDeptKey(id);
   if(lineDept){
     domPageId = 'orders';
     window._ordersWorkGroup = lineDept;
+  }
+  if(apLineDept){
+    domPageId = 'approvalproc';
+    window._apWorkGroup = apLineDept;
+    window._apListTab = 'active';
   }
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
     var okApArchive = (id==='approvalproc-done' && AUTH.pages.includes('approvalproc'));
@@ -9740,7 +9786,7 @@ function showPage(id, el, workGroup){
   } else if(id==='approvalproc-done'){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
     window._apListTab = 'done';
-  } else if(id==='approvalproc'){
+  } else if(id==='approvalproc' && !apLineDept){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
     window._apListTab = 'active';
   } else if(id==='carbon-footprint'){
@@ -9764,13 +9810,13 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = lineDept || ((pageId==='jobreg'||pageId==='orders'||pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : '');
+    var wg = apLineDept || lineDept || ((pageId==='jobreg'||pageId==='orders') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : ((pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._apWorkGroup||'')) : ''));
     var entry = allItems.find(function(i){return i.id===pageId && (i.workGroup===wg || (!wg && !i.workGroup));});
     if(!entry && wg) entry = allItems.find(function(i){return i.id===pageId && i.workGroup===wg;});
-    if(!entry && lineDept) entry = allItems.find(function(i){return i.id===pageId;});
+    if(!entry && (lineDept||apLineDept)) entry = allItems.find(function(i){return i.id===pageId;});
     if(!entry && pageId==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
     if(!entry && domPageId==='orders') entry = {icon:'📋', label:_ordersLineDeptLabel(wg)||'Order & แผนผลิต'};
-    if(!entry && pageId==='approvalproc') entry = {icon:'✅', label:'ใบอนุมัติกระบวนการ'};
+    if(!entry && domPageId==='approvalproc') entry = {icon:'✅', label:_approvalLineDeptLabel(wg)||'ใบอนุมัติกระบวนการ'};
     if(!entry && pageId==='approvalproc-done'){
       entry = wg==='postprocess'
         ? {icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน·พ่น)'}
@@ -11825,6 +11871,56 @@ function _ordersLineDeptLabel(wg){
 }
 function _ordersPageIdToWorkGroup(pageId){
   var m = String(pageId||'').match(/^orders-(o[1-7])$/);
+  return m ? m[1] : '';
+}
+/** แปลง a1/o1 → o1 สำหรับ lookup ใน ORDER_LINE_DEPTS */
+function _lineDeptKeyNorm(key){
+  var m = String(key||'').match(/^[ao]([1-7])$/);
+  return m ? ('o'+m[1]) : String(key||'');
+}
+function _matchesLineDeptByMachine(machine, deptKey){
+  var k = _lineDeptKeyNorm(deptKey);
+  if(!k || k==='all') return true;
+  var cfg = ORDER_LINE_DEPTS[k];
+  if(!cfg) return false;
+  if(cfg.filter==='assembly'){
+    var fake = { machine: machine, jobName: '' };
+    return _orderWorkGroup(fake)==='assembly';
+  }
+  if(cfg.filter==='secondary'){
+    var fake2 = { machine: machine, jobName: '' };
+    return _orderWorkGroup(fake2)==='secondary';
+  }
+  var tok = _orderMachineToken(machine);
+  var pool = (cfg.machines||[]).concat(cfg.extra||[]);
+  return pool.some(function(id){
+    return tok===id || String(machine||'').indexOf(id)===0;
+  });
+}
+function _approvalDocMachine(d){
+  if(!d) return '';
+  var mach = String(d.machine||'').trim();
+  if(mach) return mach;
+  if(d.orderNo && typeof orders!=='undefined'){
+    var o = orders.find(function(x){ return x && x.orderNo===d.orderNo; });
+    if(o) return o.machine || '';
+  }
+  return '';
+}
+function _approvalDocMatchesLineDept(d, deptKey){
+  if(!d || !deptKey) return false;
+  return _matchesLineDeptByMachine(_approvalDocMachine(d), deptKey);
+}
+function _approvalInAnyLineDept(d){
+  return ORDER_LINE_DEPT_KEYS.some(function(k){ return _approvalDocMatchesLineDept(d, k); });
+}
+function _approvalLineDeptLabel(wg){
+  if(wg==='all') return 'ใบอนุมัติรวม — ทุกแผนก (7 ไลน์)';
+  var cfg = ORDER_LINE_DEPTS[_lineDeptKeyNorm(wg)];
+  return cfg ? ('ใบอนุมัติ — '+cfg.label) : '';
+}
+function _approvalPageIdToDeptKey(pageId){
+  var m = String(pageId||'').match(/^approvalproc-(a[1-7])$/);
   return m ? m[1] : '';
 }
 
@@ -40174,6 +40270,8 @@ function apDocLineGroup(d){
 function apDocMatchesWorkGroupFilter(d){
   var wg = window._apWorkGroup || '';
   if(!wg) return true;
+  if(wg==='all') return _approvalInAnyLineDept(d);
+  if(/^a[1-7]$/.test(wg) || /^o[1-7]$/.test(wg)) return _approvalDocMatchesLineDept(d, wg);
   var g = apDocLineGroup(d);
   if(wg === 'injection') return g === 'injection';
   if(wg === 'postprocess') return g === 'assembly' || g === 'secondary';
@@ -40305,7 +40403,16 @@ function renderApprovalProcList(){
   const wgSel = document.getElementById('ap-wg-sel');
   if(wgSel){
     var wgv = window._apWorkGroup || '';
-    wgSel.value = wgv==='injection'||wgv==='postprocess' ? wgv : '';
+    wgSel.value = wgv;
+    var lockAp = wgv==='all' || /^a[1-7]$/.test(wgv);
+    wgSel.disabled = lockAp;
+    if(lockAp) wgSel.title = 'กรองตามเมนูที่เปิด — เปลี่ยนได้จากเมนูหลัก';
+  }
+  var apDeptBadge = document.getElementById('ap-dept-badge');
+  if(apDeptBadge){
+    var apDl = _approvalLineDeptLabel(window._apWorkGroup||'');
+    if(apDl){ apDeptBadge.textContent = apDl; apDeptBadge.style.display = 'inline'; }
+    else { apDeptBadge.style.display = 'none'; apDeptBadge.textContent = ''; }
   }
   const tabSel = document.getElementById('ap-list-tab-sel');
   if(tabSel) tabSel.value = window._apListTab==='done' ? 'done' : 'active';
@@ -40353,7 +40460,8 @@ function renderApprovalProcList(){
 function openNewApprovalProc(){
   const id = 'AP-'+Date.now();
   const docNo = 'F-PD-I008-'+apNextDocSuffix();
-  var wgCur=(window._apWorkGroup==='postprocess')?'postprocess':'injection';
+  var apWg = window._apWorkGroup || '';
+  var wgCur = (apWg==='postprocess' || apWg==='a6' || apWg==='a7') ? 'postprocess' : 'injection';
   const newDoc = {id, docNo, date:new Date().toISOString().split('T')[0],
     orderNo:'', jobName:'', machine:'', moldNo:'', customer:'', cavity:'', weight:'',
     status:'รออนุมัติ', approvedBy:'-', data:{}, apWorkGroup:wgCur, apFormType:apTemplateByWorkGroup(wgCur),
@@ -45855,6 +45963,13 @@ const ALL_PAGES = [
   {id:'customers',    label:'ทะเบียนลูกค้า',            icon:'🏢', section:'การผลิต'},
   {id:'jobreg',      label:'ทะเบียนงาน / Job',          icon:'📦', section:'การผลิต'},
   {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',      icon:'✅', section:'การผลิต'},
+  {id:'approvalproc-a1', label:'ใบอนุมัติ ฉีด Zone 1',  icon:'A1', section:'การผลิต'},
+  {id:'approvalproc-a2', label:'ใบอนุมัติ ฉีด Zone 2',  icon:'A2', section:'การผลิต'},
+  {id:'approvalproc-a3', label:'ใบอนุมัติ ฉีด Zone 3',  icon:'A3', section:'การผลิต'},
+  {id:'approvalproc-a4', label:'ใบอนุมัติ ฉีด Zone 4',  icon:'A4', section:'การผลิต'},
+  {id:'approvalproc-a5', label:'ใบอนุมัติ ฉีดยานยนต์',  icon:'A5', section:'การผลิต'},
+  {id:'approvalproc-a6', label:'ใบอนุมัติ แผนกประกอบ', icon:'A6', section:'การผลิต'},
+  {id:'approvalproc-a7', label:'ใบอนุมัติ พ่น·สกรีน',   icon:'A7', section:'การผลิต'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot แล้ว', icon:'✅', section:'การผลิต'},
   {id:'timetable',    label:'Time Table',              icon:'📅', section:'การผลิต'},
   {id:'setup',        label:'Setup Planning',          icon:'🛠️', section:'การผลิต'},
@@ -45928,7 +46043,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-a1','approvalproc-a2','approvalproc-a3','approvalproc-a4','approvalproc-a5','approvalproc-a6','approvalproc-a7','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -46256,8 +46371,8 @@ function updateSidebarUser(){
 var SECTION_COLORS = {
   master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0','#d4edfd','#fff8e1','#e8eaf6'],
   standard: ['#e3f2fd','#fff8e1','#e8f5e9','#e3f2fd','#ede7f6'],
-  order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6','#e3f2fd','#e8f5e9','#fff8e1','#ede7f6','#fce4ec','#e0f2f1','#fff3e0','#1a2a1a','#0e2020'],
-  prep:     ['#fff3cd','#e8f5e9','#ffebee','#e3f2fd','#fce4ec','#e8eaf6','#f3e5f5'],
+  order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e3f2fd','#e8f5e9','#fff8e1','#ede7f6','#fce4ec','#e0f2f1','#fff3e0','#e8f5e9','#e0f7fa','#e8eaf6','#e3f2fd','#fff3cd'],
+  prep:     ['#fff3cd','#e8f5e9','#ffebee','#f3e8ff','#ede7f6','#fff8e1','#e8eaf6','#fce4ec','#e0f2f1','#fff3e0','#e3f2fd','#fff3e0','#e8eaf6','#fce4ec','#f3e5f5'],
   daily:    ['#e3f2fd','#ffebee','#e0e0e0','#e3f2fd'],
   dash:     ['#e8f5e9','#ffebee','#e3f2fd','#ede7f6'],
   alert:    ['#ffebee','#fff3cd','#e8f5e9','#e3f2fd'],
@@ -46274,16 +46389,21 @@ var DARK_COLORS = {};
   DARK_COLORS[sec.id] = sec.items.map(function(i){ return i.color; });
 });
 
-function getIconBg(secId, itemIdx){
+function getIconBg(secId, itemIdx, item){
   if(document.body.classList.contains('nothing-mode')) return '#ffffff';
   var isLight = document.body.classList.contains('light-mode');
   if(isLight){
+    if(item && item.colorLight) return item.colorLight;
     var arr = SECTION_COLORS[secId]||[];
-    return arr[itemIdx % arr.length] || '#f0f4ff';
-  } else {
-    var arr2 = DARK_COLORS[secId]||[];
-    return arr2[itemIdx] || '#1a1a2e';
+    return arr[itemIdx % (arr.length||1)] || '#f0f4ff';
   }
+  if(item && item.color) return item.color;
+  var arr2 = DARK_COLORS[secId]||[];
+  return arr2[itemIdx] || '#1a1a2e';
+}
+
+function orderLineMenuIcon(n){
+  return '<span class="hs-order-line-icon">O' + String(n).replace(/[^1-7]/g,'') + '</span>';
 }
 
 /** Nothing mode — minimalist line icons + optional red LED (หน้าเมนูหลัก) */
@@ -46350,9 +46470,17 @@ var nothingMenuIconRule = {
   'mix-prod-receive': ['chk', true],
   'setup': ['set', true],
   'molds': ['fol', true],
+  'approvalproc|all': ['ord', true],
   'approvalproc|injection': ['ord', true],
   'approvalproc|postprocess': ['ord', true],
   'approvalproc': ['ord', true],
+  'approvalproc-a1': ['ord', true],
+  'approvalproc-a2': ['ord', true],
+  'approvalproc-a3': ['ord', true],
+  'approvalproc-a4': ['ord', true],
+  'approvalproc-a5': ['ord', true],
+  'approvalproc-a6': ['item', true],
+  'approvalproc-a7': ['item', true],
   'approvalproc-done|injection': ['chk', true],
   'approvalproc-done|postprocess': ['chk', true],
   'approvalproc-done': ['chk', true],
@@ -46423,8 +46551,7 @@ function renderHomeScreen(){
     html += '<div class="hs-app-grid">';
     visItems.forEach(function(item){
       var origIdx = sec.items.indexOf(item);
-      var bgArr = (isLt && !isNothing) ? (SECTION_COLORS[sec.id]||[]) : null;
-      var bgColor = isNothing ? '#ffffff' : (bgArr ? (bgArr[origIdx % (bgArr.length||1)] || '#f0f4ff') : item.color);
+      var bgColor = isNothing ? '#ffffff' : getIconBg(sec.id, origIdx, item);
       html += '<div class="hs-app" data-page="' + item.id + '" data-sec="' + sec.id + '" data-idx="' + origIdx + '" data-label="' + item.label + '"'
         + (item.workGroup ? ' data-workgroup="' + item.workGroup + '"' : '') + '>';
       html += '<div class="hs-app-img" style="background:' + bgColor + '">' + (isNothing ? nothingMenuIconInner(item.id, item.workGroup) : item.icon) + '</div>';
@@ -52035,7 +52162,7 @@ function _clRenderChart(){
     <div class="flex items-center justify-between">
       <div>
         <div class="page-title" id="ap-main-title">✅ ใบอนุมัติกระบวนการฉีดพลาสติก</div>
-        <div class="page-sub" id="ap-main-sub">บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot</div>
+        <div class="page-sub" id="ap-main-sub">บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot <span id="ap-dept-badge" style="display:none;margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(163,113,247,0.12);border:1px solid rgba(163,113,247,0.35);color:#a371f7;font-weight:700;font-size:11px"></span></div>
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I008 REV.21</div>
       </div>
       <div class="flex gap-2">
@@ -52057,6 +52184,14 @@ function _clRenderChart(){
       <div class="form-group"><div class="form-label">สายงาน</div>
         <select id="ap-wg-sel" onchange="approvalProcOnWorkGroupChange(this.value)" style="min-width:200px">
           <option value="">ทั้งหมด (ฉีด + ประกอบ/ไลน์รอง)</option>
+          <option value="all">✅ รวม 7 แผนก (ภาพรวม)</option>
+          <option value="a1">A1 — ฉีด Zone 1</option>
+          <option value="a2">A2 — ฉีด Zone 2</option>
+          <option value="a3">A3 — ฉีด Zone 3 (+CPR09)</option>
+          <option value="a4">A4 — ฉีด Zone 4</option>
+          <option value="a5">A5 — ฉีดยานยนต์</option>
+          <option value="a6">A6 — แผนกประกอบ</option>
+          <option value="a7">A7 — พ่น · สกรีน</option>
           <option value="injection">🏭 เครื่องฉีด</option>
           <option value="postprocess">🎨 ประกอบ · สกรีน · พ่น · ไลน์รอง</option>
         </select>
@@ -59375,21 +59510,21 @@ window.HOME_PAGES = [
     {id:'wi',           icon:'📋', label:'WI Packing Std',       color:'#1e1225', seq:14},
   ]},
   { id:'order', icon:'📋', label:'รับ Order & วางแผน', items:[
-    {id:'orders',       icon:'📋', label:'Order รวม (7 แผนก)',     color:'#1a2535', seq:'15', workGroup:'all'},
-    {id:'orders',       icon:'🏭', label:'Order (เครื่องฉีด)',     color:'#1a1a2e', seq:'15A', workGroup:'injection'},
-    {id:'orders',       icon:'🎨', label:'Order (ประกอบ·สกรีน·พ่น)', color:'#25201a', seq:'15B', workGroup:'postprocess'},
-    {id:'orders-o1',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O1</span>', label:'Order ฉีด Zone 1', color:'#e3f2fd', seq:'O1'},
-    {id:'orders-o2',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O2</span>', label:'Order ฉีด Zone 2', color:'#e8f5e9', seq:'O2'},
-    {id:'orders-o3',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O3</span>', label:'Order ฉีด Zone 3', color:'#fff8e1', seq:'O3'},
-    {id:'orders-o4',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O4</span>', label:'Order ฉีด Zone 4', color:'#ede7f6', seq:'O4'},
-    {id:'orders-o5',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O5</span>', label:'Order ฉีดยานยนต์', color:'#fce4ec', seq:'O5'},
-    {id:'orders-o6',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O6</span>', label:'Order แผนกประกอบ', color:'#e0f2f1', seq:'O6'},
-    {id:'orders-o7',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O7</span>', label:'Order พ่น·สกรีน', color:'#fff3e0', seq:'O7'},
-    {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', seq:'15C'},
-    {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', seq:16},
-    {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', seq:17},
-    {id:'setup-tt',     icon:'📆', label:'Setup Time Table',     color:'#10202a', seq:'17C'},
-    {id:'setup-std',    icon:'📏', label:'STD SET UP',           color:'#2a2010', seq:'17D'},
+    {id:'orders',       icon:'📋', label:'Order รวม (7 แผนก)',     color:'#1a2535', colorLight:'#e3f2fd', seq:'15', workGroup:'all'},
+    {id:'orders',       icon:'🏭', label:'Order (เครื่องฉีด)',     color:'#1a1a2e', colorLight:'#fff8e1', seq:'15A', workGroup:'injection'},
+    {id:'orders',       icon:'🎨', label:'Order (ประกอบ·สกรีน·พ่น)', color:'#25201a', colorLight:'#e8eaf6', seq:'15B', workGroup:'postprocess'},
+    {id:'orders-o1',    icon:'<span class="hs-order-line-icon">O1</span>', label:'Order ฉีด Zone 1', color:'#1a2a3e', colorLight:'#e3f2fd', seq:'O1'},
+    {id:'orders-o2',    icon:'<span class="hs-order-line-icon">O2</span>', label:'Order ฉีด Zone 2', color:'#1a2e22', colorLight:'#e8f5e9', seq:'O2'},
+    {id:'orders-o3',    icon:'<span class="hs-order-line-icon">O3</span>', label:'Order ฉีด Zone 3', color:'#2a2410', colorLight:'#fff8e1', seq:'O3'},
+    {id:'orders-o4',    icon:'<span class="hs-order-line-icon">O4</span>', label:'Order ฉีด Zone 4', color:'#221a2e', colorLight:'#ede7f6', seq:'O4'},
+    {id:'orders-o5',    icon:'<span class="hs-order-line-icon">O5</span>', label:'Order ฉีดยานยนต์', color:'#2a1520', colorLight:'#fce4ec', seq:'O5'},
+    {id:'orders-o6',    icon:'<span class="hs-order-line-icon">O6</span>', label:'Order แผนกประกอบ', color:'#102520', colorLight:'#e0f2f1', seq:'O6'},
+    {id:'orders-o7',    icon:'<span class="hs-order-line-icon">O7</span>', label:'Order พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'O7'},
+    {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', colorLight:'#e8f5e9', seq:'15C'},
+    {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', colorLight:'#e0f7fa', seq:16},
+    {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', colorLight:'#e8eaf6', seq:17},
+    {id:'setup-tt',     icon:'📆', label:'Setup Time Table',     color:'#10202a', colorLight:'#e3f2fd', seq:'17C'},
+    {id:'setup-std',    icon:'📏', label:'STD SET UP',           color:'#2a2010', colorLight:'#fff3cd', seq:'17D'},
   ]},
   { id:'prep', icon:'🏭', label:'เตรียมการผลิต', items:[
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},
@@ -59397,8 +59532,16 @@ window.HOME_PAGES = [
     {id:'mix-prod-receive', icon:'✅', label:'ฝ่ายผลิต — ยืนยันรับเม็ด', color:'#102018', seq:'19B'},
     {id:'setup',        icon:'🛠️', label:'Setup Planning',        color:'#0f1d20', seq:'17B'},
     {id:'molds',        icon:'🔧', label:'แม่พิมพ์ & PM',         color:'#201010', seq:20},
-    {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#e3f2fd', seq:'21A', workGroup:'injection'},
-    {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#fff3e0', seq:'21B', workGroup:'postprocess'},
+    {id:'approvalproc', icon:'✅', label:'ใบอนุมัติรวม (7 แผนก)',     color:'#1f1528', colorLight:'#f3e8ff', seq:'21', workGroup:'all'},
+    {id:'approvalproc', icon:'🏭', label:'ใบอนุมัติ (เครื่องฉีด)',     color:'#1a1a2e', colorLight:'#e3f2fd', seq:'21A', workGroup:'injection'},
+    {id:'approvalproc', icon:'🎨', label:'ใบอนุมัติ (ประกอบ·สกรีน·พ่น)', color:'#25201a', colorLight:'#fff3e0', seq:'21B', workGroup:'postprocess'},
+    {id:'approvalproc-a1', icon:'<span class="hs-approval-line-icon">A1</span>', label:'ใบอนุมัติ ฉีด Zone 1', color:'#1a2a3e', colorLight:'#ede7f6', seq:'A1'},
+    {id:'approvalproc-a2', icon:'<span class="hs-approval-line-icon">A2</span>', label:'ใบอนุมัติ ฉีด Zone 2', color:'#1a2e22', colorLight:'#e8f5e9', seq:'A2'},
+    {id:'approvalproc-a3', icon:'<span class="hs-approval-line-icon">A3</span>', label:'ใบอนุมัติ ฉีด Zone 3', color:'#2a2410', colorLight:'#fff8e1', seq:'A3'},
+    {id:'approvalproc-a4', icon:'<span class="hs-approval-line-icon">A4</span>', label:'ใบอนุมัติ ฉีด Zone 4', color:'#221a2e', colorLight:'#e3f2fd', seq:'A4'},
+    {id:'approvalproc-a5', icon:'<span class="hs-approval-line-icon">A5</span>', label:'ใบอนุมัติ ฉีดยานยนต์', color:'#2a1520', colorLight:'#fce4ec', seq:'A5'},
+    {id:'approvalproc-a6', icon:'<span class="hs-approval-line-icon">A6</span>', label:'ใบอนุมัติ แผนกประกอบ', color:'#102520', colorLight:'#e0f2f1', seq:'A6'},
+    {id:'approvalproc-a7', icon:'<span class="hs-approval-line-icon">A7</span>', label:'ใบอนุมัติ พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'A7'},
     {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ฉีด)', color:'#e8eaf6', seq:'21C', workGroup:'injection'},
     {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)', color:'#fce4ec', seq:'21D', workGroup:'postprocess'},
   ]},
