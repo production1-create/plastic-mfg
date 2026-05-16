@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-stock-persist"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-consider-deleted"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1567,15 +1567,10 @@
                 if (typeof fresh === "string") latestLocal = fresh;
               } catch (e) {}
 
-              const merged = mergeStorageKey(key, latestLocal, remoteVal);
-
-              // Anti-wipe safety belt: never push a merged value that has
-              // FEWER live records than what's already on the server. This
-              // covers the case where a buggy merge would otherwise replace
-              // a non-empty cloud blob with an empty one.
               const countFn = key === "_rawMatStock" ? _countRawMatStockBuckets : _countRecords;
               const cntLocal  = countFn(latestLocal);
               const cntRemote = countFn(remoteVal);
+              const merged = mergeStorageKey(key, latestLocal, remoteVal);
               const cntMerged = countFn(merged);
               // _ttData: แถวซ้ำจาก ttRowKey เก่า (ไม่มี orderNo) ทำให้ merge แล้วจำนวนแถวน้อยลง
               // แม้ข้อมูลถูกต้อง — ห้าม skip push ไม่งั้นการลบ Order ไม่ขึ้นคลาวด์
@@ -1599,8 +1594,8 @@
                   // local, then write the doubly-merged result. Belt &
                   // braces: cnt of the second merge must not shrink either.
                   const merged2 = mergeStorageKey(key, ultra, merged);
-                  const cnt2 = _countRecords(merged2);
-                  if (key === "_ttData" || cnt2 >= cntMerged) {
+                  const cnt2 = countFn(merged2);
+                  if (key === "_ttData" || key === "_rawMatStock" || cnt2 >= cntMerged) {
                     value = merged2;
                   }
                 }

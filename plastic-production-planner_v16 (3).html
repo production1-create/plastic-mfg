@@ -22807,13 +22807,11 @@ function renderRawmat(){
       if(rawCode==null||rawCode==='') return;
       var k=String(rawCode).trim();
       if(!k) return;
-      var row0=rawMatStock[k];
-      if(row0&&row0._deleted) return;
       var canon;
       try{ canon=rmCanonStockListKey(k); }catch(e){ canon=k; }
       if(!canon) return;
       var view=rmGetPlasticStockView(canon);
-      if(view._deleted) return;
+      if(view._deleted && (view.qty||0)<=0) return;
       if(seen[canon]) return;
       seen[canon]=true;
       list.push(canon);
