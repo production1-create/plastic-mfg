@@ -346,12 +346,34 @@
     @media print {
       .pmf-toolbar, .save-fab-sub, .sb-presence-bar { display: none !important; }
     }
+
+    .ui-mode-fab {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      min-height: 38px;
+      border-radius: 999px;
+      border: 1px solid rgba(17, 24, 39, 0.5);
+      background: rgba(250, 250, 250, 0.95);
+      color: #111;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, border-color .15s;
+    }
+    .ui-mode-fab:hover { background: #fff; border-color: #111; }
+    .ui-mode-fab.smart-on { background: #111; color: #fff; border-color: #111; }
   </style>
 </head>
 <body>
   <!-- Top-center toolbar (sits in the empty space inside the iframe header) -->
   <div id="pmf-toolbar" class="pmf-toolbar" role="toolbar" aria-label="แถบควบคุมซิงก์">
     <div id="loading-indicator" class="loading-indicator" aria-hidden="true"></div>
+
+    <button id="ui-mode-fab" class="ui-mode-fab" type="button" title="สลับ Classic / Smart Factory Mode">🏭 Smart</button>
 
     <button id="open-settings" class="gear-btn" type="button" title="ตั้งค่า Supabase Sync" aria-label="เปิดตั้งค่า Supabase Sync">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -2232,6 +2254,39 @@
       if (e.target === settingsDlg) closeSettingsModal();
     });
 
+    function getParentUiMode() {
+      try { return localStorage.getItem("_uiMode") || "classic"; } catch (e) { return "classic"; }
+    }
+    function setParentUiMode(mode) {
+      mode = mode === "smart" ? "smart" : "classic";
+      try { localStorage.setItem("_uiMode", mode); } catch (e) {}
+      updateUiModeFab(mode);
+      if (!frameReady) return;
+      try {
+        document.getElementById("app-frame").contentWindow.postMessage({ type: "pmf-set-ui-mode", mode }, "*");
+      } catch (e) {}
+    }
+    function updateUiModeFab(mode) {
+      const fab = document.getElementById("ui-mode-fab");
+      if (!fab) return;
+      if (mode === "smart") {
+        fab.textContent = "📋 Classic";
+        fab.classList.add("smart-on");
+        fab.title = "กลับ Classic Mode";
+      } else {
+        fab.textContent = "🏭 Smart";
+        fab.classList.remove("smart-on");
+        fab.title = "เปิด Smart Factory Mode";
+      }
+    }
+    const uiModeFab = document.getElementById("ui-mode-fab");
+    if (uiModeFab) {
+      updateUiModeFab(getParentUiMode());
+      uiModeFab.addEventListener("click", () => {
+        setParentUiMode(getParentUiMode() === "smart" ? "classic" : "smart");
+      });
+    }
+
     window.addEventListener("message", (ev) => {
       try {
         if (!ev.data) return;
@@ -2239,6 +2294,9 @@
           refreshPresenceTrack();
         } else if (ev.data.type === "pmf-save-now") {
           doSaveNow();
+        } else if (ev.data.type === "pmf-ui-mode") {
+          try { localStorage.setItem("_uiMode", ev.data.mode === "smart" ? "smart" : "classic"); } catch (e) {}
+          updateUiModeFab(ev.data.mode === "smart" ? "smart" : "classic");
         }
       } catch (e) {}
     });
@@ -2254,6 +2312,7 @@
 
     document.getElementById("app-frame").addEventListener("load", async () => {
       frameReady = true;
+      setParentUiMode(getParentUiMode());
       if (sbUrl() && sbKey()) {
         await initialPullAndListen();
         startAutoSync();

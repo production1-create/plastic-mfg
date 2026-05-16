@@ -6,6 +6,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบวางแผนการผลิตงานฉีดพลาสติก</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  corePlugins: { preflight: false },
+  theme: {
+    extend: {
+      colors: {
+        sf: { primary:'#111111', bg:'#FAFAFA', card:'#FFFFFF', border:'#E5E7EB', text:'#1A1A1A',
+          run:'#22C55E', warn:'#F59E0B', crit:'#EF4444', pm:'#8B5CF6', info:'#3B82F6', idle:'#9CA3AF' }
+      },
+      fontFamily: { sans: ['Inter','Noto Sans Thai','system-ui','sans-serif'] }
+    }
+  }
+};
+</script>
+<script src="https://unpkg.com/lucide@latest"></script>
 
 <style>
 :root {
@@ -1223,6 +1239,238 @@ body.nothing-mode .hs-app.hs-match .hs-app-img {
   box-shadow: 0 0 0 2px #000, 0 0 0 5px rgba(255,0,0,0.28) !important;
 }
 body.nothing-mode .theme-toggle-icon { transform: none !important; }
+
+/* ═══ SMART FACTORY MODE — Industrial MES UI (Classic UI preserved) ═══ */
+:root {
+  --sf-primary: #111111;
+  --sf-bg: #FAFAFA;
+  --sf-card: #FFFFFF;
+  --sf-border: #E5E7EB;
+  --sf-text: #1A1A1A;
+  --sf-run: #22C55E;
+  --sf-warn: #F59E0B;
+  --sf-crit: #EF4444;
+  --sf-pm: #8B5CF6;
+  --sf-info: #3B82F6;
+  --sf-idle: #9CA3AF;
+  --sf-sidebar-w: 240px;
+  --sf-sidebar-collapsed: 72px;
+  --sf-header-h: 56px;
+}
+body[data-ui-mode="smart"] { overflow: hidden; background: var(--sf-bg); color: var(--sf-text); font-family: Inter, 'Noto Sans Thai', sans-serif; }
+body[data-ui-mode="smart"] #sf-shell { display: flex; }
+body[data-ui-mode="classic"] #sf-shell { display: none !important; }
+.sf-shell { position: fixed; inset: 0; z-index: 500; display: none; background: var(--sf-bg); color: var(--sf-text); }
+.sf-sidebar {
+  width: var(--sf-sidebar-w); flex-shrink: 0; background: var(--sf-card);
+  border-right: 1px solid var(--sf-border); display: flex; flex-direction: column;
+  transition: width .22s cubic-bezier(.4,0,.2,1); overflow: hidden;
+}
+.sf-shell.sf-sidebar-collapsed { --sf-sidebar-w: var(--sf-sidebar-collapsed); }
+.sf-sidebar-brand { padding: 14px 16px 10px; border-bottom: 1px solid var(--sf-border); display: flex; align-items: center; gap: 10px; min-height: 56px; }
+.sf-sidebar-brand .sf-logo {
+  width: 36px; height: 36px; border-radius: 10px; background: var(--sf-primary); color: #fff;
+  display: grid; place-items: center; font-weight: 800; font-size: 14px; flex-shrink: 0;
+}
+.sf-sidebar-brand .sf-brand-text { overflow: hidden; white-space: nowrap; }
+.sf-sidebar-brand .sf-brand-title { font-size: 13px; font-weight: 800; letter-spacing: .04em; }
+.sf-sidebar-brand .sf-brand-sub { font-size: 10px; color: #6b7280; margin-top: 1px; }
+.sf-shell.sf-sidebar-collapsed .sf-brand-text { opacity: 0; width: 0; }
+.sf-nav { flex: 1; overflow-y: auto; padding: 8px 8px 16px; }
+.sf-nav-section { margin-top: 10px; }
+.sf-nav-label {
+  font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: #9ca3af; padding: 6px 10px 4px; white-space: nowrap; overflow: hidden;
+}
+.sf-shell.sf-sidebar-collapsed .sf-nav-label { opacity: 0; height: 0; padding: 0; margin: 0; }
+.sf-nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 2px;
+  border-radius: 10px; border: 1px solid transparent; cursor: pointer; color: #374151;
+  font-size: 12px; font-weight: 500; transition: background .15s, border-color .15s, color .15s;
+  position: relative; user-select: none;
+}
+.sf-nav-item:hover { background: #f3f4f6; border-color: var(--sf-border); }
+.sf-nav-item.active { background: #111; color: #fff; border-color: #111; }
+.sf-nav-item .sf-nav-ico { width: 20px; height: 20px; flex-shrink: 0; display: grid; place-items: center; }
+.sf-nav-item .sf-nav-ico svg { width: 18px; height: 18px; stroke-width: 1.75; }
+.sf-nav-item.active .sf-nav-ico svg { color: #fff; }
+.sf-nav-item .sf-nav-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.sf-shell.sf-sidebar-collapsed .sf-nav-txt { opacity: 0; width: 0; }
+.sf-nav-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  background: var(--sf-crit); color: #fff; min-width: 18px; text-align: center;
+}
+.sf-shell.sf-sidebar-collapsed .sf-nav-badge { position: absolute; top: 6px; right: 8px; }
+.sf-sidebar-foot { padding: 10px; border-top: 1px solid var(--sf-border); }
+.sf-sidebar-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px; border-radius: 10px; border: 1px solid var(--sf-border); background: #fff;
+  cursor: pointer; font-size: 11px; font-weight: 600; color: #4b5563;
+}
+.sf-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.sf-header {
+  height: var(--sf-header-h); flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; background: var(--sf-card); border-bottom: 1px solid var(--sf-border);
+}
+.sf-header-title { font-size: 15px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--sf-run);
+  box-shadow: 0 0 0 0 rgba(34,197,94,.5); animation: sf-pulse 2s infinite;
+}
+@keyframes sf-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.45)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
+.sf-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sf-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 10px;
+  border: 1px solid var(--sf-border); background: #fff; font-size: 11px; font-weight: 600;
+  cursor: pointer; color: var(--sf-text); transition: background .15s, border-color .15s;
+}
+.sf-btn:hover { background: #f9fafb; border-color: #d1d5db; }
+.sf-btn-primary { background: var(--sf-primary); color: #fff; border-color: var(--sf-primary); }
+.sf-btn-primary:hover { background: #2a2a2a; }
+.sf-mode-switch {
+  display: inline-flex; border: 1px solid var(--sf-border); border-radius: 999px; overflow: hidden; background: #f3f4f6;
+}
+.sf-mode-switch button {
+  padding: 6px 12px; font-size: 10px; font-weight: 700; border: none; background: transparent;
+  cursor: pointer; color: #6b7280; transition: background .15s, color .15s;
+}
+.sf-mode-switch button.active { background: var(--sf-primary); color: #fff; }
+.sf-notif-btn { position: relative; }
+.sf-notif-count {
+  position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--sf-crit); color: #fff; font-size: 9px; font-weight: 800;
+  display: grid; place-items: center; border: 2px solid #fff;
+}
+.sf-main { flex: 1; overflow: hidden; position: relative; }
+.sf-dashboard { height: 100%; overflow-y: auto; padding: 16px 20px 24px; }
+.sf-kpi-grid { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }
+.sf-kpi {
+  background: var(--sf-card); border: 1px solid var(--sf-border); border-radius: 14px;
+  padding: 14px 14px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.sf-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.sf-kpi-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sf-kpi-label { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
+.sf-kpi-val { font-size: 22px; font-weight: 800; line-height: 1.1; margin-top: 4px; }
+.sf-kpi-trend { font-size: 10px; font-weight: 700; margin-top: 4px; }
+.sf-kpi-trend.up { color: var(--sf-run); }
+.sf-kpi-trend.down { color: var(--sf-crit); }
+.sf-kpi-spark { height: 28px; margin-top: 8px; display: flex; align-items: flex-end; gap: 2px; }
+.sf-kpi-spark span { flex: 1; background: #e5e7eb; border-radius: 2px 2px 0 0; min-height: 4px; }
+.sf-widget-grid { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 12px; }
+.sf-widget {
+  background: var(--sf-card); border: 1px solid var(--sf-border); border-radius: 14px;
+  padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04); min-height: 120px;
+}
+.sf-widget-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.sf-widget-title { font-size: 12px; font-weight: 700; }
+.sf-widget-sub { font-size: 10px; color: #9ca3af; }
+.sf-col-4 { grid-column: span 4; }
+.sf-col-6 { grid-column: span 6; }
+.sf-col-8 { grid-column: span 8; }
+.sf-col-12 { grid-column: span 12; }
+.sf-status-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; border: 1px solid;
+}
+.sf-status-chip.run { background: rgba(34,197,94,.1); color: #15803d; border-color: rgba(34,197,94,.35); }
+.sf-status-chip.setup { background: rgba(245,158,11,.1); color: #b45309; border-color: rgba(245,158,11,.35); }
+.sf-status-chip.down { background: rgba(239,68,68,.1); color: #b91c1c; border-color: rgba(239,68,68,.35); }
+.sf-status-chip.pm { background: rgba(139,92,246,.1); color: #6d28d9; border-color: rgba(139,92,246,.35); }
+.sf-status-chip.idle { background: rgba(156,163,175,.12); color: #4b5563; border-color: rgba(156,163,175,.35); }
+.sf-machine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 220px; overflow-y: auto; }
+.sf-mach-card {
+  border: 1px solid var(--sf-border); border-radius: 12px; padding: 10px; background: #fafafa;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sf-mach-card:hover { border-color: #d1d5db; box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+.sf-mach-card.running { border-left: 3px solid var(--sf-run); }
+.sf-mach-card.idle { border-left: 3px solid var(--sf-idle); }
+.sf-mach-card.down, .sf-mach-card.alarm { border-left: 3px solid var(--sf-crit); }
+.sf-mach-id { font-size: 12px; font-weight: 800; font-family: 'IBM Plex Mono', monospace; }
+.sf-mach-meta { font-size: 9px; color: #6b7280; margin-top: 4px; line-height: 1.35; }
+.sf-timeline { display: flex; flex-direction: column; gap: 6px; }
+.sf-tl-row { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.sf-tl-bar { flex: 1; height: 22px; border-radius: 6px; overflow: hidden; display: flex; background: #f3f4f6; }
+.sf-tl-seg { height: 100%; min-width: 2px; }
+.sf-tl-seg.run { background: var(--sf-run); }
+.sf-tl-seg.setup { background: var(--sf-warn); }
+.sf-tl-seg.down { background: var(--sf-crit); }
+.sf-tl-seg.pm { background: var(--sf-pm); }
+.sf-tl-seg.idle { background: var(--sf-idle); }
+.sf-notif-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+.sf-notif-item {
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--sf-border); font-size: 11px;
+  display: flex; gap: 8px; align-items: flex-start; cursor: pointer; transition: background .12s;
+}
+.sf-notif-item:hover { background: #f9fafb; }
+.sf-notif-item.unread { background: #fefce8; border-color: #fde68a; }
+.sf-notif-item.crit { border-left: 3px solid var(--sf-crit); }
+.sf-notif-item.warn { border-left: 3px solid var(--sf-warn); }
+.sf-notif-item.info { border-left: 3px solid var(--sf-info); }
+.sf-pareto { display: flex; align-items: flex-end; gap: 6px; height: 100px; padding-top: 8px; }
+.sf-pareto-bar { flex: 1; background: #111; border-radius: 4px 4px 0 0; min-height: 8px; opacity: .85; }
+.sf-drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 900;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.sf-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+.sf-drawer {
+  position: fixed; top: 0; right: 0; width: min(380px, 100vw); height: 100%;
+  background: var(--sf-card); border-left: 1px solid var(--sf-border); z-index: 901;
+  transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0,0,0,.12);
+}
+.sf-drawer.open { transform: translateX(0); }
+.sf-drawer-head { padding: 16px; border-bottom: 1px solid var(--sf-border); display: flex; align-items: center; justify-content: space-between; }
+.sf-drawer-body { flex: 1; overflow-y: auto; padding: 12px; }
+.sf-view-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.sf-view-tab {
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--sf-border);
+  font-size: 11px; font-weight: 600; cursor: pointer; background: #fff;
+}
+.sf-view-tab.active { background: var(--sf-primary); color: #fff; border-color: var(--sf-primary); }
+.sf-skeleton { background: linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%); background-size: 200% 100%; animation: sf-shimmer 1.2s infinite; border-radius: 8px; min-height: 40px; }
+@keyframes sf-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.sf-empty { text-align: center; padding: 24px; color: #9ca3af; font-size: 12px; }
+body[data-ui-mode="smart"] #home-screen { display: none !important; }
+body[data-ui-mode="smart"] #page-view {
+  display: none; position: fixed; top: var(--sf-header-h); left: var(--sf-sidebar-w);
+  right: 0; bottom: 0; z-index: 510; flex-direction: column; background: var(--bg);
+  transition: left .22s cubic-bezier(.4,0,.2,1);
+}
+body[data-ui-mode="smart"] #page-view.sf-page-active { display: flex !important; }
+body[data-ui-mode="smart"] #page-view #pv-topbar { display: none; }
+body[data-ui-mode="smart"] #page-view #pv-content { flex: 1; overflow: auto; }
+body[data-ui-mode="smart"].sf-sidebar-is-collapsed { --sf-sidebar-w: var(--sf-sidebar-collapsed); }
+.ui-mode-toggle-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); background: var(--bg3); color: var(--text2);
+  font-size: 10px; font-weight: 700; cursor: pointer; transition: all .2s; font-family: Inter, 'Noto Sans Thai', sans-serif;
+}
+.ui-mode-toggle-btn:hover { border-color: var(--accent2); color: var(--text); }
+.ui-mode-toggle-btn.sf-active { border-color: #111; background: #111; color: #fff; }
+@media (max-width: 1200px) { .sf-kpi-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } .sf-col-4,.sf-col-6,.sf-col-8 { grid-column: span 12; } }
+@media (max-width: 768px) {
+  .sf-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  body[data-ui-mode="smart"] #sf-shell { flex-direction: column; }
+  body[data-ui-mode="smart"] .sf-sidebar {
+    width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--sf-border);
+  }
+  body[data-ui-mode="smart"] .sf-sidebar-brand, body[data-ui-mode="smart"] .sf-sidebar-foot { display: none; }
+  body[data-ui-mode="smart"] .sf-nav { display: flex; flex-direction: row; padding: 6px; gap: 4px; overflow-x: auto; }
+  body[data-ui-mode="smart"] .sf-nav-section { display: flex; gap: 4px; margin: 0; }
+  body[data-ui-mode="smart"] .sf-nav-label { display: none; }
+  body[data-ui-mode="smart"] #page-view { left: 0; top: calc(var(--sf-header-h) + 52px); }
+  .sf-mobile-nav { display: flex !important; }
+}
+.sf-mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 920;
+  background: var(--sf-card); border-top: 1px solid var(--sf-border); padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  justify-content: space-around; gap: 4px;
+}
+.sf-mobile-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: none; background: transparent; font-size: 9px; font-weight: 600; color: #6b7280; cursor: pointer; border-radius: 10px; }
+.sf-mobile-nav button.active { color: var(--sf-primary); background: #f3f4f6; }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
@@ -1298,6 +1546,64 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
 
 <div class="app" id="main-app" style="display:none">
 
+<!-- ═══ SMART FACTORY SHELL (Mode: Smart Factory) ═══ -->
+<div id="sf-shell" class="sf-shell" hidden aria-hidden="true">
+  <aside id="sf-sidebar" class="sf-sidebar">
+    <div class="sf-sidebar-brand">
+      <div class="sf-logo">SF</div>
+      <div class="sf-brand-text">
+        <div class="sf-brand-title">SMART FACTORY</div>
+        <div class="sf-brand-sub">Injection MES · OS</div>
+      </div>
+    </div>
+    <nav id="sf-nav" class="sf-nav" aria-label="Smart Factory navigation"></nav>
+    <div class="sf-sidebar-foot">
+      <button type="button" class="sf-sidebar-toggle" id="sf-sidebar-toggle" title="ย่อ/ขยาย Sidebar">
+        <i data-lucide="panel-left-close"></i>
+        <span class="sf-nav-txt">ย่อเมนู</span>
+      </button>
+    </div>
+  </aside>
+  <div class="sf-body">
+    <header class="sf-header">
+      <span class="sf-live-dot" title="Live"></span>
+      <h1 class="sf-header-title" id="sf-header-title">Control Center</h1>
+      <div class="sf-header-actions">
+        <div class="sf-mode-switch" role="group" aria-label="UI Mode">
+          <button type="button" id="sf-mode-classic" onclick="setUiMode('classic')">Classic</button>
+          <button type="button" id="sf-mode-smart" class="active" onclick="setUiMode('smart')">Smart Factory</button>
+        </div>
+        <button type="button" class="sf-btn sf-notif-btn" id="sf-notif-open" title="การแจ้งเตือน">
+          <i data-lucide="bell"></i>
+          <span class="sf-notif-count" id="sf-notif-count">0</span>
+        </button>
+        <button type="button" class="sf-btn" onclick="goHomeSf()" title="หน้าหลัก Smart Factory"><i data-lucide="layout-dashboard"></i></button>
+        <button type="button" class="sf-btn sf-btn-primary" onclick="sfOpenPage('machines')" title="สถานะเครื่องจักร"><i data-lucide="cpu"></i> Machines</button>
+      </div>
+    </header>
+    <main class="sf-main">
+      <div id="sf-dashboard" class="sf-dashboard">
+        <div class="sf-view-tabs" id="sf-view-tabs">
+          <button type="button" class="sf-view-tab active" data-sf-view="overview">Overview</button>
+          <button type="button" class="sf-view-tab" data-sf-view="qc">QC Command</button>
+          <button type="button" class="sf-view-tab" data-sf-view="pm">PM War Room</button>
+          <button type="button" class="sf-view-tab" data-sf-view="stock">Stock Intel</button>
+        </div>
+        <div id="sf-dashboard-content"></div>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="sf-drawer-overlay" id="sf-drawer-overlay"></div>
+<aside class="sf-drawer" id="sf-notif-drawer" aria-label="Notification center">
+  <div class="sf-drawer-head">
+    <strong>Notification Center</strong>
+    <button type="button" class="sf-btn" id="sf-notif-close"><i data-lucide="x"></i></button>
+  </div>
+  <div class="sf-drawer-body" id="sf-notif-drawer-body"></div>
+</aside>
+<nav class="sf-mobile-nav" id="sf-mobile-nav" aria-label="Mobile navigation"></nav>
+
 <!-- ═══════════════════════════════════════
      HOME SCREEN
 ═══════════════════════════════════════ -->
@@ -1313,6 +1619,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       </div>
     </div>
     <div class="hs-right">
+      <button type="button" class="ui-mode-toggle-btn" id="ui-mode-toggle-hs" onclick="toggleUiMode()" title="สลับ Classic / Smart Factory">🏭 Smart</button>
       <button class="theme-toggle-btn" onclick="cycleTheme()" id="theme-toggle-btn" title="สลับธีม: Dark → Light → Nothing → Dark">
         <span class="theme-toggle-icon" id="theme-toggle-icon">🌙</span>
         <span id="theme-toggle-label">Dark</span>
@@ -1353,6 +1660,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <button type="button" id="pv-back" class="pv-back-btn" onclick="goHome()">&#8592; หน้าหลัก</button>
     <span id="pv-title">-</span>
     <div id="pv-right">
+      <button type="button" class="ui-mode-toggle-btn" id="ui-mode-toggle-pv" onclick="toggleUiMode()" title="สลับ Classic / Smart Factory">🏭 Smart</button>
       <button class="theme-toggle-btn" onclick="cycleTheme()" id="theme-toggle-btn2" title="สลับธีม: Dark → Light → Nothing → Dark">
         <span class="theme-toggle-icon" id="theme-toggle-icon2">🌙</span>
         <span id="theme-toggle-label2">Dark</span>
@@ -9895,11 +10203,15 @@ function showPage(id, el, workGroup){
     setTimeout(_resetScrollTop, 400);
   });
   if(id==='admin') setTimeout(renderAdminPage, 0);
+  if(typeof _sfSyncAfterNavigate==='function') _sfSyncAfterNavigate(pageId);
 }
 
 function goHome(){
   _pageNavStack = [];
   _navFromBack = false;
+  if(typeof getUiMode==='function' && getUiMode()==='smart'){
+    if(typeof goHomeSf==='function'){ goHomeSf(); return; }
+  }
   var hs=document.getElementById('home-screen');
   var pv=document.getElementById('page-view');
   if(pv) pv.style.display='none';
@@ -46373,8 +46685,9 @@ function doLogin(){
   applyPermissions();
   updateSidebarUser();
   renderHomeScreen();
+  if(typeof setUiMode==='function' && typeof getUiMode==='function' && getUiMode()==='smart') setUiMode('smart');
   // Show home screen first
-  var hs=document.getElementById('home-screen'); if(hs) hs.style.display='flex';
+  var hs=document.getElementById('home-screen'); if(hs && getUiMode()!=='smart') hs.style.display='flex';
   var pv=document.getElementById('page-view');   if(pv) pv.style.display='none';
   masterInit();
 }
@@ -46422,7 +46735,8 @@ function tryAutoLogin(){
     applyPermissions();
     updateSidebarUser();
     renderHomeScreen();
-    var hs=document.getElementById('home-screen'); if(hs) hs.style.display='flex';
+    if(typeof setUiMode==='function' && typeof getUiMode==='function' && getUiMode()==='smart') setUiMode('smart');
+    var hs=document.getElementById('home-screen'); if(hs && getUiMode()!=='smart') hs.style.display='flex';
     var pv=document.getElementById('page-view');   if(pv) pv.style.display='none';
     return true;
   } catch(e){ return false; }
@@ -59779,6 +60093,521 @@ document.addEventListener('keydown', function(e){
 (function(){
   var ov=document.getElementById('modal-xl-import');
   if(ov)ov.addEventListener('click',function(e){if(e.target===ov)xlImportClose();});
+})();
+
+// ════════════════════════════════════════════════════════════════
+// SMART FACTORY MODE — Dual UI (Classic preserved + Smart Factory OS)
+// ════════════════════════════════════════════════════════════════
+(function(){
+  var SF_NAV = [
+    { label:'Dashboard', items:[
+      { id:'sf-home', icon:'layout-dashboard', label:'Control Center', action:'home' },
+      { id:'dashboard', icon:'bar-chart-3', label:'Production Summary', page:'dashboard' },
+      { id:'machines', icon:'cpu', label:'Machine Status', page:'machines', badgeKey:'machAlarm' },
+      { id:'hourlyboard', icon:'timer', label:'Hourly Board', page:'hourlyboard' }
+    ]},
+    { label:'Master Data', items:[
+      { id:'supplierreg', icon:'building-2', label:'Supplier', page:'supplierreg' },
+      { id:'rawmatreg', icon:'flask-conical', label:'Material', page:'rawmatreg' },
+      { id:'moldregistry', icon:'box', label:'Mold', page:'moldregistry' },
+      { id:'empreg', icon:'badge', label:'Employee', page:'empreg' },
+      { id:'machregistry', icon:'settings', label:'Machine Registry', page:'machregistry' }
+    ]},
+    { label:'Production', items:[
+      { id:'orders', icon:'clipboard-list', label:'Orders', page:'orders', arg:'all' },
+      { id:'timetable', icon:'gantt-chart', label:'Planning Timeline', page:'timetable', arg:'all' },
+      { id:'setup', icon:'wrench', label:'Setup Planning', page:'setup' },
+      { id:'dailyrpt', icon:'file-text', label:'Daily Report', page:'dailyrpt' }
+    ]},
+    { label:'QC', items:[
+      { id:'nganalysis', icon:'triangle-alert', label:'NG Analysis', page:'nganalysis' },
+      { id:'qcinspect', icon:'radar', label:'QC Points', page:'qcinspect' },
+      { id:'condstd', icon:'gauge', label:'Condition Std', page:'condstd' }
+    ]},
+    { label:'PM', items:[
+      { id:'machinepm', icon:'shield', label:'PM Schedule', page:'machinepm' },
+      { id:'molds', icon:'hammer', label:'Mold & PM', page:'molds' },
+      { id:'history', icon:'alert-octagon', label:'Breakdown Log', page:'history' }
+    ]},
+    { label:'Stock', items:[
+      { id:'stock', icon:'package', label:'FG Stock', page:'stock' },
+      { id:'rawmat', icon:'warehouse', label:'Raw Material', page:'rawmat' },
+      { id:'mbstock', icon:'palette', label:'MB Stock', page:'mbstock' }
+    ]},
+    { label:'KPI & HR', items:[
+      { id:'kpitargets', icon:'target', label:'KPI Targets', page:'kpitargets' },
+      { id:'hr', icon:'users', label:'HR', page:'hr' }
+    ]},
+    { label:'Settings', items:[
+      { id:'admin', icon:'shield-check', label:'Admin', page:'admin' }
+    ]}
+  ];
+
+  var _sfView = 'overview';
+  var _sfNotifications = [];
+  var _sfRefreshTimer = null;
+
+  function getUiMode(){
+    try{ return localStorage.getItem('_uiMode') || 'classic'; }catch(e){ return 'classic'; }
+  }
+
+  window.getUiMode = getUiMode;
+
+  function setUiMode(mode){
+    mode = (mode === 'smart') ? 'smart' : 'classic';
+    try{ localStorage.setItem('_uiMode', mode); }catch(e){}
+    document.body.setAttribute('data-ui-mode', mode);
+    document.documentElement.setAttribute('data-theme', mode === 'smart' ? 'smart' : 'classic');
+    var shell = document.getElementById('sf-shell');
+    if(shell){
+      shell.hidden = (mode !== 'smart');
+      shell.setAttribute('aria-hidden', mode !== 'smart' ? 'true' : 'false');
+    }
+    _updateUiModeButtons(mode);
+    if(mode === 'smart'){
+      _sfInitOnce();
+      goHomeSf();
+    } else {
+      var pv = document.getElementById('page-view');
+      if(pv) pv.classList.remove('sf-page-active');
+      var hs = document.getElementById('home-screen');
+      var onPage = pv && pv.style.display === 'flex';
+      if(onPage){
+        if(hs) hs.style.display = 'none';
+      } else {
+        if(hs) hs.style.display = 'flex';
+        if(pv) pv.style.display = 'none';
+      }
+    }
+    try{
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({ type:'pmf-ui-mode', mode: mode }, '*');
+      }
+    }catch(e){}
+    if(typeof _toast === 'function'){
+      _toast(mode === 'smart' ? '🏭 Smart Factory Mode' : '📋 Classic Mode');
+    }
+  }
+
+  window.setUiMode = setUiMode;
+
+  function toggleUiMode(){
+    setUiMode(getUiMode() === 'smart' ? 'classic' : 'smart');
+  }
+  window.toggleUiMode = toggleUiMode;
+
+  function _updateUiModeButtons(mode){
+    ['hs','pv'].forEach(function(s){
+      var btn = document.getElementById('ui-mode-toggle-' + s);
+      if(!btn) return;
+      if(mode === 'smart'){
+        btn.textContent = '📋 Classic';
+        btn.classList.add('sf-active');
+        btn.title = 'กลับ Classic Mode';
+      } else {
+        btn.textContent = '🏭 Smart';
+        btn.classList.remove('sf-active');
+        btn.title = 'เปิด Smart Factory Mode';
+      }
+    });
+    var c = document.getElementById('sf-mode-classic');
+    var sm = document.getElementById('sf-mode-smart');
+    if(c) c.classList.toggle('active', mode === 'classic');
+    if(sm) sm.classList.toggle('active', mode === 'smart');
+  }
+
+  function _sfLucide(){
+    try{ if(window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons(); }catch(e){}
+  }
+
+  function _sfInitOnce(){
+    if(window._sfInited) return;
+    window._sfInited = true;
+    _sfBuildNav();
+    _sfBindUi();
+    _sfSeedNotifications();
+    if(_sfRefreshTimer) clearInterval(_sfRefreshTimer);
+    _sfRefreshTimer = setInterval(function(){
+      if(getUiMode() !== 'smart') return;
+      var dash = document.getElementById('sf-dashboard');
+      if(dash && dash.offsetParent !== null) sfRenderCurrentView();
+    }, 30000);
+  }
+
+  function _sfBuildNav(){
+    var nav = document.getElementById('sf-nav');
+    if(!nav) return;
+    var html = '';
+    SF_NAV.forEach(function(sec){
+      html += '<div class="sf-nav-section"><div class="sf-nav-label">' + sec.label + '</div>';
+      sec.items.forEach(function(it){
+        html += '<div class="sf-nav-item" data-sf-nav="' + it.id + '" data-page="' + (it.page||'') + '" data-action="' + (it.action||'') + '" data-arg="' + (it.arg||'') + '">';
+        html += '<span class="sf-nav-ico"><i data-lucide="' + it.icon + '"></i></span>';
+        html += '<span class="sf-nav-txt">' + it.label + '</span>';
+        if(it.badgeKey) html += '<span class="sf-nav-badge" data-badge="' + it.badgeKey + '" style="display:none">0</span>';
+        html += '</div>';
+      });
+    });
+    nav.innerHTML = html;
+    nav.querySelectorAll('.sf-nav-item').forEach(function(el){
+      el.addEventListener('click', function(){
+        var action = el.getAttribute('data-action');
+        var page = el.getAttribute('data-page');
+        var arg = el.getAttribute('data-arg');
+        if(action === 'home') goHomeSf();
+        else if(page) sfOpenPage(page, arg || undefined);
+      });
+    });
+    var mob = document.getElementById('sf-mobile-nav');
+    if(mob){
+      var mhtml = '';
+      [{id:'sf-home',icon:'layout-dashboard',label:'Home',action:'home'},
+       {id:'machines',icon:'cpu',label:'Machines',page:'machines'},
+       {id:'orders',icon:'clipboard-list',label:'Orders',page:'orders',arg:'all'},
+       {id:'nganalysis',icon:'triangle-alert',label:'QC',page:'nganalysis'},
+       {id:'stock',icon:'package',label:'Stock',page:'stock'}].forEach(function(it){
+        mhtml += '<button type="button" data-sf-mob="' + it.id + '" data-page="' + (it.page||'') + '" data-action="' + (it.action||'') + '" data-arg="' + (it.arg||'') + '">';
+        mhtml += '<i data-lucide="' + it.icon + '"></i><span>' + it.label + '</span></button>';
+      });
+      mob.innerHTML = mhtml;
+      mob.querySelectorAll('button').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          if(btn.getAttribute('data-action') === 'home') goHomeSf();
+          else sfOpenPage(btn.getAttribute('data-page'), btn.getAttribute('data-arg') || undefined);
+        });
+      });
+    }
+    _sfLucide();
+  }
+
+  function _sfBindUi(){
+    var toggle = document.getElementById('sf-sidebar-toggle');
+    var shell = document.getElementById('sf-shell');
+    if(toggle && shell){
+      toggle.addEventListener('click', function(){
+        shell.classList.toggle('sf-sidebar-collapsed');
+        document.body.classList.toggle('sf-sidebar-is-collapsed');
+      });
+    }
+    document.querySelectorAll('#sf-view-tabs .sf-view-tab').forEach(function(tab){
+      tab.addEventListener('click', function(){
+        document.querySelectorAll('#sf-view-tabs .sf-view-tab').forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        _sfView = tab.getAttribute('data-sf-view') || 'overview';
+        sfRenderCurrentView();
+      });
+    });
+    var openN = document.getElementById('sf-notif-open');
+    var closeN = document.getElementById('sf-notif-close');
+    var overlay = document.getElementById('sf-drawer-overlay');
+    function closeDrawer(){
+      document.getElementById('sf-notif-drawer').classList.remove('open');
+      if(overlay) overlay.classList.remove('open');
+    }
+    if(openN) openN.addEventListener('click', function(){
+      document.getElementById('sf-notif-drawer').classList.add('open');
+      if(overlay) overlay.classList.add('open');
+      _sfRenderNotifDrawer();
+    });
+    if(closeN) closeN.addEventListener('click', closeDrawer);
+    if(overlay) overlay.addEventListener('click', closeDrawer);
+  }
+
+  function _sfMachineStats(){
+    var list = (typeof MACHINES !== 'undefined' && Array.isArray(MACHINES)) ? MACHINES : [];
+    var running = 0, idle = 0, down = 0, alarm = 0;
+    list.forEach(function(m){
+      var s = (m && m.status) || 'idle';
+      if(s === 'running') running++;
+      else if(s === 'alarm') alarm++;
+      else if(s === 'down') down++;
+      else idle++;
+    });
+    var total = list.length || 1;
+    var oee = Math.round(((running + alarm * 0.5) / total) * 100);
+    return { list: list, running: running, idle: idle, down: down, alarm: alarm, total: total, oee: oee };
+  }
+
+  function _sfSparkHtml(vals){
+    var max = Math.max.apply(null, vals.concat([1]));
+    return vals.map(function(v){
+      var h = Math.max(4, Math.round((v / max) * 100));
+      return '<span style="height:' + h + '%;background:#111"></span>';
+    }).join('');
+  }
+
+  function sfRenderCurrentView(){
+    if(_sfView === 'qc') sfRenderQcDashboard();
+    else if(_sfView === 'pm') sfRenderPmDashboard();
+    else if(_sfView === 'stock') sfRenderStockDashboard();
+    else sfRenderOverviewDashboard();
+    _sfUpdateBadges();
+    _sfLucide();
+  }
+
+  function sfRenderOverviewDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    var st = _sfMachineStats();
+    var title = document.getElementById('sf-header-title');
+    if(title) title.textContent = 'Smart Factory · Control Center';
+    var output = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.length : 0;
+    var ngRate = (st.down + st.alarm) > 0 ? ((st.down + st.alarm) / st.total * 100).toFixed(1) : '0.0';
+    el.innerHTML =
+      '<div class="sf-kpi-grid">' +
+        _sfKpiCard('Running Machine', st.running, '+' + Math.min(12, st.running) + '%', 'up', [40,55,48,62,58,70,65,st.running||8]) +
+        _sfKpiCard('OEE', st.oee + '%', (st.oee >= 75 ? '+' : '') + (st.oee - 72) + '%', st.oee >= 75 ? 'up' : 'down', [62,58,70,68,72,75,78,st.oee]) +
+        _sfKpiCard('Production Output', output, '+4.2%', 'up', [30,42,38,50,48,55,52,output||40]) +
+        _sfKpiCard('NG Rate', ngRate + '%', '-0.8%', 'down', [12,10,9,11,8,7,9,parseFloat(ngRate)||5]) +
+        _sfKpiCard('Downtime', st.down + st.alarm, st.down > 3 ? '+2' : '-1', st.down > 3 ? 'down' : 'up', [5,8,6,4,7,5,3,st.down]) +
+        _sfKpiCard('PM Due', Math.max(0, Math.floor(st.total * 0.08)), '3 due', 'down', [2,3,2,4,3,5,4,3]) +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        _sfWidgetMachines(st) +
+        _sfWidgetTimeline(st) +
+        _sfWidgetNotifFeed() +
+        _sfWidgetPareto() +
+        _sfWidgetOrders() +
+        _sfWidgetActivity() +
+      '</div>';
+  }
+
+  function _sfKpiCard(label, val, trend, dir, spark){
+    return '<div class="sf-kpi"><div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
+      '<div class="sf-kpi-val">' + val + '</div>' +
+      '<div class="sf-kpi-trend ' + dir + '">' + trend + ' vs yesterday</div>' +
+      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark) + '</div></div>';
+  }
+
+  function _sfWidgetMachines(st){
+    var cards = st.list.slice(0, 24).map(function(m){
+      var s = m.status || 'idle';
+      var chip = s === 'running' ? 'run' : (s === 'down' || s === 'alarm' ? 'down' : (s === 'setup' ? 'setup' : 'idle'));
+      var job = (m.currentJob && (m.currentJob.code || m.currentJob.id)) || '—';
+      return '<div class="sf-mach-card ' + s + '" onclick="sfOpenPage(\'machines\')">' +
+        '<div class="sf-mach-id">' + (m.id||'?') + '</div>' +
+        '<span class="sf-status-chip ' + chip + '">' + s.toUpperCase() + '</span>' +
+        '<div class="sf-mach-meta">Mold: ' + (m.currentMold||'—') + '<br>Order: ' + job + '</div></div>';
+    }).join('');
+    if(!cards) cards = '<div class="sf-empty">ไม่มีข้อมูลเครื่องจักร</div>';
+    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + st.running + ' running</span></div>' +
+      '<div class="sf-machine-grid">' + cards + '</div></div>';
+  }
+
+  function _sfWidgetTimeline(st){
+    var rows = st.list.slice(0, 8).map(function(m){
+      var segs = _sfFakeTimeline(m.status);
+      return '<div class="sf-tl-row"><span style="width:42px;font-weight:700">' + m.id + '</span><div class="sf-tl-bar">' + segs + '</div></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">Shift view</span></div>' +
+      '<div class="sf-timeline">' + (rows || '<div class="sf-empty">—</div>') + '</div></div>';
+  }
+
+  function _sfFakeTimeline(status){
+    var pat = { running:['idle','setup','run','run','run','idle'], down:['run','down','down','setup','idle'], alarm:['run','down','idle','idle'], idle:['idle','idle','setup','idle'] };
+    var arr = pat[status] || pat.idle;
+    return arr.map(function(k){
+      var cls = k === 'run' ? 'run' : (k === 'setup' ? 'setup' : (k === 'down' ? 'down' : 'idle'));
+      return '<span class="sf-tl-seg ' + cls + '" style="flex:' + (k==='run'?3:1) + '"></span>';
+    }).join('');
+  }
+
+  function _sfWidgetNotifFeed(){
+    var items = _sfNotifications.slice(0, 5).map(function(n){
+      return '<div class="sf-notif-item ' + n.priority + (n.read ? '' : ' unread') + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><span style="color:#6b7280">' + n.time + '</span></div></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Alerts</span></div>' +
+      '<div class="sf-notif-list">' + items + '</div></div>';
+  }
+
+  function _sfWidgetPareto(){
+    var bars = [88, 62, 45, 30, 22, 15].map(function(h,i){
+      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="Defect ' + (i+1) + '"></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-pareto">' + bars + '</div></div>';
+  }
+
+  function _sfWidgetOrders(){
+    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.slice(0, 6) : [];
+    var rows = orderList.map(function(o, i){
+      var pct = 30 + (i * 11) % 70;
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>' + (o.code||o.id||'Order') + '</span><span>' + pct + '%</span></div>' +
+        '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#111"></div></div></div>';
+    }).join('');
+    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ในระบบ</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div>' + rows + '</div>';
+  }
+
+  function _sfWidgetActivity(){
+  var acts = ['Operator login','Machine I012 → Running','QC hold lot L-8842','PM WO opened #442','Stock RM below min'];
+    var html = acts.map(function(a,i){
+      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px"><span style="color:#9ca3af">' + (10-i) + 'm</span>' + a + '</div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Real-time Activity</span></div>' + html + '</div>';
+  }
+
+  function sfRenderQcDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    document.getElementById('sf-header-title').textContent = 'QC Command Center';
+    var st = _sfMachineStats();
+    el.innerHTML =
+      '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
+        _sfKpiCard('NG Rate', ((st.down/st.total)*100).toFixed(1)+'%', '-0.3%', 'up', [8,7,6,7,5,6,5,4]) +
+        _sfKpiCard('PPM', '124', '-18', 'up', [200,180,160,150,140,130,124,120]) +
+        _sfKpiCard('Hold Lot', '3', '+1', 'down', [1,2,1,3,2,3,3,3]) +
+        _sfKpiCard('Approval Wait', '5', '0', 'up', [4,5,6,5,4,5,5,5]) +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">SPC Monitor</span></div><div class="sf-skeleton" style="height:140px"></div><p style="font-size:11px;color:#6b7280;margin-top:8px">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a> สำหรับรายละเอียด</p></div>' +
+        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto() + '</div>' +
+        _sfWidgetNotifFeed() +
+      '</div>';
+  }
+
+  function sfRenderPmDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    document.getElementById('sf-header-title').textContent = 'PM War Room';
+    var st = _sfMachineStats();
+    el.innerHTML =
+      '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
+        _sfKpiCard('Machine Health', '86%', '+2%', 'up', [78,80,82,83,84,85,86,86]) +
+        _sfKpiCard('Breakdown', st.down, st.down > 2 ? '+'+st.down : '0', st.down > 2 ? 'down' : 'up', [2,1,3,2,1,2,st.down,1]) +
+        _sfKpiCard('PM Due', Math.max(1, Math.floor(st.total*0.1)), 'today', 'down', [3,4,3,5,4,4,3,4]) +
+        _sfKpiCard('Downtime (hr)', (st.down * 1.2).toFixed(1), '-0.5h', 'up', [4,3,5,4,3,2,2,2]) +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        _sfWidgetTimeline(st) +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Work Orders</span></div><div class="sf-empty">เปิด <button class="sf-btn" onclick="sfOpenPage(\'machinepm\')">แผน PM</button> หรือ <button class="sf-btn" onclick="sfOpenPage(\'history\')">Breakdown Log</button></div></div>' +
+      '</div>';
+  }
+
+  function sfRenderStockDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    document.getElementById('sf-header-title').textContent = 'Warehouse Intelligence';
+    el.innerHTML =
+      '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
+        _sfKpiCard('Raw Material', 'OK', '2 low', 'down', [80,78,75,72,70,68,65,60]) +
+        _sfKpiCard('FG Stock', '12.4k', '+3%', 'up', [10,11,11,12,12,12,12,12]) +
+        _sfKpiCard('WIP', '2.1k', '0', 'up', [2,2.1,2,2.1,2.1,2.1,2.1,2.1]) +
+        _sfKpiCard('Near Empty', '4', '+1', 'down', [2,3,2,3,4,3,4,4]) +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><div class="sf-skeleton" style="height:100px"></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Aging Stock</div><div class="sf-skeleton" style="height:80px"></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Consumption</div><div class="sf-skeleton" style="height:80px"></div></div>' +
+      '</div>';
+  }
+
+  function _sfUpdateBadges(){
+    var st = _sfMachineStats();
+    var badge = document.querySelector('[data-badge="machAlarm"]');
+    if(badge){
+      var n = st.down + st.alarm;
+      badge.textContent = n;
+      badge.style.display = n > 0 ? '' : 'none';
+    }
+    var cnt = document.getElementById('sf-notif-count');
+    var unread = _sfNotifications.filter(function(n){ return !n.read; }).length;
+    if(cnt){ cnt.textContent = unread; cnt.style.display = unread ? '' : 'none'; }
+  }
+
+  function _sfSeedNotifications(){
+    _sfNotifications = [
+      { id:1, title:'Machine I007 — Breakdown', time:'2 min ago', priority:'crit', icon:'🔴', read:false },
+      { id:2, title:'QC Hold — Lot L-8842', time:'8 min ago', priority:'warn', icon:'🧪', read:false },
+      { id:3, title:'PM Due — I015', time:'25 min ago', priority:'info', icon:'🛠', read:false },
+      { id:4, title:'Stock RM-PP below min', time:'1 hr ago', priority:'warn', icon:'📦', read:true },
+      { id:5, title:'OEE target achieved Zone 2', time:'2 hr ago', priority:'info', icon:'✅', read:true }
+    ];
+  }
+
+  function _sfRenderNotifDrawer(){
+    var body = document.getElementById('sf-notif-drawer-body');
+    if(!body) return;
+    body.innerHTML = _sfNotifications.map(function(n){
+      return '<div class="sf-notif-item ' + n.priority + (n.read?'':' unread') + '" data-nid="' + n.id + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><small style="color:#9ca3af">' + n.time + '</small></div></div>';
+    }).join('');
+    body.querySelectorAll('.sf-notif-item').forEach(function(el){
+      el.addEventListener('click', function(){
+        var id = +el.getAttribute('data-nid');
+        var n = _sfNotifications.find(function(x){ return x.id === id; });
+        if(n) n.read = true;
+        _sfUpdateBadges();
+        _sfRenderNotifDrawer();
+      });
+    });
+  }
+
+  function goHomeSf(){
+    if(getUiMode() !== 'smart'){ goHome(); return; }
+    var pv = document.getElementById('page-view');
+    if(pv){ pv.classList.remove('sf-page-active'); pv.style.display = 'none'; }
+    var dash = document.getElementById('sf-dashboard');
+    if(dash) dash.style.display = 'block';
+    document.querySelectorAll('.sf-nav-item').forEach(function(n){ n.classList.remove('active'); });
+    var home = document.querySelector('[data-sf-nav="sf-home"]');
+    if(home) home.classList.add('active');
+    _sfView = 'overview';
+    document.querySelectorAll('#sf-view-tabs .sf-view-tab').forEach(function(t){
+      t.classList.toggle('active', t.getAttribute('data-sf-view') === 'overview');
+    });
+    sfRenderCurrentView();
+    var ht = document.getElementById('sf-header-title');
+    if(ht) ht.textContent = 'Smart Factory · Control Center';
+  }
+  window.goHomeSf = goHomeSf;
+
+  function sfOpenPage(pageId, arg){
+    if(getUiMode() !== 'smart') setUiMode('smart');
+    if(typeof showPage !== 'function') return;
+    showPage(pageId, null, arg);
+  }
+  window.sfOpenPage = sfOpenPage;
+
+  function _sfSyncAfterNavigate(pageId){
+    if(getUiMode() !== 'smart') return;
+    var pv = document.getElementById('page-view');
+    var dash = document.getElementById('sf-dashboard');
+    if(pv){
+      pv.classList.add('sf-page-active');
+      pv.style.display = 'flex';
+    }
+    if(dash) dash.style.display = 'none';
+    document.querySelectorAll('.sf-nav-item').forEach(function(n){
+      n.classList.toggle('active', n.getAttribute('data-page') === pageId);
+    });
+    var ht = document.getElementById('sf-header-title');
+    if(ht){
+      var items = (window.HOME_PAGES||[]).reduce(function(a,s){ return a.concat(s.items); }, []);
+      var entry = items.find(function(i){ return i.id === pageId; });
+      ht.textContent = entry ? entry.label : pageId;
+    }
+    _sfLucide();
+  }
+  window._sfSyncAfterNavigate = _sfSyncAfterNavigate;
+
+  window.addEventListener('message', function(ev){
+    try{
+      if(!ev.data || ev.data.type !== 'pmf-set-ui-mode') return;
+      setUiMode(ev.data.mode);
+    }catch(e){}
+  });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var mode = getUiMode();
+    document.body.setAttribute('data-ui-mode', mode);
+    document.documentElement.setAttribute('data-theme', mode === 'smart' ? 'smart' : 'classic');
+    _updateUiModeButtons(mode);
+    if(mode === 'smart'){
+      var shell = document.getElementById('sf-shell');
+      if(shell){ shell.hidden = false; shell.setAttribute('aria-hidden','false'); }
+      _sfInitOnce();
+      setTimeout(function(){ goHomeSf(); }, 50);
+    }
+  });
 })();
 </script>
   </div><!-- /pv-content -->
