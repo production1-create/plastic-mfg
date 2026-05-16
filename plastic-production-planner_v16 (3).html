@@ -412,8 +412,9 @@ body.light-mode #pv-title .hs-tt-line-icon { color: #1e7e34; }
 
 /* Scrollable page content — min-height:0 lets flex children scroll instead of overflowing below */
 #pv-content { flex: 1; min-height: 0; overflow: auto; }
+#pv-content > .main { width: 100%; min-height: 0; }
 #pv-content .page { display: none; padding: 24px 28px; }
-#pv-content .page.active { display: block; }
+#pv-content .page.active { display: block; scroll-margin-top: 4px; }
 
 /* keep legacy .page.active rule working */
 .page { display: none; padding: 22px 26px; }
@@ -9882,29 +9883,16 @@ function showPage(id, el, workGroup){
     if(un) un.textContent = AUTH.name||'';
   }
   function _resetScrollTop(){
-    // Primary scroll container (page-view)
-    var pc = document.getElementById('pv-content');
-    var activePg = document.getElementById('page-' + domPageId);
-    if(pc){
-      var targetTop = activePg ? Math.max(0, activePg.offsetTop - 2) : 0;
-      try {
-        // Scroll to the actual active page position (more reliable than 0
-        // when there are non-page nodes before .page elements).
-        pc.scrollTop = targetTop;
-      } catch(e){}
-      try { pc.scrollTo(0, targetTop); } catch(e){}
-    }
-    // Safety: if any browser still scrolls document, reset it too
+    scrollPvContentToActivePage(domPageId);
     try { document.documentElement.scrollTop = 0; } catch(e){}
     try { document.body.scrollTop = 0; } catch(e){}
   }
-  // Some render functions / focus can change scroll after initial paint,
-  // so reset a few times across frames.
   requestAnimationFrame(function(){
     _resetScrollTop();
     setTimeout(_resetScrollTop, 0);
     setTimeout(_resetScrollTop, 60);
     setTimeout(_resetScrollTop, 200);
+    setTimeout(_resetScrollTop, 400);
   });
   if(id==='admin') setTimeout(renderAdminPage, 0);
 }
@@ -35752,7 +35740,7 @@ function renderPage(id){
     var cdd=document.getElementById('cd-date');
     if(cdd&&!cdd.value) cdd.value=new Date().toISOString().split('T')[0];
   }
-  else if(id==='costanalysis') setTimeout(renderCostPage, 30);
+  else if(id==='costanalysis') setTimeout(function(){ renderCostPage(); scrollPvContentToActivePage('costanalysis'); }, 30);
   else if(id==='carbon-footprint') setTimeout(renderCarbonPage, 30);
   else if(id==='kpipresent')  setTimeout(kpiInit, 40);
   else if(id==='closedloop')  setTimeout(clInit, 40);
@@ -35760,7 +35748,7 @@ function renderPage(id){
   else if(id==='esignature')  setTimeout(esInit, 40);
   else if(id==='kpipresent') setTimeout(kpiInit, 30);
   // (duplicate closedloop/esignature handlers removed - handled below by showPage patch)
-  else if(id==='tps') setTimeout(tpsInit, 30);
+  else if(id==='tps') setTimeout(function(){ tpsInit(); scrollPvContentToActivePage('tps'); }, 30);
   else if(id==='kpimonth') setTimeout(kpiInit, 30);
   else if(id==='esignature') eSignInit();
   else if(id==='regrind') setTimeout(rgInit, 30); // wait for page visible so canvas has real offsetWidth
@@ -35769,6 +35757,11 @@ function renderPage(id){
   else if(id==='condcompare'){
     var cj=document.getElementById('cmp-job');
     if(cj&&cj.options.length<=1) cj.innerHTML='<option value="">-- เลือกงาน --</option>'+jobs.map(function(j){return '<option value="'+j.name+'">'+j.name+'</option>';}).join('');
+  }
+  if(typeof scrollPvContentToActivePage==='function'){
+    setTimeout(function(){
+      if(_pageDomIdFromPage(window._currentPage||'')===id) scrollPvContentToActivePage(id);
+    }, 100);
   }
 }
 
@@ -46543,6 +46536,23 @@ function setPageViewTitle(entry, fallback){
   } else {
     titleEl.textContent = (icon || '') + ' ' + label;
   }
+}
+/** เลื่อน #pv-content ให้หัวหน้า .page.active อยู่ด้านบน (แก้หน้าท้ายไฟล์ที่ offsetTop ผิด) */
+function scrollPvContentToActivePage(domPageId){
+  var pc = document.getElementById('pv-content');
+  if(!pc) return;
+  var pid = domPageId || (_pageDomIdFromPage(window._currentPage || '') || '');
+  var activePg = (pid && document.getElementById('page-' + pid)) || document.querySelector('#pv-content .page.active');
+  if(!activePg){ pc.scrollTop = 0; return; }
+  function apply(){
+    var pcRect = pc.getBoundingClientRect();
+    var pgRect = activePg.getBoundingClientRect();
+    var delta = pgRect.top - pcRect.top;
+    if(Math.abs(delta) > 1) pc.scrollTop = Math.max(0, pc.scrollTop + delta - 4);
+    else pc.scrollTop = Math.max(0, activePg.offsetTop - 4);
+  }
+  apply();
+  requestAnimationFrame(apply);
 }
 
 /** Nothing mode — minimalist line icons + optional red LED (หน้าเมนูหลัก) */
