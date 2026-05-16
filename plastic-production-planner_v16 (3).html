@@ -47897,8 +47897,11 @@ function pmfReloadFromStorage(){
 window.addEventListener('message', function(ev){
   try{
     if(!ev || !ev.data) return;
-    if(ev.data.type === 'pmf-sync-applied'){
+        if(ev.data.type === 'pmf-sync-applied'){
       pmfReloadFromStorage();
+      if(typeof getUiMode==='function' && getUiMode()==='smart' && typeof sfRenderCurrentView==='function'){
+        setTimeout(function(){ sfRenderCurrentView(); }, 150);
+      }
     }
   }catch(e){}
 }, false);
@@ -60313,27 +60316,234 @@ document.addEventListener('keydown', function(e){
     if(overlay) overlay.addEventListener('click', closeDrawer);
   }
 
-  function _sfMachineStats(){
-    var list = (typeof MACHINES !== 'undefined' && Array.isArray(MACHINES)) ? MACHINES : [];
-    var running = 0, idle = 0, down = 0, alarm = 0;
-    list.forEach(function(m){
-      var s = (m && m.status) || 'idle';
-      if(s === 'running') running++;
-      else if(s === 'alarm') alarm++;
-      else if(s === 'down') down++;
-      else idle++;
+  function _sfToday(){
+    return new Date().toISOString().split('T')[0];
+  }
+
+  function _sfDateOffset(days){
+    var d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  }
+
+  /** รวบรวมข้อมูลจริงจาก dailyReports / MACHINES / orders (ตาม logic Dashboard เดิม) */
+  function _sfCollectDashData(period){
+    period = period || 'day';
+    var today = _sfToday();
+    var yesterday = _sfDateOffset(-1);
+    var thisMonth = today.substring(0, 7);
+    var dr = (typeof dailyReports !== 'undefined' && dailyReports) ? dailyReports : {};
+    var allRpts = Object.values(dr);
+    var machList = (typeof MACHINES !== 'undefined' && Array.isArray(MACHINES)) ? MACHINES : [];
+    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders : [];
+
+    function rptInPeriod(rpt, p){
+      if(!rpt || !rpt.date) return false;
+      if(p === 'day') return rpt.date === today;
+      if(p === 'yesterday') return rpt.date === yesterday;
+      if(p === 'month') return rpt.date.startsWith(thisMonth);
+      return true;
+    }
+
+    function aggregateReports(rpts){
+      var totProd = 0, totNG = 0, totLT = 0, totTarget = 0, totOk = 0;
+      var ngByDefect = {}, ltByReason = {};
+      rpts.forEach(function(rpt){
+        (rpt.rows || []).forEach(function(r){
+          totProd += r.produced || 0;
+          totNG += r.ng || 0;
+          totLT += r.ltMins || 0;
+          totTarget += r.target || 0;
+          totOk += Math.max(0, (r.produced || 0) - (r.ng || 0));
+          if(r.ltReason && r.ltMins > 0) ltByReason[r.ltReason] = (ltByReason[r.ltReason] || 0) + (r.ltMins || 0);
+          (r.ngItems || []).forEach(function(n){
+            if(n.qty > 0 && n.defect) ngByDefect[n.defect] = (ngByDefect[n.defect] || 0) + (parseInt(n.qty, 10) || 0);
+          });
+        });
+      });
+      return { totProd: totProd, totNG: totNG, totLT: totLT, totTarget: totTarget, totOk: totOk, ngByDefect: ngByDefect, ltByReason: ltByReason };
+    }
+
+    var filtRpts = allRpts.filter(function(r){ return rptInPeriod(r, period); });
+    var yestRpts = allRpts.filter(function(r){ return rptInPeriod(r, 'yesterday'); });
+    var agg = aggregateReports(filtRpts);
+    var aggY = aggregateReports(yestRpts);
+
+    var runningMach = machList.filter(function(m){ return m.status === 'running' || m.status === 'alarm'; });
+    var oeeVals = runningMach.map(function(m){
+      if(typeof getMachineRunData === 'function') return parseFloat(getMachineRunData(m).oee);
+      return 0;
+    }).filter(function(v){ return v > 0; });
+    var avgOee = oeeVals.length ? (oeeVals.reduce(function(a, b){ return a + b; }, 0) / oeeVals.length) : null;
+
+    var todayRptMachines = {};
+    allRpts.forEach(function(r){ if(r.machine && r.date === today) todayRptMachines[r.machine] = r; });
+
+    var counts = { running: 0, alarm: 0, idle: 0, down: 0 };
+    machList.forEach(function(m){
+      var s = m.status || 'idle';
+      if(counts[s] !== undefined) counts[s]++;
+      else counts.idle++;
     });
-    var total = list.length || 1;
-    var oee = Math.round(((running + alarm * 0.5) / total) * 100);
-    return { list: list, running: running, idle: idle, down: down, alarm: alarm, total: total, oee: oee };
+
+    var ngPct = agg.totProd > 0 ? (agg.totNG / agg.totProd * 100) : 0;
+    var ngPctY = aggY.totProd > 0 ? (aggY.totNG / aggY.totProd * 100) : 0;
+    var ppm = agg.totProd > 0 ? Math.round(agg.totNG / agg.totProd * 1000000) : 0;
+
+    var pmDue = (typeof machinePMPlan !== 'undefined' && Array.isArray(machinePMPlan))
+      ? machinePMPlan.filter(function(p){ return p && p.status === 'รอดำเนินการ'; }).length : 0;
+
+    var apPending = 0;
+    if(typeof approvalProcDocs !== 'undefined' && Array.isArray(approvalProcDocs)){
+      var liveFn = typeof apDocIsLive === 'function' ? apDocIsLive : function(){ return true; };
+      apPending = approvalProcDocs.filter(liveFn).filter(function(d){
+        var s = d.status || '';
+        return s === 'รออนุมัติ' || s === 'รอผลิต' || !s;
+      }).length;
+    }
+
+    var overdue = orderList.filter(function(o){
+      return o.status !== 'พร้อมส่ง' && o.status !== 'ส่งแล้ว' && o.dueDate && new Date(o.dueDate) < new Date();
+    }).length;
+
+    var sparkProd = [], sparkOee = [], sparkNg = [], sparkLt = [];
+    for(var di = 6; di >= 0; di--){
+      var ds = _sfDateOffset(-di);
+      var dayAgg = aggregateReports(allRpts.filter(function(r){ return r.date === ds; }));
+      sparkProd.push(dayAgg.totProd);
+      sparkNg.push(dayAgg.totProd > 0 ? +(dayAgg.totNG / dayAgg.totProd * 100).toFixed(1) : 0);
+      var dayRun = machList.filter(function(m){ return m.status === 'running' || m.status === 'alarm'; });
+      var dayOee = dayRun.map(function(m){
+        var rpt = dr[m.id + '_' + ds];
+        if(!rpt || !rpt.rows) return 0;
+        var tp = 0, tn = 0, tt = (rpt.targetHr || 0) * 20;
+        rpt.rows.forEach(function(r){ tp += r.produced || 0; tn += r.ng || 0; });
+        return tt > 0 ? Math.min(100, (tp - tn) / tt * 100) : 0;
+      }).filter(function(v){ return v > 0; });
+      sparkOee.push(dayOee.length ? Math.round(dayOee.reduce(function(a, b){ return a + b; }, 0) / dayOee.length) : 0);
+      sparkLt.push(dayAgg.totLT);
+    }
+
+    var yestRptMach = {};
+    allRpts.forEach(function(r){ if(r.machine && r.date === yesterday) yestRptMach[r.machine] = 1; });
+    var yestRptCount = Object.keys(yestRptMach).length;
+    var todayRptCount = Object.keys(todayRptMachines).length;
+    var yestOeeVals = [];
+    machList.forEach(function(m){
+      var rptY = dr[m.id + '_' + yesterday];
+      if(!rptY || !rptY.rows) return;
+      var tp = 0, tt = (rptY.targetHr || 0) * 20;
+      rptY.rows.forEach(function(r){ tp += r.produced || 0; });
+      if(tt > 0) yestOeeVals.push(Math.min(100, tp / tt * 100));
+    });
+    var avgOeeY = yestOeeVals.length ? (yestOeeVals.reduce(function(a, b){ return a + b; }, 0) / yestOeeVals.length) : 0;
+
+    function trend(cur, prev, suffix, lowerIsBetter){
+      suffix = suffix || '';
+      var diff = cur - prev;
+      if(prev === 0 && cur === 0) return { text: '0' + suffix, dir: 'up' };
+      if(prev === 0) return { text: '+' + cur + suffix, dir: lowerIsBetter ? 'down' : 'up' };
+      var pct = ((diff / Math.abs(prev)) * 100).toFixed(1);
+      var sign = diff > 0 ? '+' : '';
+      var dir = diff > 0 ? (lowerIsBetter ? 'down' : 'up') : (diff < 0 ? (lowerIsBetter ? 'up' : 'down') : 'up');
+      if(diff === 0) dir = 'up';
+      return { text: sign + pct + '%' + suffix, dir: dir };
+    }
+
+    var machinesEnriched = machList.map(function(m){
+      var rpt = todayRptMachines[m.id] || null;
+      var ord = orderList.find(function(o){ return o.machine === m.id && (o.status === 'กำลังผลิต' || o.status === 'รอผลิต'); });
+      var run = typeof getMachineRunData === 'function' ? getMachineRunData(m) : {};
+      var mold = '—';
+      if(rpt && rpt.moldNo) mold = rpt.moldNo;
+      else if(rpt && rpt.mold) mold = rpt.mold;
+      else if(ord && ord.moldNo) mold = ord.moldNo;
+      var jobLabel = ord ? (ord.jobName || ord.orderNo || '—') : (m.currentJob || (rpt ? rpt.jobName : '') || '—');
+      if(typeof jobLabel === 'object') jobLabel = jobLabel.code || jobLabel.id || '—';
+      var displayStatus = m.status || 'idle';
+      if(rpt && (rpt.rows || []).some(function(r){ return (r.produced || 0) > 0; }) && displayStatus === 'idle') displayStatus = 'running';
+      return {
+        id: m.id, ton: m.ton, status: displayStatus, rawStatus: m.status,
+        mold: mold, job: String(jobLabel).substring(0, 28),
+        orderNo: ord ? ord.orderNo : (rpt ? rpt.orderNo : ''),
+        oee: run.oee || '—', prdProg: run.prdProg || '0',
+        rpt: rpt
+      };
+    });
+
+    machinesEnriched.sort(function(a, b){
+      var rank = { down: 0, alarm: 1, running: 2, idle: 3 };
+      return (rank[a.status] || 9) - (rank[b.status] || 9);
+    });
+
+    var alerts = [];
+    if(counts.down > 0) alerts.push({ icon: '🔴', priority: 'crit', title: 'เครื่องหยุดฉุกเฉิน ' + counts.down + ' เครื่อง', time: 'วันนี้' });
+    if(counts.alarm > 0) alerts.push({ icon: '🟠', priority: 'warn', title: 'Alarm ' + counts.alarm + ' เครื่อง', time: 'วันนี้' });
+    if(overdue > 0) alerts.push({ icon: '⏰', priority: 'crit', title: 'Order เกินกำหนดส่ง ' + overdue + ' รายการ', time: 'วันนี้' });
+    var matLow = Object.entries(typeof rawMatStock !== 'undefined' ? rawMatStock : {}).filter(function(e){
+      var s = e[1]; return s && !s._deleted && s.qty < (s.min || 500);
+    });
+    if(matLow.length) alerts.push({ icon: '🧪', priority: 'warn', title: 'วัตถุดิบต่ำกว่า Min: ' + matLow.map(function(x){ return x[0]; }).slice(0, 3).join(', '), time: 'Stock' });
+    if(pmDue > 0) alerts.push({ icon: '🛠', priority: 'info', title: 'แผน PM รอดำเนินการ ' + pmDue + ' รายการ', time: 'PM' });
+    if(!alerts.length) alerts.push({ icon: '✅', priority: 'info', title: 'ไม่มีการแจ้งเตือน — ระบบปกติ', time: 'ล่าสุด', read: true });
+
+    var fgTotal = 0, fgLow = 0;
+    Object.values(typeof fgStock !== 'undefined' ? fgStock : {}).forEach(function(s){
+      if(!s || s._deleted) return;
+      fgTotal += s.qty || 0;
+      if(s.qty < (s.min || 100)) fgLow++;
+    });
+
+    return {
+      period: period, today: today, filtRpts: filtRpts,
+      totProd: agg.totProd, totNG: agg.totNG, totLT: agg.totLT, totTarget: agg.totTarget,
+      ngByDefect: agg.ngByDefect, ltByReason: agg.ltByReason,
+      ngPct: ngPct, ppm: ppm, avgOee: avgOee,
+      running: counts.running, alarm: counts.alarm, idle: counts.idle, down: counts.down,
+      totalMach: machList.length, pmDue: pmDue, apPending: apPending, overdue: overdue,
+      machines: machinesEnriched, sparkProd: sparkProd, sparkOee: sparkOee, sparkNg: sparkNg, sparkLt: sparkLt,
+      trends: {
+        prod: trend(agg.totProd, aggY.totProd, '', false),
+        oee: trend(avgOee || 0, avgOeeY || 0, '%', false),
+        ng: trend(ngPct, ngPctY, '%', true),
+        lt: trend(agg.totLT, aggY.totLT, ' นาที', true),
+        run: trend(todayRptCount || (counts.running + counts.alarm), yestRptCount, ' เครื่อง', false),
+        pm: { text: pmDue + ' รายการ', dir: pmDue > 0 ? 'down' : 'up' }
+      },
+      todayRptCount: todayRptCount,
+      yestRptCount: yestRptCount,
+      avgOeeY: avgOeeY,
+      alerts: alerts,
+      fgTotal: fgTotal, fgLow: fgLow,
+      hasReportToday: Object.keys(todayRptMachines).length
+    };
+  }
+
+  function _sfMachineStats(){
+    var d = _sfCollectDashData('day');
+    return {
+      list: d.machines, running: d.running, idle: d.idle, down: d.down, alarm: d.alarm,
+      total: d.totalMach || 1, oee: d.avgOee != null ? Math.round(d.avgOee) : 0, dash: d
+    };
   }
 
   function _sfSparkHtml(vals){
     var max = Math.max.apply(null, vals.concat([1]));
+    if(max <= 0) max = 1;
     return vals.map(function(v){
-      var h = Math.max(4, Math.round((v / max) * 100));
-      return '<span style="height:' + h + '%;background:#111"></span>';
+      var h = Math.max(4, Math.round((Number(v) / max) * 100));
+      return '<span style="height:' + h + '%;background:#111" title="' + v + '"></span>';
     }).join('');
+  }
+
+  function _sfFmtNum(n){
+    if(n == null || n === '' || isNaN(n)) return '—';
+    return Number(n).toLocaleString('th-TH');
+  }
+
+  function _sfTrendHtml(t){
+    if(!t) return '';
+    return '<'+'div class="sf-kpi-trend ' + t.dir + '">' + t.text + ' vs เมื่อวาน</'+'div>';
   }
 
   function sfRenderCurrentView(){
@@ -60341,6 +60551,7 @@ document.addEventListener('keydown', function(e){
     else if(_sfView === 'pm') sfRenderPmDashboard();
     else if(_sfView === 'stock') sfRenderStockDashboard();
     else sfRenderOverviewDashboard();
+    _sfSyncNotificationsFromDash(_sfCollectDashData('day'));
     _sfUpdateBadges();
     _sfLucide();
   }
@@ -60348,137 +60559,174 @@ document.addEventListener('keydown', function(e){
   function sfRenderOverviewDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
-    var st = _sfMachineStats();
+    var d = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(d);
     var title = document.getElementById('sf-header-title');
     if(title) title.textContent = 'Smart Factory · Control Center';
-    var output = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.length : 0;
-    var ngRate = (st.down + st.alarm) > 0 ? ((st.down + st.alarm) / st.total * 100).toFixed(1) : '0.0';
-    el.innerHTML =
+    var oeeVal = d.avgOee != null ? Math.round(d.avgOee) : '—';
+    var subNote = d.filtRpts.length ? '' : '<p style="font-size:11px;color:#6b7280;margin:0 0 12px">ยังไม่มีรายงานผลิตวันนี้ — แสดงสถานะเครื่อง/Order จากข้อมูลล่าสุด</p>';
+    el.innerHTML = subNote +
       '<div class="sf-kpi-grid">' +
-        _sfKpiCard('Running Machine', st.running, '+' + Math.min(12, st.running) + '%', 'up', [40,55,48,62,58,70,65,st.running||8]) +
-        _sfKpiCard('OEE', st.oee + '%', (st.oee >= 75 ? '+' : '') + (st.oee - 72) + '%', st.oee >= 75 ? 'up' : 'down', [62,58,70,68,72,75,78,st.oee]) +
-        _sfKpiCard('Production Output', output, '+4.2%', 'up', [30,42,38,50,48,55,52,output||40]) +
-        _sfKpiCard('NG Rate', ngRate + '%', '-0.8%', 'down', [12,10,9,11,8,7,9,parseFloat(ngRate)||5]) +
-        _sfKpiCard('Downtime', st.down + st.alarm, st.down > 3 ? '+2' : '-1', st.down > 3 ? 'down' : 'up', [5,8,6,4,7,5,3,st.down]) +
-        _sfKpiCard('PM Due', Math.max(0, Math.floor(st.total * 0.08)), '3 due', 'down', [2,3,2,4,3,5,4,3]) +
+        _sfKpiCard('Running Machine', d.running + d.alarm, d.trends.run, d.sparkProd) +
+        _sfKpiCard('OEE', oeeVal + (oeeVal === '—' ? '' : '%'), d.trends.oee, d.sparkOee) +
+        _sfKpiCard('Production Output', _sfFmtNum(d.totProd), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('NG Rate', d.ngPct.toFixed(1) + '%', d.trends.ng, d.sparkNg) +
+        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT) + ' นาที', d.trends.lt, d.sparkLt) +
+        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [1,2,2,3,2,4,3,d.pmDue||0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetMachines(st) +
-        _sfWidgetTimeline(st) +
-        _sfWidgetNotifFeed() +
-        _sfWidgetPareto() +
-        _sfWidgetOrders() +
-        _sfWidgetActivity() +
+        _sfWidgetMachines(d) +
+        _sfWidgetTimeline(d) +
+        _sfWidgetNotifFeed(d) +
+        _sfWidgetPareto(d) +
+        _sfWidgetOrders(d) +
+        _sfWidgetActivity(d) +
       '</div>';
   }
 
-  function _sfKpiCard(label, val, trend, dir, spark){
+  function _sfKpiCard(label, val, trend, spark){
+    var trendHtml = (trend && typeof trend === 'object') ? _sfTrendHtml(trend) : '';
     return '<div class="sf-kpi"><div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
       '<div class="sf-kpi-val">' + val + '</div>' +
-      '<div class="sf-kpi-trend ' + dir + '">' + trend + ' vs yesterday</div>' +
-      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark) + '</div></div>';
+      trendHtml +
+      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark || []) + '</div></div>';
   }
 
-  function _sfWidgetMachines(st){
-    var cards = st.list.slice(0, 24).map(function(m){
+  function _sfWidgetMachines(d){
+    var list = (d.machines || []).slice(0, 24);
+    var cards = list.map(function(m){
       var s = m.status || 'idle';
       var chip = s === 'running' ? 'run' : (s === 'down' || s === 'alarm' ? 'down' : (s === 'setup' ? 'setup' : 'idle'));
-      var job = (m.currentJob && (m.currentJob.code || m.currentJob.id)) || '—';
+      var mold = m.mold || '—';
+      var job = m.orderNo || m.job || '—';
       return '<div class="sf-mach-card ' + s + '" onclick="sfOpenPage(\'machines\')">' +
         '<div class="sf-mach-id">' + (m.id||'?') + '</div>' +
         '<span class="sf-status-chip ' + chip + '">' + s.toUpperCase() + '</span>' +
-        '<div class="sf-mach-meta">Mold: ' + (m.currentMold||'—') + '<br>Order: ' + job + '</div></div>';
+        '<div class="sf-mach-meta">Mold: ' + mold + '<br>Order: ' + job + '</div></div>';
     }).join('');
     if(!cards) cards = '<div class="sf-empty">ไม่มีข้อมูลเครื่องจักร</div>';
-    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + st.running + ' running</span></div>' +
+    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + d.running + ' running · ' + d.todayRptCount + ' รายงานวันนี้</span></div>' +
       '<div class="sf-machine-grid">' + cards + '</div></div>';
   }
 
-  function _sfWidgetTimeline(st){
-    var rows = st.list.slice(0, 8).map(function(m){
-      var segs = _sfFakeTimeline(m.status);
+  function _sfTimelineFromRpt(rpt){
+    if(!rpt || !rpt.rows || !rpt.rows.length){
+      return '<span class="sf-tl-seg idle" style="flex:1" title="ไม่มีข้อมูล"></span>';
+    }
+    var sorted = rpt.rows.slice().sort(function(a,b){ return (parseInt(a.hour,10)||0) - (parseInt(b.hour,10)||0); });
+    var slice = sorted.length > 6 ? sorted.slice(-6) : sorted;
+    while(slice.length < 6) slice.unshift({ hour: '—', produced: 0, ltMins: 0 });
+    return slice.map(function(r){
+      var prod = r.produced || 0;
+      var lt = r.ltMins || 0;
+      var k = 'idle', flex = 1;
+      if(prod > 0 && lt === 0){ k = 'run'; flex = 3; }
+      else if(lt > 0 && prod === 0){ k = 'down'; flex = 2; }
+      else if(lt > 0 && prod > 0){ k = 'setup'; flex = 2; }
+      else if(prod > 0){ k = 'run'; flex = 2; }
+      return '<span class="sf-tl-seg ' + k + '" style="flex:' + flex + '" title="ชม.' + (r.hour!=null?r.hour:'?') + ': ' + prod + ' ชิ้น, LT ' + lt + 'm"></span>';
+    }).join('');
+  }
+
+  function _sfWidgetTimeline(d){
+    var rows = (d.machines || []).slice(0, 8).map(function(m){
+      var segs = _sfTimelineFromRpt(m.rpt);
       return '<div class="sf-tl-row"><span style="width:42px;font-weight:700">' + m.id + '</span><div class="sf-tl-bar">' + segs + '</div></div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">Shift view</span></div>' +
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">รายชั่วโมงวันนี้</span></div>' +
       '<div class="sf-timeline">' + (rows || '<div class="sf-empty">—</div>') + '</div></div>';
   }
 
-  function _sfFakeTimeline(status){
-    var pat = { running:['idle','setup','run','run','run','idle'], down:['run','down','down','setup','idle'], alarm:['run','down','idle','idle'], idle:['idle','idle','setup','idle'] };
-    var arr = pat[status] || pat.idle;
-    return arr.map(function(k){
-      var cls = k === 'run' ? 'run' : (k === 'setup' ? 'setup' : (k === 'down' ? 'down' : 'idle'));
-      return '<span class="sf-tl-seg ' + cls + '" style="flex:' + (k==='run'?3:1) + '"></span>';
-    }).join('');
-  }
-
-  function _sfWidgetNotifFeed(){
-    var items = _sfNotifications.slice(0, 5).map(function(n){
+  function _sfWidgetNotifFeed(d){
+    var items = (d && d.alerts ? d.alerts : _sfNotifications).slice(0, 5).map(function(n){
       return '<div class="sf-notif-item ' + n.priority + (n.read ? '' : ' unread') + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><span style="color:#6b7280">' + n.time + '</span></div></div>';
     }).join('');
+    if(!items) items = '<div class="sf-empty">ไม่มีการแจ้งเตือน</div>';
     return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Alerts</span></div>' +
       '<div class="sf-notif-list">' + items + '</div></div>';
   }
 
-  function _sfWidgetPareto(){
-    var bars = [88, 62, 45, 30, 22, 15].map(function(h,i){
-      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="Defect ' + (i+1) + '"></div>';
+  function _sfWidgetPareto(d){
+    d = d || _sfCollectDashData('day');
+    var sorted = Object.entries(d.ngByDefect || {}).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 6);
+    if(!sorted.length){
+      return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-empty" style="padding:24px">ยังไม่มีข้อมูล NG วันนี้</div></div>';
+    }
+    var maxVal = sorted[0][1] || 1;
+    var bars = sorted.map(function(e){
+      var h = Math.max(8, Math.round(e[1] / maxVal * 100));
+      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="' + e[0] + ': ' + e[1] + '"></div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-pareto">' + bars + '</div></div>';
+    var labels = sorted.map(function(e){
+      return '<span style="font-size:8px;color:#6b7280;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + e[0] + '">' + String(e[0]).substring(0,8) + '</span>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span><span class="sf-widget-sub">' + _sfFmtNum(d.totNG) + ' NG / ' + _sfFmtNum(d.totProd) + ' ชิ้น</span></div>' +
+      '<div class="sf-pareto">' + bars + '</div><div style="display:flex;justify-content:space-around;margin-top:6px">' + labels + '</div></div>';
   }
 
-  function _sfWidgetOrders(){
-    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.slice(0, 6) : [];
-    var rows = orderList.map(function(o, i){
-      var pct = 30 + (i * 11) % 70;
-      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>' + (o.code||o.id||'Order') + '</span><span>' + pct + '%</span></div>' +
+  function _sfWidgetOrders(d){
+    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders))
+      ? orders.filter(function(o){ return o.status === 'กำลังผลิต' || o.status === 'รอผลิต'; }).slice(0, 6)
+      : [];
+    var rows = orderList.map(function(o){
+      var pct = o.qty > 0 ? Math.round((o.produced || 0) / o.qty * 100) : 0;
+      var label = o.orderNo || o.code || o.id || 'Order';
+      var sub = (o.jobName || '').substring(0, 24);
+      return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="font-weight:700">' + label + '</span><span>' + pct + '%</span></div>' +
+        (sub ? '<div style="font-size:9px;color:#6b7280;margin-bottom:4px">' + sub + '</div>' : '') +
         '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#111"></div></div></div>';
     }).join('');
-    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ในระบบ</div>';
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div>' + rows + '</div>';
+    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ที่กำลังผลิต</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span><span class="sf-widget-sub">' + orderList.length + ' รายการ</span></div>' + rows + '</div>';
   }
 
-  function _sfWidgetActivity(){
-  var acts = ['Operator login','Machine I012 → Running','QC hold lot L-8842','PM WO opened #442','Stock RM below min'];
-    var html = acts.map(function(a,i){
-      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px"><span style="color:#9ca3af">' + (10-i) + 'm</span>' + a + '</div>';
+  function _sfWidgetActivity(d){
+    var acts = (d && d.alerts ? d.alerts : []).slice(0, 5);
+    if(!acts.length){
+      acts = [{ title: 'ระบบพร้อมใช้งาน', time: 'ล่าสุด', icon: '✅', priority: 'info' }];
+    }
+    var html = acts.map(function(a){
+      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;align-items:flex-start"><span>' + (a.icon||'•') + '</span><div><div>' + a.title + '</div><span style="color:#9ca3af;font-size:10px">' + (a.time||'') + '</span></div></div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Real-time Activity</span></div>' + html + '</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Activity & Alerts</span></div>' + html + '</div>';
   }
+
 
   function sfRenderQcDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'QC Command Center';
-    var st = _sfMachineStats();
+    var d = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(d);
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('NG Rate', ((st.down/st.total)*100).toFixed(1)+'%', '-0.3%', 'up', [8,7,6,7,5,6,5,4]) +
-        _sfKpiCard('PPM', '124', '-18', 'up', [200,180,160,150,140,130,124,120]) +
-        _sfKpiCard('Hold Lot', '3', '+1', 'down', [1,2,1,3,2,3,3,3]) +
-        _sfKpiCard('Approval Wait', '5', '0', 'up', [4,5,6,5,4,5,5,5]) +
+        _sfKpiCard('NG Rate', d.ngPct.toFixed(2) + '%', d.trends.ng, d.sparkNg) +
+        _sfKpiCard('PPM', _sfFmtNum(d.ppm), d.trends.ng, d.sparkNg) +
+        _sfKpiCard('NG ชิ้น', _sfFmtNum(d.totNG), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('รออนุมัติ', d.apPending, { text: String(d.apPending), dir: d.apPending > 0 ? 'down' : 'up' }, [0,1,2,1,2,1,d.apPending,0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">SPC Monitor</span></div><div class="sf-skeleton" style="height:140px"></div><p style="font-size:11px;color:#6b7280;margin-top:8px">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a> สำหรับรายละเอียด</p></div>' +
-        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto() + '</div>' +
-        _sfWidgetNotifFeed() +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">สรุป NG วันนี้</span></div><p style="font-size:12px;color:#374151;margin:8px 0">ผลิต ' + _sfFmtNum(d.totProd) + ' ชิ้น · NG ' + _sfFmtNum(d.totNG) + ' · PPM ' + _sfFmtNum(d.ppm) + '</p><p style="font-size:11px;color:#6b7280">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a></p></div>' +
+        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto(d) + '</div>' +
+        _sfWidgetNotifFeed(d) +
       '</div>';
   }
-
   function sfRenderPmDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'PM War Room';
-    var st = _sfMachineStats();
+    var d = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(d);
+    var health = d.totalMach ? Math.round((d.totalMach - d.down) / d.totalMach * 100) : 0;
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Machine Health', '86%', '+2%', 'up', [78,80,82,83,84,85,86,86]) +
-        _sfKpiCard('Breakdown', st.down, st.down > 2 ? '+'+st.down : '0', st.down > 2 ? 'down' : 'up', [2,1,3,2,1,2,st.down,1]) +
-        _sfKpiCard('PM Due', Math.max(1, Math.floor(st.total*0.1)), 'today', 'down', [3,4,3,5,4,4,3,4]) +
-        _sfKpiCard('Downtime (hr)', (st.down * 1.2).toFixed(1), '-0.5h', 'up', [4,3,5,4,3,2,2,2]) +
+        _sfKpiCard('Machine Health', health + '%', { text: d.down + ' down', dir: d.down > 0 ? 'down' : 'up' }, d.sparkOee) +
+        _sfKpiCard('Breakdown', d.down, { text: String(d.down), dir: d.down > 0 ? 'down' : 'up' }, [2,1,3,2,1,2,d.down,1]) +
+        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [3,4,3,5,4,4,3,d.pmDue||0]) +
+        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT) + ' นาที', d.trends.lt, d.sparkLt) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetTimeline(st) +
+        _sfWidgetTimeline(d) +
         '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Work Orders</span></div><div class="sf-empty">เปิด <button class="sf-btn" onclick="sfOpenPage(\'machinepm\')">แผน PM</button> หรือ <button class="sf-btn" onclick="sfOpenPage(\'history\')">Breakdown Log</button></div></div>' +
       '</div>';
   }
@@ -60487,17 +60735,22 @@ document.addEventListener('keydown', function(e){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'Warehouse Intelligence';
+    var d = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(d);
+    var matLow = Object.entries(typeof rawMatStock !== 'undefined' ? rawMatStock : {}).filter(function(e){
+      var st = e[1]; return st && !st._deleted && st.qty < (st.min || 500);
+    }).length;
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Raw Material', 'OK', '2 low', 'down', [80,78,75,72,70,68,65,60]) +
-        _sfKpiCard('FG Stock', '12.4k', '+3%', 'up', [10,11,11,12,12,12,12,12]) +
-        _sfKpiCard('WIP', '2.1k', '0', 'up', [2,2.1,2,2.1,2.1,2.1,2.1,2.1]) +
-        _sfKpiCard('Near Empty', '4', '+1', 'down', [2,3,2,3,4,3,4,4]) +
+        _sfKpiCard('Raw Material', matLow ? matLow + ' ต่ำ Min' : 'OK', { text: matLow + ' low', dir: matLow > 0 ? 'down' : 'up' }, [80,78,75,72,70,68,65,matLow||0]) +
+        _sfKpiCard('FG Stock', _sfFmtNum(d.fgTotal), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('FG ต่ำ Min', d.fgLow, { text: String(d.fgLow), dir: d.fgLow > 0 ? 'down' : 'up' }, [2,3,2,3,4,3,4,d.fgLow||0]) +
+        _sfKpiCard('Order เกินกำหนด', d.overdue, { text: String(d.overdue), dir: d.overdue > 0 ? 'down' : 'up' }, [0,1,0,2,1,1,d.overdue,0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><div class="sf-skeleton" style="height:100px"></div></div>' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Aging Stock</div><div class="sf-skeleton" style="height:80px"></div></div>' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Consumption</div><div class="sf-skeleton" style="height:80px"></div></div>' +
+        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><p style="font-size:12px;padding:12px;color:#374151">FG รวม ' + _sfFmtNum(d.fgTotal) + ' ชิ้น · รายการต่ำกว่า Min ' + d.fgLow + ' รายการ</p></div>' +
+        _sfWidgetNotifFeed(d) +
+        _sfWidgetOrders(d) +
       '</div>';
   }
 
@@ -60514,14 +60767,15 @@ document.addEventListener('keydown', function(e){
     if(cnt){ cnt.textContent = unread; cnt.style.display = unread ? '' : 'none'; }
   }
 
+  function _sfSyncNotificationsFromDash(d){
+    if(!d) d = _sfCollectDashData('day');
+    _sfNotifications = (d.alerts || []).map(function(a, i){
+      return { id: i + 1, title: a.title, time: a.time, priority: a.priority, icon: a.icon, read: !!a.read };
+    });
+  }
+
   function _sfSeedNotifications(){
-    _sfNotifications = [
-      { id:1, title:'Machine I007 — Breakdown', time:'2 min ago', priority:'crit', icon:'🔴', read:false },
-      { id:2, title:'QC Hold — Lot L-8842', time:'8 min ago', priority:'warn', icon:'🧪', read:false },
-      { id:3, title:'PM Due — I015', time:'25 min ago', priority:'info', icon:'🛠', read:false },
-      { id:4, title:'Stock RM-PP below min', time:'1 hr ago', priority:'warn', icon:'📦', read:true },
-      { id:5, title:'OEE target achieved Zone 2', time:'2 hr ago', priority:'info', icon:'✅', read:true }
-    ];
+    _sfSyncNotificationsFromDash(_sfCollectDashData('day'));
   }
 
   function _sfRenderNotifDrawer(){
