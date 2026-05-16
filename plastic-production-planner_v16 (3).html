@@ -347,6 +347,18 @@ body.nothing-mode .hs-order-line-icon { color: #000; }
 body.light-mode .hs-approval-line-icon { color: #7c3aed; }
 body.nothing-mode .hs-approval-line-icon { color: #000; }
 
+/* Timetable line dept tiles T1–T7 */
+.hs-tt-line-icon {
+  font-weight: 900;
+  font-size: 17px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #56d364;
+}
+body.light-mode .hs-tt-line-icon { color: #1e7e34; }
+body.nothing-mode .hs-tt-line-icon { color: #000; }
+
 /* ════════════════════════════════════
    PAGE VIEW (opened on icon tap)
 ════════════════════════════════════ */
@@ -1415,7 +1427,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 15B --><div class="nav-item" onclick="showPage('orders',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">15B</span> Order (ประกอบ · สกรีน · พ่น)</div>
     <!-- 15C --><div class="nav-item" onclick="showPage('order-await',this)"><span class="nav-icon">📦</span><span class="nav-seq">15C</span> Order ผลิตจบ — รอส่ง</div>
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
-    <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this)"><span class="nav-icon">📅</span><span class="nav-seq">17</span> แผนการผลิต (Time Table)</div>
+    <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this,'all')"><span class="nav-icon">📅</span><span class="nav-seq">17</span> Time Table รวม (7 แผนก)</div>
+    <!-- T1 --><div class="nav-item" onclick="showPage('timetable-t1',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T1</span><span class="nav-seq">T1</span> Time Table ฉีด Zone 1</div>
+    <div class="nav-item" onclick="showPage('timetable-t2',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T2</span><span class="nav-seq">T2</span> Time Table ฉีด Zone 2</div>
+    <div class="nav-item" onclick="showPage('timetable-t3',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T3</span><span class="nav-seq">T3</span> Time Table ฉีด Zone 3</div>
+    <div class="nav-item" onclick="showPage('timetable-t4',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T4</span><span class="nav-seq">T4</span> Time Table ฉีด Zone 4</div>
+    <div class="nav-item" onclick="showPage('timetable-t5',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T5</span><span class="nav-seq">T5</span> Time Table ฉีดยานยนต์</div>
+    <div class="nav-item" onclick="showPage('timetable-t6',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T6</span><span class="nav-seq">T6</span> Time Table แผนกประกอบ</div>
+    <div class="nav-item" onclick="showPage('timetable-t7',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T7</span><span class="nav-seq">T7</span> Time Table พ่น · สกรีน</div>
     <!-- 16B --> <div class="nav-item" onclick="showPage('setup',this)"><span class="nav-icon">🛠️</span><span class="nav-seq">17B</span> Setup Planning</div>
     <!-- 16C --> <div class="nav-item" onclick="showPage('setup-tt',this)"><span class="nav-icon">📆</span><span class="nav-seq">17C</span> Setup Time Table</div>
     <!-- 16D --> <div class="nav-item" onclick="showPage('setup-std',this)"><span class="nav-icon">📏</span><span class="nav-seq">17D</span> STD SET UP</div>
@@ -2070,7 +2089,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div class="page-header">
     <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:10px">
       <div>
-        <div class="page-title">Production Time Table</div>
+        <div class="page-title">Production Time Table <span id="tt-dept-badge" style="display:none;font-size:12px;font-weight:600;padding:2px 10px;margin-left:8px;border-radius:8px;background:rgba(56,139,253,0.15);color:#388bfd;vertical-align:middle"></span></div>
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-T001</div>
       </div>
       <div class="flex gap-2" style="align-items:center;flex-wrap:wrap">
@@ -9412,7 +9431,14 @@ var _navMenuList = [
   {id:'approvalproc-a7', label:'ใบอนุมัติ พ่น สกรีน',      icon:'A7', group:'🏭 การผลิต',     keywords:'approval a7 spray screen'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ฉีด)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ครบจำนวน archive', workGroup:'injection'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน)', icon:'✅', group:'🏭 การผลิต', keywords:'ใบอนุมัติ จบ lot ประกอบ', workGroup:'postprocess'},
-  {id:'timetable',    label:'Time Table',              icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule'},
+  {id:'timetable',    label:'Time Table รวม (7 แผนก)', icon:'📅', group:'🏭 การผลิต',     keywords:'timetable ตาราง schedule รวม ภาพรวม', workGroup:'all'},
+  {id:'timetable-t1', label:'Time Table ฉีด Zone 1',   icon:'T1', group:'🏭 การผลิต',     keywords:'timetable t1 zone1 i033'},
+  {id:'timetable-t2', label:'Time Table ฉีด Zone 2',   icon:'T2', group:'🏭 การผลิต',     keywords:'timetable t2 zone2'},
+  {id:'timetable-t3', label:'Time Table ฉีด Zone 3',   icon:'T3', group:'🏭 การผลิต',     keywords:'timetable t3 zone3 cpr09'},
+  {id:'timetable-t4', label:'Time Table ฉีด Zone 4',   icon:'T4', group:'🏭 การผลิต',     keywords:'timetable t4 zone4'},
+  {id:'timetable-t5', label:'Time Table ฉีดยานยนต์',   icon:'T5', group:'🏭 การผลิต',     keywords:'timetable t5 automotive'},
+  {id:'timetable-t6', label:'Time Table แผนกประกอบ',  icon:'T6', group:'🏭 การผลิต',     keywords:'timetable t6 assembly'},
+  {id:'timetable-t7', label:'Time Table พ่น สกรีน',    icon:'T7', group:'🏭 การผลิต',     keywords:'timetable t7 spray screen'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', group:'🏭 การผลิต',     keywords:'bom bill of materials สูตร'},
   // วัตถุดิบ
   {id:'mixing',       label:'แผนผสมเม็ด',              icon:'🧪', group:'🧪 วัตถุดิบ',    keywords:'ผสมเม็ด mixing blend สูตรผสม'},
@@ -9763,6 +9789,7 @@ function showPage(id, el, workGroup){
   var domPageId = (id==='approvalproc-done') ? 'approvalproc' : id;
   var lineDept = _ordersPageIdToWorkGroup(id);
   var apLineDept = _approvalPageIdToDeptKey(id);
+  var ttLineDept = _timetablePageIdToDeptKey(id);
   if(lineDept){
     domPageId = 'orders';
     window._ordersWorkGroup = lineDept;
@@ -9771,6 +9798,10 @@ function showPage(id, el, workGroup){
     domPageId = 'approvalproc';
     window._apWorkGroup = apLineDept;
     window._apListTab = 'active';
+  }
+  if(ttLineDept){
+    domPageId = 'timetable';
+    ttApplyLineDeptOnOpen(ttLineDept);
   }
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
     var okApArchive = (id==='approvalproc-done' && AUTH.pages.includes('approvalproc'));
@@ -9789,6 +9820,10 @@ function showPage(id, el, workGroup){
   } else if(id==='approvalproc' && !apLineDept){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
     window._apListTab = 'active';
+  } else if(id==='timetable' && !ttLineDept){
+    window._ttLineDept = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+    if(window._ttLineDept==='all' || !window._ttLineDept) ttApplyLineDeptOnOpen(window._ttLineDept||'all');
+    else ttApplyLineDeptOnOpen(window._ttLineDept);
   } else if(id==='carbon-footprint'){
     window._carbonTab = (typeof workGroup==='string' && workGroup) ? workGroup : (window._carbonTab||'dash');
   }
@@ -9810,13 +9845,14 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = apLineDept || lineDept || ((pageId==='jobreg'||pageId==='orders') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : ((pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._apWorkGroup||'')) : ''));
+    var wg = ttLineDept || apLineDept || lineDept || ((pageId==='jobreg'||pageId==='orders') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : ((pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._apWorkGroup||'')) : (_isTimetablePageId(pageId) ? (typeof workGroup==='string'?workGroup:(window._ttLineDept||'')) : '')));
     var entry = allItems.find(function(i){return i.id===pageId && (i.workGroup===wg || (!wg && !i.workGroup));});
     if(!entry && wg) entry = allItems.find(function(i){return i.id===pageId && i.workGroup===wg;});
-    if(!entry && (lineDept||apLineDept)) entry = allItems.find(function(i){return i.id===pageId;});
+    if(!entry && (lineDept||apLineDept||ttLineDept)) entry = allItems.find(function(i){return i.id===pageId;});
     if(!entry && pageId==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
     if(!entry && domPageId==='orders') entry = {icon:'📋', label:_ordersLineDeptLabel(wg)||'Order & แผนผลิต'};
     if(!entry && domPageId==='approvalproc') entry = {icon:'✅', label:_approvalLineDeptLabel(wg)||'ใบอนุมัติกระบวนการ'};
+    if(!entry && domPageId==='timetable') entry = {icon:'📅', label:_ttLineDeptLabel(wg)||'Production Time Table'};
     if(!entry && pageId==='approvalproc-done'){
       entry = wg==='postprocess'
         ? {icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน·พ่น)'}
@@ -11875,7 +11911,7 @@ function _ordersPageIdToWorkGroup(pageId){
 }
 /** แปลง a1/o1 → o1 สำหรับ lookup ใน ORDER_LINE_DEPTS */
 function _lineDeptKeyNorm(key){
-  var m = String(key||'').match(/^[ao]([1-7])$/);
+  var m = String(key||'').match(/^[aot]([1-7])$/i);
   return m ? ('o'+m[1]) : String(key||'');
 }
 function _matchesLineDeptByMachine(machine, deptKey){
@@ -11922,6 +11958,52 @@ function _approvalLineDeptLabel(wg){
 function _approvalPageIdToDeptKey(pageId){
   var m = String(pageId||'').match(/^approvalproc-(a[1-7])$/);
   return m ? m[1] : '';
+}
+
+window._ttLineDept = window._ttLineDept || '';
+function _timetablePageIdToDeptKey(pageId){
+  var m = String(pageId||'').match(/^timetable-(t[1-7])$/);
+  return m ? m[1] : '';
+}
+function _isTimetablePageId(pageId){
+  return pageId==='timetable' || /^timetable-t[1-7]$/.test(String(pageId||''));
+}
+function _ttMachineInLineDept(machId, deptKey){
+  return _matchesLineDeptByMachine(machId, deptKey);
+}
+function _ttJobInLineDept(j){
+  var wg = window._ttLineDept || '';
+  if(!wg) return true;
+  if(wg==='all') return ORDER_LINE_DEPT_KEYS.some(function(k){ return _ttMachineInLineDept(j.machine, k); });
+  return _ttMachineInLineDept(j.machine, wg);
+}
+function _ttLineDeptLabel(wg){
+  if(wg==='all') return 'Time Table รวม — ทุกแผนก (7 ไลน์)';
+  var cfg = ORDER_LINE_DEPTS[_lineDeptKeyNorm(wg)];
+  return cfg ? ('Time Table — '+cfg.label) : '';
+}
+function ttApplyLineDeptOnOpen(deptKey){
+  window._ttLineDept = deptKey || '';
+  if(!deptKey || deptKey==='all') return;
+  var cfg = ORDER_LINE_DEPTS[_lineDeptKeyNorm(deptKey)];
+  if(cfg && (cfg.filter==='assembly' || cfg.filter==='secondary')){
+    window._ttSheet = 'assembly';
+  } else {
+    window._ttSheet = 'injection';
+  }
+}
+function ttFilterMachinesByLineDept(machList){
+  var wg = window._ttLineDept || '';
+  if(!wg) return machList;
+  if(wg==='all'){
+    return machList.filter(function(m){
+      return ORDER_LINE_DEPT_KEYS.some(function(k){ return _ttMachineInLineDept(m.id, k); });
+    });
+  }
+  return machList.filter(function(m){ return _ttMachineInLineDept(m.id, wg); });
+}
+function ttRowsForDept(dk){
+  return ttLiveRows(dk).filter(function(j){ return _ttJobInLineDept(j); });
 }
 
 /** เดากลุ่มงานจากเครื่องในทะเบียนจักร / ประเภทกระบวนการ (เมื่อไม่มี registryWorkGroup) */
@@ -12500,7 +12582,7 @@ function jobregSave(){
   syncOrdersPlasticFromJobBom(name, obj.plastic, obj.grade);
   if(typeof renderOrdersTable==='function') renderOrdersTable();
   if(typeof renderMixing==='function') renderMixing();
-  if(window._currentPage==='timetable'&&typeof renderTT==='function') renderTT();
+  if(_isTimetablePageId(window._currentPage)&&typeof renderTT==='function') renderTT();
   closeModal('modal-job-edit');
   renderJobRegistry();
   if(typeof renderBom==='function' && window._currentPage==='bom') renderBom();
@@ -17396,7 +17478,7 @@ function importToTT(orderNo){
   if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage();
   if(typeof renderDelivery==='function') renderDelivery();
   // Re-render TT if visible
-  if(window._currentPage==='timetable') setTimeout(renderTT,100);
+  if(_isTimetablePageId(window._currentPage)) setTimeout(renderTT,100);
 }
 
 function deleteTTEntry(machine, date, orderNo){
@@ -17657,7 +17739,7 @@ function renderTT(){
       var dd = new Date(date + 'T12:00:00');
       dd.setDate(dd.getDate() + di);
       var ds = dd.toISOString().split('T')[0];
-      ttLiveRows(ds).forEach(function(j){
+      ttRowsForDept(ds).forEach(function(j){
         if(ttJobPlanningGroup(j) === 'assembly') tmpSet.add(j.machine || '');
       });
     }
@@ -17680,6 +17762,17 @@ function renderTT(){
   if(pickArr.length > 0){
     machineList = machineList.filter(function(m){ return pickArr.indexOf(m.id) >= 0; });
   }
+  machineList = typeof ttFilterMachinesByLineDept === 'function' ? ttFilterMachinesByLineDept(machineList) : machineList;
+  var ttDeptBadge = document.getElementById('tt-dept-badge');
+  if(ttDeptBadge){
+    var tl = _ttLineDeptLabel(window._ttLineDept || '');
+    if(tl && window._ttLineDept){ ttDeptBadge.textContent = tl; ttDeptBadge.style.display = 'inline'; }
+    else { ttDeptBadge.style.display = 'none'; ttDeptBadge.textContent = ''; }
+  }
+  if(zoneSel && window._ttLineDept && (window._ttLineDept === 'all' || /^t[1-7]$/.test(window._ttLineDept))){
+    zoneSel.disabled = true;
+    zoneSel.title = 'กรองตามเมนูที่เปิด';
+  } else if(zoneSel){ zoneSel.disabled = false; zoneSel.title = ''; }
   const hoursDay = typeof ttGetHoursPerDay === 'function' ? ttGetHoursPerDay() : 20;
   ['tt-tab-inj','tt-tab-asm'].forEach(function(tid){
     var b = document.getElementById(tid);
@@ -17808,7 +17901,7 @@ function renderTT(){
 
   // ─── SUMMARY BAR ────────────────────────────────────────────────────
   function buildSummaryBar(dateKeys){
-    const allJobs = dateKeys.flatMap(d=>ttLiveRows(d)).filter(function(j){
+    const allJobs = dateKeys.flatMap(d=>ttRowsForDept(d)).filter(function(j){
       var g = typeof ttJobPlanningGroup === 'function' ? ttJobPlanningGroup(j) : 'injection';
       if(sheet === 'injection') return g === 'injection';
       return g === 'assembly';
@@ -17857,7 +17950,7 @@ function renderTT(){
     if(mpBar){
       function _mpSumOfDate(dk){
         var s=0;
-        ttLiveRows(dk).forEach(function(j){
+        ttRowsForDept(dk).forEach(function(j){
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(j):'injection';
           if((sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly'))
             s+=(typeof ttBomHeadcount==='function'?ttBomHeadcount(j.jobName):0);
@@ -17924,7 +18017,7 @@ function renderTT(){
     machineList.forEach((m,mi)=>{
       const rowBg = mi%2===0?'var(--bg)':'var(--bg3)';
       const hasAnyJob=days.some(function(d){
-        return ttLiveRows(d).find(function(x){
+        return ttRowsForDept(d).find(function(x){
           if(x.machine!==m.id) return false;
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -17943,7 +18036,7 @@ function renderTT(){
         const isToday=d===today;
         const dt=new Date(d+'T00:00:00');
         const isWknd=dt.getDay()===0||dt.getDay()===6;
-        const dayJobs=ttLiveRows(d).filter(function(x){
+        const dayJobs=ttRowsForDept(d).filter(function(x){
           if(x.machine!==m.id) return false;
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -17982,7 +18075,7 @@ function renderTT(){
     // Count today's reports
     const todayD = today;
     const todayMachWithJobs = machineList.filter(function(m){
-      return ttLiveRows(todayD).find(function(x){
+      return ttRowsForDept(todayD).find(function(x){
         if(x.machine!==m.id) return false;
         var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
         return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -18038,7 +18131,7 @@ function renderTT(){
     machineList.forEach((m,mi)=>{
       const rowBg=mi%2===0?'var(--bg)':'var(--bg3)';
       // Check if this machine has any job this month
-      const monthJobs=dateKeys.flatMap(dk=>ttLiveRows(dk).filter(function(x){
+      const monthJobs=dateKeys.flatMap(dk=>ttRowsForDept(dk).filter(function(x){
         if(x.machine!==m.id) return false;
         var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
         return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -18054,7 +18147,7 @@ function renderTT(){
 
       for(let d=1;d<=daysInMonth;d++){
         const dk=month+'-'+String(d).padStart(2,'0');
-        const dayJobs=ttLiveRows(dk).filter(function(x){
+        const dayJobs=ttRowsForDept(dk).filter(function(x){
           if(x.machine!==m.id) return false;
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -18126,7 +18219,7 @@ function renderTT(){
         const plastics={};
         for(let d=1;d<=dim;d++){
           const dk=moStr+'-'+String(d).padStart(2,'0');
-          const jbs=ttLiveRows(dk).filter(function(x){
+          const jbs=ttRowsForDept(dk).filter(function(x){
             if(x.machine!==m.id) return false;
             var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
             return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
@@ -35488,7 +35581,7 @@ function renderPage(id){
   else if(id==='orders') renderOrders();
   else if(id==='order-await'){ if(typeof renderOrderAwaitPage==='function') renderOrderAwaitPage(); }
   else if(id==='shipment-history'){ if(typeof renderShipmentHistoryPage==='function') renderShipmentHistoryPage(); }
-  else if(id==='timetable'){
+  else if(_isTimetablePageId(id)){
     var _htt = document.getElementById('tt-hours-tt');
     var _hord = document.getElementById('tt-hours-per-day');
     if(_htt && _hord && _hord.value) _htt.value = _hord.value;
@@ -45971,7 +46064,14 @@ const ALL_PAGES = [
   {id:'approvalproc-a6', label:'ใบอนุมัติ แผนกประกอบ', icon:'A6', section:'การผลิต'},
   {id:'approvalproc-a7', label:'ใบอนุมัติ พ่น·สกรีน',   icon:'A7', section:'การผลิต'},
   {id:'approvalproc-done', label:'ใบอนุมัติ — จบ Lot แล้ว', icon:'✅', section:'การผลิต'},
-  {id:'timetable',    label:'Time Table',              icon:'📅', section:'การผลิต'},
+  {id:'timetable',    label:'Time Table รวม (7 แผนก)', icon:'📅', section:'การผลิต'},
+  {id:'timetable-t1', label:'Time Table ฉีด Zone 1',  icon:'T1', section:'การผลิต'},
+  {id:'timetable-t2', label:'Time Table ฉีด Zone 2',  icon:'T2', section:'การผลิต'},
+  {id:'timetable-t3', label:'Time Table ฉีด Zone 3',  icon:'T3', section:'การผลิต'},
+  {id:'timetable-t4', label:'Time Table ฉีด Zone 4',  icon:'T4', section:'การผลิต'},
+  {id:'timetable-t5', label:'Time Table ฉีดยานยนต์',  icon:'T5', section:'การผลิต'},
+  {id:'timetable-t6', label:'Time Table แผนกประกอบ', icon:'T6', section:'การผลิต'},
+  {id:'timetable-t7', label:'Time Table พ่น·สกรีน',   icon:'T7', section:'การผลิต'},
   {id:'setup',        label:'Setup Planning',          icon:'🛠️', section:'การผลิต'},
   {id:'setup-tt',     label:'Setup Time Table',        icon:'📆', section:'การผลิต'},
   {id:'setup-std',    label:'STD SET UP',              icon:'📏', section:'การผลิต'},
@@ -46043,7 +46143,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-a1','approvalproc-a2','approvalproc-a3','approvalproc-a4','approvalproc-a5','approvalproc-a6','approvalproc-a7','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-a1','approvalproc-a2','approvalproc-a3','approvalproc-a4','approvalproc-a5','approvalproc-a6','approvalproc-a7','approvalproc-done','timetable','timetable-t1','timetable-t2','timetable-t3','timetable-t4','timetable-t5','timetable-t6','timetable-t7','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -46463,6 +46563,13 @@ var nothingMenuIconRule = {
   'order-await': ['stk', false],
   'stock': ['stk', false],
   'timetable': ['sch', true],
+  'timetable-t1': ['sch', true],
+  'timetable-t2': ['sch', true],
+  'timetable-t3': ['sch', true],
+  'timetable-t4': ['sch', true],
+  'timetable-t5': ['sch', true],
+  'timetable-t6': ['item', true],
+  'timetable-t7': ['item', true],
   'setup-tt': ['sch', true],
   'setup-std': ['ord', true],
   'rawmat': ['item', true],
@@ -59522,7 +59629,14 @@ window.HOME_PAGES = [
     {id:'orders-o7',    icon:'<span class="hs-order-line-icon">O7</span>', label:'Order พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'O7'},
     {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', colorLight:'#e8f5e9', seq:'15C'},
     {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', colorLight:'#e0f7fa', seq:16},
-    {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', colorLight:'#e8eaf6', seq:17},
+    {id:'timetable',    icon:'📅', label:'Time Table รวม (7 แผนก)', color:'#201520', colorLight:'#e8eaf6', seq:17, workGroup:'all'},
+    {id:'timetable-t1', icon:'<span class="hs-tt-line-icon">T1</span>', label:'Time Table ฉีด Zone 1', color:'#1a2a3e', colorLight:'#e8eaf6', seq:'T1'},
+    {id:'timetable-t2', icon:'<span class="hs-tt-line-icon">T2</span>', label:'Time Table ฉีด Zone 2', color:'#1a2e22', colorLight:'#e8f5e9', seq:'T2'},
+    {id:'timetable-t3', icon:'<span class="hs-tt-line-icon">T3</span>', label:'Time Table ฉีด Zone 3', color:'#2a2410', colorLight:'#fff8e1', seq:'T3'},
+    {id:'timetable-t4', icon:'<span class="hs-tt-line-icon">T4</span>', label:'Time Table ฉีด Zone 4', color:'#221a2e', colorLight:'#ede7f6', seq:'T4'},
+    {id:'timetable-t5', icon:'<span class="hs-tt-line-icon">T5</span>', label:'Time Table ฉีดยานยนต์', color:'#2a1520', colorLight:'#fce4ec', seq:'T5'},
+    {id:'timetable-t6', icon:'<span class="hs-tt-line-icon">T6</span>', label:'Time Table แผนกประกอบ', color:'#102520', colorLight:'#e0f2f1', seq:'T6'},
+    {id:'timetable-t7', icon:'<span class="hs-tt-line-icon">T7</span>', label:'Time Table พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'T7'},
     {id:'setup-tt',     icon:'📆', label:'Setup Time Table',     color:'#10202a', colorLight:'#e3f2fd', seq:'17C'},
     {id:'setup-std',    icon:'📏', label:'STD SET UP',           color:'#2a2010', colorLight:'#fff3cd', seq:'17D'},
   ]},
