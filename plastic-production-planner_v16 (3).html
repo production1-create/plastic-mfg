@@ -25771,19 +25771,16 @@ function fgRecalcLedgerBalancesForJob(jobName){
     r.balance=run;
   });
 }
-/** รับเข้า FG อัตโนมัติจากยอดผลิต Order — Lot มาจาก order.lotNo เสมอ */
+/** รับเข้า FG อัตโนมัติจากยอดผลิต Order — Lot มาจาก order.lotNo เสมอ (ไม่กู้คืนงานที่ลบแล้ว) */
 function fgSyncAutoReceiveFromOrder(order, producedQty, txnDate){
-  if(!order||!order.jobName) return;
+  if(!order||!order.jobName||order._deleted) return;
   var job=String(order.jobName).trim();
+  if(fgStock[job]&&fgStock[job]._deleted) return;
   var lot=fgNormalizeLotCode(order.lotNo);
   if(!lot) return;
   var qty=Math.round(Number(producedQty)||0);
   var ref=fgAutoReceiveRef(order.orderNo);
   var date=txnDate||new Date().toISOString().split('T')[0];
-  if(fgStock[job]&&fgStock[job]._deleted){
-    delete fgStock[job]._deleted;
-    delete fgStock[job]._deletedAt;
-  }
   if(!fgStock[job]) fgStock[job]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
   if(!fgLedger[job]) fgLedger[job]=[];
   fgLedger[job]=fgLedger[job].filter(function(r){
@@ -25814,10 +25811,13 @@ function fgSyncAutoReceiveFromOrder(order, producedQty, txnDate){
   fgRecalcLedgerBalancesForJob(job);
 }
 function fgMigrateAutoReceiveAllOrdersFromProduction(){
+  try{ if(localStorage.getItem('fgAutoReceiveMigrated')==='20260516-v3') return; }catch(e){}
   if(typeof orders==='undefined'||!orders||!orders.length) return;
   var touched=Object.create(null);
   orders.forEach(function(o){
-    if(!o||!o.jobName||!o.orderNo) return;
+    if(!o||o._deleted||!o.jobName||!o.orderNo) return;
+    var job=String(o.jobName).trim();
+    if(fgStock[job]&&fgStock[job]._deleted) return;
     var lot=fgNormalizeLotCode(o.lotNo);
     if(!lot) return;
     var total=fgOrderProducedTotal(o.orderNo);
@@ -25825,19 +25825,21 @@ function fgMigrateAutoReceiveAllOrdersFromProduction(){
     if(prod<=0) return;
     fgSyncReportLotFromOrder(o);
     fgSyncAutoReceiveFromOrder(o, prod, o.startDate||'');
-    touched[o.jobName]=true;
+    touched[job]=true;
   });
   Object.keys(touched).forEach(function(j){ fgRecalcLedgerBalancesForJob(j); });
   if(Object.keys(touched).length){
     if(typeof saveFgStock==='function') saveFgStock();
     if(typeof saveFgLedger==='function') saveFgLedger();
   }
+  try{ localStorage.setItem('fgAutoReceiveMigrated','20260516-v3'); }catch(e){}
 }
 /** อัปเดต orders.produced + รับเข้า FG อัตโนมัติจากรายงานผลิต (Lot จาก Order) */
 function fgSyncProductionFromCurrentReport(rpt){
   if(!rpt||!rpt.orderNo) return;
-  var _ord=orders.find(function(o){ return o.orderNo===rpt.orderNo; });
+  var _ord=orders.find(function(o){ return o.orderNo===rpt.orderNo&&!o._deleted; });
   if(!_ord) return;
+  if(_ord.jobName&&fgStock[_ord.jobName]&&fgStock[_ord.jobName]._deleted) return;
   var _total=fgOrderProducedTotal(rpt.orderNo);
   _ord.produced=_total;
   if(!_ord.shippedAt&&_ord.status!=='ส่งแล้ว'){
@@ -25858,7 +25860,7 @@ function fgOrdersAllForFgJob(jobName){
   if(!jn)return [];
   var arr=(typeof orders!=='undefined'&&orders)?orders:[];
   return arr.filter(function(o){
-    return o && String(o.jobName||'')===jn && fgNormalizeLotCode(o.lotNo);
+    return o && !o._deleted && String(o.jobName||'')===jn && fgNormalizeLotCode(o.lotNo);
   });
 }
 function fgOrdersLotsFifoSorted(jobName){
