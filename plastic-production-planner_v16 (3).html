@@ -8947,6 +8947,13 @@ function saveOrderModal(withTT){
     o.createdAt=prev.createdAt||new Date().toISOString().split('T')[0];
     orders[idx]=Object.assign({},prev,o);
     saveOrders();
+    if(typeof fgSyncReportLotFromOrder==='function') fgSyncReportLotFromOrder(orders[idx]);
+    var _pdEdit=(typeof fgOrderProducedTotal==='function'?fgOrderProducedTotal(orders[idx].orderNo):0)||orders[idx].produced||0;
+    if(_pdEdit>0&&typeof fgSyncAutoReceiveFromOrder==='function'){
+      fgSyncAutoReceiveFromOrder(orders[idx], _pdEdit, orders[idx].startDate);
+      if(typeof saveFgStock==='function') saveFgStock();
+      if(typeof saveFgLedger==='function') saveFgLedger();
+    }
     closeModal('modal-add-order');
     renderOrdersTable();
     renderOrders();
@@ -25715,6 +25722,137 @@ function fgNormalizeLotCode(l){
   if(up==='NO-LOT'||up==='ADJ-LOT') return '';
   return s;
 }
+/** ยอดผลิตรวมจากรายงานประจำวันต่อ Order */
+function fgOrderProducedTotal(orderNo){
+  if(!orderNo) return 0;
+  return Object.values(dailyReports||{}).filter(function(r){ return r&&r.orderNo===orderNo; })
+    .reduce(function(s,r){
+      return s+(r.rows||[]).reduce(function(ss,row){ return ss+(Number(row.produced)||0); },0);
+    },0);
+}
+function fgAutoReceiveRef(orderNo){ return 'AUTO-PD:'+String(orderNo||''); }
+/** ให้รายงานผลิตใช้ Lot เดียวกับ Order */
+function fgSyncReportLotFromOrder(order){
+  if(!order||!order.orderNo) return;
+  var lot=fgNormalizeLotCode(order.lotNo);
+  if(!lot) return;
+  var ch=false;
+  Object.keys(dailyReports||{}).forEach(function(key){
+    var r=dailyReports[key];
+    if(r&&r.orderNo===order.orderNo&&fgNormalizeLotCode(r.lotNo)!==lot){
+      r.lotNo=lot; ch=true;
+    }
+  });
+  if(ch){ try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){} }
+}
+function fgRecalcStockQtyFromLedger(jobName){
+  if(!jobName) return;
+  if(!fgStock[jobName]) fgStock[jobName]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
+  var lots=fgGetLotBalances(jobName);
+  var total=lots.reduce(function(s,x){ return s+(Number(x.qty)||0); },0);
+  fgStock[jobName].qty=total;
+  _stampStockBucket(fgStock,jobName);
+}
+function fgRecalcLedgerBalancesForJob(jobName){
+  var arr=(fgLedger[jobName]||[]).slice();
+  arr.sort(function(a,b){
+    var ak=(a.date||'')+' '+(a.time||'');
+    var bk=(b.date||'')+' '+(b.time||'');
+    return ak.localeCompare(bk);
+  });
+  var run=0;
+  arr.forEach(function(r){
+    if(!r) return;
+    var t=String(r.type||'');
+    var q=Math.round(Number(r.qty)||0);
+    if(t==='in') run+=q;
+    else if(t==='out') run=Math.max(0,run-q);
+    else if(t==='adj') run+=Math.round(Number(r.qty)||0);
+    r.balance=run;
+  });
+}
+/** รับเข้า FG อัตโนมัติจากยอดผลิต Order — Lot มาจาก order.lotNo เสมอ */
+function fgSyncAutoReceiveFromOrder(order, producedQty, txnDate){
+  if(!order||!order.jobName) return;
+  var job=String(order.jobName).trim();
+  var lot=fgNormalizeLotCode(order.lotNo);
+  if(!lot) return;
+  var qty=Math.round(Number(producedQty)||0);
+  var ref=fgAutoReceiveRef(order.orderNo);
+  var date=txnDate||new Date().toISOString().split('T')[0];
+  if(fgStock[job]&&fgStock[job]._deleted){
+    delete fgStock[job]._deleted;
+    delete fgStock[job]._deletedAt;
+  }
+  if(!fgStock[job]) fgStock[job]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
+  if(!fgLedger[job]) fgLedger[job]=[];
+  fgLedger[job]=fgLedger[job].filter(function(r){
+    if(!r) return false;
+    if(r.ref===ref) return false;
+    if(r._autoPdOrderNo===order.orderNo) return false;
+    return true;
+  });
+  if(qty>0){
+    fgLedger[job].unshift({
+      _fgId:'FG-AUTO-'+String(order.orderNo||'').replace(/\W/g,'-'),
+      _autoPdOrderNo:order.orderNo,
+      updatedAt:new Date().toISOString(),
+      date:date,
+      time:new Date().toTimeString().slice(0,5),
+      type:'in',
+      qty:qty,
+      lot:lot,
+      ref:ref,
+      by:'ระบบ (รายงานผลิต)',
+      note:'รับเข้าอัตโนมัติจากยอดผลิต Order '+order.orderNo,
+      balance:0
+    });
+    fgStock[job].lastLot=lot;
+    fgStock[job].lastIn=qty;
+  }
+  fgRecalcStockQtyFromLedger(job);
+  fgRecalcLedgerBalancesForJob(job);
+}
+function fgMigrateAutoReceiveAllOrdersFromProduction(){
+  if(typeof orders==='undefined'||!orders||!orders.length) return;
+  var touched=Object.create(null);
+  orders.forEach(function(o){
+    if(!o||!o.jobName||!o.orderNo) return;
+    var lot=fgNormalizeLotCode(o.lotNo);
+    if(!lot) return;
+    var total=fgOrderProducedTotal(o.orderNo);
+    var prod=total>0?total:(Number(o.produced)||0);
+    if(prod<=0) return;
+    fgSyncReportLotFromOrder(o);
+    fgSyncAutoReceiveFromOrder(o, prod, o.startDate||'');
+    touched[o.jobName]=true;
+  });
+  Object.keys(touched).forEach(function(j){ fgRecalcLedgerBalancesForJob(j); });
+  if(Object.keys(touched).length){
+    if(typeof saveFgStock==='function') saveFgStock();
+    if(typeof saveFgLedger==='function') saveFgLedger();
+  }
+}
+/** อัปเดต orders.produced + รับเข้า FG อัตโนมัติจากรายงานผลิต (Lot จาก Order) */
+function fgSyncProductionFromCurrentReport(rpt){
+  if(!rpt||!rpt.orderNo) return;
+  var _ord=orders.find(function(o){ return o.orderNo===rpt.orderNo; });
+  if(!_ord) return;
+  var _total=fgOrderProducedTotal(rpt.orderNo);
+  _ord.produced=_total;
+  if(!_ord.shippedAt&&_ord.status!=='ส่งแล้ว'){
+    _ord.status=_total>=_ord.qty?'พร้อมส่ง':'กำลังผลิต';
+  }
+  saveOrders();
+  fgSyncReportLotFromOrder(_ord);
+  fgSyncAutoReceiveFromOrder(_ord, _total, rpt.date);
+  if(typeof saveFgStock==='function') saveFgStock();
+  if(typeof saveFgLedger==='function') saveFgLedger();
+  if(document.getElementById('page-stock')?.classList?.contains('active')){
+    if(typeof renderStock==='function') renderStock();
+    if(typeof renderFgLedger==='function') renderFgLedger();
+  }
+}
 function fgOrdersAllForFgJob(jobName){
   var jn=String(jobName||'').trim();
   if(!jn)return [];
@@ -25847,7 +25985,18 @@ function fgGetLotBalances(jobName){
   return arr;
 }
 function fgLotMiniHtml(jobName, maxRows){
-  var arr=fgGetLotBalances(jobName).slice(0,Math.max(1,maxRows||4));
+  var maxN=Math.max(1,maxRows||4);
+  var arr=fgGetLotBalances(jobName).slice(0,maxN);
+  if(!arr.length){
+    var fromOrd=fgOrdersLotsFifoSorted(jobName).filter(function(o){
+      var p=(typeof fgOrderProducedTotal==='function'?fgOrderProducedTotal(o.orderNo):0)||Number(o.produced)||0;
+      return p>0&&fgNormalizeLotCode(o.lotNo);
+    }).map(function(o){
+      var p=(typeof fgOrderProducedTotal==='function'?fgOrderProducedTotal(o.orderNo):0)||Number(o.produced)||0;
+      return {lot:fgNormalizeLotCode(o.lotNo), qty:p};
+    });
+    if(fromOrd.length) arr=fromOrd.slice(0,maxN);
+  }
   if(!arr.length) return '<span style="color:var(--text3)">—</span>';
   return arr.map(function(x){
     return '<div class="mono" style="font-size:10px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
@@ -29548,6 +29697,10 @@ function rptPersistDailyReports(immediate){
       }
       if(typeof dailyReports!=='undefined')
         localStorage.setItem('_dailyReports', JSON.stringify(dailyReports));
+      try{
+        if(typeof fgSyncProductionFromCurrentReport==='function'&&typeof currentRptKey!=='undefined'&&currentRptKey&&dailyReports[currentRptKey])
+          fgSyncProductionFromCurrentReport(dailyReports[currentRptKey]);
+      }catch(_){}
     }catch(e){}
   };
   if(immediate){
@@ -29637,6 +29790,13 @@ function renderDailyRpt(){
   var machDisp = document.getElementById('rpt-machine-display');
   if(machDisp) machDisp.textContent = rpt.machine || '-';
   document.getElementById('rpt-order-no').textContent = rpt.orderNo || '-';
+  if(rpt.orderNo){
+    var _ordLot=orders.find(function(o){ return o.orderNo===rpt.orderNo; });
+    if(_ordLot&&_ordLot.lotNo){
+      var _ol=fgNormalizeLotCode(_ordLot.lotNo);
+      if(_ol) rpt.lotNo=_ol;
+    }
+  }
   document.getElementById('rpt-lot-no').textContent   = rpt.lotNo   || '-';
   document.getElementById('rpt-job-name').textContent = rpt.jobName || '-';
   document.getElementById('rpt-mat-batch').innerHTML  = '<span class="badge mat-'+(rpt.plastic||'PP')+'">'+(rpt.plastic||'PP')+'</span> <span class="mono" style="font-size:11px">'+(rpt.matBatch||'-')+'</span>';
@@ -30231,33 +30391,8 @@ function saveDailyRpt(){
     if(document.getElementById('page-molds')?.classList?.contains('active')&&typeof renderMolds==='function') renderMolds();
     if(document.getElementById('page-moldregistry')?.classList?.contains('active')&&typeof renderMoldRegistry==='function') renderMoldRegistry();
   }
-  // ── Sync orders.produced from all dailyReports for this order ──
-  if(rpt.orderNo){
-    var _ord = orders.find(function(o){ return o.orderNo===rpt.orderNo; });
-    if(_ord){
-      var _total = Object.values(dailyReports)
-        .filter(function(r){ return r.orderNo===rpt.orderNo; })
-        .reduce(function(s,r){ return s+(r.rows||[]).reduce(function(ss,row){ return ss+(row.produced||0); },0); },0);
-      _ord.produced = _total;
-      if(!_ord.shippedAt && _ord.status!=='ส่งแล้ว'){
-        _ord.status = _total>=_ord.qty ? 'พร้อมส่ง' : 'กำลังผลิต';
-      }
-      saveOrders();
-      // ── Update FG Stock ──
-      var _job = _ord.jobName;
-      if(_job){
-        if(fgStock[_job]&&fgStock[_job]._deleted){
-          delete fgStock[_job]._deleted;
-          delete fgStock[_job]._deletedAt;
-        }
-        if(!fgStock[_job]) fgStock[_job]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
-        fgStock[_job].qty = _total;
-        fgStock[_job].lastIn = _total;
-        fgStock[_job].lastLot = rpt.lotNo||'';
-        _stampStockBucket(fgStock,_job);
-        if(typeof saveFgStock==='function') saveFgStock();
-      }
-    }
+  if(rpt.orderNo&&typeof fgSyncProductionFromCurrentReport==='function'){
+    fgSyncProductionFromCurrentReport(rpt);
   }
   if(typeof _toast==='function'){
     _toast('💾 บันทึกรายงาน '+rpt.machine+' วันที่ '+rpt.date+' สำเร็จ');
@@ -33093,7 +33228,12 @@ function _createDailyRptFromTT(machine, date, orderNo){
   dailyReports[currentRptKey] = {
     machine: machine, date: date,
     orderNo: ttEntry ? ttEntry.orderNo : (ord.orderNo||'ORD-'+Date.now().toString().slice(-6)),
-    lotNo:   ttEntry ? ttEntry.lot     : (ord.lotNo||'LOT-'+Date.now().toString().slice(-4)),
+    lotNo:   (function(){
+      var fromOrd=fgNormalizeLotCode(ord.lotNo);
+      if(fromOrd) return fromOrd;
+      if(ttEntry&&ttEntry.lot) return fgNormalizeLotCode(ttEntry.lot)||ttEntry.lot;
+      return 'LOT-'+Date.now().toString().slice(-4);
+    })(),
     jobName: jobName,
     plastic: j.plastic||'PP',
     moldCode: ord.moldCode || ord.moldNo || ord.mold || j.moldCode || getMoldCodeByJobName(jobName) || '',
@@ -45582,6 +45722,7 @@ function masterInit(){
   if(typeof loadFgStock==='function') loadFgStock();
   if(typeof loadRawMatStock==='function') loadRawMatStock();
   if(typeof loadFgLedger==='function') loadFgLedger();
+  if(typeof fgMigrateAutoReceiveAllOrdersFromProduction==='function') fgMigrateAutoReceiveAllOrdersFromProduction();
   if(typeof loadMoldLedger==='function') loadMoldLedger();
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
   if(typeof apMaybeRunAutoActionPlans==='function') apMaybeRunAutoActionPlans();
