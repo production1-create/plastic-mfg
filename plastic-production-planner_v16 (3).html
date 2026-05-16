@@ -25134,7 +25134,10 @@ function rmAddPlastic(){
   }
   rawMatStock[name]={qty:0,min:0,max:9999,grade:''};
   _stampStockBucket(rawMatStock,name);
-  if(typeof rmConsolidateSynonymStockBuckets==='function') name=rmConsolidateSynonymStockBuckets(name);
+  if(typeof rmConsolidateSynonymStockBuckets==='function'){
+    var _g=rmFindPlasticSynonymGroup(name);
+    if(_g&&_g.length>1) name=rmConsolidateSynonymStockBuckets(name);
+  }
   saveRawMatStock();
   renderRawmat();
   if(typeof _toast==='function') _toast('✅ เพิ่มเม็ดพลาสติก "'+name+'" แล้ว — กด 📥 เพื่อรับ Batch เข้า');
@@ -29091,10 +29094,11 @@ function rmMatNorm(s){
 function rmLedgerMaterialEquals(a,b){
   return !!a && !!b && rmMatNorm(a)===rmMatNorm(b);
 }
-/** กลุ่มชื่อเม็ดที่อ้างถึงตัวเดียวกัน (เช่น AS121 กับ AS SAN W) — ลำดับตัวแรก = ชื่อแสดงหลัก */
+/** กลุ่มชื่อเม็ดที่เป็นตัวเดียวกัน (สะกดต่างกันเท่านั้น — AS121 กับ AS SAN W เป็นคนละเกรด) */
 function rmPlasticSynonymGroups(){
   return [
-    ['AS SAN W','AS121','AS121U','AS127','ASSANW','AS-SAN-W']
+    ['AS SAN W','ASSANW','AS-SAN-W'],
+    ['AS121','AS121U']
   ];
 }
 function rmPlasticSynonymKey(s){
@@ -29168,17 +29172,45 @@ function rmConsolidateSynonymStockBuckets(preferredKey){
   _stampStockBucket(rawMatStock,target);
   return target;
 }
-/** คีย์สต็อกหลัก (AS SAN W) — รวม synonym แล้วยกเลิก _deleted ถ้ามียอด */
+/** คีย์สต็อกหลัก — รวมเฉพาะสะกด alias ในกลุ่มเดียวกัน (ไม่รวม AS121 กับ AS SAN W) */
 function rmEnsurePlasticStockCanon(codeOrKey){
-  var canon=rmCanonStockListKey(String(codeOrKey||'').trim());
-  if(!canon) return '';
-  if(typeof rmConsolidateSynonymStockBuckets==='function') canon=rmConsolidateSynonymStockBuckets(canon);
-  if(!rawMatStock[canon]) rawMatStock[canon]={qty:0,min:0,max:9999,grade:''};
-  if(rawMatStock[canon]._deleted){
-    delete rawMatStock[canon]._deleted;
-    delete rawMatStock[canon]._deletedAt;
+  var code=String(codeOrKey||'').trim();
+  if(!code) return '';
+  var grp=rmFindPlasticSynonymGroup(code);
+  if(grp&&grp.length>1){
+    code=rmConsolidateSynonymStockBuckets(code);
   }
-  return canon;
+  if(!rawMatStock[code]) rawMatStock[code]={qty:0,min:0,max:9999,grade:''};
+  if(rawMatStock[code]._deleted){
+    delete rawMatStock[code]._deleted;
+    delete rawMatStock[code]._deletedAt;
+  }
+  return code;
+}
+/** กู้คีย์ AS121 แยกจาก AS SAN W หลังอัปเดต (ถ้ามีใน Registry) */
+function rmMigrateSplitAs121FromSanw(){
+  if(typeof rawMatStock==='undefined'||!rawMatStock) return;
+  var changed=false;
+  var reg121=(RAWMAT_REGISTRY||[]).find(function(r){
+    return r&&r.code&&rmMatNorm(r.code)===rmMatNorm('AS121');
+  });
+  if(reg121){
+    var code=String(reg121.code).trim()||'AS121';
+    if(!rawMatStock[code]){
+      rawMatStock[code]={qty:0,min:0,max:9999,grade:reg121.grade||''};
+      changed=true;
+    }
+    if(rawMatStock[code]._deleted){
+      delete rawMatStock[code]._deleted;
+      delete rawMatStock[code]._deletedAt;
+      changed=true;
+    }
+    if(reg121.minStock!=null&&rawMatStock[code].min!==reg121.minStock){ rawMatStock[code].min=reg121.minStock; changed=true; }
+    if(reg121.maxStock!=null&&rawMatStock[code].max!==reg121.maxStock){ rawMatStock[code].max=reg121.maxStock; changed=true; }
+    if(reg121.grade&&rawMatStock[code].grade!==reg121.grade){ rawMatStock[code].grade=reg121.grade; changed=true; }
+    if(changed) _stampStockBucket(rawMatStock,code);
+  }
+  if(changed&&typeof saveRawMatStock==='function') saveRawMatStock();
 }
 function rmConsolidateAllSynonymStockBuckets(){
   if(typeof rawMatStock==='undefined'||!rawMatStock) return;
@@ -29211,16 +29243,22 @@ function rmConsolidateAllSynonymStockBuckets(){
 }
 (function rmInitStockSynonymConsolidate(){
   try{
+    if(typeof rmMigrateSplitAs121FromSanw==='function') rmMigrateSplitAs121FromSanw();
     if(typeof rmConsolidateAllSynonymStockBuckets==='function') rmConsolidateAllSynonymStockBuckets();
   }catch(e){}
 })();
-/** คีย์เดียวต่อกลุ่ม synonym สำหรับรายการ Stock (กันการ์ด AS121 + AS SAN W ซ้ำ) */
+/** คีย์แสดงในรายการ Stock — alias ในกลุ่มเดียวกันเท่านั้น (AS121 กับ AS SAN W แยกการ์ด) */
 function rmCanonStockListKey(rawCode){
   var k=String(rawCode||'').trim();
   if(!k) return '';
   var grp=rmFindPlasticSynonymGroup(k);
-  if(grp&&grp.length) return grp[0];
-  return k;
+  if(!grp||grp.length<=1) return k;
+  if(rawMatStock[k]&&!rawMatStock[k]._deleted) return k;
+  for(var i=0;i<grp.length;i++){
+    var c=grp[i];
+    if(rawMatStock[c]&&!rawMatStock[c]._deleted) return c;
+  }
+  return grp[0];
 }
 /** อ่านยอดสต็อกรวมทุกคีย์ในกลุ่ม synonym (ก่อน/หลัง consolidate) */
 function rmGetPlasticStockView(stockKey){
@@ -29247,11 +29285,12 @@ function rmGetPlasticStockView(stockKey){
   var deleted=!anyLive && !!(rawMatStock[canon]&&rawMatStock[canon]._deleted);
   return {key:canon, qty:qty, min:min, max:max, grade:grade, _deleted:deleted};
 }
-/** ชื่อแสดงบนการ์ด/ตาราง — คีย์ในระบบยังเป็นรหัสที่มีใน rawMatStock */
+/** ชื่อแสดงบนการ์ด/ตาราง */
 function rmPlasticStockLabel(stockKey){
   if(!stockKey) return '';
   var g=rmFindPlasticSynonymGroup(stockKey);
-  if(g&&g.length) return g[0];
+  if(g&&g.length>1&&rmPlasticSynonymKey(stockKey)!==rmPlasticSynonymKey(g[0])) return String(stockKey);
+  if(g&&g.length>1) return g[0];
   return String(stockKey);
 }
 /** เทียบรายการ Ledger กับคีย์สต็อก (รองรับ synonym) */
@@ -55397,7 +55436,10 @@ function saveStockAdj(){
 
   rawMatStock[mat].qty=actualQty;
   _stampStockBucket(rawMatStock,mat);
-  if(typeof rmConsolidateSynonymStockBuckets==='function') mat=rmConsolidateSynonymStockBuckets(mat);
+  if(typeof rmConsolidateSynonymStockBuckets==='function'){
+    var _grp=rmFindPlasticSynonymGroup(mat);
+    if(_grp&&_grp.length>1) mat=rmConsolidateSynonymStockBuckets(mat);
+  }
   saveRawMatStock();
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'pmf-stock-touched',key:'_rawMatStock',at:Date.now()},'*'); }catch(_){}
 

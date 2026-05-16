@@ -426,7 +426,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260515-consider-deleted"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260516-split-as121-sanw"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1244,7 +1244,8 @@
         .toUpperCase();
     }
     const RAWMAT_PLASTIC_SYNONYM_GROUPS = [
-      ["AS SAN W", "AS121", "AS121U", "AS127", "ASSANW", "AS-SAN-W"],
+      ["AS SAN W", "ASSANW", "AS-SAN-W"],
+      ["AS121", "AS121U"],
     ];
     function rmPlasticSynonymKeyPmf(s) {
       return String(s == null ? "" : s)
@@ -1263,7 +1264,7 @@
     function rmSynonymGroupIdPmf(grp) {
       return grp && grp.length ? rmPlasticSynonymKeyPmf(grp[0]) : "";
     }
-    /** รวมคีย์ synonym ใน _rawMatStock เป็นคีย์เดียว (AS SAN W) ก่อน/หลัง merge ตามเวลา */
+    /** รวมคีย์ synonym ใน _rawMatStock ต่อกลุ่ม (AS121 แยกจาก AS SAN W) */
     function mergeRawMatStockValue(localStr, remoteStr) {
       const merged = mergeMachineDb(localStr, remoteStr);
       const obj = safeJsonParse(merged, {});
