@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -358,6 +358,21 @@ body.nothing-mode .hs-approval-line-icon { color: #000; }
 }
 body.light-mode .hs-tt-line-icon { color: #1e7e34; }
 body.nothing-mode .hs-tt-line-icon { color: #000; }
+#pv-title .hs-order-line-icon,
+#pv-title .hs-approval-line-icon,
+#pv-title .hs-tt-line-icon {
+  font-weight: 900;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+#pv-title .hs-order-line-icon { color: #58a6ff; }
+#pv-title .hs-approval-line-icon { color: #d2a8ff; }
+#pv-title .hs-tt-line-icon { color: #56d364; }
+body.light-mode #pv-title .hs-order-line-icon { color: #1a56db; }
+body.light-mode #pv-title .hs-approval-line-icon { color: #7c3aed; }
+body.light-mode #pv-title .hs-tt-line-icon { color: #1e7e34; }
 
 /* ════════════════════════════════════
    PAGE VIEW (opened on icon tap)
@@ -1428,13 +1443,6 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 15C --><div class="nav-item" onclick="showPage('order-await',this)"><span class="nav-icon">📦</span><span class="nav-seq">15C</span> Order ผลิตจบ — รอส่ง</div>
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
     <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this,'all')"><span class="nav-icon">📅</span><span class="nav-seq">17</span> Time Table รวม (7 แผนก)</div>
-    <!-- T1 --><div class="nav-item" onclick="showPage('timetable-t1',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T1</span><span class="nav-seq">T1</span> Time Table ฉีด Zone 1</div>
-    <div class="nav-item" onclick="showPage('timetable-t2',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T2</span><span class="nav-seq">T2</span> Time Table ฉีด Zone 2</div>
-    <div class="nav-item" onclick="showPage('timetable-t3',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T3</span><span class="nav-seq">T3</span> Time Table ฉีด Zone 3</div>
-    <div class="nav-item" onclick="showPage('timetable-t4',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T4</span><span class="nav-seq">T4</span> Time Table ฉีด Zone 4</div>
-    <div class="nav-item" onclick="showPage('timetable-t5',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T5</span><span class="nav-seq">T5</span> Time Table ฉีดยานยนต์</div>
-    <div class="nav-item" onclick="showPage('timetable-t6',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T6</span><span class="nav-seq">T6</span> Time Table แผนกประกอบ</div>
-    <div class="nav-item" onclick="showPage('timetable-t7',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">T7</span><span class="nav-seq">T7</span> Time Table พ่น · สกรีน</div>
     <!-- 16B --> <div class="nav-item" onclick="showPage('setup',this)"><span class="nav-icon">🛠️</span><span class="nav-seq">17B</span> Setup Planning</div>
     <!-- 16C --> <div class="nav-item" onclick="showPage('setup-tt',this)"><span class="nav-icon">📆</span><span class="nav-seq">17C</span> Setup Time Table</div>
     <!-- 16D --> <div class="nav-item" onclick="showPage('setup-std',this)"><span class="nav-icon">📏</span><span class="nav-seq">17D</span> STD SET UP</div>
@@ -2089,7 +2097,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div class="page-header">
     <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:10px">
       <div>
-        <div class="page-title">Production Time Table <span id="tt-dept-badge" style="display:none;font-size:12px;font-weight:600;padding:2px 10px;margin-left:8px;border-radius:8px;background:rgba(56,139,253,0.15);color:#388bfd;vertical-align:middle"></span></div>
+        <div class="page-title">Production Time Table <span id="tt-dept-badge" style="display:none;font-size:12px;font-weight:600;padding:2px 10px;margin-left:8px;border-radius:8px;background:rgba(56,139,253,0.15);color:#388bfd;vertical-align:middle"></span></motion>
         <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-T001</div>
       </div>
       <div class="flex gap-2" style="align-items:center;flex-wrap:wrap">
@@ -9859,7 +9867,7 @@ function showPage(id, el, workGroup){
         : {icon:'✅', label:'ใบอนุมัติ — จบ Lot (เครื่องฉีด)'};
     }
     if(!entry) entry = allItems.find(function(i){return i.id===pageId;});
-    titleEl.textContent = entry ? entry.icon+' '+entry.label : pageId;
+    setPageViewTitle(entry, pageId);
   }
   // Sync user info
   if(AUTH){
@@ -46505,6 +46513,22 @@ function getIconBg(secId, itemIdx, item){
 function orderLineMenuIcon(n){
   return '<span class="hs-order-line-icon">O' + String(n).replace(/[^1-7]/g,'') + '</span>';
 }
+function setPageViewTitle(entry, fallback){
+  var titleEl = document.getElementById('pv-title');
+  if(!titleEl) return;
+  if(!entry){
+    titleEl.textContent = fallback || '';
+    return;
+  }
+  var label = String(entry.label || fallback || '');
+  var icon = entry.icon;
+  if(typeof icon === 'string' && /^<span/i.test(icon)){
+    var safeLabel = label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    titleEl.innerHTML = icon + ' <span class="pv-title-label">' + safeLabel + '</span>';
+  } else {
+    titleEl.textContent = (icon || '') + ' ' + label;
+  }
+}
 
 /** Nothing mode — minimalist line icons + optional red LED (หน้าเมนูหลัก) */
 function nothingMenuSvg(kind, led){
@@ -59656,8 +59680,8 @@ window.HOME_PAGES = [
     {id:'approvalproc-a5', icon:'<span class="hs-approval-line-icon">A5</span>', label:'ใบอนุมัติ ฉีดยานยนต์', color:'#2a1520', colorLight:'#fce4ec', seq:'A5'},
     {id:'approvalproc-a6', icon:'<span class="hs-approval-line-icon">A6</span>', label:'ใบอนุมัติ แผนกประกอบ', color:'#102520', colorLight:'#e0f2f1', seq:'A6'},
     {id:'approvalproc-a7', icon:'<span class="hs-approval-line-icon">A7</span>', label:'ใบอนุมัติ พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'A7'},
-    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ฉีด)', color:'#e8eaf6', seq:'21C', workGroup:'injection'},
-    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)', color:'#fce4ec', seq:'21D', workGroup:'postprocess'},
+    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ฉีด)', color:'#1a1f28', colorLight:'#e8eaf6', seq:'21C', workGroup:'injection'},
+    {id:'approvalproc-done', icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·ฯลฯ)', color:'#2a1520', colorLight:'#fce4ec', seq:'21D', workGroup:'postprocess'},
   ]},
   { id:'daily', icon:'⚙️', label:'ผลิต & ตรวจสอบรายวัน', items:[
     {id:'dailyrpt',     icon:'📝', label:'ใบรายงานการผลิต',       color:'#101a20', seq:22},
