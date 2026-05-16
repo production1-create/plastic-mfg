@@ -1379,6 +1379,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <!-- ══════════════════════════════════════════ -->
   <div class="nav-section">
     <div class="nav-label">📋 รับ Order & วางแผน</div>
+    <!-- 15 --><div class="nav-item" onclick="showPage('orders',this,'all')"><span class="nav-icon">📋</span><span class="nav-seq">15</span> Order รวม (7 แผนก)</div>
+    <!-- O1 --><div class="nav-item" onclick="showPage('orders-o1',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O1</span><span class="nav-seq">O1</span> Order ฉีด Zone 1</div>
+    <div class="nav-item" onclick="showPage('orders-o2',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O2</span><span class="nav-seq">O2</span> Order ฉีด Zone 2</div>
+    <div class="nav-item" onclick="showPage('orders-o3',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O3</span><span class="nav-seq">O3</span> Order ฉีด Zone 3</div>
+    <div class="nav-item" onclick="showPage('orders-o4',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O4</span><span class="nav-seq">O4</span> Order ฉีด Zone 4</div>
+    <div class="nav-item" onclick="showPage('orders-o5',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O5</span><span class="nav-seq">O5</span> Order ฉีดยานยนต์</div>
+    <div class="nav-item" onclick="showPage('orders-o6',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O6</span><span class="nav-seq">O6</span> Order แผนกประกอบ</div>
+    <div class="nav-item" onclick="showPage('orders-o7',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">O7</span><span class="nav-seq">O7</span> Order พ่น · สกรีน</div>
     <!-- 15A --><div class="nav-item" onclick="showPage('orders',this,'injection')"><span class="nav-icon">🏭</span><span class="nav-seq">15A</span> Order (เครื่องฉีด)</div>
     <!-- 15B --><div class="nav-item" onclick="showPage('orders',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">15B</span> Order (ประกอบ · สกรีน · พ่น)</div>
     <!-- 15C --><div class="nav-item" onclick="showPage('order-await',this)"><span class="nav-icon">📦</span><span class="nav-seq">15C</span> Order ผลิตจบ — รอส่ง</div>
@@ -1789,7 +1797,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <button class="btn btn-primary" onclick="openNewOrderModal()">+ เพิ่ม Order</button>
       </div>
     </div>
-    <div class="page-sub" style="margin:-4px 0 10px 2px;font-size:12px;color:var(--text3)">ติดตามสถานะ Order และแผนการผลิตแบบเรียลไทม์</div>
+    <div class="page-sub" style="margin:-4px 0 10px 2px;font-size:12px;color:var(--text3)">ติดตามสถานะ Order และแผนการผลิตแบบเรียลไทม์ <span id="orders-dept-badge" style="display:none;margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(0,170,142,0.12);border:1px solid rgba(0,170,142,0.35);color:var(--ios-accent);font-weight:700;font-size:11px"></span></div>
   </div>
 
   <!-- Dashboard Order & แผน (เพิ่มเติม — แท็บ/ตาราง/ฟิลเตอร์เดิมอยู่ด้านล่าง) -->
@@ -1902,6 +1910,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="orders-workgroup" title="แยกตามกลุ่มประเภทงาน" onchange="ordersOnWorkGroupChange(this.value)"
           style="max-width:240px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:7px;font-size:12px">
           <option value="">🏭 ทุกกลุ่ม (ในหน้านี้)</option>
+          <option value="all">📋 รวม 7 แผนก (ภาพรวม)</option>
+          <option value="o1">O1 — ฉีด Zone 1</option>
+          <option value="o2">O2 — ฉีด Zone 2</option>
+          <option value="o3">O3 — ฉีด Zone 3 (+CPR09)</option>
+          <option value="o4">O4 — ฉีด Zone 4</option>
+          <option value="o5">O5 — ฉีดยานยนต์</option>
+          <option value="o6">O6 — แผนกประกอบ</option>
+          <option value="o7">O7 — พ่น · สกรีน</option>
           <option value="injection">🏭 เครื่องฉีดพลาสติก</option>
           <option value="postprocess">🎨 ประกอบ + สกรีน/พ่น/ไลน์รอง</option>
           <option value="assembly">🧩 เฉพาะงานประกอบ</option>
@@ -9334,8 +9350,16 @@ var _navMenuList = [
   {id:'kpitargets',   label:'เป้าหมาย KPI',            icon:'🎯', group:'📊 ภาพรวม',      keywords:'kpi target เป้าหมาย'},
   {id:'kpipresent',   label:'KPI Presentation',        icon:'🎯', group:'📊 ภาพรวม',      keywords:'kpi presentation'},
   // การผลิต
+  {id:'orders',       label:'Order รวม (7 แผนก)',       icon:'📋', group:'🏭 การผลิต',     keywords:'order รวม ทุกแผนก ภาพรวม zone', workGroup:'all'},
   {id:'orders',       label:'Order (เครื่องฉีด)',       icon:'🏭', group:'🏭 การผลิต',     keywords:'order แผน ฉีด injection ผลิต', workGroup:'injection'},
   {id:'orders',       label:'Order (ประกอบ สกรีน พ่น)', icon:'🎨', group:'🏭 การผลิต',     keywords:'order ประกอบ assembly สกรีน พ่น ไลน์รอง secondary', workGroup:'postprocess'},
+  {id:'orders-o1',    label:'Order ฉีด Zone 1',         icon:'O1', group:'🏭 การผลิต',     keywords:'order zone1 o1 i033 i034'},
+  {id:'orders-o2',    label:'Order ฉีด Zone 2',         icon:'O2', group:'🏭 การผลิต',     keywords:'order zone2 o2'},
+  {id:'orders-o3',    label:'Order ฉีด Zone 3',         icon:'O3', group:'🏭 การผลิต',     keywords:'order zone3 o3 cpr09'},
+  {id:'orders-o4',    label:'Order ฉีด Zone 4',         icon:'O4', group:'🏭 การผลิต',     keywords:'order zone4 o4'},
+  {id:'orders-o5',    label:'Order ฉีดยานยนต์',         icon:'O5', group:'🏭 การผลิต',     keywords:'order ยานยนต์ automotive o5'},
+  {id:'orders-o6',    label:'Order แผนกประกอบ',        icon:'O6', group:'🏭 การผลิต',     keywords:'order ประกอบ assembly o6'},
+  {id:'orders-o7',    label:'Order พ่น สกรีน',          icon:'O7', group:'🏭 การผลิต',     keywords:'order พ่น สกรีน spray screen o7'},
   {id:'setup',        label:'Setup Planning',            icon:'🛠️', group:'🏭 การผลิต',     keywords:'setup set up เตรียมเครื่อง ช่าง 4M'},
   {id:'setup-tt',     label:'Setup Time Table',          icon:'📆', group:'🏭 การผลิต',     keywords:'setup timetable ปฏิทิน เตรียม setup วันไหน'},
   {id:'setup-std',    label:'STD SET UP',                icon:'📏', group:'🏭 การผลิต',     keywords:'std setup ขั้นตอน เวลาแต่ละขั้น คนที่เคยทำ'},
@@ -9695,7 +9719,13 @@ var _pageNavStack = [];
 var _navFromBack = false;
 
 function showPage(id, el, workGroup){
+  var pageId = id;
   var domPageId = (id==='approvalproc-done') ? 'approvalproc' : id;
+  var lineDept = _ordersPageIdToWorkGroup(id);
+  if(lineDept){
+    domPageId = 'orders';
+    window._ordersWorkGroup = lineDept;
+  }
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
     var okApArchive = (id==='approvalproc-done' && AUTH.pages.includes('approvalproc'));
     if(!okApArchive){
@@ -9705,7 +9735,7 @@ function showPage(id, el, workGroup){
   }
   if(id==='jobreg'){
     window._jobregWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
-  } else if(id==='orders'){
+  } else if(id==='orders' && !lineDept){
     window._ordersWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
   } else if(id==='approvalproc-done'){
     window._apWorkGroup = (typeof workGroup==='string' && workGroup) ? workGroup : '';
@@ -9716,7 +9746,7 @@ function showPage(id, el, workGroup){
   } else if(id==='carbon-footprint'){
     window._carbonTab = (typeof workGroup==='string' && workGroup) ? workGroup : (window._carbonTab||'dash');
   }
-  if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== id) {
+  if(!_navFromBack && typeof window._currentPage === 'string' && window._currentPage && window._currentPage !== pageId) {
     _pageNavStack.push(window._currentPage);
   }
   _navFromBack = false;
@@ -9724,7 +9754,7 @@ function showPage(id, el, workGroup){
   var pg = document.getElementById('page-'+domPageId);
   if(pg) pg.classList.add('active');
   renderPage(domPageId);
-  window._currentPage = id;
+  window._currentPage = pageId;
   // Switch to page-view
   var hs = document.getElementById('home-screen');
   var pv = document.getElementById('page-view');
@@ -9734,19 +9764,20 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = (id==='jobreg'||id==='orders'||id==='approvalproc'||id==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:'') : '';
-    var entry = allItems.find(function(i){return i.id===id && (i.workGroup===wg || (!wg && !i.workGroup));});
-    if(!entry && wg) entry = allItems.find(function(i){return i.id===id && i.workGroup===wg;});
-    if(!entry && id==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
-    if(!entry && id==='orders') entry = {icon:'📋', label:'Order & แผนผลิต'};
-    if(!entry && id==='approvalproc') entry = {icon:'✅', label:'ใบอนุมัติกระบวนการ'};
-    if(!entry && id==='approvalproc-done'){
+    var wg = lineDept || ((pageId==='jobreg'||pageId==='orders'||pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : '');
+    var entry = allItems.find(function(i){return i.id===pageId && (i.workGroup===wg || (!wg && !i.workGroup));});
+    if(!entry && wg) entry = allItems.find(function(i){return i.id===pageId && i.workGroup===wg;});
+    if(!entry && lineDept) entry = allItems.find(function(i){return i.id===pageId;});
+    if(!entry && pageId==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
+    if(!entry && domPageId==='orders') entry = {icon:'📋', label:_ordersLineDeptLabel(wg)||'Order & แผนผลิต'};
+    if(!entry && pageId==='approvalproc') entry = {icon:'✅', label:'ใบอนุมัติกระบวนการ'};
+    if(!entry && pageId==='approvalproc-done'){
       entry = wg==='postprocess'
         ? {icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน·พ่น)'}
         : {icon:'✅', label:'ใบอนุมัติ — จบ Lot (เครื่องฉีด)'};
     }
-    if(!entry) entry = allItems.find(function(i){return i.id===id;});
-    titleEl.textContent = entry ? entry.icon+' '+entry.label : id;
+    if(!entry) entry = allItems.find(function(i){return i.id===pageId;});
+    titleEl.textContent = entry ? entry.icon+' '+entry.label : pageId;
   }
   // Sync user info
   if(AUTH){
@@ -11753,6 +11784,49 @@ function clExportAll(){
 // ════════════════════════════════════════════════════════════════
 window._jobregWorkGroup = window._jobregWorkGroup || '';
 window._ordersWorkGroup = window._ordersWorkGroup || '';
+
+/** แผนกย่อย Order O1–O7 — เครื่องตามไลน์หัวหน้าแต่ละโซน */
+var ORDER_LINE_DEPTS = {
+  o1: { label:'แผนกฉีด Zone 1', machines:['I033','I034','I035','I038','I039','I042','I043'] },
+  o2: { label:'แผนกฉีด Zone 2', machines:['I044','I028','I029','I030','I031','I008','I009'] },
+  o3: { label:'แผนกฉีด Zone 3', machines:['I010','I011','I012','I013','I023','I024','I005','I017','I018','I019','I025','I026'], extra:['CPR09'] },
+  o4: { label:'แผนกฉีด Zone 4', machines:['I047','I048','I049','I050','I051','I052','I053','I054'] },
+  o5: { label:'แผนกฉีดยานยนต์', machines:['I032','I001','I045','I040','I041','I046','I036','I037','I022','I020','I015','I016'] },
+  o6: { label:'แผนกประกอบ', filter:'assembly' },
+  o7: { label:'แผนกพ่น สกรีน', filter:'secondary' }
+};
+var ORDER_LINE_DEPT_KEYS = ['o1','o2','o3','o4','o5','o6','o7'];
+
+function _orderMachineToken(raw){
+  var s = String(raw||'').trim();
+  if(!s) return '';
+  if(typeof ttNormalizeMachineId==='function') return ttNormalizeMachineId(s);
+  return s.split(/\s+/)[0];
+}
+function _orderMatchesLineDept(o, deptKey){
+  if(!o || !deptKey) return false;
+  var cfg = ORDER_LINE_DEPTS[deptKey];
+  if(!cfg) return false;
+  if(cfg.filter==='assembly') return _orderWorkGroup(o)==='assembly';
+  if(cfg.filter==='secondary') return _orderWorkGroup(o)==='secondary';
+  var tok = _orderMachineToken(o.machine);
+  var pool = (cfg.machines||[]).concat(cfg.extra||[]);
+  return pool.some(function(id){
+    return tok===id || String(o.machine||'').indexOf(id)===0;
+  });
+}
+function _orderInAnyLineDept(o){
+  return ORDER_LINE_DEPT_KEYS.some(function(k){ return _orderMatchesLineDept(o, k); });
+}
+function _ordersLineDeptLabel(wg){
+  if(wg==='all') return 'Order รวม — ทุกแผนก (7 ไลน์)';
+  var cfg = ORDER_LINE_DEPTS[wg];
+  return cfg ? ('Order — '+cfg.label) : '';
+}
+function _ordersPageIdToWorkGroup(pageId){
+  var m = String(pageId||'').match(/^orders-(o[1-7])$/);
+  return m ? m[1] : '';
+}
 
 /** เดากลุ่มงานจากเครื่องในทะเบียนจักร / ประเภทกระบวนการ (เมื่อไม่มี registryWorkGroup) */
 function _jobInferWorkGroup(j){
@@ -16751,7 +16825,23 @@ function renderOrdersTable(filter, statusFilter){
       var g=_orderWorkGroup(o);
       return g==='assembly'||g==='secondary';
     });
+  } else if(wg==='all'){
+    list=list.filter(function(o){ return _orderInAnyLineDept(o); });
+  } else if(/^o[1-7]$/.test(wg)){
+    list=list.filter(function(o){ return _orderMatchesLineDept(o, wg); });
   } else if(wg) list=list.filter(function(o){ return _orderWorkGroup(o)===wg; });
+
+  var deptBadge=document.getElementById('orders-dept-badge');
+  if(deptBadge){
+    var dl=_ordersLineDeptLabel(wg);
+    if(dl){ deptBadge.textContent=dl; deptBadge.style.display='inline'; }
+    else { deptBadge.style.display='none'; deptBadge.textContent=''; }
+  }
+  if(wgEl){
+    var lockDept=/^o[1-7]$/.test(wg)||wg==='all';
+    wgEl.disabled=lockDept;
+    if(lockDept) wgEl.title='กรองตามเมนูที่เปิด — เปลี่ยนได้จากเมนูหลัก';
+  }
 
   // Update table header to include checkbox column
   const thead = document.querySelector('#orders-table thead tr');
@@ -45755,6 +45845,13 @@ const ALL_PAGES = [
   {id:'machregistry', label:'ทะเบียนเครื่องจักร',        icon:'📋', section:'ภาพรวม'},
   {id:'machgroup',    label:'Group เครื่องจักร',          icon:'🔗', section:'ภาพรวม'},
   {id:'orders',       label:'Order & แผนผลิต',         icon:'📋', section:'การผลิต'},
+  {id:'orders-o1',    label:'Order ฉีด Zone 1',         icon:'O1', section:'การผลิต'},
+  {id:'orders-o2',    label:'Order ฉีด Zone 2',         icon:'O2', section:'การผลิต'},
+  {id:'orders-o3',    label:'Order ฉีด Zone 3',         icon:'O3', section:'การผลิต'},
+  {id:'orders-o4',    label:'Order ฉีด Zone 4',         icon:'O4', section:'การผลิต'},
+  {id:'orders-o5',    label:'Order ฉีดยานยนต์',         icon:'O5', section:'การผลิต'},
+  {id:'orders-o6',    label:'Order แผนกประกอบ',        icon:'O6', section:'การผลิต'},
+  {id:'orders-o7',    label:'Order พ่น·สกรีน',          icon:'O7', section:'การผลิต'},
   {id:'customers',    label:'ทะเบียนลูกค้า',            icon:'🏢', section:'การผลิต'},
   {id:'jobreg',      label:'ทะเบียนงาน / Job',          icon:'📦', section:'การผลิต'},
   {id:'approvalproc', label:'ใบอนุมัติกระบวนการ',      icon:'✅', section:'การผลิต'},
@@ -45831,7 +45928,7 @@ const ROLES = {
   production: {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
-    pages:['dashboard','line-summary','machines','machregistry','orders','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
+    pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-done','timetable','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
            'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
@@ -46159,7 +46256,7 @@ function updateSidebarUser(){
 var SECTION_COLORS = {
   master:   ['#e8f4fd','#d4edfd','#ffe8f0','#fff3cd','#e8f5e9','#ede7f6','#e0e0e0','#e8f5e9','#e0e0e0','#d4edfd','#fff8e1','#e8eaf6'],
   standard: ['#e3f2fd','#fff8e1','#e8f5e9','#e3f2fd','#ede7f6'],
-  order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6'],
+  order:    ['#e3f2fd','#fff8e1','#e8eaf6','#e8f5e9','#ede7f6','#e3f2fd','#e8f5e9','#fff8e1','#ede7f6','#fce4ec','#e0f2f1','#fff3e0','#1a2a1a','#0e2020'],
   prep:     ['#fff3cd','#e8f5e9','#ffebee','#e3f2fd','#fce4ec','#e8eaf6','#f3e5f5'],
   daily:    ['#e3f2fd','#ffebee','#e0e0e0','#e3f2fd'],
   dash:     ['#e8f5e9','#ffebee','#e3f2fd','#ede7f6'],
@@ -46233,8 +46330,16 @@ var nothingMenuIconRule = {
   'qcinspect': ['src', true],
   'condstd': ['ord', true],
   'wi': ['fol', true],
+  'orders|all': ['ord', true],
   'orders|injection': ['ord', true],
   'orders|postprocess': ['item', true],
+  'orders-o1': ['ord', true],
+  'orders-o2': ['ord', true],
+  'orders-o3': ['ord', true],
+  'orders-o4': ['ord', true],
+  'orders-o5': ['ord', true],
+  'orders-o6': ['item', true],
+  'orders-o7': ['item', true],
   'order-await': ['stk', false],
   'stock': ['stk', false],
   'timetable': ['sch', true],
@@ -59270,8 +59375,16 @@ window.HOME_PAGES = [
     {id:'wi',           icon:'📋', label:'WI Packing Std',       color:'#1e1225', seq:14},
   ]},
   { id:'order', icon:'📋', label:'รับ Order & วางแผน', items:[
+    {id:'orders',       icon:'📋', label:'Order รวม (7 แผนก)',     color:'#1a2535', seq:'15', workGroup:'all'},
     {id:'orders',       icon:'🏭', label:'Order (เครื่องฉีด)',     color:'#1a1a2e', seq:'15A', workGroup:'injection'},
     {id:'orders',       icon:'🎨', label:'Order (ประกอบ·สกรีน·พ่น)', color:'#25201a', seq:'15B', workGroup:'postprocess'},
+    {id:'orders-o1',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O1</span>', label:'Order ฉีด Zone 1', color:'#e3f2fd', seq:'O1'},
+    {id:'orders-o2',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O2</span>', label:'Order ฉีด Zone 2', color:'#e8f5e9', seq:'O2'},
+    {id:'orders-o3',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O3</span>', label:'Order ฉีด Zone 3', color:'#fff8e1', seq:'O3'},
+    {id:'orders-o4',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O4</span>', label:'Order ฉีด Zone 4', color:'#ede7f6', seq:'O4'},
+    {id:'orders-o5',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O5</span>', label:'Order ฉีดยานยนต์', color:'#fce4ec', seq:'O5'},
+    {id:'orders-o6',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O6</span>', label:'Order แผนกประกอบ', color:'#e0f2f1', seq:'O6'},
+    {id:'orders-o7',    icon:'<span style="font-weight:900;font-size:17px;font-family:IBM Plex Mono,monospace">O7</span>', label:'Order พ่น·สกรีน', color:'#fff3e0', seq:'O7'},
     {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', seq:'15C'},
     {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', seq:16},
     {id:'timetable',    icon:'📅', label:'Time Table',           color:'#201520', seq:17},
