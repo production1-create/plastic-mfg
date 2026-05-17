@@ -60285,6 +60285,8 @@ document.addEventListener('keydown', function(e){
   var _sfView = 'overview';
   var _sfNotifications = [];
   var _sfRefreshTimer = null;
+  var _sfLastDash = null;
+  var _sfChartInst = {};
 
   function getUiMode(){
     try{ return localStorage.getItem('_uiMode') || 'classic'; }catch(e){ return 'classic'; }
@@ -60700,6 +60702,7 @@ document.addEventListener('keydown', function(e){
   }
 
   function _sfDisposeCharts(){
+    if(typeof _sfChartInst !== 'object' || !_sfChartInst) _sfChartInst = {};
     Object.keys(_sfChartInst).forEach(function(k){
       try{ if(_sfChartInst[k]) _sfChartInst[k].dispose(); }catch(e){}
     });
@@ -60758,21 +60761,32 @@ document.addEventListener('keydown', function(e){
   }
 
   function sfRenderCurrentView(){
-    _sfDisposeCharts();
-    _sfLastDash = _sfCollectDashData('day');
-    _sfSyncNotificationsFromDash(_sfLastDash);
-    _sfUpdateHeader(_sfLastDash);
-    var dashEl = document.getElementById('sf-dashboard');
-    if(dashEl) dashEl.className = 'sf-dashboard';
-    if(_sfView === 'timeline') sfRenderTimelineDashboard();
-    else if(_sfView === 'qc') sfRenderQcDashboard();
-    else if(_sfView === 'pm') sfRenderPmDashboard();
-    else if(_sfView === 'stock') sfRenderStockDashboard();
-    else if(_sfView === 'mobile') sfRenderMobileDashboard();
-    else sfRenderOverviewDashboard();
-    _sfUpdateBadges();
-    _sfLucide();
-    setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 60);
+    try{
+      _sfDisposeCharts();
+      _sfLastDash = _sfCollectDashData('day');
+      _sfSyncNotificationsFromDash(_sfLastDash);
+      _sfUpdateHeader(_sfLastDash);
+      var dashEl = document.getElementById('sf-dashboard');
+      if(dashEl) dashEl.className = 'sf-dashboard';
+      var contentEl = document.getElementById('sf-dashboard-content');
+      if(contentEl) contentEl.className = '';
+      if(_sfView === 'timeline') sfRenderTimelineDashboard();
+      else if(_sfView === 'qc') sfRenderQcDashboard();
+      else if(_sfView === 'pm') sfRenderPmDashboard();
+      else if(_sfView === 'stock') sfRenderStockDashboard();
+      else if(_sfView === 'mobile') sfRenderMobileDashboard();
+      else sfRenderOverviewDashboard();
+      _sfUpdateBadges();
+      _sfLucide();
+      setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 80);
+      setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 400);
+    }catch(err){
+      console.error('[Smart Factory] render failed:', err);
+      var el = document.getElementById('sf-dashboard-content');
+      if(el){
+        el.innerHTML = '<div class="sf-empty" style="padding:24px;color:#b91c1c">ไม่สามารถโหลด Dashboard ได้: ' + (err.message || err) + '</div>';
+      }
+    }
   }
 
   function _sfKpiCard(label, val, trend, spark){
@@ -60847,7 +60861,7 @@ document.addEventListener('keydown', function(e){
       return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="font-weight:700">'+(o.orderNo||'Order')+'</span><span>'+pct+'%</span></div>' +
         '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:#111"></div></div></div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div><span class="sf-widget-sub">'+orderList.length+' รายการ</span></div>'+(rows||'<div class="sf-empty">ไม่มี Order กำลังผลิต</div>')+'</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span><span class="sf-widget-sub">'+orderList.length+' รายการ</span></div><div>'+(rows||'<div class="sf-empty">ไม่มี Order กำลังผลิต</div>')+'</div></div>';
   }
 
   function sfRenderOverviewDashboard(){
@@ -60868,7 +60882,7 @@ document.addEventListener('keydown', function(e){
         _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [1,2,2,3,2,4,3,d.pmDue||0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Production Plan vs Actual</span></div><span class="sf-widget-sub">รายชั่วโมงวันนี้</span></div><div id="sf-chart-prod" class="sf-chart"></div></div>' +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Production Plan vs Actual</span><span class="sf-widget-sub">รายชั่วโมงวันนี้</span></div><div id="sf-chart-prod" class="sf-chart"></div></div>' +
         '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span></div><div id="sf-chart-mach-pie" class="sf-chart sm"></div></div>' +
         _sfWidgetMachines(d, 12) +
         _sfWidgetPareto(d) +
@@ -60985,7 +60999,14 @@ document.addEventListener('keydown', function(e){
   }
 
   function _sfMountCharts(d){
-    if(!d || !window.echarts) return;
+    if(!d) return;
+    if(!window.echarts){
+      ['sf-chart-prod','sf-chart-mach-pie','sf-chart-ng','sf-chart-lt','sf-chart-fg'].forEach(function(id){
+        var el=document.getElementById(id);
+        if(el && !el.dataset.sfNoChart) el.innerHTML='<div class="sf-empty" style="padding:40px 0">กำลังโหลดกราฟ...</div>';
+      });
+      return;
+    }
     var hours = [];
     for(var h=8;h<=20;h++) hours.push(h+':00');
     var prodH = (d.hourlyProd||[]).slice(8,21);
@@ -61036,9 +61057,13 @@ document.addEventListener('keydown', function(e){
         series:[{type:'gauge',min:0,max:Math.max(d.fgTotal,1),progress:{show:true},detail:{formatter:_sfFmtNum(d.fgTotal),fontSize:14},data:[{value:d.fgTotal,name:'FG'}]}]
       });
     }
-    window.addEventListener('resize', function(){
-      Object.keys(_sfChartInst).forEach(function(k){ try{ _sfChartInst[k].resize(); }catch(e){} });
-    }, { once: true });
+    Object.keys(_sfChartInst).forEach(function(k){ try{ _sfChartInst[k].resize(); }catch(e){} });
+    if(!window._sfResizeBound){
+      window._sfResizeBound = true;
+      window.addEventListener('resize', function(){
+        Object.keys(_sfChartInst).forEach(function(k){ try{ _sfChartInst[k].resize(); }catch(e){} });
+      });
+    }
   }
 
   function _sfUpdateBadges(){
