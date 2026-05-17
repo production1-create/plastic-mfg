@@ -40071,7 +40071,7 @@ function printAPForm(){
     attachedLot:gv('ap-lot'), orderNo:gv('ap-order'),
   };
   for(let m=1;m<=12;m++) ap['month'+m]=gv('ap-m'+m);
-  openPrintWindow(buildAPPrintHTML(ap), 'F-QMR-010 Action Plan '+ap.id);
+  showPrintModal(buildAPPrintDocument(ap), 'F-QMR-010 Action Plan '+ap.id);
 }
 
 
@@ -49923,262 +49923,177 @@ function printTraceReport(orderNo){
   openPrintWindow(html, `ISO-TR สอบกลับ ${o.orderNo}`);
 }
 
-// ==================== F-PD-Q001: Action Plan ====================
+// ==================== F-QMR-010: Action Plan (Landscape A4) ====================
+function _apParsePeriod(periodMonth){
+  const thMonths=['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  if(!periodMonth) return {month:'',year:''};
+  const s=String(periodMonth);
+  const m=s.match(/^(\d{4})-(\d{1,2})/);
+  if(m){
+    const y=parseInt(m[1],10);
+    const mo=parseInt(m[2],10);
+    return {month:thMonths[mo]||m[2], year:String(y+543)};
+  }
+  return {month:s,year:''};
+}
+
 function buildAPPrintHTML(ap){
-  const months=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  const today = new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
-
-  // ── Styles ──────────────────────────────────────────────
-  const css = `
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Noto Sans Thai','Inter',TH SarabunPSK,sans-serif;font-size:13px;color:#000;background:#fff;padding:16px 20px}
-    @page{size:A4 landscape;margin:10mm}
-    @media print{body{padding:0}}
-    table{border-collapse:collapse;width:100%}
-    td,th{border:1px solid #555;padding:4px 7px;font-size:12px;vertical-align:middle}
-    .hdr-title{font-size:18px;font-weight:900;text-align:center;padding:6px 0}
-    .hdr-sub{font-size:13px;font-weight:700;text-align:center;padding:3px 0;border-bottom:2px solid #000;margin-bottom:8px}
-    .sec-label{font-size:13px;font-weight:700;background:#d9e1f2;padding:4px 8px;border:1px solid #4472c4;border-bottom:none}
-    .sec-wrap{border:1px solid #4472c4;padding:6px 8px;margin-bottom:8px;font-size:12px}
-    .lbl{background:#f2f2f2;font-weight:700;white-space:nowrap;width:1px}
-    .val{min-width:80px}
-    .month-hdr{background:#bdd7ee;font-weight:700;text-align:center;font-size:11px;padding:3px 2px}
-    .month-val{text-align:center;font-size:11px;padding:3px 2px;min-width:22px}
-    .why-row td:first-child{background:#fff2cc;font-weight:700;text-align:center;width:30px}
-    .cnt-row td:first-child{background:#e2efda;font-weight:700;text-align:center;width:24px}
-    .step-row td:first-child{background:#dae3f3;font-weight:700;text-align:center;width:24px}
-    .step-plan{background:#fce4d6;text-align:center;font-size:10px;padding:2px}
-    .step-actual{background:#e2efda;text-align:center;font-size:10px;padding:2px}
-    .sign-wrap{display:flex;gap:16px;margin-top:12px}
-    .sign-box{flex:1;border:1px solid #555;text-align:center;padding:4px 8px}
-    .sign-name{font-size:11px;color:#555;margin-top:3px}
-    .sign-line{height:36px}
-    .doc-no-box{border:2px solid #000;padding:3px 10px;font-size:15px;font-weight:900;display:inline-block;background:#f5f5f5}
-    .prio-high{color:#c00000;font-weight:700}
-    .status-closed{color:#1a6b2f;font-weight:700}
-    .underline{border-bottom:1px solid #555;display:inline-block;min-width:80px}
-  `;
-
-  // ── Month row ───────────────────────────────────────────
-  const monthHdrCells = months.map(m=>`<th class="month-hdr">${m}</th>`).join('');
-  const monthValCells = months.map((_,i)=>`<td class="month-val">${ap['month'+(i+1)]||''}</td>`).join('');
-  const avgVal = (()=>{
-    const vals=months.map((_,i)=>parseFloat(ap['month'+(i+1)])).filter(v=>!isNaN(v));
-    return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : '';
+  const today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  const period=_apParsePeriod(ap.periodMonth);
+  const kpiYear=period.year||(new Date().getFullYear()+543).toString();
+  const avgVal=(()=>{
+    const vals=[];
+    for(let i=1;i<=12;i++){ const v=parseFloat(ap['month'+i]); if(!isNaN(v)) vals.push(v); }
+    return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2):'';
   })();
-
-  // ── Team row ────────────────────────────────────────────
-  const members = [ap.member1,ap.member2,ap.member3,ap.member4].filter(Boolean);
-  const memberCells = members.map((m,i)=>`<td class="lbl">สมาชิก ${i+1}</td><td>${m}</td>`).join('');
+  const monthNums=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const monthValCells=monthNums.map(i=>'<td class="ap-num">'+(ap['month'+i]??'')+'</td>').join('');
+  const teamHdr=['หัวหน้ากลุ่ม'].concat(Array.from({length:8},(_,i)=>'สมาชิก '+(i+1)));
+  const teamVals=[ap.teamLeader,ap.member1,ap.member2,ap.member3,ap.member4,ap.member5,ap.member6,ap.member7,ap.member8];
+  const teamHdrRow=teamHdr.map(h=>'<th class="ap-lbl">'+h+'</th>').join('');
+  const teamValRow=teamVals.map(v=>'<td>'+(v||'')+'</td>').join('');
+  const kpiNote=(ap.actualPct!=null&&ap.actualPct!=='')?('ผลปัจจุบัน: '+ap.actualPct+'%'):'';
+  const topic=ap.kpiTopic||(ap.issue||'').substring(0,120);
 
   // ── 5 Why + Countermeasure ──────────────────────────────
   const whyKeys=['why1','why2','why3','why4','why5'];
   const cntKeys=['cntA','cntB','cntC','cntD','cntE','cntF'];
-  const maxRows=Math.max(whyKeys.length, cntKeys.length);
   let whyCntRows='';
-  for(let i=0;i<maxRows;i++){
-    const wLabel = i<whyKeys.length ? `W${i+1}` : '';
-    const wVal   = i<whyKeys.length ? (ap[whyKeys[i]]||'') : '';
-    const cLabel = i<cntKeys.length ? 'ABCDEF'[i] : '';
-    const cVal   = i<cntKeys.length ? (ap[cntKeys[i]]||'') : '';
-    whyCntRows+=`<tr class="why-row">
-      <td style="background:#fff2cc;font-weight:700;text-align:center;width:28px">${wLabel}</td>
-      <td style="width:35%">${wVal}</td>
-      <td style="background:#e2efda;font-weight:700;text-align:center;width:28px">${cLabel}</td>
-      <td>${cVal}</td>
-    </tr>`;
+  for(let i=0;i<6;i++){
+    const wVal=i<whyKeys.length?(ap[whyKeys[i]]||''):'';
+    const cLabel=i<cntKeys.length?'ABCDEF'[i]:'';
+    const cVal=i<cntKeys.length?(ap[cntKeys[i]]||''):'';
+    whyCntRows+='<tr><td class="ap-why-l">'+wVal+'</td><td class="ap-cnt-l">'+cLabel+'</td><td class="ap-cnt-v">'+cVal+'</td></tr>';
   }
 
   // ── Action steps ────────────────────────────────────────
-  const stepDefs = [
-    {k:'A',step:'stepA',resp:'stepAResp',track:'stepATrack',due:'stepADue',sts:'stepAStatus'},
-    {k:'B',step:'stepB',resp:'stepBResp',track:'stepBTrack',due:'stepBDue',sts:'stepBStatus'},
-    {k:'C',step:'stepC',resp:'stepCResp',track:'stepCTrack',due:'stepCDue',sts:'stepCStatus'},
-    {k:'D',step:'stepD',resp:'stepDResp',track:'stepDTrack',due:'stepDDue',sts:'stepDStatus'},
-    {k:'E',step:'stepE',resp:'stepEResp',track:'stepETrack',due:'stepEDue',sts:'stepEStatus'},
-    {k:'F',step:'stepF',resp:'stepFResp',track:'stepFTrack',due:'stepFDue',sts:'stepFStatus'},
+  const stepDefs=[
+    {k:'A',step:'stepA',resp:'stepAResp',track:'stepATrack'},
+    {k:'B',step:'stepB',resp:'stepBResp',track:'stepBTrack'},
+    {k:'C',step:'stepC',resp:'stepCResp',track:'stepCTrack'},
+    {k:'D',step:'stepD',resp:'stepDResp',track:'stepDTrack'},
+    {k:'E',step:'stepE',resp:'stepEResp',track:'stepETrack'},
+    {k:'F',step:'stepF',resp:'stepFResp',track:'stepFTrack'},
   ];
-
-  // 4 week columns × 4 months (like the Excel: เดือน1 wk1-4, เดือน2 wk1-4, เดือน3 wk1-4, เดือน4 wk1-4)
-  const wkHdr = [1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4].map(w=>`<th style="background:#bdd7ee;text-align:center;font-size:10px;padding:2px;width:22px">${w}</th>`).join('');
-  const monthSpans = ['เดือน __','เดือน __','เดือน __','เดือน __'].map(m=>
-    `<th colspan="4" style="background:#9dc3e6;text-align:center;font-size:11px;font-weight:700;padding:3px">${m}</th>`).join('');
-
-  const stepRows = stepDefs.map(d=>{
-    const stsColor = (d.sts&&ap[d.sts]==='เสร็จ') ? '#1a6b2f' : (d.sts&&ap[d.sts]==='กำลังทำ') ? '#c2410c' : '#1d4ed8';
-    const wkCells = Array(16).fill('<td style="border:1px solid #bbb;padding:1px;min-width:20px"></td>').join('');
-    return `<tr class="step-row">
-      <td style="background:#dae3f3;font-weight:900;text-align:center;width:24px;font-size:14px">${d.k}</td>
-      <td colspan="2" style="min-width:180px">${ap[d.step]||''}</td>
-      <td style="text-align:center;white-space:nowrap;font-size:11px">${ap[d.resp]||''}</td>
-      <td style="text-align:center;white-space:nowrap;font-size:11px">${ap[d.track]||''}</td>
-      <td class="step-plan" colspan="1">แผน</td>
-      ${wkCells}
-    </tr>
-    <tr>
-      <td style="background:#dae3f3"></td>
-      <td colspan="2" style="font-size:10px;color:#777">${ap[d.due]?'กำหนด: '+ap[d.due]:''}</td>
-      <td colspan="2"></td>
-      <td class="step-actual" colspan="1">จริง</td>
-      ${wkCells}
-    </tr>`;
+  const wkHdr=[1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4].map(w=>'<th class="ap-wk">'+w+'</th>').join('');
+  const monthSpans=['เดือน ________','เดือน ________','เดือน ________','เดือน ________']
+    .map(m=>'<th colspan="4" class="ap-mon">'+m+'</th>').join('');
+  const wkRow=Array(16).fill('<td class="ap-wk-cell"></td>').join('');
+  const stepRows=stepDefs.map(d=>'<tr>'
+    +'<td class="ap-step-k" rowspan="2">'+d.k+'</td>'
+    +'<td class="ap-step-txt" rowspan="2">'+(ap[d.step]||'')+'</td>'
+    +'<td class="ap-step-resp" rowspan="2">'+(ap[d.resp]||'')+'</td>'
+    +'<td class="ap-step-track" rowspan="2">'+(ap[d.track]||'')+'</td>'
+    +'<td class="ap-plan-lbl">แผน</td>'+wkRow
+    +'</tr><tr><td class="ap-act-lbl">ทำจริง</td>'+wkRow+'</tr>').join('');
+  const resItems=[{n:ap.res1Name,c:ap.res1Cost},{n:ap.res2Name,c:ap.res2Cost},{n:ap.res3Name,c:ap.res3Cost}];
+  const resCells=resItems.map((r,i)=>{
+    const nm=r.n||'';
+    const cost=r.c?Number(r.c).toLocaleString():'';
+    return '<span class="ap-res-item">'+(i+1)+'. '+(nm||'________')+' - '+(cost||'________')+' บาท</span>';
   }).join('');
 
-  // ── Resources ───────────────────────────────────────────
-  const resRows = [
-    {n:ap.res1Name,c:ap.res1Cost},{n:ap.res2Name,c:ap.res2Cost},{n:ap.res3Name,c:ap.res3Cost}
-  ].filter(r=>r.n||r.c).map((r,i)=>`<td class="lbl">${i+1}. ${r.n||'__________'}</td><td>${r.c?Number(r.c).toLocaleString()+' บาท':''}</td>`).join('');
+  return '<div class="ap-doc">'
+    +'<table class="ap-hdr-table"><tr>'
+    +'<td class="ap-hdr-left"><div class="ap-co-name">'+COMPANY_NAME+'</div><div class="ap-co-en">'+COMPANY_NAME_EN+'</div></td>'
+    +'<td class="ap-hdr-mid"><div class="ap-title">ใบรายงานการดำเนินการตามค่า KPI ประจำเดือน</div>'
+    +'<div class="ap-period-line"><span class="ap-u">'+(period.month||'________')+'</span> ปี <span class="ap-u">'+(period.year||'________')+'</span></div>'
+    +'<div class="ap-dept-line">แผนก <span class="ap-u ap-u-wide">'+(ap.dept||'')+'</span> &nbsp; เรื่อง <span class="ap-u ap-u-wide">'+topic+'</span></div></td>'
+    +'<td class="ap-hdr-right"><div class="ap-docno">F-QMR-010</div><div class="ap-rev">REV.01</div><div class="ap-print-date">วันที่พิมพ์: '+today+'</div></td>'
+    +'</tr></table>'
+    +'<div class="ap-sec">1. ผลการดำเนินงานปัจจุบัน</div>'
+    +'<table class="ap-tbl ap-kpi-tbl"><tr>'
+    +'<td class="ap-lbl" rowspan="2">ค่าเฉลี่ยของปี '+kpiYear+'</td><td class="ap-val" rowspan="2">'+(ap.prevAvg??'')+(ap.prevAvg!==''&&ap.prevAvg!=null?'%':'')+'</td>'
+    +'<td class="ap-lbl" rowspan="2">เป้าหมาย</td><td class="ap-val ap-target" rowspan="2">'+(ap.targetPct??'')+(ap.targetPct!==''&&ap.targetPct!=null?'%':'')+'</td>'
+    +'<td class="ap-lbl ap-kpi-span" colspan="13">ผลการดำเนินการของปี '+kpiYear+'</td></tr><tr>'
+    +monthNums.map(n=>'<th class="ap-mon-num">'+n+'</th>').join('')
+    +'<th class="ap-mon-num">ค่าเฉลี่ย</th></tr><tr>'
+    +'<td colspan="4" class="ap-kpi-note">'+kpiNote+'</td>'+monthValCells+'<td class="ap-num ap-avg">'+avgVal+'</td></tr></table>'
+    +'<div class="ap-sec">2. จัดตั้งทีมงาน</div><table class="ap-tbl ap-team-tbl"><tr>'+teamHdrRow+'</tr><tr>'+teamValRow+'</tr></table>'
+    +'<div class="ap-sec">3. ทำความเข้าใจกับปัญหาปัจจุบันอย่างชัดเจน ปัญหาที่ 1</div><table class="ap-tbl"><tr><td class="ap-issue">'+(ap.issue||'')+'</td></tr></table>'
+    +'<div class="ap-sec">4. วิเคราะห์หาสาเหตุหลักของปัญหา (5 Why) &amp; แนวทางแก้ไข</div>'
+    +'<table class="ap-tbl ap-why-tbl"><tr><th class="ap-why-h">สาเหตุหลักของปัญหาที่ 1</th>'
+    +'<th class="ap-cnt-h" colspan="2">แนวทางแก้ไข (แนวทางแก้ไขที่ชัดเจน, ทำแล้วปัญหาไม่เกิดซ้ำ) แนวทางแก้ไขปัญหาที่ 1</th></tr>'
+    +whyCntRows+'</table>'
+    +'<div class="ap-sec">5. ทรัพยากรที่ต้องใช้</div>'
+    +'<table class="ap-tbl ap-res-tbl"><tr><td class="ap-res-row">'+resCells
+    +'<span class="ap-res-total">รวม - '+(ap.resTotal?Number(ap.resTotal).toLocaleString():'________')+' บาท</span></td></tr></table>'
+    +'<div class="ap-sec">6. วิธีการดำเนินการแก้ไข / แผนการดำเนินงาน (Action Plan)</div>'
+    +'<table class="ap-tbl ap-gantt"><thead><tr>'
+    +'<th rowspan="2" class="ap-g-h">ลำดับที่</th><th rowspan="2" class="ap-g-method">วิธีการดำเนินการแก้ไข</th>'
+    +'<th rowspan="2" class="ap-g-resp">ผู้รับผิดชอบ</th><th rowspan="2" class="ap-g-track">ผู้ติดตาม</th>'
+    +'<th rowspan="2" class="ap-g-pa">แผน/<br>ทำจริง</th>'+monthSpans+'</tr><tr>'+wkHdr+'</tr></thead><tbody>'+stepRows+'</tbody></table>'
+    +'<div class="ap-footer"><div class="ap-legend">'
+    +'<span class="ap-leg-plan">→→→→ การวางแผน</span><span class="ap-leg-act">━━━━ การปฏิบัติจริง</span></div>'
+    +'<table class="ap-sign-tbl"><tr><td><div class="ap-sign-title">ผู้จัดทำ (วศ.ขึ้นไป)</div><div class="ap-sign-line"></div>'
+    +'<div class="ap-sign-name">'+(ap.verifyBy||'')+'</div><div class="ap-sign-date">____/____/____</div></td>'
+    +'<td><div class="ap-sign-title">ผู้อนุมัติ (ผช.ผจก.ขึ้นไป)</div><div class="ap-sign-line"></div>'
+    +'<div class="ap-sign-name">'+(ap.approver||'')+'</div><div class="ap-sign-date">____/____/____</div></td></tr></table></div></div>';
+}
 
-  // ── HTML ─────────────────────────────────────────────────
-  return `
-    <div class="doc-wrap">
-      <!-- Header -->
-      <table style="margin-bottom:8px;border:none">
-        <tr>
-          <td style="border:none;width:30%">
-            <div style="font-size:14px;font-weight:900">🏭 ${COMPANY_NAME}</div>
-            <div style="font-size:11px;color:#444">${COMPANY_NAME_EN}</div>
-          </td>
-          <td style="border:none;text-align:center">
-            <div class="hdr-title">ใบรายงานการดำเนินการตามค่า KPI</div>
-            <div style="font-size:12px;color:#444">ประจำเดือน <span class="underline">${ap.periodMonth||''}</span></div>
-          </td>
-          <td style="border:none;text-align:right;vertical-align:top;width:160px">
-            <div class="doc-no-box">F-QMR-010</div>
-            <div style="font-size:11px;margin-top:3px">Rev: 00</div>
-            <div style="font-size:11px">วันที่พิมพ์: ${today}</div>
-          </td>
-        </tr>
-      </table>
-      <div style="font-size:13px;font-weight:700;border:1px solid #555;padding:4px 8px;margin-bottom:8px">
-        แผนก <span class="underline" style="min-width:120px">${ap.dept||''}</span>
-        &nbsp;&nbsp; เรื่อง <span class="underline" style="min-width:160px">${ap.kpiTopic||''}</span>
-        &nbsp;&nbsp; เครื่อง: ${ap.machine||'-'}
-        &nbsp;&nbsp; หมวด: ${ap.category||'-'}
-        &nbsp;&nbsp; ความสำคัญ: <span class="prio-high">${ap.priority||'-'}</span>
-        &nbsp;&nbsp; สถานะ: <span class="status-closed">${ap.status||'-'}</span>
-      </div>
 
-      <!-- ส่วนที่ 1: ผลการดำเนินงาน -->
-      <div class="sec-label">1. ผลการดำเนินงานปัจจุบัน</div>
-      <table style="margin-bottom:8px">
-        <tr>
-          <td class="lbl">ค่าเฉลี่ยของปีที่ผ่านมา</td>
-          <td style="font-weight:700">${ap.prevAvg||''}${ap.prevAvg?'%':''}</td>
-          <td class="lbl">เป้าหมาย</td>
-          <td style="font-weight:700;color:#c00000">${ap.targetPct||''}${ap.targetPct?'%':''}</td>
-          <td class="lbl">ผลปัจจุบัน</td>
-          <td style="font-weight:700">${ap.actualPct||''}${ap.actualPct?'%':''}</td>
-          <td class="lbl">ค่าเฉลี่ยรายปี</td>
-          <td style="font-weight:700;color:#1d4ed8">${avgVal}${avgVal?'%':''}</td>
-        </tr>
-        <tr>
-          <th class="month-hdr" colspan="1" style="background:#4472c4;color:#fff;text-align:left;padding:4px 7px">ผลการดำเนินการรายเดือน (%)</th>
-          ${monthHdrCells}
-          <th class="month-hdr">ค่าเฉลี่ย</th>
-        </tr>
-        <tr>
-          <td class="lbl">ผลจริง</td>
-          ${monthValCells}
-          <td class="month-val" style="font-weight:700;color:#1d4ed8">${avgVal}</td>
-        </tr>
-      </table>
-
-      <!-- ส่วนที่ 2: ทีมงาน -->
-      <div class="sec-label">2. จัดตั้งทีมงาน</div>
-      <table style="margin-bottom:8px">
-        <tr>
-          <td class="lbl">หัวหน้ากลุ่ม</td>
-          <td style="font-weight:700">${ap.teamLeader||''}</td>
-          ${memberCells}
-        </tr>
-      </table>
-
-      <!-- ส่วนที่ 3: ปัญหา -->
-      <div class="sec-label">3. ทำความเข้าใจกับปัญหาปัจจุบันอย่างชัดเจน</div>
-      <table style="margin-bottom:8px">
-        <tr>
-          <td class="lbl" style="width:80px">ปัญหาที่ 1</td>
-          <td style="min-height:36px">${ap.issue||''}</td>
-        </tr>
-      </table>
-
-      <!-- ส่วนที่ 4: 5 Why + แนวทางแก้ไข -->
-      <div class="sec-label">4. วิเคราะห์หาสาเหตุหลักของปัญหา (5 Why) &amp; แนวทางแก้ไข</div>
-      <table style="margin-bottom:8px">
-        <thead>
-          <tr>
-            <th colspan="2" style="background:#fff2cc;text-align:center">สาเหตุหลักของปัญหา ที่ 1</th>
-            <th colspan="2" style="background:#e2efda;text-align:center">แนวทางแก้ไข (แนวทางแก้ไขที่ชัดเจน, ทำแล้วปัญหาไม่เกิดซ้ำ)</th>
-          </tr>
-        </thead>
-        <tbody>${whyCntRows}</tbody>
-      </table>
-
-      <!-- ส่วนที่ 5: ทรัพยากร -->
-      <div class="sec-label">5. ทรัพยากรที่ต้องใช้</div>
-      <table style="margin-bottom:8px">
-        <tr>
-          ${resRows||'<td colspan="6" style="color:#888">—</td>'}
-          <td class="lbl" style="background:#fff2cc">รวม</td>
-          <td style="font-weight:700;color:#c00000">${ap.resTotal?Number(ap.resTotal).toLocaleString()+' บาท':''}</td>
-        </tr>
-      </table>
-
-      <!-- ส่วนที่ 6: Action Plan (Gantt) -->
-      <div class="sec-label">6. วิธีการดำเนินการแก้ไข / แผนดำเนินงาน (Action Plan)</div>
-      <table style="margin-bottom:8px;font-size:11px">
-        <thead>
-          <tr>
-            <th rowspan="2" style="background:#4472c4;color:#fff;width:24px">ลำดับ</th>
-            <th rowspan="2" colspan="2" style="background:#4472c4;color:#fff;min-width:200px">วิธีการดำเนินการแก้ไข</th>
-            <th rowspan="2" style="background:#4472c4;color:#fff;white-space:nowrap">ผู้รับผิดชอบ</th>
-            <th rowspan="2" style="background:#4472c4;color:#fff;white-space:nowrap">ผู้ติดตาม</th>
-            <th rowspan="2" style="background:#4472c4;color:#fff;white-space:nowrap;width:40px">แผน/<br>จริง</th>
-            ${monthSpans}
-          </tr>
-          <tr>${wkHdr}</tr>
-        </thead>
-        <tbody>${stepRows}</tbody>
-      </table>
-
-      <!-- สัญลักษณ์ -->
-      <div style="font-size:11px;color:#555;margin-bottom:10px;border:1px solid #ddd;padding:4px 8px;display:inline-block">
-        <span style="margin-right:16px">⬛ = การวางแผน</span>
-        <span>▨ = การปฏิบัติจริง</span>
-      </div>
-
-      <!-- ลายเซ็น -->
-      <table style="margin-top:8px">
-        <tr>
-          <td style="text-align:center;border:1px solid #555;padding:6px;width:33%">
-            <div style="font-weight:700">ผู้จัดทำ (วศ. ขึ้นไป)</div>
-            <div class="sign-line"></div>
-            <div class="sign-name">${ap.verifyBy||'_________________________________'}</div>
-            <div style="font-size:11px;color:#555;margin-top:2px">วันที่ _____ / _____ / _____</div>
-          </td>
-          <td style="text-align:center;border:1px solid #555;padding:6px;width:33%">
-            <div style="font-weight:700">ผู้รับผิดชอบ</div>
-            <div class="sign-line"></div>
-            <div class="sign-name">${ap.responsible||'_________________________________'}</div>
-            <div style="font-size:11px;color:#555;margin-top:2px">วันที่ _____ / _____ / _____</div>
-          </td>
-          <td style="text-align:center;border:1px solid #555;padding:6px;width:33%">
-            <div style="font-weight:700">ผู้อนุมัติ (ผช.ผจก. ขึ้นไป)</div>
-            <div class="sign-line"></div>
-            <div class="sign-name">${ap.approver||'_________________________________'}</div>
-            <div style="font-size:11px;color:#555;margin-top:2px">วันที่ _____ / _____ / _____</div>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `;
+function buildAPPrintDocument(ap){
+  const title='F-QMR-010 Action Plan '+(ap.id||'');
+  const body=buildAPPrintHTML(ap);
+  return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>'+title+'</title>'
+  +'<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'
+  +'<style>'
+  +'@page{size:A4 landscape;margin:6mm 8mm}'
+  +'html,body{font-family:Sarabun,"TH Sarabun New","Noto Sans Thai",sans-serif;font-size:9pt;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}'
+  +'.ap-doc{width:100%;max-width:281mm;margin:0 auto}'
+  +'table.ap-tbl,table.ap-hdr-table{border-collapse:collapse;width:100%;table-layout:fixed}'
+  +'.ap-tbl td,.ap-tbl th,.ap-hdr-table td{border:1px solid #000;padding:2px 4px;vertical-align:middle;font-size:8.5pt;line-height:1.25}'
+  +'.ap-hdr-table td{border:none;vertical-align:top;padding:0 4px 6px}'
+  +'.ap-hdr-left{width:28%}.ap-hdr-mid{width:44%;text-align:center}.ap-hdr-right{width:28%;text-align:right}'
+  +'.ap-co-name{font-size:10pt;font-weight:700}.ap-co-en{font-size:7.5pt;color:#333;margin-top:1px}'
+  +'.ap-title{font-size:13pt;font-weight:700;line-height:1.2}'
+  +'.ap-period-line,.ap-dept-line{font-size:9pt;margin-top:3px}'
+  +'.ap-u{border-bottom:1px solid #000;display:inline-block;min-width:48px;padding:0 2px}.ap-u-wide{min-width:100px}'
+  +'.ap-docno{border:2px solid #000;padding:2px 10px;font-size:12pt;font-weight:700;display:inline-block}'
+  +'.ap-rev{font-size:8pt;font-weight:700;margin-top:2px}.ap-print-date{font-size:7.5pt;margin-top:2px}'
+  +'.ap-sec{font-size:9pt;font-weight:700;margin:4px 0 2px}'
+  +'.ap-lbl{background:#f2f2f2;font-weight:700;text-align:center;white-space:nowrap}'
+  +'.ap-val{text-align:center;font-weight:700}.ap-target{color:#c00000}'
+  +'.ap-kpi-span{text-align:center;background:#f2f2f2}'
+  +'.ap-mon-num{background:#d9e1f2;font-weight:700;text-align:center;font-size:8pt;padding:1px}'
+  +'.ap-num{text-align:center;font-size:8pt}.ap-avg{font-weight:700;color:#1d4ed8}'
+  +'.ap-kpi-note{font-size:7.5pt;text-align:left}'
+  +'.ap-team-tbl .ap-lbl{font-size:7.5pt;padding:2px 1px}.ap-team-tbl td{text-align:center;font-size:8pt;height:22px}'
+  +'.ap-issue{min-height:28px;vertical-align:top;padding:4px}'
+  +'.ap-why-h{background:#fff2cc;text-align:center;font-weight:700;width:42%}'
+  +'.ap-cnt-h{background:#e2efda;text-align:center;font-weight:700}'
+  +'.ap-why-l{vertical-align:top;min-height:16px;width:42%}'
+  +'.ap-cnt-l{background:#e2efda;font-weight:700;text-align:center;width:24px}'
+  +'.ap-cnt-v{vertical-align:top}'
+  +'.ap-res-row{font-size:8.5pt;padding:4px 6px}.ap-res-item{margin-right:14px}.ap-res-total{font-weight:700;margin-left:8px}'
+  +'.ap-gantt{font-size:7.5pt}'
+  +'.ap-g-h{width:22px;background:#4472c4;color:#fff;text-align:center;font-weight:700}'
+  +'.ap-g-method{width:22%}.ap-g-resp,.ap-g-track{width:9%}'
+  +'.ap-g-pa{width:28px;background:#4472c4;color:#fff;text-align:center;font-weight:700;font-size:7pt}'
+  +'.ap-gantt thead th{background:#4472c4;color:#fff;text-align:center;font-weight:700;border:1px solid #000;padding:1px}'
+  +'.ap-mon{background:#9dc3e6;font-size:7.5pt}.ap-wk{background:#bdd7ee;font-size:7pt;width:14px;padding:0}'
+  +'.ap-step-k{background:#dae3f3;font-weight:700;text-align:center;width:22px}'
+  +'.ap-step-txt{vertical-align:top;font-size:7.5pt}'
+  +'.ap-step-resp,.ap-step-track{text-align:center;font-size:7pt}'
+  +'.ap-plan-lbl{background:#fce4d6;text-align:center;font-weight:700;width:28px;font-size:7pt}'
+  +'.ap-act-lbl{background:#e2efda;text-align:center;font-weight:700;width:28px;font-size:7pt}'
+  +'.ap-wk-cell{height:12px;padding:0}'
+  +'.ap-footer{display:flex;align-items:flex-end;justify-content:space-between;margin-top:4px;gap:12px}'
+  +'.ap-legend{font-size:7.5pt;color:#333}'
+  +'.ap-leg-plan{margin-right:12px;border-bottom:2px dashed #333;padding-bottom:1px}'
+  +'.ap-leg-act{border-bottom:2px solid #333;padding-bottom:1px}'
+  +'.ap-sign-tbl{width:55%;border-collapse:collapse}'
+  +'.ap-sign-tbl td{border:1px solid #000;text-align:center;padding:4px;width:50%;vertical-align:bottom}'
+  +'.ap-sign-title{font-weight:700;font-size:8.5pt}.ap-sign-line{height:28px}'
+  +'.ap-sign-name{font-size:8pt;min-height:14px}.ap-sign-date{font-size:7.5pt;color:#555;margin-top:2px}'
+  +'@media print{.ap-doc{max-width:none}}'
+  +'</style></head><body>'+body+'</body></html>';
 }
 
 function printActionPlanDoc(apId){
   const ap = actionPlans.find(a=>a.id===apId);
   if(!ap){ if(typeof _infoToast==="function") _infoToast('ไม่พบ Action Plan'); return; }
-  openPrintWindow(buildAPPrintHTML(ap), 'F-QMR-010 Action Plan '+ap.id);
+  showPrintModal(buildAPPrintDocument(ap), 'F-QMR-010 Action Plan '+ap.id);
 }
 
 
