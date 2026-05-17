@@ -1380,7 +1380,9 @@ body[data-ui-mode="classic"] #sf-shell { display: none !important; }
 .sf-widget-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .sf-widget-title { font-size: 12px; font-weight: 700; }
 .sf-widget-sub { font-size: 10px; color: #9ca3af; }
+.sf-col-3 { grid-column: span 3; }
 .sf-col-4 { grid-column: span 4; }
+.sf-col-5 { grid-column: span 5; }
 .sf-col-6 { grid-column: span 6; }
 .sf-col-8 { grid-column: span 8; }
 .sf-col-12 { grid-column: span 12; }
@@ -1517,6 +1519,57 @@ body[data-ui-mode="smart"].sf-sidebar-is-collapsed { --sf-sidebar-w: var(--sf-si
 }
 .sf-mobile-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: none; background: transparent; font-size: 9px; font-weight: 600; color: #6b7280; cursor: pointer; border-radius: 10px; }
 .sf-mobile-nav button.active { color: var(--sf-primary); background: #f3f4f6; }
+
+/* Production Dashboard (ref layout) */
+.sf-prod-dash { padding-bottom: 32px; }
+.sf-prod-kpi-row { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+.sf-kpi-pro { position: relative; padding-top: 12px; }
+.sf-kpi-pro-ico {
+  position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 10px;
+  display: grid; place-items: center; font-size: 14px; background: #f3f4f6;
+}
+.sf-kpi-pro-goal { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+.sf-prod-period { display: inline-flex; gap: 4px; }
+.sf-prod-period button {
+  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--sf-border); background: #fff;
+  font-size: 10px; font-weight: 600; cursor: pointer; color: #6b7280;
+}
+.sf-prod-period button.active { background: #111; color: #fff; border-color: #111; }
+.sf-prod-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+.sf-prod-scroll > * { flex: 0 0 200px; scroll-snap-align: start; }
+.sf-prod-mach-live {
+  border: 1px solid var(--sf-border); border-radius: 12px; padding: 12px; background: #fafafa; min-height: 140px;
+}
+.sf-prod-mach-live .sf-m-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sf-prod-mach-live .sf-m-out { font-size: 18px; font-weight: 800; margin: 8px 0 4px; }
+.sf-prod-oee-bar { height: 6px; background: #e5e7eb; border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.sf-prod-oee-bar span { display: block; height: 100%; background: #22c55e; border-radius: 999px; }
+.sf-prod-actions { display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 10px; margin-top: 14px; }
+.sf-prod-action {
+  border: 1px solid var(--sf-border); border-radius: 12px; padding: 14px 8px; text-align: center;
+  background: #fff; cursor: pointer; transition: box-shadow .15s, border-color .15s; font-size: 10px; font-weight: 600;
+}
+.sf-prod-action:hover { border-color: #d1d5db; box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+.sf-prod-action i { display: block; margin: 0 auto 6px; width: 20px; height: 20px; }
+.sf-prod-timeline { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
+.sf-prod-tl-item {
+  display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--sf-border); font-size: 11px;
+}
+.sf-prod-tl-item.done { border-left: 3px solid var(--sf-run); background: #f0fdf4; }
+.sf-prod-tl-item.active { border-left: 3px solid var(--sf-info); background: #eff6ff; }
+.sf-prod-tl-item.wait { border-left: 3px solid #d1d5db; opacity: .85; }
+.sf-prod-notif-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.sf-prod-notif-tabs button {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--sf-border); background: #fff;
+  font-size: 10px; font-weight: 600; cursor: pointer;
+}
+.sf-prod-notif-tabs button.active { background: #111; color: #fff; }
+.sf-prod-apq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; font-size: 11px; }
+.sf-prod-apq div { text-align: center; padding: 8px; background: #f9fafb; border-radius: 8px; }
+.sf-prod-apq strong { display: block; font-size: 14px; margin-top: 2px; }
+@media (max-width: 1400px) { .sf-prod-kpi-row { grid-template-columns: repeat(3, minmax(0,1fr)); } .sf-prod-actions { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width: 900px) { .sf-prod-kpi-row { grid-template-columns: repeat(2, minmax(0,1fr)); } .sf-prod-actions { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
@@ -1638,6 +1691,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div id="sf-dashboard" class="sf-dashboard">
         <div class="sf-view-tabs" id="sf-view-tabs">
           <button type="button" class="sf-view-tab active" data-sf-view="overview">Overview</button>
+          <button type="button" class="sf-view-tab" data-sf-view="production">Production</button>
           <button type="button" class="sf-view-tab" data-sf-view="timeline">Timeline</button>
           <button type="button" class="sf-view-tab" data-sf-view="qc">QC Command</button>
           <button type="button" class="sf-view-tab" data-sf-view="pm">PM War Room</button>
@@ -60241,6 +60295,7 @@ document.addEventListener('keydown', function(e){
   var SF_NAV = [
     { label:'Dashboard', items:[
       { id:'sf-home', icon:'layout-dashboard', label:'Control Center', action:'home' },
+      { id:'sf-prod-dash', icon:'factory', label:'Production Dashboard', action:'sfProdDash' },
       { id:'dashboard', icon:'bar-chart-3', label:'Production Summary', page:'dashboard' },
       { id:'machines', icon:'cpu', label:'Machine Status', page:'machines', badgeKey:'machAlarm' },
       { id:'hourlyboard', icon:'timer', label:'Hourly Board', page:'hourlyboard' }
@@ -60287,6 +60342,8 @@ document.addEventListener('keydown', function(e){
   var _sfRefreshTimer = null;
   var _sfLastDash = null;
   var _sfChartInst = {};
+  var _sfProdChartPeriod = 'day';
+  var _sfProdNotifFilter = 'all';
 
   function getUiMode(){
     try{ return localStorage.getItem('_uiMode') || 'classic'; }catch(e){ return 'classic'; }
@@ -60397,6 +60454,7 @@ document.addEventListener('keydown', function(e){
         var page = el.getAttribute('data-page');
         var arg = el.getAttribute('data-arg');
         if(action === 'home') goHomeSf();
+        else if(action === 'sfProdDash') sfGoProductionDash();
         else if(page) sfOpenPage(page, arg || undefined);
       });
     });
@@ -60736,12 +60794,15 @@ document.addEventListener('keydown', function(e){
 
   function sfRefreshDashboard(soft){
     if(getUiMode() !== 'smart') return;
-    _sfLastDash = _sfCollectDashData('day');
+    _sfLastDash = _sfView === 'production'
+      ? _sfCollectProductionData(_sfProdChartPeriod)
+      : _sfCollectDashData('day');
     _sfSyncNotificationsFromDash(_sfLastDash);
     if(!soft) sfRenderCurrentView();
     else {
       _sfUpdateHeader(_sfLastDash);
-      _sfMountCharts(_sfLastDash);
+      if(_sfView === 'production') _sfMountProductionCharts(_sfLastDash);
+      else _sfMountCharts(_sfLastDash);
       _sfUpdateBadges();
     }
   }
@@ -60763,14 +60824,17 @@ document.addEventListener('keydown', function(e){
   function sfRenderCurrentView(){
     try{
       _sfDisposeCharts();
-      _sfLastDash = _sfCollectDashData('day');
+      _sfLastDash = _sfView === 'production'
+        ? _sfCollectProductionData(_sfProdChartPeriod)
+        : _sfCollectDashData('day');
       _sfSyncNotificationsFromDash(_sfLastDash);
       _sfUpdateHeader(_sfLastDash);
       var dashEl = document.getElementById('sf-dashboard');
       if(dashEl) dashEl.className = 'sf-dashboard';
       var contentEl = document.getElementById('sf-dashboard-content');
       if(contentEl) contentEl.className = '';
-      if(_sfView === 'timeline') sfRenderTimelineDashboard();
+      if(_sfView === 'production') sfRenderProductionDashboard();
+      else if(_sfView === 'timeline') sfRenderTimelineDashboard();
       else if(_sfView === 'qc') sfRenderQcDashboard();
       else if(_sfView === 'pm') sfRenderPmDashboard();
       else if(_sfView === 'stock') sfRenderStockDashboard();
@@ -60778,8 +60842,12 @@ document.addEventListener('keydown', function(e){
       else sfRenderOverviewDashboard();
       _sfUpdateBadges();
       _sfLucide();
-      setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 80);
-      setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 400);
+      var _sfMountViewCharts = function(){
+        if(_sfView === 'production') _sfMountProductionCharts(_sfLastDash);
+        else _sfMountCharts(_sfLastDash);
+      };
+      setTimeout(_sfMountViewCharts, 80);
+      setTimeout(_sfMountViewCharts, 400);
     }catch(err){
       console.error('[Smart Factory] render failed:', err);
       var el = document.getElementById('sf-dashboard-content');
@@ -60863,6 +60931,362 @@ document.addEventListener('keydown', function(e){
     }).join('');
     return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span><span class="sf-widget-sub">'+orderList.length+' รายการ</span></div><div>'+(rows||'<div class="sf-empty">ไม่มี Order กำลังผลิต</div>')+'</div></div>';
   }
+
+
+  function _sfKpiTarget(code, fallback){
+    if(typeof _dashFindKpiTarget === 'function') return _dashFindKpiTarget(code, fallback);
+    return fallback;
+  }
+
+  function sfGoProductionDash(){
+    if(getUiMode() !== 'smart') setUiMode('smart');
+    var pv = document.getElementById('page-view');
+    if(pv){ pv.classList.remove('sf-page-active'); pv.style.display = 'none'; }
+    var dash = document.getElementById('sf-dashboard');
+    if(dash) dash.style.display = 'block';
+    document.querySelectorAll('.sf-nav-item').forEach(function(n){ n.classList.remove('active'); });
+    var nav = document.querySelector('[data-sf-nav="sf-prod-dash"]');
+    if(nav) nav.classList.add('active');
+    _sfView = 'production';
+    document.querySelectorAll('#sf-view-tabs .sf-view-tab').forEach(function(t){
+      t.classList.toggle('active', t.getAttribute('data-sf-view') === 'production');
+    });
+    sfRenderCurrentView();
+  }
+  window.sfGoProductionDash = sfGoProductionDash;
+
+  function _sfCollectProductionData(chartPeriod){
+    chartPeriod = chartPeriod || _sfProdChartPeriod || 'day';
+    var basePeriod = chartPeriod === 'month' ? 'month' : 'day';
+    var d = _sfCollectDashData(basePeriod);
+    var today = _sfToday();
+    var allRpts = Object.values((typeof dailyReports !== 'undefined' && dailyReports) ? dailyReports : {});
+    var machList = (typeof MACHINES !== 'undefined' && Array.isArray(MACHINES)) ? MACHINES : [];
+    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders : [];
+
+    var planProd = d.totTarget > 0 ? d.totTarget : orderList.filter(function(o){
+      return o.status === 'กำลังผลิต' || o.status === 'รอผลิต';
+    }).reduce(function(s, o){ return s + (o.qty || 0); }, 0);
+    if(!planProd) planProd = _sfKpiTarget('output', 15000);
+
+    var activeHrs = 0;
+    (d.hourlyProd || []).forEach(function(v){ if(v > 0) activeHrs++; });
+    if(activeHrs < 1) activeHrs = Math.max(1, d.todayRptCount || 8);
+    var outputHr = d.totProd > 0 ? Math.round(d.totProd / activeHrs) : 0;
+    var downtimeHr = +(d.totLT / 60).toFixed(2);
+
+    var otdTotal = 0, otdOn = 0;
+    orderList.forEach(function(o){
+      if(!o.dueDate) return;
+      otdTotal++;
+      var done = o.status === 'พร้อมส่ง' || o.status === 'ส่งแล้ว' || o.status === 'เสร็จแล้ว' ||
+        ((o.produced || 0) >= (o.qty || 1) && (o.qty || 0) > 0);
+      if(done && (!o.endDate || String(o.endDate) <= String(o.dueDate))) otdOn++;
+    });
+    var otdPct = otdTotal > 0 ? (otdOn / otdTotal * 100) : 100;
+
+    var hourlyPlan = [];
+    for(var hi = 0; hi < 24; hi++) hourlyPlan.push(0);
+    (d.filtRpts || []).forEach(function(rpt){
+      (rpt.rows || []).forEach(function(r){
+        var h = parseInt(r.hour, 10);
+        if(h >= 0 && h < 24) hourlyPlan[h] += r.target || 0;
+      });
+      if((rpt.targetHr || 0) > 0){
+        var perH = Math.round(rpt.targetHr || 0);
+        for(var h2 = 8; h2 <= 20; h2++){ if(!hourlyPlan[h2]) hourlyPlan[h2] += perH; }
+      }
+    });
+
+    var chartLabels = [], chartPlan = [], chartActual = [];
+    if(chartPeriod === 'week'){
+      for(var wi = 6; wi >= 0; wi--){
+        var ds = _sfDateOffset(-wi);
+        var dayP = 0, dayPl = 0;
+        allRpts.filter(function(r){ return r.date === ds; }).forEach(function(rpt){
+          (rpt.rows || []).forEach(function(r){ dayP += r.produced || 0; dayPl += r.target || 0; });
+          dayPl += (rpt.targetHr || 0) * 20;
+        });
+        chartLabels.push(ds.slice(5));
+        chartActual.push(dayP);
+        chartPlan.push(dayPl || Math.round(planProd / 7));
+      }
+    } else if(chartPeriod === 'month'){
+      var thisMonth = today.slice(0, 7);
+      var dim = new Date(parseInt(today.slice(0,4),10), parseInt(today.slice(5,7),10), 0).getDate();
+      for(var di = 1; di <= dim; di++){
+        if(di % 3 !== 1 && di !== dim) continue;
+        var ds2 = thisMonth + '-' + String(di).padStart(2,'0');
+        var p = 0, pl = 0;
+        allRpts.filter(function(r){ return r.date === ds2; }).forEach(function(rpt){
+          (rpt.rows || []).forEach(function(r){ p += r.produced || 0; pl += r.target || 0; });
+        });
+        chartLabels.push(String(di));
+        chartActual.push(p);
+        chartPlan.push(pl || Math.round(planProd / dim));
+      }
+    } else {
+      for(var h3 = 0; h3 < 24; h3++) chartLabels.push((h3 < 10 ? '0' : '') + h3 + ':00');
+      chartPlan = hourlyPlan.slice();
+      chartActual = (d.hourlyProd || []).slice();
+    }
+
+    var apq = { a: 0, p: 0, q: 0, n: 0 };
+    machList.forEach(function(m){
+      var run = typeof getMachineRunData === 'function' ? getMachineRunData(m) : {};
+      var a = parseFloat(run.runPct) || 0;
+      var q = Math.max(0, 100 - (parseFloat(run.ngPct) || 0));
+      var p = parseFloat(run.oee) || 0;
+      if(a > 0 || p > 0){ apq.a += a; apq.p += p; apq.q += q; apq.n++; }
+    });
+    if(apq.n){
+      apq.a = +(apq.a / apq.n).toFixed(1);
+      apq.p = +(apq.p / apq.n).toFixed(1);
+      apq.q = +(apq.q / apq.n).toFixed(1);
+    } else {
+      apq.a = d.healthPct || 0;
+      apq.p = d.avgOee != null ? d.avgOee : 0;
+      apq.q = Math.max(0, 100 - d.ngPct);
+    }
+    var gaugeOee = apq.n ? Math.round((apq.a * apq.p * apq.q) / 10000) : (d.avgOee != null ? Math.round(d.avgOee) : 0);
+
+    var machLive = (d.machines || []).map(function(m){
+      var raw = machList.find(function(x){ return x.id === m.id; });
+      var runD = raw && typeof getMachineRunData === 'function' ? getMachineRunData(raw) : {};
+      var prod = 0;
+      if(m.rpt && m.rpt.rows) prod = m.rpt.rows.reduce(function(s, r){ return s + (r.produced || 0); }, 0);
+      return { id: m.id, status: m.status, job: m.job, output: prod, oee: parseFloat(runD.oee) || 0, ton: m.ton };
+    }).sort(function(a, b){ return b.output - a.output; });
+
+    var stockRows = Object.entries(typeof rawMatStock !== 'undefined' ? rawMatStock : {}).filter(function(e){
+      return e[1] && !e[1]._deleted;
+    }).map(function(e){
+      var st = e[1], min = st.min || 500, qty = st.qty || 0;
+      var status = qty < min * 0.5 ? 'low' : (qty < min ? 'warn' : 'ok');
+      var label = qty < min * 0.5 ? 'ใกล้หมด' : (qty < min ? 'ใกล้ถึงจุดสั่งซื้อ' : 'ปกติ');
+      return { name: e[0], qty: qty, unit: st.unit || 'kg', status: status, label: label };
+    }).sort(function(a, b){
+      var rank = { low: 0, warn: 1, ok: 2 };
+      return (rank[a.status] || 9) - (rank[b.status] || 9);
+    }).slice(0, 8);
+
+    var timeline = [];
+    orderList.filter(function(o){ return o.status === 'กำลังผลิต' || o.status === 'รอผลิต'; }).slice(0, 6).forEach(function(o){
+      var pct = o.qty > 0 ? Math.round((o.produced || 0) / o.qty * 100) : 0;
+      var st = pct >= 100 ? 'done' : (o.status === 'กำลังผลิต' ? 'active' : 'wait');
+      timeline.push({
+        title: (o.orderNo || 'Order') + ' · ' + (o.jobName || o.machine || ''),
+        sub: (o.machine || '—') + ' · ' + pct + '%',
+        status: st,
+        badge: st === 'done' ? 'เสร็จสิ้น' : (st === 'active' ? 'กำลังดำเนินการ' : 'รอดำเนินการ')
+      });
+    });
+    if(d.pmDue > 0) timeline.push({ title: 'แผน PM', sub: d.pmDue + ' รายการ', status: 'wait', badge: 'รอดำเนินการ' });
+    if(!timeline.length) timeline.push({ title: 'ไม่มีงานผลิตที่กำลังดำเนินการ', sub: 'ตรวจสอบ Orders / Daily Report', status: 'wait', badge: '—' });
+
+    return Object.assign({}, d, {
+      chartPeriod: chartPeriod,
+      planProd: planProd,
+      outputHr: outputHr,
+      downtimeHr: downtimeHr,
+      otdPct: otdPct,
+      chartLabels: chartLabels,
+      chartPlan: chartPlan,
+      chartActual: chartActual,
+      apq: apq,
+      gaugeOee: gaugeOee,
+      machLive: machLive,
+      stockRows: stockRows,
+      timeline: timeline,
+      targets: {
+        prod: planProd,
+        oee: _sfKpiTarget('eff', 85),
+        ng: _sfKpiTarget('ng', 2),
+        downtime: _sfKpiTarget('downtime', 1),
+        outputHr: _sfKpiTarget('outputHr', 600) || 600,
+        otd: _sfKpiTarget('otd', 95)
+      },
+      machStatusPie: {
+        running: d.running + d.alarm,
+        waiting: d.setupCount + Math.max(0, d.idle),
+        stop: d.down,
+        pm: d.pmDue,
+        total: d.totalMach || machList.length
+      }
+    });
+  }
+
+  function _sfKpiCardPro(label, val, goalText, trend, spark, icon){
+    return '<div class="sf-kpi sf-kpi-pro"><span class="sf-kpi-pro-ico">' + icon + '</span>' +
+      '<div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
+      '<div class="sf-kpi-val">' + val + '</div>' +
+      '<div class="sf-kpi-pro-goal">' + goalText + '</div>' +
+      _sfTrendHtml(trend) +
+      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark || []) + '</div></div>';
+  }
+
+  function sfRenderProductionDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    el.className = 'sf-dashboard sf-prod-dash';
+    var d = _sfCollectProductionData(_sfProdChartPeriod);
+    _sfLastDash = d;
+    var ht = document.getElementById('sf-header-title');
+    if(ht) ht.textContent = 'Production Dashboard';
+    var t = d.targets || {};
+    var sd = d.machStatusPie || {};
+    var totalM = sd.total || d.totalMach || 1;
+
+    var notifItems = (d.alerts || []).filter(function(a){
+      if(_sfProdNotifFilter === 'alert') return a.priority === 'crit' || a.priority === 'warn';
+      if(_sfProdNotifFilter === 'update') return a.priority === 'info';
+      return true;
+    });
+    var notifHtml = notifItems.slice(0, 8).map(function(n){
+      return '<div class="sf-notif-item ' + n.priority + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><span style="color:#9ca3af;font-size:10px">' + n.time + '</span></div></div>';
+    }).join('') || '<div class="sf-empty">ไม่มีการแจ้งเตือน</div>';
+
+    var machCards = (d.machLive || []).slice(0, 12).map(function(m){
+      var chip = m.status === 'running' ? 'run' : (m.status === 'down' ? 'down' : (m.status === 'setup' ? 'setup' : 'idle'));
+      return '<div class="sf-prod-mach-live"><div class="sf-m-top"><span style="font-weight:800;font-family:monospace">' + m.id + '</span><span class="sf-status-chip ' + chip + '">' + String(m.status).toUpperCase() + '</span></div>' +
+        '<div style="font-size:10px;color:#6b7280">' + (m.ton || '') + 'T · ' + (m.job || '—') + '</div>' +
+        '<div class="sf-m-out">' + _sfFmtNum(m.output) + ' <span style="font-size:10px;font-weight:500;color:#9ca3af">Pcs</span></div>' +
+        '<div style="font-size:10px">OEE ' + (m.oee || 0) + '%</div><div class="sf-prod-oee-bar"><span style="width:' + Math.min(100, m.oee || 0) + '%"></span></div></div>';
+    }).join('');
+
+    var stockHtml = (d.stockRows || []).map(function(s){
+      var chip = s.status === 'low' ? 'down' : (s.status === 'warn' ? 'setup' : 'run');
+      return '<tr><td>' + s.name + '</td><td style="font-weight:700">' + _sfFmtNum(s.qty) + '</td><td>' + s.unit + '</td><td><span class="sf-status-chip ' + chip + '">' + s.label + '</span></td></tr>';
+    }).join('') || '<tr><td colspan="4">ไม่มีข้อมูลวัตถุดิบ</td></tr>';
+
+    var tlHtml = (d.timeline || []).map(function(tl){
+      return '<div class="sf-prod-tl-item ' + tl.status + '"><div style="flex:1"><strong>' + tl.title + '</strong><br><span style="color:#6b7280;font-size:10px">' + tl.sub + '</span></div><span class="sf-status-chip ' + (tl.status === 'done' ? 'run' : (tl.status === 'active' ? 'setup' : 'idle')) + '">' + tl.badge + '</span></div>';
+    }).join('');
+
+    var periodBtns = ['day','week','month'].map(function(pp){
+      return '<button type="button" class="' + (d.chartPeriod === pp ? 'active' : '') + '" data-sf-prod-period="' + pp + '">' + (pp === 'day' ? 'Day' : pp === 'week' ? 'Week' : 'Month') + '</button>';
+    }).join('');
+
+    var oeeVal = d.avgOee != null ? Math.round(d.avgOee) + '%' : '—';
+    el.innerHTML =
+      '<div class="sf-prod-kpi-row">' +
+        _sfKpiCardPro('Production Today', _sfFmtNum(d.totProd) + ' Pcs', 'Plan: ' + _sfFmtNum(t.prod || d.planProd) + ' Pcs', d.trends.prod, d.sparkProd, '📦') +
+        _sfKpiCardPro('OEE (Overall)', oeeVal, 'Goal: ' + (t.oee || 85) + '%', d.trends.oee, d.sparkOee, '⚙️') +
+        _sfKpiCardPro('NG Rate', d.ngPct.toFixed(2) + '%', 'Goal: < ' + (t.ng || 2) + '%', d.trends.ng, d.sparkNg, '⚠️') +
+        _sfKpiCardPro('Downtime', d.downtimeHr + ' ชม.', 'Goal: < ' + (t.downtime || 1) + ' ชม.', d.trends.lt, d.sparkLt || d.sparkProd, '⏱') +
+        _sfKpiCardPro('Output / HR', _sfFmtNum(d.outputHr) + ' Pcs', 'Goal: ' + _sfFmtNum(t.outputHr || 600) + ' Pcs', d.trends.outputHr || d.trends.prod, d.sparkProd, '📈') +
+        _sfKpiCardPro('On Time Delivery', d.otdPct.toFixed(1) + '%', 'Goal: ' + (t.otd || 95) + '%', { text: (d.overdue > 0 ? d.overdue + ' late' : 'OK'), dir: d.overdue > 0 ? 'down' : 'up' }, [d.otdPct, 92, 94, 95, d.otdPct], '✅') +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">' + totalM + ' Total Machine</span></div><div id="sf-prod-chart-status" class="sf-chart sm"></div></div>' +
+        '<div class="sf-widget sf-col-5"><div class="sf-widget-head"><span class="sf-widget-title">Production Plan vs Actual</span><div class="sf-prod-period">' + periodBtns + '</div></div><div id="sf-prod-chart-plan" class="sf-chart lg"></div></div>' +
+        '<div class="sf-widget sf-col-3"><div class="sf-widget-head"><span class="sf-widget-title">Notification Center</span></div>' +
+          '<div class="sf-prod-notif-tabs"><button type="button" class="' + (_sfProdNotifFilter === 'all' ? 'active' : '') + '" data-sf-notif-f="all">All</button><button type="button" class="' + (_sfProdNotifFilter === 'alert' ? 'active' : '') + '" data-sf-notif-f="alert">Alert</button><button type="button" class="' + (_sfProdNotifFilter === 'update' ? 'active' : '') + '" data-sf-notif-f="update">Update</button></div>' +
+          '<div class="sf-notif-list" style="max-height:240px">' + notifHtml + '</div></div>' +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Monitor (Live)</span><button class="sf-btn" onclick="sfOpenPage(\'machines\')">ดูทั้งหมด</button></div><div class="sf-prod-scroll">' + machCards + '</div></div>' +
+        '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Quick KPI</span><span class="sf-widget-sub">Daily OEE</span></div><div id="sf-prod-chart-gauge" class="sf-chart sm"></div>' +
+          '<div class="sf-prod-apq"><div>Availability<strong>' + d.apq.a + '%</strong></div><div>Performance<strong>' + d.apq.p + '%</strong></div><div>Quality<strong>' + d.apq.q + '%</strong></div></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">QC / NG Analysis</span><button class="sf-btn" onclick="sfOpenPage(\'nganalysis\')">รายละเอียด</button></div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div id="sf-prod-chart-ng" class="sf-chart sm"></div><div id="sf-prod-chart-defect" class="sf-chart sm"></div></div></div>' +
+        '<div class="sf-widget sf-col-3"><div class="sf-widget-head"><span class="sf-widget-title">Stock / Material</span><button class="sf-btn" onclick="sfOpenPage(\'rawmat\')">RM</button></div><table class="sf-table"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Status</th></tr></thead><tbody>' + stockHtml + '</tbody></table></div>' +
+        '<div class="sf-widget sf-col-3"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline (Today)</span></div><div class="sf-prod-timeline">' + tlHtml + '</div></div>' +
+      '</div>' +
+      '<div class="sf-widget" style="margin-top:12px"><div class="sf-widget-head"><span class="sf-widget-title">Quick Action</span></div><div class="sf-prod-actions">' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'orders\')"><i data-lucide="clipboard-plus"></i>Create Order</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'qcinspect\')"><i data-lucide="scan-line"></i>QC Check</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'rawmat\')"><i data-lucide="package-plus"></i>Request Material</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'setup\')"><i data-lucide="wrench"></i>Setup Planning</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'machines\')"><i data-lucide="settings-2"></i>Machine Setting</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'machinepm\')"><i data-lucide="shield"></i>PM Request</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'stock\')"><i data-lucide="package"></i>FG Stock</button>' +
+        '<button type="button" class="sf-prod-action" onclick="sfOpenPage(\'dashboard\')"><i data-lucide="bar-chart-2"></i>Classic Dashboard</button>' +
+      '</div></div>';
+
+    el.querySelectorAll('[data-sf-prod-period]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        _sfProdChartPeriod = btn.getAttribute('data-sf-prod-period') || 'day';
+        sfRenderCurrentView();
+      });
+    });
+    el.querySelectorAll('[data-sf-notif-f]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        _sfProdNotifFilter = btn.getAttribute('data-sf-notif-f') || 'all';
+        sfRenderCurrentView();
+      });
+    });
+  }
+
+  function _sfMountProductionCharts(d){
+    if(!d) return;
+    if(!window.echarts){
+      ['sf-prod-chart-status','sf-prod-chart-plan','sf-prod-chart-gauge','sf-prod-chart-ng','sf-prod-chart-defect'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.innerHTML = '<div class="sf-empty" style="padding:32px 0">กำลังโหลดกราฟ...</div>';
+      });
+      return;
+    }
+    var sd = d.machStatusPie || {};
+    var pieData = [
+      { value: sd.running || 0, name: 'Running', itemStyle: { color: '#22c55e' } },
+      { value: sd.waiting || 0, name: 'Waiting', itemStyle: { color: '#f59e0b' } },
+      { value: sd.stop || 0, name: 'Stop', itemStyle: { color: '#ef4444' } },
+      { value: sd.pm || 0, name: 'PM', itemStyle: { color: '#8b5cf6' } }
+    ].filter(function(x){ return x.value > 0; });
+    if(!pieData.length) pieData.push({ value: 1, name: 'Idle', itemStyle: { color: '#9ca3af' } });
+    if(document.getElementById('sf-prod-chart-status')){
+      _sfChart('sf-prod-chart-status', {
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle: { fontSize: 9 } },
+        series: [{ type: 'pie', radius: ['42%', '68%'], center: ['50%', '44%'], label: { fontSize: 9 },
+          data: pieData }]
+      });
+    }
+    if(document.getElementById('sf-prod-chart-plan')){
+      _sfChart('sf-prod-chart-plan', {
+        grid: { left: 48, right: 16, top: 28, bottom: 40 },
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['Plan', 'Actual'], bottom: 0, textStyle: { fontSize: 10 } },
+        xAxis: { type: 'category', data: d.chartLabels || [], axisLabel: { fontSize: 9 } },
+        yAxis: { type: 'value' },
+        series: [
+          { name: 'Plan', type: 'line', smooth: true, data: d.chartPlan || [], lineStyle: { type: 'dashed', color: '#9ca3af' }, itemStyle: { color: '#9ca3af' }, symbol: 'none' },
+          { name: 'Actual', type: 'line', smooth: true, data: d.chartActual || [], lineStyle: { color: '#2563eb', width: 2 }, itemStyle: { color: '#2563eb' }, areaStyle: { color: 'rgba(37,99,235,.08)' } }
+        ]
+      });
+    }
+    if(document.getElementById('sf-prod-chart-gauge')){
+      _sfChart('sf-prod-chart-gauge', {
+        series: [{
+          type: 'gauge', min: 0, max: 100, radius: '90%',
+          progress: { show: true, width: 12 },
+          axisLine: { lineStyle: { width: 12 } },
+          detail: { formatter: (d.gaugeOee || 0) + '%', fontSize: 20, fontWeight: 700, offsetCenter: [0, '12%'] },
+          data: [{ value: d.gaugeOee || 0, name: 'Daily OEE' }]
+        }]
+      });
+    }
+    if(document.getElementById('sf-prod-chart-ng')){
+      _sfChart('sf-prod-chart-ng', {
+        grid: { left: 36, right: 8, top: 16, bottom: 24 },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: ['-6','-5','-4','-3','-2','-1','วันนี้'], axisLabel: { fontSize: 8 } },
+        yAxis: { type: 'value', axisLabel: { fontSize: 9 } },
+        series: [{ name: 'NG%', type: 'line', smooth: true, data: d.sparkNg || [], lineStyle: { color: '#ef4444' }, areaStyle: { color: 'rgba(239,68,68,.1)' } }]
+      });
+    }
+    if(document.getElementById('sf-prod-chart-defect')){
+      var sorted = Object.entries(d.ngByDefect || {}).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 5);
+      _sfChart('sf-prod-chart-defect', {
+        grid: { left: 72, right: 12, top: 8, bottom: 24 },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'value' },
+        yAxis: { type: 'category', data: sorted.map(function(x){ return x[0]; }), axisLabel: { fontSize: 9 } },
+        series: [{ type: 'bar', data: sorted.map(function(x){ return x[1]; }), itemStyle: { color: '#111', borderRadius: [0,4,4,0] } }]
+      });
+    }
+    Object.keys(_sfChartInst).forEach(function(k){ try{ _sfChartInst[k].resize(); }catch(e){} });
+  }
+
 
   function sfRenderOverviewDashboard(){
     var el = document.getElementById('sf-dashboard-content');
