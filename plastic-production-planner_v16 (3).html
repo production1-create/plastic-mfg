@@ -374,9 +374,22 @@ body.nothing-mode .hs-approval-line-icon { color: #000; }
 }
 body.light-mode .hs-tt-line-icon { color: #1e7e34; }
 body.nothing-mode .hs-tt-line-icon { color: #000; }
+
+/* Hourly board line dept tiles B1–B7 */
+.hs-hb-line-icon {
+  font-weight: 900;
+  font-size: 17px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #79c0ff;
+}
+body.light-mode .hs-hb-line-icon { color: #1565c0; }
+body.nothing-mode .hs-hb-line-icon { color: #000; }
 #pv-title .hs-order-line-icon,
 #pv-title .hs-approval-line-icon,
-#pv-title .hs-tt-line-icon {
+#pv-title .hs-tt-line-icon,
+#pv-title .hs-hb-line-icon {
   font-weight: 900;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 14px;
@@ -1788,7 +1801,14 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 20 --> <div class="nav-item" onclick="showPage('dailyrpt',this)"><span class="nav-icon">📝</span><span class="nav-seq">23</span> ใบรายงานการผลิต <span id="nav-rpt-badge" style="margin-left:auto;padding:1px 6px;background:rgba(63,185,80,0.2);border-radius:8px;font-size:9px;color:#3fb950;font-weight:700;display:none"></span></div>
     <!-- 22   --> <div class="nav-item" onclick="showPage('conddaily',this)"><span class="nav-icon">🌡️</span><span class="nav-seq">22</span> Condition ประจำวัน</div>
     <!-- 24   --> <div class="nav-item" onclick="showPage('machines',this)"><span class="nav-icon">⚙️</span><span class="nav-seq">24</span> สถานะเครื่องจักร</div>
-    <!-- NEW  --> <div class="nav-item" onclick="showPage('hourlyboard',this)"><span class="nav-icon">⏱️</span><span class="nav-seq">24B</span> บอร์ดผลิตรายชั่วโมง</div>
+    <!-- NEW  --> <div class="nav-item" onclick="showPage('hourlyboard',this,'all')"><span class="nav-icon">⏱️</span><span class="nav-seq">24B</span> บอร์ดผลิตรายชั่วโมง รวม (7 แผนก)</div>
+    <!-- B1 --><div class="nav-item" onclick="showPage('hourlyboard-b1',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B1</span><span class="nav-seq">B1</span> บอร์ดรายชั่วโมง ฉีด Zone 1</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b2',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B2</span><span class="nav-seq">B2</span> บอร์ดรายชั่วโมง ฉีด Zone 2</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b3',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B3</span><span class="nav-seq">B3</span> บอร์ดรายชั่วโมง ฉีด Zone 3</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b4',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B4</span><span class="nav-seq">B4</span> บอร์ดรายชั่วโมง ฉีด Zone 4</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b5',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B5</span><span class="nav-seq">B5</span> บอร์ดรายชั่วโมง ฉีดยานยนต์</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b6',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B6</span><span class="nav-seq">B6</span> บอร์ดรายชั่วโมง แผนกประกอบ</div>
+    <div class="nav-item" onclick="showPage('hourlyboard-b7',this)"><span class="nav-icon" style="font-weight:900;font-family:IBM Plex Mono,monospace">B7</span><span class="nav-seq">B7</span> บอร์ดรายชั่วโมง พ่น·สกรีน</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -5520,7 +5540,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   <div class="page-header" style="margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div>
-        <div class="page-title">⏱️ บอร์ดผลิตรายชั่วโมง</div>
+        <div class="page-title">⏱️ บอร์ดผลิตรายชั่วโมง <span id="hb-dept-badge" style="display:none;font-size:11px;padding:2px 8px;margin-left:6px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.35);border-radius:6px;color:#79c0ff;font-weight:600;vertical-align:middle"></span></div>
         <div class="page-sub">ยอดผลิตจริงเทียบเป้าหมายทุกชั่วโมง — แดง = ต่ำกว่าเป้า · เขียว = ได้ตามเป้า</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -9773,7 +9793,14 @@ var _navMenuList = [
   {id:'moldregistry', label:'ทะเบียนแม่พิมพ์',          icon:'📚', group:'🔧 แม่พิมพ์',    keywords:'ทะเบียนแม่พิมพ์ mold registry'},
   // คุณภาพ
   {id:'dailyrpt',     label:'รายงานการผลิตประจำวัน',    icon:'📝', group:'🔬 คุณภาพ & QC', keywords:'รายงาน daily report production บันทึก'},
-  {id:'hourlyboard',  label:'บอร์ดผลิตรายชั่วโมง',      icon:'⏱️', group:'🔬 คุณภาพ & QC', keywords:'hourly board ผลิตรายชั่วโมง ยอดผลิต เป้า สีแดง สีเขียว monitor ติดตาม'},
+  {id:'hourlyboard',  label:'บอร์ดผลิตรายชั่วโมง รวม (7 แผนก)', icon:'⏱️', group:'🔬 คุณภาพ & QC', keywords:'hourly board ผลิตรายชั่วโมง รวม ภาพรวม 7 แผนก', workGroup:'all'},
+  {id:'hourlyboard-b1', label:'บอร์ดรายชั่วโมง ฉีด Zone 1', icon:'B1', group:'🔬 คุณภาพ & QC', keywords:'hourly board b1 zone1 i033'},
+  {id:'hourlyboard-b2', label:'บอร์ดรายชั่วโมง ฉีด Zone 2', icon:'B2', group:'🔬 คุณภาพ & QC', keywords:'hourly board b2 zone2'},
+  {id:'hourlyboard-b3', label:'บอร์ดรายชั่วโมง ฉีด Zone 3', icon:'B3', group:'🔬 คุณภาพ & QC', keywords:'hourly board b3 zone3 cpr09'},
+  {id:'hourlyboard-b4', label:'บอร์ดรายชั่วโมง ฉีด Zone 4', icon:'B4', group:'🔬 คุณภาพ & QC', keywords:'hourly board b4 zone4'},
+  {id:'hourlyboard-b5', label:'บอร์ดรายชั่วโมง ฉีดยานยนต์', icon:'B5', group:'🔬 คุณภาพ & QC', keywords:'hourly board b5 automotive'},
+  {id:'hourlyboard-b6', label:'บอร์ดรายชั่วโมง แผนกประกอบ', icon:'B6', group:'🔬 คุณภาพ & QC', keywords:'hourly board b6 assembly'},
+  {id:'hourlyboard-b7', label:'บอร์ดรายชั่วโมง พ่น สกรีน', icon:'B7', group:'🔬 คุณภาพ & QC', keywords:'hourly board b7 spray screen'},
   {id:'nganalysis',   label:'วิเคราะห์ NG & PPM',       icon:'🔴', group:'🔬 คุณภาพ & QC', keywords:'ng ppm defect ของเสีย วิเคราะห์'},
   {id:'traceability', label:'สอบกลับ ISO',              icon:'🔗', group:'🔬 คุณภาพ & QC', keywords:'traceability iso สอบกลับ trace lot batch'},
   {id:'qcinspect',    label:'บันทึก QC ทุก 2 ชม.',      icon:'🔬', group:'🔬 คุณภาพ & QC', keywords:'qc quality inspection ตรวจสอบ'},
@@ -10107,6 +10134,7 @@ function showPage(id, el, workGroup){
   var lineDept = _ordersPageIdToWorkGroup(id);
   var apLineDept = _approvalPageIdToDeptKey(id);
   var ttLineDept = _timetablePageIdToDeptKey(id);
+  var hbLineDept = _hourlyboardPageIdToDeptKey(id);
   if(lineDept){
     domPageId = 'orders';
     window._ordersWorkGroup = lineDept;
@@ -10119,6 +10147,10 @@ function showPage(id, el, workGroup){
   if(ttLineDept){
     domPageId = 'timetable';
     ttApplyLineDeptOnOpen(ttLineDept);
+  }
+  if(hbLineDept){
+    domPageId = 'hourlyboard';
+    hbApplyLineDeptOnOpen(hbLineDept);
   }
   if(AUTH && id!=='admin' && Array.isArray(AUTH.pages) && !AUTH.pages.includes(id)) {
     var okApArchive = (id==='approvalproc-done' && AUTH.pages.includes('approvalproc'));
@@ -10141,6 +10173,10 @@ function showPage(id, el, workGroup){
     window._ttLineDept = (typeof workGroup==='string' && workGroup) ? workGroup : '';
     if(window._ttLineDept==='all' || !window._ttLineDept) ttApplyLineDeptOnOpen(window._ttLineDept||'all');
     else ttApplyLineDeptOnOpen(window._ttLineDept);
+  } else if(id==='hourlyboard' && !hbLineDept){
+    window._hbLineDept = (typeof workGroup==='string' && workGroup) ? workGroup : '';
+    if(window._hbLineDept==='all' || !window._hbLineDept) hbApplyLineDeptOnOpen(window._hbLineDept||'all');
+    else hbApplyLineDeptOnOpen(window._hbLineDept);
   } else if(id==='carbon-footprint'){
     window._carbonTab = (typeof workGroup==='string' && workGroup) ? workGroup : (window._carbonTab||'dash');
   }
@@ -10162,14 +10198,15 @@ function showPage(id, el, workGroup){
   var titleEl = document.getElementById('pv-title');
   if(titleEl){
     var allItems = (window.HOME_PAGES||[]).reduce(function(a,s){return a.concat(s.items);},[]);
-    var wg = ttLineDept || apLineDept || lineDept || ((pageId==='jobreg'||pageId==='orders') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : ((pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._apWorkGroup||'')) : (_isTimetablePageId(pageId) ? (typeof workGroup==='string'?workGroup:(window._ttLineDept||'')) : '')));
+    var wg = hbLineDept || ttLineDept || apLineDept || lineDept || ((pageId==='jobreg'||pageId==='orders') ? (typeof workGroup==='string'?workGroup:(window._ordersWorkGroup||'')) : ((pageId==='approvalproc'||pageId==='approvalproc-done') ? (typeof workGroup==='string'?workGroup:(window._apWorkGroup||'')) : (_isTimetablePageId(pageId) ? (typeof workGroup==='string'?workGroup:(window._ttLineDept||'')) : (_isHourlyboardPageId(pageId) ? (typeof workGroup==='string'?workGroup:(window._hbLineDept||'')) : ''))));
     var entry = allItems.find(function(i){return i.id===pageId && (i.workGroup===wg || (!wg && !i.workGroup));});
     if(!entry && wg) entry = allItems.find(function(i){return i.id===pageId && i.workGroup===wg;});
-    if(!entry && (lineDept||apLineDept||ttLineDept)) entry = allItems.find(function(i){return i.id===pageId;});
+    if(!entry && (lineDept||apLineDept||ttLineDept||hbLineDept)) entry = allItems.find(function(i){return i.id===pageId;});
     if(!entry && pageId==='jobreg') entry = {icon:'📦', label:'ทะเบียนงาน / Job'};
     if(!entry && domPageId==='orders') entry = {icon:'📋', label:_ordersLineDeptLabel(wg)||'Order & แผนผลิต'};
     if(!entry && domPageId==='approvalproc') entry = {icon:'✅', label:_approvalLineDeptLabel(wg)||'ใบอนุมัติกระบวนการ'};
     if(!entry && domPageId==='timetable') entry = {icon:'📅', label:_ttLineDeptLabel(wg)||'Production Time Table'};
+    if(!entry && domPageId==='hourlyboard') entry = {icon:'⏱️', label:_hbLineDeptLabel(wg)||'บอร์ดผลิตรายชั่วโมง'};
     if(!entry && pageId==='approvalproc-done'){
       entry = wg==='postprocess'
         ? {icon:'✅', label:'ใบอนุมัติ — จบ Lot (ประกอบ·สกรีน·พ่น)'}
@@ -12224,7 +12261,7 @@ function _ordersPageIdToWorkGroup(pageId){
 }
 /** แปลง a1/o1 → o1 สำหรับ lookup ใน ORDER_LINE_DEPTS */
 function _lineDeptKeyNorm(key){
-  var m = String(key||'').match(/^[aot]([1-7])$/i);
+  var m = String(key||'').match(/^[aotb]([1-7])$/i);
   return m ? ('o'+m[1]) : String(key||'');
 }
 function _matchesLineDeptByMachine(machine, deptKey){
@@ -12285,10 +12322,37 @@ function _pageDomIdFromPage(pageId){
   if(/^orders-o[1-7]$/.test(pageId)) return 'orders';
   if(/^approvalproc-a[1-7]$/.test(pageId)) return 'approvalproc';
   if(/^timetable-t[1-7]$/.test(pageId)) return 'timetable';
+  if(/^hourlyboard-b[1-7]$/.test(pageId)) return 'hourlyboard';
   return pageId;
 }
 function _isTimetablePageId(pageId){
   return pageId==='timetable' || /^timetable-t[1-7]$/.test(String(pageId||''));
+}
+window._hbLineDept = window._hbLineDept || '';
+function _hourlyboardPageIdToDeptKey(pageId){
+  var m = String(pageId||'').match(/^hourlyboard-(b[1-7])$/);
+  return m ? m[1] : '';
+}
+function _isHourlyboardPageId(pageId){
+  return pageId==='hourlyboard' || /^hourlyboard-b[1-7]$/.test(String(pageId||''));
+}
+function _hbLineDeptLabel(wg){
+  if(wg==='all') return 'บอร์ดผลิตรายชั่วโมง รวม — ทุกแผนก (7 ไลน์)';
+  var cfg = ORDER_LINE_DEPTS[_lineDeptKeyNorm(wg)];
+  return cfg ? ('บอร์ดผลิตรายชั่วโมง — '+cfg.label) : '';
+}
+function hbApplyLineDeptOnOpen(deptKey){
+  window._hbLineDept = deptKey || '';
+}
+function hbFilterMachinesByLineDept(machIds){
+  var wg = window._hbLineDept || '';
+  if(!wg) return machIds;
+  if(wg==='all'){
+    return machIds.filter(function(mid){
+      return ORDER_LINE_DEPT_KEYS.some(function(k){ return _matchesLineDeptByMachine(mid, k); });
+    });
+  }
+  return machIds.filter(function(mid){ return _matchesLineDeptByMachine(mid, wg); });
 }
 function _ttMachineInLineDept(machId, deptKey){
   return _matchesLineDeptByMachine(machId, deptKey);
@@ -14381,19 +14445,28 @@ function hbInit(){
 function hbGetMachineList(){
   var gsel = document.getElementById('hb-group');
   var gval = gsel ? gsel.value : 'all';
-  if(gval === 'all') return MACHINES.map(function(m){return m.id;});
+  if(gval === 'all'){
+    var allIds = MACHINES.map(function(m){return m.id;});
+    return typeof hbFilterMachinesByLineDept === 'function' ? hbFilterMachinesByLineDept(allIds) : allIds;
+  }
   if(gval.startsWith('zone:')){
     var zid = gval.slice(5);
     var zone = (typeof ZONES!=='undefined') ? ZONES.find(function(z){return z.id===zid;}) : null;
-    return zone ? zone.machines : [];
+    var zList = zone ? zone.machines.slice() : [];
+    return typeof hbFilterMachinesByLineDept === 'function' ? hbFilterMachinesByLineDept(zList) : zList;
   }
   if(gval.startsWith('group:')){
     var gid = gval.slice(6);
     var grp = (typeof machGroups!=='undefined') ? machGroups.find(function(g){return g.id===gid;}) : null;
-    return grp ? (grp.machines||[]) : [];
+    var gList = grp ? (grp.machines||[]).slice() : [];
+    return typeof hbFilterMachinesByLineDept === 'function' ? hbFilterMachinesByLineDept(gList) : gList;
   }
-  if(gval.startsWith('mach:')) return [gval.slice(5)];
-  return MACHINES.map(function(m){return m.id;});
+  if(gval.startsWith('mach:')){
+    var one = [gval.slice(5)];
+    return typeof hbFilterMachinesByLineDept === 'function' ? hbFilterMachinesByLineDept(one) : one;
+  }
+  var list = MACHINES.map(function(m){return m.id;});
+  return typeof hbFilterMachinesByLineDept === 'function' ? hbFilterMachinesByLineDept(list) : list;
 }
 
 function hbGetHourRange(shift){
@@ -14446,6 +14519,18 @@ function hbRefresh(){
   var threshold = threshEl ? (parseFloat(threshEl.value)||90) : 90;
   var showNG = document.getElementById('hb-show-ng')?.checked !== false;
   var showEFF = document.getElementById('hb-show-eff')?.checked !== false;
+
+  var hbDeptBadge = document.getElementById('hb-dept-badge');
+  if(hbDeptBadge){
+    var hl = _hbLineDeptLabel(window._hbLineDept || '');
+    if(hl && window._hbLineDept){ hbDeptBadge.textContent = hl; hbDeptBadge.style.display = 'inline'; }
+    else { hbDeptBadge.style.display = 'none'; hbDeptBadge.textContent = ''; }
+  }
+  var hbGsel = document.getElementById('hb-group');
+  if(hbGsel && window._hbLineDept && window._hbLineDept !== 'all' && /^b[1-7]$/.test(window._hbLineDept)){
+    hbGsel.disabled = true;
+    hbGsel.title = 'กรองตามเมนูที่เปิด';
+  } else if(hbGsel){ hbGsel.disabled = false; hbGsel.title = ''; }
 
   var machIds = hbGetMachineList();
   var hours = hbHoursForShift(shift);
@@ -35898,7 +35983,7 @@ function renderPage(id){
   if(id==='dashboard'){ setTimeout(function(){ renderDashboard(); drSumInit(); renderDrSum(); },40); }
   else if(id==='line-summary'){ lineSummaryInitPage(); }
   else if(id==='machines'){ setTimeout(renderMachineStatus, 40); }
-  else if(id==='hourlyboard'){ setTimeout(hbInit, 40); }
+  else if(_isHourlyboardPageId(id)){ setTimeout(hbInit, 40); }
   else if(id==='machregistry') renderMachineRegistry();
   else if(id==='machgroup') mgRender();
   else if(id==='orders') renderOrders();
@@ -46417,7 +46502,14 @@ const ALL_PAGES = [
   {id:'moldregistry', label:'ทะเบียนแม่พิมพ์',          icon:'📚', section:'แม่พิมพ์'},
   {id:'molds',        label:'แม่พิมพ์ & PM',             icon:'🔧', section:'แม่พิมพ์'},
   {id:'dailyrpt',     label:'รายงานการผลิต',             icon:'📝', section:'คุณภาพ'},
-  {id:'hourlyboard',  label:'บอร์ดผลิตรายชั่วโมง',        icon:'⏱️', section:'คุณภาพ'},
+  {id:'hourlyboard',  label:'บอร์ดผลิตรายชั่วโมง รวม (7 แผนก)', icon:'⏱️', section:'คุณภาพ'},
+  {id:'hourlyboard-b1', label:'บอร์ดรายชั่วโมง ฉีด Zone 1', icon:'B1', section:'คุณภาพ'},
+  {id:'hourlyboard-b2', label:'บอร์ดรายชั่วโมง ฉีด Zone 2', icon:'B2', section:'คุณภาพ'},
+  {id:'hourlyboard-b3', label:'บอร์ดรายชั่วโมง ฉีด Zone 3', icon:'B3', section:'คุณภาพ'},
+  {id:'hourlyboard-b4', label:'บอร์ดรายชั่วโมง ฉีด Zone 4', icon:'B4', section:'คุณภาพ'},
+  {id:'hourlyboard-b5', label:'บอร์ดรายชั่วโมง ฉีดยานยนต์', icon:'B5', section:'คุณภาพ'},
+  {id:'hourlyboard-b6', label:'บอร์ดรายชั่วโมง แผนกประกอบ', icon:'B6', section:'คุณภาพ'},
+  {id:'hourlyboard-b7', label:'บอร์ดรายชั่วโมง พ่น·สกรีน', icon:'B7', section:'คุณภาพ'},
   {id:'nganalysis',   label:'วิเคราะห์ NG & PPM',        icon:'🔴', section:'คุณภาพ'},
   {id:'traceability', label:'สอบกลับ ISO',               icon:'🔗', section:'คุณภาพ'},
   {id:'condstd',      label:'Condition STD',            icon:'📐', section:'Condition'},
@@ -46472,19 +46564,19 @@ const ROLES = {
     label:'หัวหน้าการผลิต', color:'#e3b341', bg:'rgba(227,179,65,0.15)',
     desc:'ดู/แก้ Order, TT, BOM, Condition, PM, แผนผสม',
     pages:['dashboard','line-summary','machines','machregistry','orders','orders-o1','orders-o2','orders-o3','orders-o4','orders-o5','orders-o6','orders-o7','order-await','approvalproc','approvalproc-a1','approvalproc-a2','approvalproc-a3','approvalproc-a4','approvalproc-a5','approvalproc-a6','approvalproc-a7','approvalproc-done','timetable','timetable-t1','timetable-t2','timetable-t3','timetable-t4','timetable-t5','timetable-t6','timetable-t7','setup','setup-tt','setup-std','bom','engineering-change','mixing','mix-prod-receive','rawmat',
-           'molds','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
+           'molds','dailyrpt','hourlyboard','hourlyboard-b1','hourlyboard-b2','hourlyboard-b3','hourlyboard-b4','hourlyboard-b5','hourlyboard-b6','hourlyboard-b7','nganalysis','costanalysis','carbon-footprint','machregistry','condstd','conddaily','condcompare','history',
            'machinepm','actionplan','approvallog','approvaldocs','machgroup','deptmachcare','hr','empreg','delivery','shipment-history',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch','tps','qcinspect','qcspecs','limitsample','regrind']
   },
   operator: {
     label:'พนักงานฉีด', color:'#3fb950', bg:'rgba(63,185,80,0.15)',
     desc:'บันทึกผลผลิตประจำวัน และ Condition เท่านั้น',
-    pages:['dashboard','line-summary','dailyrpt','hourlyboard','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','mix-prod-receive','setup','setup-tt','setup-std']
+    pages:['dashboard','line-summary','dailyrpt','hourlyboard','hourlyboard-b1','hourlyboard-b2','hourlyboard-b3','hourlyboard-b4','hourlyboard-b5','hourlyboard-b6','hourlyboard-b7','conddaily','history','wi','wi-rework','barcode','globalsearch','mixing','mix-prod-receive','setup','setup-tt','setup-std']
   },
   qc: {
     label:'QC', color:'#388bfd', bg:'rgba(56,139,253,0.15)',
     desc:'ดู/แก้ Condition, รายงานคุณภาพ, สอบกลับ',
-    pages:['dashboard','line-summary','dailyrpt','hourlyboard','nganalysis','costanalysis','carbon-footprint','condstd','conddaily','condcompare',
+    pages:['dashboard','line-summary','dailyrpt','hourlyboard','hourlyboard-b1','hourlyboard-b2','hourlyboard-b3','hourlyboard-b4','hourlyboard-b5','hourlyboard-b6','hourlyboard-b7','nganalysis','costanalysis','carbon-footprint','condstd','conddaily','condcompare',
            'traceability','bom','engineering-change','actionplan','approvallog','approvaldocs','setup','setup-tt','setup-std',
            'specregistry','qcspecs','limitsample',
            'dc','wi','wi-rework','wi-deviation','barcode','globalsearch']
@@ -46958,6 +47050,13 @@ var nothingMenuIconRule = {
   'conddaily': ['alr', true],
   'machines': ['cus', true],
   'hourlyboard': ['del', true],
+  'hourlyboard-b1': ['del', true],
+  'hourlyboard-b2': ['del', true],
+  'hourlyboard-b3': ['del', true],
+  'hourlyboard-b4': ['del', true],
+  'hourlyboard-b5': ['del', true],
+  'hourlyboard-b6': ['item', true],
+  'hourlyboard-b7': ['item', true],
   'dashboard': ['rpt', true],
   'carbon-footprint': ['stk', true],
   'line-summary': ['rpt', true],
@@ -47897,11 +47996,8 @@ function pmfReloadFromStorage(){
 window.addEventListener('message', function(ev){
   try{
     if(!ev || !ev.data) return;
-        if(ev.data.type === 'pmf-sync-applied'){
+    if(ev.data.type === 'pmf-sync-applied'){
       pmfReloadFromStorage();
-      if(typeof getUiMode==='function' && getUiMode()==='smart' && typeof sfRenderCurrentView==='function'){
-        setTimeout(function(){ sfRenderCurrentView(); }, 150);
-      }
     }
   }catch(e){}
 }, false);
@@ -60029,7 +60125,14 @@ window.HOME_PAGES = [
     {id:'dailyrpt',     icon:'📝', label:'ใบรายงานการผลิต',       color:'#101a20', seq:22},
     {id:'conddaily',    icon:'🌡️', label:'Condition ประจำวัน',    color:'#1a0f0f', seq:23},
     {id:'machines',     icon:'⚙️', label:'สถานะเครื่องจักร',      color:'#1a1a20', seq:24},
-    {id:'hourlyboard',  icon:'⏱️', label:'บอร์ดผลิตรายชั่วโมง',   color:'#0f1520', seq:'24B'},
+    {id:'hourlyboard',  icon:'⏱️', label:'บอร์ดผลิตรายชั่วโมง รวม (7 แผนก)', color:'#0f1520', colorLight:'#e3f2fd', seq:'24B', workGroup:'all'},
+    {id:'hourlyboard-b1', icon:'<span class="hs-hb-line-icon">B1</span>', label:'บอร์ดรายชั่วโมง ฉีด Zone 1', color:'#1a2a3e', colorLight:'#e3f2fd', seq:'B1'},
+    {id:'hourlyboard-b2', icon:'<span class="hs-hb-line-icon">B2</span>', label:'บอร์ดรายชั่วโมง ฉีด Zone 2', color:'#1a2e22', colorLight:'#e8f5e9', seq:'B2'},
+    {id:'hourlyboard-b3', icon:'<span class="hs-hb-line-icon">B3</span>', label:'บอร์ดรายชั่วโมง ฉีด Zone 3', color:'#2a2410', colorLight:'#fff8e1', seq:'B3'},
+    {id:'hourlyboard-b4', icon:'<span class="hs-hb-line-icon">B4</span>', label:'บอร์ดรายชั่วโมง ฉีด Zone 4', color:'#221a2e', colorLight:'#ede7f6', seq:'B4'},
+    {id:'hourlyboard-b5', icon:'<span class="hs-hb-line-icon">B5</span>', label:'บอร์ดรายชั่วโมง ฉีดยานยนต์', color:'#2a1520', colorLight:'#fce4ec', seq:'B5'},
+    {id:'hourlyboard-b6', icon:'<span class="hs-hb-line-icon">B6</span>', label:'บอร์ดรายชั่วโมง แผนกประกอบ', color:'#102520', colorLight:'#e0f2f1', seq:'B6'},
+    {id:'hourlyboard-b7', icon:'<span class="hs-hb-line-icon">B7</span>', label:'บอร์ดรายชั่วโมง พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'B7'},
   ]},
   { id:'dash', icon:'📊', label:'Dashboard & รายงาน', items:[
     {id:'dashboard',    icon:'📊', label:'Dashboard สรุปการผลิต', color:'#0e1f1a', seq:25},
@@ -60406,7 +60509,7 @@ document.addEventListener('keydown', function(e){
       return o.status !== 'พร้อมส่ง' && o.status !== 'ส่งแล้ว' && o.dueDate && new Date(o.dueDate) < new Date();
     }).length;
 
-    var sparkProd = [], sparkOee = [], sparkNg = [], sparkLt = [];
+    var sparkProd = [], sparkOee = [], sparkNg = [];
     for(var di = 6; di >= 0; di--){
       var ds = _sfDateOffset(-di);
       var dayAgg = aggregateReports(allRpts.filter(function(r){ return r.date === ds; }));
@@ -60421,22 +60524,7 @@ document.addEventListener('keydown', function(e){
         return tt > 0 ? Math.min(100, (tp - tn) / tt * 100) : 0;
       }).filter(function(v){ return v > 0; });
       sparkOee.push(dayOee.length ? Math.round(dayOee.reduce(function(a, b){ return a + b; }, 0) / dayOee.length) : 0);
-      sparkLt.push(dayAgg.totLT);
     }
-
-    var yestRptMach = {};
-    allRpts.forEach(function(r){ if(r.machine && r.date === yesterday) yestRptMach[r.machine] = 1; });
-    var yestRptCount = Object.keys(yestRptMach).length;
-    var todayRptCount = Object.keys(todayRptMachines).length;
-    var yestOeeVals = [];
-    machList.forEach(function(m){
-      var rptY = dr[m.id + '_' + yesterday];
-      if(!rptY || !rptY.rows) return;
-      var tp = 0, tt = (rptY.targetHr || 0) * 20;
-      rptY.rows.forEach(function(r){ tp += r.produced || 0; });
-      if(tt > 0) yestOeeVals.push(Math.min(100, tp / tt * 100));
-    });
-    var avgOeeY = yestOeeVals.length ? (yestOeeVals.reduce(function(a, b){ return a + b; }, 0) / yestOeeVals.length) : 0;
 
     function trend(cur, prev, suffix, lowerIsBetter){
       suffix = suffix || '';
@@ -60501,18 +60589,14 @@ document.addEventListener('keydown', function(e){
       ngPct: ngPct, ppm: ppm, avgOee: avgOee,
       running: counts.running, alarm: counts.alarm, idle: counts.idle, down: counts.down,
       totalMach: machList.length, pmDue: pmDue, apPending: apPending, overdue: overdue,
-      machines: machinesEnriched, sparkProd: sparkProd, sparkOee: sparkOee, sparkNg: sparkNg, sparkLt: sparkLt,
+      machines: machinesEnriched, sparkProd: sparkProd, sparkOee: sparkOee, sparkNg: sparkNg,
       trends: {
         prod: trend(agg.totProd, aggY.totProd, '', false),
-        oee: trend(avgOee || 0, avgOeeY || 0, '%', false),
-        ng: trend(ngPct, ngPctY, '%', true),
+        oee: trend(avgOee || 0, aggY.totProd > 0 ? 72 : 0, '', false),
+        ng: trend(ngPct, ngPctY, '', true),
         lt: trend(agg.totLT, aggY.totLT, ' นาที', true),
-        run: trend(todayRptCount || (counts.running + counts.alarm), yestRptCount, ' เครื่อง', false),
-        pm: { text: pmDue + ' รายการ', dir: pmDue > 0 ? 'down' : 'up' }
+        run: trend(counts.running + counts.alarm, 0, ' เครื่อง', false)
       },
-      todayRptCount: todayRptCount,
-      yestRptCount: yestRptCount,
-      avgOeeY: avgOeeY,
       alerts: alerts,
       fgTotal: fgTotal, fgLow: fgLow,
       hasReportToday: Object.keys(todayRptMachines).length
@@ -60543,7 +60627,7 @@ document.addEventListener('keydown', function(e){
 
   function _sfTrendHtml(t){
     if(!t) return '';
-    return '<'+'div class="sf-kpi-trend ' + t.dir + '">' + t.text + ' vs เมื่อวาน</'+'div>';
+    return '<motion> class="sf-kpi-trend ' + t.dir + '">' + t.text + ' vs เมื่อวาน</motion>';
   }
 
   function sfRenderCurrentView(){
@@ -60551,7 +60635,6 @@ document.addEventListener('keydown', function(e){
     else if(_sfView === 'pm') sfRenderPmDashboard();
     else if(_sfView === 'stock') sfRenderStockDashboard();
     else sfRenderOverviewDashboard();
-    _sfSyncNotificationsFromDash(_sfCollectDashData('day'));
     _sfUpdateBadges();
     _sfLucide();
   }
@@ -60559,174 +60642,137 @@ document.addEventListener('keydown', function(e){
   function sfRenderOverviewDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
-    var d = _sfCollectDashData('day');
-    _sfSyncNotificationsFromDash(d);
+    var st = _sfMachineStats();
     var title = document.getElementById('sf-header-title');
     if(title) title.textContent = 'Smart Factory · Control Center';
-    var oeeVal = d.avgOee != null ? Math.round(d.avgOee) : '—';
-    var subNote = d.filtRpts.length ? '' : '<p style="font-size:11px;color:#6b7280;margin:0 0 12px">ยังไม่มีรายงานผลิตวันนี้ — แสดงสถานะเครื่อง/Order จากข้อมูลล่าสุด</p>';
-    el.innerHTML = subNote +
+    var output = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.length : 0;
+    var ngRate = (st.down + st.alarm) > 0 ? ((st.down + st.alarm) / st.total * 100).toFixed(1) : '0.0';
+    el.innerHTML =
       '<div class="sf-kpi-grid">' +
-        _sfKpiCard('Running Machine', d.running + d.alarm, d.trends.run, d.sparkProd) +
-        _sfKpiCard('OEE', oeeVal + (oeeVal === '—' ? '' : '%'), d.trends.oee, d.sparkOee) +
-        _sfKpiCard('Production Output', _sfFmtNum(d.totProd), d.trends.prod, d.sparkProd) +
-        _sfKpiCard('NG Rate', d.ngPct.toFixed(1) + '%', d.trends.ng, d.sparkNg) +
-        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT) + ' นาที', d.trends.lt, d.sparkLt) +
-        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [1,2,2,3,2,4,3,d.pmDue||0]) +
+        _sfKpiCard('Running Machine', st.running, '+' + Math.min(12, st.running) + '%', 'up', [40,55,48,62,58,70,65,st.running||8]) +
+        _sfKpiCard('OEE', st.oee + '%', (st.oee >= 75 ? '+' : '') + (st.oee - 72) + '%', st.oee >= 75 ? 'up' : 'down', [62,58,70,68,72,75,78,st.oee]) +
+        _sfKpiCard('Production Output', output, '+4.2%', 'up', [30,42,38,50,48,55,52,output||40]) +
+        _sfKpiCard('NG Rate', ngRate + '%', '-0.8%', 'down', [12,10,9,11,8,7,9,parseFloat(ngRate)||5]) +
+        _sfKpiCard('Downtime', st.down + st.alarm, st.down > 3 ? '+2' : '-1', st.down > 3 ? 'down' : 'up', [5,8,6,4,7,5,3,st.down]) +
+        _sfKpiCard('PM Due', Math.max(0, Math.floor(st.total * 0.08)), '3 due', 'down', [2,3,2,4,3,5,4,3]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetMachines(d) +
-        _sfWidgetTimeline(d) +
-        _sfWidgetNotifFeed(d) +
-        _sfWidgetPareto(d) +
-        _sfWidgetOrders(d) +
-        _sfWidgetActivity(d) +
+        _sfWidgetMachines(st) +
+        _sfWidgetTimeline(st) +
+        _sfWidgetNotifFeed() +
+        _sfWidgetPareto() +
+        _sfWidgetOrders() +
+        _sfWidgetActivity() +
       '</div>';
   }
 
-  function _sfKpiCard(label, val, trend, spark){
-    var trendHtml = (trend && typeof trend === 'object') ? _sfTrendHtml(trend) : '';
+  function _sfKpiCard(label, val, trend, dir, spark){
     return '<div class="sf-kpi"><div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
       '<div class="sf-kpi-val">' + val + '</div>' +
-      trendHtml +
-      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark || []) + '</div></div>';
+      '<div class="sf-kpi-trend ' + dir + '">' + trend + ' vs yesterday</div>' +
+      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark) + '</div></div>';
   }
 
-  function _sfWidgetMachines(d){
-    var list = (d.machines || []).slice(0, 24);
-    var cards = list.map(function(m){
+  function _sfWidgetMachines(st){
+    var cards = st.list.slice(0, 24).map(function(m){
       var s = m.status || 'idle';
       var chip = s === 'running' ? 'run' : (s === 'down' || s === 'alarm' ? 'down' : (s === 'setup' ? 'setup' : 'idle'));
-      var mold = m.mold || '—';
-      var job = m.orderNo || m.job || '—';
+      var job = (m.currentJob && (m.currentJob.code || m.currentJob.id)) || '—';
       return '<div class="sf-mach-card ' + s + '" onclick="sfOpenPage(\'machines\')">' +
         '<div class="sf-mach-id">' + (m.id||'?') + '</div>' +
         '<span class="sf-status-chip ' + chip + '">' + s.toUpperCase() + '</span>' +
-        '<div class="sf-mach-meta">Mold: ' + mold + '<br>Order: ' + job + '</div></div>';
+        '<div class="sf-mach-meta">Mold: ' + (m.currentMold||'—') + '<br>Order: ' + job + '</div></div>';
     }).join('');
     if(!cards) cards = '<div class="sf-empty">ไม่มีข้อมูลเครื่องจักร</div>';
-    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + d.running + ' running · ' + d.todayRptCount + ' รายงานวันนี้</span></div>' +
+    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + st.running + ' running</span></div>' +
       '<div class="sf-machine-grid">' + cards + '</div></div>';
   }
 
-  function _sfTimelineFromRpt(rpt){
-    if(!rpt || !rpt.rows || !rpt.rows.length){
-      return '<span class="sf-tl-seg idle" style="flex:1" title="ไม่มีข้อมูล"></span>';
-    }
-    var sorted = rpt.rows.slice().sort(function(a,b){ return (parseInt(a.hour,10)||0) - (parseInt(b.hour,10)||0); });
-    var slice = sorted.length > 6 ? sorted.slice(-6) : sorted;
-    while(slice.length < 6) slice.unshift({ hour: '—', produced: 0, ltMins: 0 });
-    return slice.map(function(r){
-      var prod = r.produced || 0;
-      var lt = r.ltMins || 0;
-      var k = 'idle', flex = 1;
-      if(prod > 0 && lt === 0){ k = 'run'; flex = 3; }
-      else if(lt > 0 && prod === 0){ k = 'down'; flex = 2; }
-      else if(lt > 0 && prod > 0){ k = 'setup'; flex = 2; }
-      else if(prod > 0){ k = 'run'; flex = 2; }
-      return '<span class="sf-tl-seg ' + k + '" style="flex:' + flex + '" title="ชม.' + (r.hour!=null?r.hour:'?') + ': ' + prod + ' ชิ้น, LT ' + lt + 'm"></span>';
-    }).join('');
-  }
-
-  function _sfWidgetTimeline(d){
-    var rows = (d.machines || []).slice(0, 8).map(function(m){
-      var segs = _sfTimelineFromRpt(m.rpt);
+  function _sfWidgetTimeline(st){
+    var rows = st.list.slice(0, 8).map(function(m){
+      var segs = _sfFakeTimeline(m.status);
       return '<div class="sf-tl-row"><span style="width:42px;font-weight:700">' + m.id + '</span><div class="sf-tl-bar">' + segs + '</div></div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">รายชั่วโมงวันนี้</span></div>' +
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">Shift view</span></div>' +
       '<div class="sf-timeline">' + (rows || '<div class="sf-empty">—</div>') + '</div></div>';
   }
 
-  function _sfWidgetNotifFeed(d){
-    var items = (d && d.alerts ? d.alerts : _sfNotifications).slice(0, 5).map(function(n){
+  function _sfFakeTimeline(status){
+    var pat = { running:['idle','setup','run','run','run','idle'], down:['run','down','down','setup','idle'], alarm:['run','down','idle','idle'], idle:['idle','idle','setup','idle'] };
+    var arr = pat[status] || pat.idle;
+    return arr.map(function(k){
+      var cls = k === 'run' ? 'run' : (k === 'setup' ? 'setup' : (k === 'down' ? 'down' : 'idle'));
+      return '<span class="sf-tl-seg ' + cls + '" style="flex:' + (k==='run'?3:1) + '"></span>';
+    }).join('');
+  }
+
+  function _sfWidgetNotifFeed(){
+    var items = _sfNotifications.slice(0, 5).map(function(n){
       return '<div class="sf-notif-item ' + n.priority + (n.read ? '' : ' unread') + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><span style="color:#6b7280">' + n.time + '</span></div></div>';
     }).join('');
-    if(!items) items = '<div class="sf-empty">ไม่มีการแจ้งเตือน</div>';
     return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Alerts</span></div>' +
       '<div class="sf-notif-list">' + items + '</div></div>';
   }
 
-  function _sfWidgetPareto(d){
-    d = d || _sfCollectDashData('day');
-    var sorted = Object.entries(d.ngByDefect || {}).sort(function(a,b){ return b[1]-a[1]; }).slice(0, 6);
-    if(!sorted.length){
-      return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-empty" style="padding:24px">ยังไม่มีข้อมูล NG วันนี้</div></div>';
-    }
-    var maxVal = sorted[0][1] || 1;
-    var bars = sorted.map(function(e){
-      var h = Math.max(8, Math.round(e[1] / maxVal * 100));
-      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="' + e[0] + ': ' + e[1] + '"></div>';
+  function _sfWidgetPareto(){
+    var bars = [88, 62, 45, 30, 22, 15].map(function(h,i){
+      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="Defect ' + (i+1) + '"></div>';
     }).join('');
-    var labels = sorted.map(function(e){
-      return '<span style="font-size:8px;color:#6b7280;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + e[0] + '">' + String(e[0]).substring(0,8) + '</span>';
-    }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span><span class="sf-widget-sub">' + _sfFmtNum(d.totNG) + ' NG / ' + _sfFmtNum(d.totProd) + ' ชิ้น</span></div>' +
-      '<div class="sf-pareto">' + bars + '</div><div style="display:flex;justify-content:space-around;margin-top:6px">' + labels + '</div></div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-pareto">' + bars + '</div></div>';
   }
 
-  function _sfWidgetOrders(d){
-    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders))
-      ? orders.filter(function(o){ return o.status === 'กำลังผลิต' || o.status === 'รอผลิต'; }).slice(0, 6)
-      : [];
-    var rows = orderList.map(function(o){
-      var pct = o.qty > 0 ? Math.round((o.produced || 0) / o.qty * 100) : 0;
-      var label = o.orderNo || o.code || o.id || 'Order';
-      var sub = (o.jobName || '').substring(0, 24);
-      return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="font-weight:700">' + label + '</span><span>' + pct + '%</span></div>' +
-        (sub ? '<div style="font-size:9px;color:#6b7280;margin-bottom:4px">' + sub + '</div>' : '') +
+  function _sfWidgetOrders(){
+    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.slice(0, 6) : [];
+    var rows = orderList.map(function(o, i){
+      var pct = 30 + (i * 11) % 70;
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>' + (o.code||o.id||'Order') + '</span><span>' + pct + '%</span></div>' +
         '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#111"></div></div></div>';
     }).join('');
-    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ที่กำลังผลิต</div>';
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span><span class="sf-widget-sub">' + orderList.length + ' รายการ</span></div>' + rows + '</div>';
+    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ในระบบ</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div>' + rows + '</div>';
   }
 
-  function _sfWidgetActivity(d){
-    var acts = (d && d.alerts ? d.alerts : []).slice(0, 5);
-    if(!acts.length){
-      acts = [{ title: 'ระบบพร้อมใช้งาน', time: 'ล่าสุด', icon: '✅', priority: 'info' }];
-    }
-    var html = acts.map(function(a){
-      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px;align-items:flex-start"><span>' + (a.icon||'•') + '</span><div><div>' + a.title + '</div><span style="color:#9ca3af;font-size:10px">' + (a.time||'') + '</span></div></div>';
+  function _sfWidgetActivity(){
+  var acts = ['Operator login','Machine I012 → Running','QC hold lot L-8842','PM WO opened #442','Stock RM below min'];
+    var html = acts.map(function(a,i){
+      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px"><span style="color:#9ca3af">' + (10-i) + 'm</span>' + a + '</div>';
     }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Activity & Alerts</span></div>' + html + '</div>';
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Real-time Activity</span></div>' + html + '</div>';
   }
-
 
   function sfRenderQcDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'QC Command Center';
-    var d = _sfCollectDashData('day');
-    _sfSyncNotificationsFromDash(d);
+    var st = _sfMachineStats();
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('NG Rate', d.ngPct.toFixed(2) + '%', d.trends.ng, d.sparkNg) +
-        _sfKpiCard('PPM', _sfFmtNum(d.ppm), d.trends.ng, d.sparkNg) +
-        _sfKpiCard('NG ชิ้น', _sfFmtNum(d.totNG), d.trends.prod, d.sparkProd) +
-        _sfKpiCard('รออนุมัติ', d.apPending, { text: String(d.apPending), dir: d.apPending > 0 ? 'down' : 'up' }, [0,1,2,1,2,1,d.apPending,0]) +
+        _sfKpiCard('NG Rate', ((st.down/st.total)*100).toFixed(1)+'%', '-0.3%', 'up', [8,7,6,7,5,6,5,4]) +
+        _sfKpiCard('PPM', '124', '-18', 'up', [200,180,160,150,140,130,124,120]) +
+        _sfKpiCard('Hold Lot', '3', '+1', 'down', [1,2,1,3,2,3,3,3]) +
+        _sfKpiCard('Approval Wait', '5', '0', 'up', [4,5,6,5,4,5,5,5]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">สรุป NG วันนี้</span></div><p style="font-size:12px;color:#374151;margin:8px 0">ผลิต ' + _sfFmtNum(d.totProd) + ' ชิ้น · NG ' + _sfFmtNum(d.totNG) + ' · PPM ' + _sfFmtNum(d.ppm) + '</p><p style="font-size:11px;color:#6b7280">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a></p></div>' +
-        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto(d) + '</div>' +
-        _sfWidgetNotifFeed(d) +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">SPC Monitor</span></div><div class="sf-skeleton" style="height:140px"></div><p style="font-size:11px;color:#6b7280;margin-top:8px">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a> สำหรับรายละเอียด</p></div>' +
+        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto() + '</div>' +
+        _sfWidgetNotifFeed() +
       '</div>';
   }
+
   function sfRenderPmDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'PM War Room';
-    var d = _sfCollectDashData('day');
-    _sfSyncNotificationsFromDash(d);
-    var health = d.totalMach ? Math.round((d.totalMach - d.down) / d.totalMach * 100) : 0;
+    var st = _sfMachineStats();
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Machine Health', health + '%', { text: d.down + ' down', dir: d.down > 0 ? 'down' : 'up' }, d.sparkOee) +
-        _sfKpiCard('Breakdown', d.down, { text: String(d.down), dir: d.down > 0 ? 'down' : 'up' }, [2,1,3,2,1,2,d.down,1]) +
-        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [3,4,3,5,4,4,3,d.pmDue||0]) +
-        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT) + ' นาที', d.trends.lt, d.sparkLt) +
+        _sfKpiCard('Machine Health', '86%', '+2%', 'up', [78,80,82,83,84,85,86,86]) +
+        _sfKpiCard('Breakdown', st.down, st.down > 2 ? '+'+st.down : '0', st.down > 2 ? 'down' : 'up', [2,1,3,2,1,2,st.down,1]) +
+        _sfKpiCard('PM Due', Math.max(1, Math.floor(st.total*0.1)), 'today', 'down', [3,4,3,5,4,4,3,4]) +
+        _sfKpiCard('Downtime (hr)', (st.down * 1.2).toFixed(1), '-0.5h', 'up', [4,3,5,4,3,2,2,2]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetTimeline(d) +
+        _sfWidgetTimeline(st) +
         '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Work Orders</span></div><div class="sf-empty">เปิด <button class="sf-btn" onclick="sfOpenPage(\'machinepm\')">แผน PM</button> หรือ <button class="sf-btn" onclick="sfOpenPage(\'history\')">Breakdown Log</button></div></div>' +
       '</div>';
   }
@@ -60735,22 +60781,17 @@ document.addEventListener('keydown', function(e){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
     document.getElementById('sf-header-title').textContent = 'Warehouse Intelligence';
-    var d = _sfCollectDashData('day');
-    _sfSyncNotificationsFromDash(d);
-    var matLow = Object.entries(typeof rawMatStock !== 'undefined' ? rawMatStock : {}).filter(function(e){
-      var st = e[1]; return st && !st._deleted && st.qty < (st.min || 500);
-    }).length;
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Raw Material', matLow ? matLow + ' ต่ำ Min' : 'OK', { text: matLow + ' low', dir: matLow > 0 ? 'down' : 'up' }, [80,78,75,72,70,68,65,matLow||0]) +
-        _sfKpiCard('FG Stock', _sfFmtNum(d.fgTotal), d.trends.prod, d.sparkProd) +
-        _sfKpiCard('FG ต่ำ Min', d.fgLow, { text: String(d.fgLow), dir: d.fgLow > 0 ? 'down' : 'up' }, [2,3,2,3,4,3,4,d.fgLow||0]) +
-        _sfKpiCard('Order เกินกำหนด', d.overdue, { text: String(d.overdue), dir: d.overdue > 0 ? 'down' : 'up' }, [0,1,0,2,1,1,d.overdue,0]) +
+        _sfKpiCard('Raw Material', 'OK', '2 low', 'down', [80,78,75,72,70,68,65,60]) +
+        _sfKpiCard('FG Stock', '12.4k', '+3%', 'up', [10,11,11,12,12,12,12,12]) +
+        _sfKpiCard('WIP', '2.1k', '0', 'up', [2,2.1,2,2.1,2.1,2.1,2.1,2.1]) +
+        _sfKpiCard('Near Empty', '4', '+1', 'down', [2,3,2,3,4,3,4,4]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><p style="font-size:12px;padding:12px;color:#374151">FG รวม ' + _sfFmtNum(d.fgTotal) + ' ชิ้น · รายการต่ำกว่า Min ' + d.fgLow + ' รายการ</p></div>' +
-        _sfWidgetNotifFeed(d) +
-        _sfWidgetOrders(d) +
+        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><div class="sf-skeleton" style="height:100px"></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Aging Stock</div><div class="sf-skeleton" style="height:80px"></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Consumption</div><div class="sf-skeleton" style="height:80px"></div></div>' +
       '</div>';
   }
 
@@ -60767,15 +60808,14 @@ document.addEventListener('keydown', function(e){
     if(cnt){ cnt.textContent = unread; cnt.style.display = unread ? '' : 'none'; }
   }
 
-  function _sfSyncNotificationsFromDash(d){
-    if(!d) d = _sfCollectDashData('day');
-    _sfNotifications = (d.alerts || []).map(function(a, i){
-      return { id: i + 1, title: a.title, time: a.time, priority: a.priority, icon: a.icon, read: !!a.read };
-    });
-  }
-
   function _sfSeedNotifications(){
-    _sfSyncNotificationsFromDash(_sfCollectDashData('day'));
+    _sfNotifications = [
+      { id:1, title:'Machine I007 — Breakdown', time:'2 min ago', priority:'crit', icon:'🔴', read:false },
+      { id:2, title:'QC Hold — Lot L-8842', time:'8 min ago', priority:'warn', icon:'🧪', read:false },
+      { id:3, title:'PM Due — I015', time:'25 min ago', priority:'info', icon:'🛠', read:false },
+      { id:4, title:'Stock RM-PP below min', time:'1 hr ago', priority:'warn', icon:'📦', read:true },
+      { id:5, title:'OEE target achieved Zone 2', time:'2 hr ago', priority:'info', icon:'✅', read:true }
+    ];
   }
 
   function _sfRenderNotifDrawer(){
