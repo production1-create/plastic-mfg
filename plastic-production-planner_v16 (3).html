@@ -22,6 +22,7 @@ tailwind.config = {
 };
 </script>
 <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 
 <style>
 :root {
@@ -1465,6 +1466,38 @@ body[data-ui-mode="smart"].sf-sidebar-is-collapsed { --sf-sidebar-w: var(--sf-si
 .ui-mode-toggle-btn:hover { border-color: var(--accent2); color: var(--text); }
 .ui-mode-toggle-btn.sf-active { border-color: #111; background: #111; color: #fff; }
 @media (max-width: 1200px) { .sf-kpi-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } .sf-col-4,.sf-col-6,.sf-col-8 { grid-column: span 12; } }
+
+.sf-sidebar { background: #111827 !important; border-right-color: #1f2937 !important; }
+.sf-sidebar-brand { border-bottom-color: #1f2937 !important; }
+.sf-sidebar-brand .sf-brand-title, .sf-sidebar-brand .sf-brand-sub { color: #f9fafb; }
+.sf-sidebar-brand .sf-brand-sub { color: #9ca3af !important; }
+.sf-nav-label { color: #6b7280 !important; }
+.sf-nav-item { color: #d1d5db !important; }
+.sf-nav-item:hover { background: #1f2937 !important; border-color: #374151 !important; color: #fff !important; }
+.sf-nav-item.active { background: #fff !important; color: #111 !important; border-color: #fff !important; }
+.sf-sidebar-foot, .sf-sidebar-toggle { background: #111827 !important; border-color: #374151 !important; color: #d1d5db !important; }
+.sf-header-sub { font-size: 11px; color: #6b7280; font-weight: 500; display: block; margin-top: 2px; }
+.sf-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.sf-toolbar .sf-date { font-size: 11px; color: #6b7280; padding: 6px 10px; border: 1px solid var(--sf-border); border-radius: 8px; background: #fff; }
+.sf-sync-pill { font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #ecfdf5; color: #15803d; border: 1px solid #bbf7d0; }
+.sf-sync-pill.off { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.sf-chart { width: 100%; height: 220px; min-height: 180px; }
+.sf-chart.sm { height: 160px; }
+.sf-chart.lg { height: 280px; }
+.sf-gantt { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.sf-gantt-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; font-size: 10px; }
+.sf-gantt-bar { height: 26px; border-radius: 6px; overflow: hidden; display: flex; background: #f3f4f6; border: 1px solid #e5e7eb; }
+.sf-mobile-dash .sf-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.sf-mobile-dash .sf-widget-grid { display: flex; flex-direction: column; gap: 12px; }
+.sf-mobile-dash .sf-col-4, .sf-mobile-dash .sf-col-6, .sf-mobile-dash .sf-col-8, .sf-mobile-dash .sf-col-12 { grid-column: span 12; width: 100%; }
+.sf-mach-monitor { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.sf-mach-monitor-card { border: 1px solid var(--sf-border); border-radius: 12px; padding: 12px; background: #fafafa; }
+.sf-mach-monitor-card .sf-m-id { font-size: 14px; font-weight: 800; font-family: 'IBM Plex Mono', monospace; }
+.sf-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sf-table th, .sf-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #f3f4f6; }
+.sf-table th { color: #6b7280; font-weight: 600; font-size: 10px; text-transform: uppercase; }
+.sf-loading-overlay { position: absolute; inset: 0; background: rgba(255,255,255,.7); display: grid; place-items: center; z-index: 5; font-size: 12px; color: #6b7280; }
+
 @media (max-width: 768px) {
   .sf-kpi-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   body[data-ui-mode="smart"] #sf-shell { flex-direction: column; }
@@ -1579,8 +1612,15 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
   </aside>
   <div class="sf-body">
     <header class="sf-header">
-      <span class="sf-live-dot" title="Live"></span>
-      <h1 class="sf-header-title" id="sf-header-title">Control Center</h1>
+      <span class="sf-live-dot" id="sf-live-dot" title="Live"></span>
+      <div>
+        <h1 class="sf-header-title" id="sf-header-title">Control Center</h1>
+        <span class="sf-header-sub" id="sf-header-sub">Smart Factory · Manufacturing Command Center</span>
+      </div>
+      <div class="sf-toolbar">
+        <span class="sf-date" id="sf-dash-date"></span>
+        <span class="sf-sync-pill" id="sf-sync-pill">LIVE</span>
+      </div>
       <div class="sf-header-actions">
         <div class="sf-mode-switch" role="group" aria-label="UI Mode">
           <button type="button" id="sf-mode-classic" onclick="setUiMode('classic')">Classic</button>
@@ -1598,9 +1638,11 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div id="sf-dashboard" class="sf-dashboard">
         <div class="sf-view-tabs" id="sf-view-tabs">
           <button type="button" class="sf-view-tab active" data-sf-view="overview">Overview</button>
+          <button type="button" class="sf-view-tab" data-sf-view="timeline">Timeline</button>
           <button type="button" class="sf-view-tab" data-sf-view="qc">QC Command</button>
           <button type="button" class="sf-view-tab" data-sf-view="pm">PM War Room</button>
           <button type="button" class="sf-view-tab" data-sf-view="stock">Stock Intel</button>
+          <button type="button" class="sf-view-tab" data-sf-view="mobile">Mobile</button>
         </div>
         <div id="sf-dashboard-content"></div>
       </div>
@@ -48008,12 +48050,24 @@ function pmfReloadFromStorage(){
       renderPage(_pageDomIdFromPage(window._currentPage) || window._currentPage);
     }
   }catch(e){}
+  try{
+    if(typeof getUiMode==='function' && getUiMode()==='smart' && typeof sfRefreshDashboard==='function'){
+      sfRefreshDashboard(true);
+    }
+  }catch(e){}
 }
 window.addEventListener('message', function(ev){
   try{
     if(!ev || !ev.data) return;
     if(ev.data.type === 'pmf-sync-applied'){
       pmfReloadFromStorage();
+    }
+    if(ev.data.type === 'pmf-realtime-tick'){
+      try{
+        if(typeof getUiMode==='function' && getUiMode()==='smart' && typeof sfRefreshDashboard==='function'){
+          sfRefreshDashboard(true);
+        }
+      }catch(e){}
     }
   }catch(e){}
 }, false);
@@ -60315,8 +60369,9 @@ document.addEventListener('keydown', function(e){
     _sfRefreshTimer = setInterval(function(){
       if(getUiMode() !== 'smart') return;
       var dash = document.getElementById('sf-dashboard');
-      if(dash && dash.offsetParent !== null) sfRenderCurrentView();
-    }, 30000);
+      if(dash && dash.offsetParent !== null) sfRefreshDashboard(true);
+    }, 15000);
+    _sfBindRealtime();
   }
 
   function _sfBuildNav(){
@@ -60488,7 +60543,7 @@ document.addEventListener('keydown', function(e){
       return o.status !== 'พร้อมส่ง' && o.status !== 'ส่งแล้ว' && o.dueDate && new Date(o.dueDate) < new Date();
     }).length;
 
-    var sparkProd = [], sparkOee = [], sparkNg = [];
+    var sparkProd = [], sparkOee = [], sparkNg = [], sparkLt = [];
     for(var di = 6; di >= 0; di--){
       var ds = _sfDateOffset(-di);
       var dayAgg = aggregateReports(allRpts.filter(function(r){ return r.date === ds; }));
@@ -60503,7 +60558,33 @@ document.addEventListener('keydown', function(e){
         return tt > 0 ? Math.min(100, (tp - tn) / tt * 100) : 0;
       }).filter(function(v){ return v > 0; });
       sparkOee.push(dayOee.length ? Math.round(dayOee.reduce(function(a, b){ return a + b; }, 0) / dayOee.length) : 0);
+      sparkLt.push(dayAgg.totLT);
     }
+
+    var hourlyProd = [];
+    for(var hi = 0; hi < 24; hi++) hourlyProd.push(0);
+    filtRpts.forEach(function(rpt){
+      (rpt.rows || []).forEach(function(r){
+        var h = parseInt(r.hour, 10);
+        if(h >= 0 && h < 24) hourlyProd[h] += r.produced || 0;
+      });
+    });
+
+    var yestRptMach = {};
+    allRpts.forEach(function(r){ if(r.machine && r.date === yesterday) yestRptMach[r.machine] = 1; });
+    var todayRptCount = Object.keys(todayRptMachines).length;
+    var yestRptCount = Object.keys(yestRptMach).length;
+    var yestOeeVals = [];
+    machList.forEach(function(m){
+      var rptY = dr[m.id + '_' + yesterday];
+      if(!rptY || !rptY.rows) return;
+      var tp = 0, tt = (rptY.targetHr || 0) * 20;
+      rptY.rows.forEach(function(r){ tp += r.produced || 0; });
+      if(tt > 0) yestOeeVals.push(Math.min(100, tp / tt * 100));
+    });
+    var avgOeeY = yestOeeVals.length ? (yestOeeVals.reduce(function(a, b){ return a + b; }, 0) / yestOeeVals.length) : 0;
+    var setupCount = machList.filter(function(m){ return m.status === 'setup'; }).length;
+    var healthPct = machList.length ? Math.round((machList.length - counts.down) / machList.length * 100) : 0;
 
     function trend(cur, prev, suffix, lowerIsBetter){
       suffix = suffix || '';
@@ -60568,17 +60649,25 @@ document.addEventListener('keydown', function(e){
       ngPct: ngPct, ppm: ppm, avgOee: avgOee,
       running: counts.running, alarm: counts.alarm, idle: counts.idle, down: counts.down,
       totalMach: machList.length, pmDue: pmDue, apPending: apPending, overdue: overdue,
-      machines: machinesEnriched, sparkProd: sparkProd, sparkOee: sparkOee, sparkNg: sparkNg,
+      machines: machinesEnriched, sparkProd: sparkProd, sparkOee: sparkOee, sparkNg: sparkNg, sparkLt: sparkLt,
       trends: {
         prod: trend(agg.totProd, aggY.totProd, '', false),
-        oee: trend(avgOee || 0, aggY.totProd > 0 ? 72 : 0, '', false),
-        ng: trend(ngPct, ngPctY, '', true),
+        oee: trend(avgOee || 0, avgOeeY || 0, '%', false),
+        ng: trend(ngPct, ngPctY, '%', true),
         lt: trend(agg.totLT, aggY.totLT, ' นาที', true),
-        run: trend(counts.running + counts.alarm, 0, ' เครื่อง', false)
+        run: trend(todayRptCount || (counts.running + counts.alarm), yestRptCount, ' เครื่อง', false),
+        pm: { text: pmDue + ' รายการ', dir: pmDue > 0 ? 'down' : 'up' },
+        outputHr: trend(agg.totProd, aggY.totProd, ' ชิ้น', false)
       },
       alerts: alerts,
       fgTotal: fgTotal, fgLow: fgLow,
-      hasReportToday: Object.keys(todayRptMachines).length
+      matLow: matLow.length,
+      hourlyProd: hourlyProd,
+      healthPct: healthPct,
+      setupCount: setupCount,
+      todayRptCount: todayRptCount,
+      yestRptCount: yestRptCount,
+      statusDonut: { running: counts.running, alarm: counts.alarm, idle: counts.idle, down: counts.down, setup: setupCount, pm: pmDue }
     };
   }
 
@@ -60590,6 +60679,17 @@ document.addEventListener('keydown', function(e){
     };
   }
 
+  function _sfFmtNum(n){
+    if(n == null || n === '' || isNaN(n)) return '—';
+    return Number(n).toLocaleString('th-TH');
+  }
+
+  function _sfTrendHtml(t){
+    if(!t) return '';
+    var tag = 'div';
+    return '<' + tag + ' class="sf-kpi-trend ' + t.dir + '">' + t.text + ' vs เมื่อวาน</' + tag + '>';
+  }
+
   function _sfSparkHtml(vals){
     var max = Math.max.apply(null, vals.concat([1]));
     if(max <= 0) max = 1;
@@ -60599,179 +60699,346 @@ document.addEventListener('keydown', function(e){
     }).join('');
   }
 
-  function _sfFmtNum(n){
-    if(n == null || n === '' || isNaN(n)) return '—';
-    return Number(n).toLocaleString('th-TH');
+  function _sfDisposeCharts(){
+    Object.keys(_sfChartInst).forEach(function(k){
+      try{ if(_sfChartInst[k]) _sfChartInst[k].dispose(); }catch(e){}
+    });
+    _sfChartInst = {};
   }
 
-  function _sfTrendHtml(t){
-    if(!t) return '';
-    return '<motion> class="sf-kpi-trend ' + t.dir + '">' + t.text + ' vs เมื่อวาน</motion>';
+  function _sfChart(id, option){
+    if(!window.echarts) return null;
+    var el = document.getElementById(id);
+    if(!el) return null;
+    if(_sfChartInst[id]){ try{ _sfChartInst[id].dispose(); }catch(e){} }
+    var ch = echarts.init(el, null, { renderer: 'canvas' });
+    ch.setOption(option);
+    _sfChartInst[id] = ch;
+    return ch;
+  }
+
+  function _sfUpdateHeader(d){
+    var sub = document.getElementById('sf-header-sub');
+    var dt = document.getElementById('sf-dash-date');
+    if(dt) dt.textContent = new Date().toLocaleDateString('th-TH', { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+    if(sub && d){
+      sub.textContent = 'ผลิต ' + _sfFmtNum(d.totProd) + ' ชิ้น · NG ' + d.ngPct.toFixed(1) + '% · ' + d.running + ' running';
+    }
+    var pill = document.getElementById('sf-sync-pill');
+    if(pill){
+      pill.textContent = d && d.filtRpts.length ? 'SYNC · LIVE' : 'LIVE · รอรายงาน';
+      pill.classList.toggle('off', !(d && d.filtRpts.length));
+    }
+  }
+
+  function sfRefreshDashboard(soft){
+    if(getUiMode() !== 'smart') return;
+    _sfLastDash = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(_sfLastDash);
+    if(!soft) sfRenderCurrentView();
+    else {
+      _sfUpdateHeader(_sfLastDash);
+      _sfMountCharts(_sfLastDash);
+      _sfUpdateBadges();
+    }
+  }
+  window.sfRefreshDashboard = sfRefreshDashboard;
+
+  function _sfBindRealtime(){
+    if(window._sfRealtimeBound) return;
+    window._sfRealtimeBound = true;
+    window.addEventListener('message', function(ev){
+      try{
+        if(!ev.data) return;
+        if(ev.data.type === 'pmf-sync-applied' || ev.data.type === 'pmf-realtime-tick'){
+          if(getUiMode() === 'smart') setTimeout(function(){ sfRefreshDashboard(false); }, 120);
+        }
+      }catch(e){}
+    });
   }
 
   function sfRenderCurrentView(){
-    if(_sfView === 'qc') sfRenderQcDashboard();
+    _sfDisposeCharts();
+    _sfLastDash = _sfCollectDashData('day');
+    _sfSyncNotificationsFromDash(_sfLastDash);
+    _sfUpdateHeader(_sfLastDash);
+    var dashEl = document.getElementById('sf-dashboard');
+    if(dashEl) dashEl.className = 'sf-dashboard';
+    if(_sfView === 'timeline') sfRenderTimelineDashboard();
+    else if(_sfView === 'qc') sfRenderQcDashboard();
     else if(_sfView === 'pm') sfRenderPmDashboard();
     else if(_sfView === 'stock') sfRenderStockDashboard();
+    else if(_sfView === 'mobile') sfRenderMobileDashboard();
     else sfRenderOverviewDashboard();
     _sfUpdateBadges();
     _sfLucide();
+    setTimeout(function(){ _sfMountCharts(_sfLastDash); }, 60);
+  }
+
+  function _sfKpiCard(label, val, trend, spark){
+    var trendHtml = (trend && typeof trend === 'object') ? _sfTrendHtml(trend) : '';
+    return '<div class="sf-kpi"><div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
+      '<div class="sf-kpi-val">' + val + '</div>' + trendHtml +
+      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark || []) + '</div></div>';
+  }
+
+  function _sfWidgetMachines(d, limit){
+    limit = limit || 24;
+    var list = (d.machines || []).slice(0, limit);
+    var cards = list.map(function(m){
+      var s = m.status || 'idle';
+      var chip = s === 'running' ? 'run' : (s === 'down' || s === 'alarm' ? 'down' : (s === 'setup' ? 'setup' : 'idle'));
+      return '<div class="sf-mach-card ' + s + '" onclick="sfOpenPage(\'machines\')">' +
+        '<div class="sf-mach-id">' + (m.id||'?') + '</div>' +
+        '<span class="sf-status-chip ' + chip + '">' + s.toUpperCase() + '</span>' +
+        '<div class="sf-mach-meta">Mold: ' + (m.mold||'—') + '<br>Order: ' + (m.orderNo||m.job||'—') + '</div></div>';
+    }).join('');
+    if(!cards) cards = '<div class="sf-empty">ไม่มีข้อมูลเครื่องจักร</div>';
+    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">' + d.running + ' running · ' + (d.todayRptCount||0) + ' รายงานวันนี้</span></div>' +
+      '<div class="sf-machine-grid">' + cards + '</div></div>';
+  }
+
+  function _sfTimelineFromRpt(rpt){
+    if(!rpt || !rpt.rows || !rpt.rows.length) return '<span class="sf-tl-seg idle" style="flex:1"></span>';
+    var sorted = rpt.rows.slice().sort(function(a,b){ return (parseInt(a.hour,10)||0)-(parseInt(b.hour,10)||0); });
+    var slice = sorted.length > 8 ? sorted.slice(-8) : sorted;
+    while(slice.length < 6) slice.unshift({ hour:'—', produced:0, ltMins:0 });
+    return slice.map(function(r){
+      var prod = r.produced||0, lt = r.ltMins||0, k='idle', flex=1;
+      if(prod>0 && !lt){ k='run'; flex=3; }
+      else if(lt && !prod){ k='down'; flex=2; }
+      else if(lt && prod){ k='setup'; flex=2; }
+      else if(prod){ k='run'; flex=2; }
+      return '<span class="sf-tl-seg '+k+'" style="flex:'+flex+'" title="H'+r.hour+': '+prod+'"></span>';
+    }).join('');
+  }
+
+  function _sfWidgetTimeline(d, limit){
+    var rows = (d.machines||[]).slice(0, limit||8).map(function(m){
+      return '<div class="sf-tl-row"><span style="width:48px;font-weight:700;font-family:monospace">'+m.id+'</span><div class="sf-tl-bar">'+_sfTimelineFromRpt(m.rpt)+'</div></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Hourly Timeline</span><span class="sf-widget-sub">จากรายงานวันนี้</span></div><div class="sf-timeline">'+ (rows||'<div class="sf-empty">—</div>') +'</div></div>';
+  }
+
+  function _sfWidgetNotifFeed(d){
+    var items = (d&&d.alerts?d.alerts:_sfNotifications).slice(0,6).map(function(n){
+      return '<div class="sf-notif-item '+n.priority+(n.read?'':' unread')+'"><span>'+n.icon+'</span><div><strong>'+n.title+'</strong><br><span style="color:#6b7280;font-size:10px">'+n.time+'</span></div></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Alerts</span></div><div class="sf-notif-list">'+(items||'<div class="sf-empty">ไม่มีการแจ้งเตือน</div>')+'</div></div>';
+  }
+
+  function _sfWidgetPareto(d){
+    var sorted = Object.entries(d.ngByDefect||{}).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+    if(!sorted.length) return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-empty">ยังไม่มี NG วันนี้</div></div>';
+    var maxVal = sorted[0][1]||1;
+    var bars = sorted.map(function(e){
+      var h = Math.max(8, Math.round(e[1]/maxVal*100));
+      return '<div class="sf-pareto-bar" style="height:'+h+'%" title="'+e[0]+': '+e[1]+'"></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span><span class="sf-widget-sub">'+_sfFmtNum(d.totNG)+' NG</span></div><div class="sf-pareto">'+bars+'</div></div>';
+  }
+
+  function _sfWidgetOrders(d){
+    var orderList = (typeof orders!=='undefined'&&Array.isArray(orders))?orders.filter(function(o){
+      return o.status==='กำลังผลิต'||o.status==='รอผลิต';
+    }).slice(0,6):[];
+    var rows = orderList.map(function(o){
+      var pct = o.qty>0?Math.round((o.produced||0)/o.qty*100):0;
+      return '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span style="font-weight:700">'+(o.orderNo||'Order')+'</span><span>'+pct+'%</span></div>' +
+        '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:#111"></div></div></div>';
+    }).join('');
+    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div><span class="sf-widget-sub">'+orderList.length+' รายการ</span></div>'+(rows||'<div class="sf-empty">ไม่มี Order กำลังผลิต</div>')+'</div>';
   }
 
   function sfRenderOverviewDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
-    var st = _sfMachineStats();
-    var title = document.getElementById('sf-header-title');
-    if(title) title.textContent = 'Smart Factory · Control Center';
-    var output = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.length : 0;
-    var ngRate = (st.down + st.alarm) > 0 ? ((st.down + st.alarm) / st.total * 100).toFixed(1) : '0.0';
-    el.innerHTML =
+    var d = _sfLastDash || _sfCollectDashData('day');
+    var ht = document.getElementById('sf-header-title');
+    if(ht) ht.textContent = 'Control Center';
+    var oeeVal = d.avgOee != null ? Math.round(d.avgOee) : '—';
+    var note = d.filtRpts.length ? '' : '<p style="font-size:11px;color:#6b7280;margin:0 0 12px">ยังไม่มีรายงานผลิตวันนี้ — แสดงสถานะล่าสุดจากระบบ</p>';
+    el.innerHTML = note +
       '<div class="sf-kpi-grid">' +
-        _sfKpiCard('Running Machine', st.running, '+' + Math.min(12, st.running) + '%', 'up', [40,55,48,62,58,70,65,st.running||8]) +
-        _sfKpiCard('OEE', st.oee + '%', (st.oee >= 75 ? '+' : '') + (st.oee - 72) + '%', st.oee >= 75 ? 'up' : 'down', [62,58,70,68,72,75,78,st.oee]) +
-        _sfKpiCard('Production Output', output, '+4.2%', 'up', [30,42,38,50,48,55,52,output||40]) +
-        _sfKpiCard('NG Rate', ngRate + '%', '-0.8%', 'down', [12,10,9,11,8,7,9,parseFloat(ngRate)||5]) +
-        _sfKpiCard('Downtime', st.down + st.alarm, st.down > 3 ? '+2' : '-1', st.down > 3 ? 'down' : 'up', [5,8,6,4,7,5,3,st.down]) +
-        _sfKpiCard('PM Due', Math.max(0, Math.floor(st.total * 0.08)), '3 due', 'down', [2,3,2,4,3,5,4,3]) +
+        _sfKpiCard('Running Machine', d.running + d.alarm, d.trends.run, d.sparkProd) +
+        _sfKpiCard('OEE', oeeVal + (oeeVal==='—'?'':'%'), d.trends.oee, d.sparkOee) +
+        _sfKpiCard('Production Output', _sfFmtNum(d.totProd), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('NG Rate', d.ngPct.toFixed(1)+'%', d.trends.ng, d.sparkNg) +
+        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT)+' นาที', d.trends.lt, d.sparkLt||d.sparkProd) +
+        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [1,2,2,3,2,4,3,d.pmDue||0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetMachines(st) +
-        _sfWidgetTimeline(st) +
-        _sfWidgetNotifFeed() +
-        _sfWidgetPareto() +
-        _sfWidgetOrders() +
-        _sfWidgetActivity() +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Production Plan vs Actual</span></div><span class="sf-widget-sub">รายชั่วโมงวันนี้</span></div><div id="sf-chart-prod" class="sf-chart"></div></div>' +
+        '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span></div><div id="sf-chart-mach-pie" class="sf-chart sm"></div></div>' +
+        _sfWidgetMachines(d, 12) +
+        _sfWidgetPareto(d) +
+        _sfWidgetOrders(d) +
+        _sfWidgetNotifFeed(d) +
       '</div>';
   }
 
-  function _sfKpiCard(label, val, trend, dir, spark){
-    return '<div class="sf-kpi"><div class="sf-kpi-top"><span class="sf-kpi-label">' + label + '</span></div>' +
-      '<div class="sf-kpi-val">' + val + '</div>' +
-      '<div class="sf-kpi-trend ' + dir + '">' + trend + ' vs yesterday</div>' +
-      '<div class="sf-kpi-spark">' + _sfSparkHtml(spark) + '</div></div>';
-  }
-
-  function _sfWidgetMachines(st){
-    var cards = st.list.slice(0, 24).map(function(m){
-      var s = m.status || 'idle';
-      var chip = s === 'running' ? 'run' : (s === 'down' || s === 'alarm' ? 'down' : (s === 'setup' ? 'setup' : 'idle'));
-      var job = (m.currentJob && (m.currentJob.code || m.currentJob.id)) || '—';
-      return '<div class="sf-mach-card ' + s + '" onclick="sfOpenPage(\'machines\')">' +
-        '<div class="sf-mach-id">' + (m.id||'?') + '</div>' +
-        '<span class="sf-status-chip ' + chip + '">' + s.toUpperCase() + '</span>' +
-        '<div class="sf-mach-meta">Mold: ' + (m.currentMold||'—') + '<br>Order: ' + job + '</div></div>';
+  function sfRenderTimelineDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    var d = _sfLastDash || _sfCollectDashData('day');
+    document.getElementById('sf-header-title').textContent = 'Production Timeline';
+    var gantt = (d.machines||[]).slice(0,12).map(function(m){
+      return '<div class="sf-gantt-row"><span style="font-weight:700">'+m.id+'</span><div class="sf-gantt-bar">'+_sfTimelineFromRpt(m.rpt)+'</div></div>';
     }).join('');
-    if(!cards) cards = '<div class="sf-empty">ไม่มีข้อมูลเครื่องจักร</div>';
-    return '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Machine Status</span><span class="sf-widget-sub">Live · ' + st.running + ' running</span></div>' +
-      '<div class="sf-machine-grid">' + cards + '</div></div>';
-  }
-
-  function _sfWidgetTimeline(st){
-    var rows = st.list.slice(0, 8).map(function(m){
-      var segs = _sfFakeTimeline(m.status);
-      return '<div class="sf-tl-row"><span style="width:42px;font-weight:700">' + m.id + '</span><div class="sf-tl-bar">' + segs + '</div></div>';
-    }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Production Timeline</span><span class="sf-widget-sub">Shift view</span></div>' +
-      '<div class="sf-timeline">' + (rows || '<div class="sf-empty">—</div>') + '</div></div>';
-  }
-
-  function _sfFakeTimeline(status){
-    var pat = { running:['idle','setup','run','run','run','idle'], down:['run','down','down','setup','idle'], alarm:['run','down','idle','idle'], idle:['idle','idle','setup','idle'] };
-    var arr = pat[status] || pat.idle;
-    return arr.map(function(k){
-      var cls = k === 'run' ? 'run' : (k === 'setup' ? 'setup' : (k === 'down' ? 'down' : 'idle'));
-      return '<span class="sf-tl-seg ' + cls + '" style="flex:' + (k==='run'?3:1) + '"></span>';
-    }).join('');
-  }
-
-  function _sfWidgetNotifFeed(){
-    var items = _sfNotifications.slice(0, 5).map(function(n){
-      return '<div class="sf-notif-item ' + n.priority + (n.read ? '' : ' unread') + '"><span>' + n.icon + '</span><div><strong>' + n.title + '</strong><br><span style="color:#6b7280">' + n.time + '</span></div></div>';
-    }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Alerts</span></div>' +
-      '<div class="sf-notif-list">' + items + '</div></div>';
-  }
-
-  function _sfWidgetPareto(){
-    var bars = [88, 62, 45, 30, 22, 15].map(function(h,i){
-      return '<div class="sf-pareto-bar" style="height:' + h + '%" title="Defect ' + (i+1) + '"></div>';
-    }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">NG Pareto</span></div><div class="sf-pareto">' + bars + '</div></div>';
-  }
-
-  function _sfWidgetOrders(){
-    var orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders.slice(0, 6) : [];
-    var rows = orderList.map(function(o, i){
-      var pct = 30 + (i * 11) % 70;
-      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>' + (o.code||o.id||'Order') + '</span><span>' + pct + '%</span></div>' +
-        '<div style="height:6px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#111"></div></div></div>';
-    }).join('');
-    if(!rows) rows = '<div class="sf-empty">ไม่มี Order ในระบบ</div>';
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Order Progress</span></div>' + rows + '</div>';
-  }
-
-  function _sfWidgetActivity(){
-  var acts = ['Operator login','Machine I012 → Running','QC hold lot L-8842','PM WO opened #442','Stock RM below min'];
-    var html = acts.map(function(a,i){
-      return '<div style="font-size:11px;padding:6px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:8px"><span style="color:#9ca3af">' + (10-i) + 'm</span>' + a + '</div>';
-    }).join('');
-    return '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">Real-time Activity</span></div>' + html + '</div>';
+    el.innerHTML =
+      '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
+        _sfKpiCard('Active Orders', (typeof orders!=='undefined'?orders.filter(function(o){return o.status==='กำลังผลิต';}).length:0), d.trends.run, d.sparkProd) +
+        _sfKpiCard('Output Today', _sfFmtNum(d.totProd), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT)+'m', d.trends.lt, d.sparkLt||[]) +
+        _sfKpiCard('Delayed', d.overdue, {text:String(d.overdue),dir:d.overdue>0?'down':'up'}, [0,1,0,2,1,d.overdue,0]) +
+      '</div>' +
+      '<div class="sf-widget-grid">' +
+        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Shift Timeline (รายชั่วโมง)</span><button class="sf-btn" onclick="sfOpenPage(\'timetable\')">เปิดแผน</button></div><div class="sf-gantt">'+gantt+'</div></div>' +
+        _sfWidgetOrders(d) +
+        _sfWidgetNotifFeed(d) +
+      '</div>';
   }
 
   function sfRenderQcDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
+    var d = _sfLastDash || _sfCollectDashData('day');
     document.getElementById('sf-header-title').textContent = 'QC Command Center';
-    var st = _sfMachineStats();
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('NG Rate', ((st.down/st.total)*100).toFixed(1)+'%', '-0.3%', 'up', [8,7,6,7,5,6,5,4]) +
-        _sfKpiCard('PPM', '124', '-18', 'up', [200,180,160,150,140,130,124,120]) +
-        _sfKpiCard('Hold Lot', '3', '+1', 'down', [1,2,1,3,2,3,3,3]) +
-        _sfKpiCard('Approval Wait', '5', '0', 'up', [4,5,6,5,4,5,5,5]) +
+        _sfKpiCard('NG Rate', d.ngPct.toFixed(2)+'%', d.trends.ng, d.sparkNg) +
+        _sfKpiCard('PPM', _sfFmtNum(d.ppm), d.trends.ng, d.sparkNg) +
+        _sfKpiCard('NG ชิ้น', _sfFmtNum(d.totNG), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('รออนุมัติ', d.apPending, {text:String(d.apPending),dir:d.apPending>0?'down':'up'}, [0,1,2,1,d.apPending,0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">SPC Monitor</span></div><div class="sf-skeleton" style="height:140px"></div><p style="font-size:11px;color:#6b7280;margin-top:8px">เปิดหน้า <a href="#" onclick="sfOpenPage(\'nganalysis\');return false">วิเคราะห์ NG</a> สำหรับรายละเอียด</p></div>' +
-        '<div class="sf-widget sf-col-6">' + _sfWidgetPareto() + '</div>' +
-        _sfWidgetNotifFeed() +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">NG Trend (7 วัน)</span></div><div id="sf-chart-ng" class="sf-chart"></div></div>' +
+        '<div class="sf-widget sf-col-4">'+_sfWidgetPareto(d)+'</div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">สรุป QC วันนี้</span></div><p style="font-size:12px;padding:8px 0">ผลิต '+_sfFmtNum(d.totProd)+' · NG '+_sfFmtNum(d.totNG)+' · PPM '+_sfFmtNum(d.ppm)+'</p><button class="sf-btn" onclick="sfOpenPage(\'nganalysis\')">วิเคราะห์ NG</button></div>' +
+        _sfWidgetNotifFeed(d) +
       '</div>';
   }
 
   function sfRenderPmDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
+    var d = _sfLastDash || _sfCollectDashData('day');
     document.getElementById('sf-header-title').textContent = 'PM War Room';
-    var st = _sfMachineStats();
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Machine Health', '86%', '+2%', 'up', [78,80,82,83,84,85,86,86]) +
-        _sfKpiCard('Breakdown', st.down, st.down > 2 ? '+'+st.down : '0', st.down > 2 ? 'down' : 'up', [2,1,3,2,1,2,st.down,1]) +
-        _sfKpiCard('PM Due', Math.max(1, Math.floor(st.total*0.1)), 'today', 'down', [3,4,3,5,4,4,3,4]) +
-        _sfKpiCard('Downtime (hr)', (st.down * 1.2).toFixed(1), '-0.5h', 'up', [4,3,5,4,3,2,2,2]) +
+        _sfKpiCard('Machine Health', (d.healthPct||0)+'%', {text:d.down+' down',dir:d.down>0?'down':'up'}, d.sparkOee) +
+        _sfKpiCard('Breakdown', d.down, {text:String(d.down),dir:d.down>0?'down':'up'}, [2,1,3,d.down,1]) +
+        _sfKpiCard('PM Due', d.pmDue, d.trends.pm, [3,4,3,d.pmDue,4]) +
+        _sfKpiCard('Loss Time', _sfFmtNum(d.totLT)+'m', d.trends.lt, d.sparkLt||[]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        _sfWidgetTimeline(st) +
-        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Work Orders</span></div><div class="sf-empty">เปิด <button class="sf-btn" onclick="sfOpenPage(\'machinepm\')">แผน PM</button> หรือ <button class="sf-btn" onclick="sfOpenPage(\'history\')">Breakdown Log</button></div></div>' +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">Loss Time by Reason</span></div><div id="sf-chart-lt" class="sf-chart"></div></div>' +
+        _sfWidgetTimeline(d, 10) +
+        '<div class="sf-widget sf-col-6"><div class="sf-widget-head"><span class="sf-widget-title">Work Orders</span></div><p style="font-size:12px"><button class="sf-btn" onclick="sfOpenPage(\'machinepm\')">แผน PM</button> <button class="sf-btn" onclick="sfOpenPage(\'history\')">Breakdown</button></p></div>' +
       '</div>';
   }
 
   function sfRenderStockDashboard(){
     var el = document.getElementById('sf-dashboard-content');
     if(!el) return;
-    document.getElementById('sf-header-title').textContent = 'Warehouse Intelligence';
+    var d = _sfLastDash || _sfCollectDashData('day');
+    var matRows = Object.entries(typeof rawMatStock!=='undefined'?rawMatStock:{}).filter(function(e){
+      var s=e[1]; return s&&!s._deleted;
+    }).slice(0,8).map(function(e){
+      var s=e[1], low=s.qty<(s.min||500);
+      return '<tr><td>'+e[0]+'</td><td style="font-weight:700">'+_sfFmtNum(s.qty)+'</td><td>'+_sfFmtNum(s.min||500)+'</td><td><span class="sf-status-chip '+(low?'down':'run')+'">'+(low?'LOW':'OK')+'</span></td></tr>';
+    }).join('');
+    document.getElementById('sf-header-title').textContent = 'Stock Intelligence';
     el.innerHTML =
       '<div class="sf-kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">' +
-        _sfKpiCard('Raw Material', 'OK', '2 low', 'down', [80,78,75,72,70,68,65,60]) +
-        _sfKpiCard('FG Stock', '12.4k', '+3%', 'up', [10,11,11,12,12,12,12,12]) +
-        _sfKpiCard('WIP', '2.1k', '0', 'up', [2,2.1,2,2.1,2.1,2.1,2.1,2.1]) +
-        _sfKpiCard('Near Empty', '4', '+1', 'down', [2,3,2,3,4,3,4,4]) +
+        _sfKpiCard('RM Low', d.matLow||0, {text:'items',dir:(d.matLow>0?'down':'up')}, [0,1,2,d.matLow,1]) +
+        _sfKpiCard('FG Stock', _sfFmtNum(d.fgTotal), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('FG Below Min', d.fgLow, {text:String(d.fgLow),dir:d.fgLow>0?'down':'up'}, [1,2,1,d.fgLow,0]) +
+        _sfKpiCard('Overdue Orders', d.overdue, {text:String(d.overdue),dir:d.overdue>0?'down':'up'}, [0,d.overdue,0]) +
       '</div>' +
       '<div class="sf-widget-grid">' +
-        '<div class="sf-widget sf-col-12"><div class="sf-widget-head"><span class="sf-widget-title">Lot Traceability</span><button class="sf-btn" onclick="sfOpenPage(\'stock\')">เปิด Stock FG</button></div><div class="sf-skeleton" style="height:100px"></div></div>' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Aging Stock</div><div class="sf-skeleton" style="height:80px"></div></div>' +
-        '<div class="sf-widget sf-col-6"><div class="sf-widget-title">Consumption</div><div class="sf-skeleton" style="height:80px"></div></div>' +
+        '<div class="sf-widget sf-col-8"><div class="sf-widget-head"><span class="sf-widget-title">Raw Material</span><button class="sf-btn" onclick="sfOpenPage(\'rawmat\')">เปิด RM</button></div><table class="sf-table"><thead><tr><th>Material</th><th>Qty</th><th>Min</th><th>Status</th></tr></thead><tbody>'+(matRows||'<tr><td colspan="4">ไม่มีข้อมูล</td></tr>')+'</tbody></table></div>' +
+        '<div class="sf-widget sf-col-4"><div class="sf-widget-head"><span class="sf-widget-title">FG Overview</span></div><div id="sf-chart-fg" class="sf-chart sm"></div></div>' +
+        _sfWidgetNotifFeed(d) +
+        _sfWidgetOrders(d) +
       '</div>';
+  }
+
+  function sfRenderMobileDashboard(){
+    var el = document.getElementById('sf-dashboard-content');
+    if(!el) return;
+    var d = _sfLastDash || _sfCollectDashData('day');
+    el.className = 'sf-dashboard sf-mobile-dash';
+    document.getElementById('sf-header-title').textContent = 'Mobile Factory';
+    var mon = (d.machines||[]).slice(0,6).map(function(m){
+      return '<div class="sf-mach-monitor-card"><div class="sf-m-id">'+m.id+'</div><span class="sf-status-chip '+(m.status==='running'?'run':'idle')+'">'+m.status+'</span><div style="font-size:10px;color:#6b7280;margin-top:6px">'+(m.job||'—')+'</div></div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="sf-kpi-grid">' +
+        _sfKpiCard('Output', _sfFmtNum(d.totProd), d.trends.prod, d.sparkProd) +
+        _sfKpiCard('OEE', (d.avgOee!=null?Math.round(d.avgOee):'—')+'%', d.trends.oee, d.sparkOee) +
+        _sfKpiCard('NG', d.ngPct.toFixed(1)+'%', d.trends.ng, d.sparkNg) +
+        _sfKpiCard('Running', d.running, d.trends.run, d.sparkProd) +
+      '</div>' +
+      '<div class="sf-widget"><div class="sf-widget-head"><span class="sf-widget-title">Machine Monitor</span></div><div class="sf-mach-monitor">'+mon+'</div></div>' +
+      _sfWidgetNotifFeed(d);
+  }
+
+  function _sfMountCharts(d){
+    if(!d || !window.echarts) return;
+    var hours = [];
+    for(var h=8;h<=20;h++) hours.push(h+':00');
+    var prodH = (d.hourlyProd||[]).slice(8,21);
+    if(document.getElementById('sf-chart-prod')){
+      _sfChart('sf-chart-prod', {
+        grid:{left:40,right:16,top:24,bottom:28},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'category',data:hours,axisLine:{lineStyle:{color:'#e5e7eb'}}},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'#f3f4f6'}}},
+        series:[{name:'ผลิต',type:'bar',data:prodH,itemStyle:{color:'#111',borderRadius:[4,4,0,0]}}]
+      });
+    }
+    if(document.getElementById('sf-chart-mach-pie')){
+      var sd = d.statusDonut||{};
+      _sfChart('sf-chart-mach-pie', {
+        tooltip:{trigger:'item'},
+        series:[{type:'pie',radius:['42%','70%'],label:{fontSize:10},
+          data:[
+            {value:sd.running||0,name:'Running',itemStyle:{color:'#22c55e'}},
+            {value:sd.idle||0,name:'Idle',itemStyle:{color:'#9ca3af'}},
+            {value:sd.down||0,name:'Down',itemStyle:{color:'#ef4444'}},
+            {value:sd.alarm||0,name:'Alarm',itemStyle:{color:'#f59e0b'}}
+          ].filter(function(x){ return x.value>0; })
+        }]
+      });
+    }
+    if(document.getElementById('sf-chart-ng')){
+      _sfChart('sf-chart-ng', {
+        grid:{left:40,right:16,top:24,bottom:28},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'category',data:['-6','-5','-4','-3','-2','-1','วันนี้']},
+        yAxis:{type:'value'},
+        series:[{name:'NG%',type:'line',smooth:true,data:d.sparkNg||[],lineStyle:{color:'#ef4444',width:2},areaStyle:{color:'rgba(239,68,68,.08)'}}]
+      });
+    }
+    if(document.getElementById('sf-chart-lt')){
+      var lt = Object.entries(d.ltByReason||{}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+      _sfChart('sf-chart-lt', {
+        grid:{left:100,right:16,top:8,bottom:28},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'value'},
+        yAxis:{type:'category',data:lt.map(function(x){return x[0];})},
+        series:[{type:'bar',data:lt.map(function(x){return x[1];}),itemStyle:{color:'#f59e0b',borderRadius:[0,4,4,0]}}]
+      });
+    }
+    if(document.getElementById('sf-chart-fg')){
+      _sfChart('sf-chart-fg', {
+        series:[{type:'gauge',min:0,max:Math.max(d.fgTotal,1),progress:{show:true},detail:{formatter:_sfFmtNum(d.fgTotal),fontSize:14},data:[{value:d.fgTotal,name:'FG'}]}]
+      });
+    }
+    window.addEventListener('resize', function(){
+      Object.keys(_sfChartInst).forEach(function(k){ try{ _sfChartInst[k].resize(); }catch(e){} });
+    }, { once: true });
   }
 
   function _sfUpdateBadges(){
@@ -60787,15 +61054,13 @@ document.addEventListener('keydown', function(e){
     if(cnt){ cnt.textContent = unread; cnt.style.display = unread ? '' : 'none'; }
   }
 
-  function _sfSeedNotifications(){
-    _sfNotifications = [
-      { id:1, title:'Machine I007 — Breakdown', time:'2 min ago', priority:'crit', icon:'🔴', read:false },
-      { id:2, title:'QC Hold — Lot L-8842', time:'8 min ago', priority:'warn', icon:'🧪', read:false },
-      { id:3, title:'PM Due — I015', time:'25 min ago', priority:'info', icon:'🛠', read:false },
-      { id:4, title:'Stock RM-PP below min', time:'1 hr ago', priority:'warn', icon:'📦', read:true },
-      { id:5, title:'OEE target achieved Zone 2', time:'2 hr ago', priority:'info', icon:'✅', read:true }
-    ];
+  function _sfSyncNotificationsFromDash(d){
+    if(!d) d = _sfCollectDashData('day');
+    _sfNotifications = (d.alerts || []).map(function(a, i){
+      return { id: i + 1, title: a.title, time: a.time, priority: a.priority, icon: a.icon, read: !!a.read };
+    });
   }
+  function _sfSeedNotifications(){ _sfSyncNotificationsFromDash(_sfCollectDashData('day')); }
 
   function _sfRenderNotifDrawer(){
     var body = document.getElementById('sf-notif-drawer-body');
