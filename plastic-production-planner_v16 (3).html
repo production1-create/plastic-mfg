@@ -31230,7 +31230,7 @@ function showPrintModal(html, title){
   if(!modal || !frame){ console.error('print-modal not found'); return; }
   titleEl.textContent = title||'เอกสาร';
   modal.style.display = 'flex';
-  const isLandscape = /F-QMR-010|ap-doc|size:\s*A4\s+landscape|size:\s*297mm\s+210mm/i.test(html||'');
+  const isLandscape = /F-QMR-010|ap-doc|rpt-doc|F-PD-I007|size:\s*A4\s+landscape|size:\s*297mm\s+210mm/i.test(html||'');
   if(isLandscape){
     frame.style.width = '297mm';
     frame.style.minHeight = '210mm';
@@ -31389,347 +31389,305 @@ function signRowRoles(roles){
 }
 
 // ==================== F-PD-I007: บันทึกการผลิต / ตรวจสอบคุณภาพ แผนกฉีด ====================
+// Inserted into plastic-production-planner - F-PD-I007 landscape print (2 pages per shift)
+
+function _rptEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _rptLogoHtml(){
+  if(typeof _apLogoHtml==='function') return _apLogoHtml();
+  var src=(typeof _AP_LOGO_DATA_URI!=='undefined'&&_AP_LOGO_DATA_URI)?_AP_LOGO_DATA_URI:'./abest-logo.png';
+  return '<div class="ap-logo-block">'
+    +'<img class="ap-logo-img" src="'+src+'" alt="A BEST INTER PRODUCTS">'
+    +'<div class="ap-logo-en">A BEST INTER PRODUCTS CO.,LTD</div>'
+    +'<div class="ap-logo-th">'+(typeof COMPANY_NAME!=='undefined'?COMPANY_NAME:'')+'</div>'
+    +'</div>';
+}
+var _RPT_NG_COLS=[
+  {k:'จุดดำ',aliases:['จุดดำ','จุดไหม้','จุดดำ/จุดไหม้']},
+  {k:'สีเพี้ยน',aliases:['สีเพี้ยน','สีผิด']},
+  {k:'รอยขีด',aliases:['รอยขีด','scratch']},
+  {k:'รอยย่น',aliases:['รอยย่น']},
+  {k:'รอยพ่น',aliases:['รอยพ่น']},
+  {k:'ฟองอากาศ',aliases:['ฟองอากาศ']},
+  {k:'ไม่ได้ Spec',aliases:['ไม่ได้ Spec','ไม่ได้ spec']},
+  {k:'เกลียวบี้',aliases:['เกลียวบี้','บิด']},
+  {k:'คราบน้ำมัน',aliases:['คราบน้ำมัน']},
+  {k:'ฉีดไม่เต็ม',aliases:['ฉีดไม่เต็ม','short']},
+  {k:'แตกร้าว',aliases:['แตกร้าว','บิ่น']}
+];
+var _RPT_LT_COLS=[
+  {k:'ติดพิมพ์',aliases:['ติดพิมพ์','แม่พิมพ์']},
+  {k:'ขัดพิมพ์',aliases:['ขัดพิมพ์','setup','เปลี่ยน']},
+  {k:'คนไม่พอ',aliases:['คนไม่พอ','พนักงาน']},
+  {k:'รอเม็ด',aliases:['รอเม็ด','วัตถุดิบ']},
+  {k:'เครื่องเสีย',aliases:['เครื่องเสีย','breakdown','เสีย']}
+];
+function _rptNgQty(row,col){
+  if(!row) return '';
+  var qty=0;
+  if(row.ngItems&&row.ngItems.length){
+    row.ngItems.forEach(function(n){
+      var d=String(n.defect||'');
+      if(col.aliases.some(function(a){ return d.indexOf(a)>=0; })) qty+=(parseInt(n.qty,10)||0);
+    });
+  } else if(row.ng>0&&row.ngDefect){
+    var d2=String(row.ngDefect);
+    if(col.aliases.some(function(a){ return d2.indexOf(a)>=0; })) qty=parseInt(row.ng,10)||0;
+  }
+  return qty>0?String(qty):'';
+}
+function _rptLtMins(row,col){
+  if(!row||!row.ltMins||!row.ltReason) return '';
+  var r=String(row.ltReason);
+  return col.aliases.some(function(a){ return r.indexOf(a)>=0; })?String(row.ltMins):'';
+}
+function _rptHourSlots(shiftKey){
+  if(shiftKey==='day') return [8,9,10,11,12,13,14,15,16,17,18,19];
+  return [20,21,22,23,0,1,2,3,4,5,6,7];
+}
+function _rptHourLabel(h){
+  var nh=h===23?0:h+1;
+  return String(h).padStart(2,'0')+'.00-'+String(nh).padStart(2,'0')+'.00';
+}
+function _rptRowsForShift(rpt,shiftKey){
+  var slots=_rptHourSlots(shiftKey);
+  var src=(rpt.rows||[]).filter(function(r){
+    var h=rptNormHour(r.hour);
+    return shiftKey==='day'?(h>=8&&h<20):(h>=20||h<8);
+  });
+  return slots.map(function(h){
+    var found=src.find(function(r){ return rptNormHour(r.hour)===h; });
+    return found||{hour:h,target:0,produced:0,ngItems:[],operator:''};
+  });
+}
+function _rptEffGraphSvg(rows){
+  var pts=[];
+  rows.forEach(function(r,i){
+    var g=rptRowGoodInputValue(r)||0;
+    var pct=r.target>0?Math.round(g/r.target*100):0;
+    pct=Math.max(40,Math.min(100,pct||40));
+    var x=8+i*((100-16)/(rows.length-1||1));
+    var y=100-((pct-40)/60*88)-6;
+    pts.push({x:x,y:y,pct:pct});
+  });
+  var poly=pts.map(function(p){ return p.x+','+p.y; }).join(' ');
+  var dots=pts.map(function(p){ return '<circle cx="'+p.x+'" cy="'+p.y+'" r="1.8" fill="#1a56db"/>'; }).join('');
+  var yLabels=[40,50,60,70,80,90,100].map(function(v){
+    var y=100-((v-40)/60*88)-6;
+    return '<text x="2" y="'+(y+2)+'" font-size="5" fill="#333">'+v+'</text>'
+      +'<line x1="14" y1="'+y+'" x2="100" y2="'+y+'" stroke="#ddd" stroke-width="0.3"/>';
+  }).join('');
+  return '<svg class="rpt-graph" viewBox="0 0 100 100" preserveAspectRatio="none">'
+    +yLabels
+    +'<line x1="14" y1="'+(100-((90-40)/60*88)-6)+'" x2="100" y2="'+(100-((90-40)/60*88)-6)+'" stroke="#c00000" stroke-width="0.6" stroke-dasharray="2,1.5"/>'
+    +'<text x="86" y="'+(100-((90-40)/60*88)-12)+'" font-size="4.5" fill="#c00000" font-weight="700">TARGET=90%</text>'
+    +(pts.length>1?'<polyline fill="none" stroke="#1a56db" stroke-width="0.8" points="'+poly+'"/>':'')
+    +dots
+    +'</svg>';
+}
+function _rptQcCell(rpt,qi,shiftKey,h){
+  var qcData=rpt.qcInspection||{};
+  var tkey=String(h).padStart(2,'0')+':00';
+  var val=(qcData[qi.id]||{})[shiftKey+'_'+tkey]||'';
+  var display=val==='OK'?'✓':val==='NG'?'✗':val||'';
+  var col=val==='OK'?'#1a6b2f':val==='NG'?'#b91c1c':'';
+  var bg=val==='OK'?'#e8f5e9':val==='NG'?'#fce4ec':'';
+  return '<td style="text-align:center;background:'+bg+';color:'+col+';font-weight:700;font-size:7pt">'+display+'</td>';
+}
+function buildDailyRptShiftPage(rpt,j,rows,shiftKey,pageNum,totalPages){
+  var isDay=shiftKey==='day';
+  var shiftLabel=isDay?'กะเช้า (Day Shift) 08:00-20:00':'กะดึก (Night Shift) 20:00-08:00';
+  var shiftQC=isDay?(rpt.qcDay||rpt.qc||''):(rpt.qcNight||rpt.qc||'');
+  var today=new Date().toLocaleDateString('th-TH');
+  var accT=0,accP=0,accD=0;
+  var prodRows=rows.map(function(r){
+    var g=rptRowGoodInputValue(r)||0;
+    var prod=r.produced||0;
+    var tgt=r.target||0;
+    var diff=prod-tgt;
+    accT+=tgt; accP+=prod; accD+=diff;
+    var eff=tgt>0?((g/tgt)*100).toFixed(0):'';
+    var ngS=rptRowNgSum(r);
+    var ngPct=prod>0?((ngS/prod)*100).toFixed(1)+'%':'';
+    var ngCells=_RPT_NG_COLS.map(function(c){ return '<td>'+_rptNgQty(r,c)+'</td>'; }).join('');
+    var ltCells=_RPT_LT_COLS.map(function(c){ return '<td>'+_rptLtMins(r,c)+'</td>'; }).join('');
+    return '<tr>'
+      +'<td class="rpt-tm">'+_rptHourLabel(rptNormHour(r.hour))+'</td>'
+      +'<td>'+(tgt||'')+'</td><td class="rpt-acc">'+accT+'</td>'
+      +'<td>'+(prod||'')+'</td><td class="rpt-acc">'+accP+'</td>'
+      +'<td>'+(diff||'')+'</td><td class="rpt-acc">'+accD+'</td>'
+      +'<td style="color:'+(parseFloat(eff)>=90?'#1a6b2f':'#b91c1c')+'">'+eff+(eff?'%':'')+'</td>'
+      +ngCells
+      +'<td style="color:#b91c1c;font-weight:700">'+(ngS||'')+'</td><td>'+ngPct+'</td>'
+      +'<td style="font-size:6.5pt">'+_rptEsc(r.operator||'')+'</td>'
+      +'<td style="font-size:6.5pt">'+_rptEsc(shiftQC)+'</td>'
+      +'<td style="font-size:6.5pt">'+_rptEsc(rpt.supervisor||'')+'</td>'
+      +ltCells
+      +'</tr>';
+  }).join('');
+  var sGood=rows.reduce(function(a,r){ return a+(rptRowGoodInputValue(r)||0); },0);
+  var sNg=rows.reduce(function(a,r){ return a+rptRowNgSum(r); },0);
+  var sProd=rows.reduce(function(a,r){ return a+(r.produced||0); },0);
+  var sTgt=rows.reduce(function(a,r){ return a+(r.target||0); },0);
+  var sEff=sTgt>0?((sGood/sTgt)*100).toFixed(1):'0';
+  var subRow='<tr class="rpt-sub">'
+    +'<td class="rpt-tm">รวม'+ (isDay?'กะเช้า':'กะดึก') +'</td>'
+    +'<td>'+sTgt+'</td><td></td><td>'+sProd+'</td><td></td><td></td><td></td>'
+    +'<td>'+sEff+'%</td>'
+    +_RPT_NG_COLS.map(function(){ return '<td></td>'; }).join('')
+    +'<td>'+sNg+'</td><td>'+(sProd>0?(sNg/sProd*100).toFixed(2)+'%':'-')+'</td>'
+    +'<td colspan="3"></td>'
+    +_RPT_LT_COLS.map(function(){ return '<td></td>'; }).join('')
+    +'</tr>';
+  var hourHdr=rows.map(function(r){
+    return '<th class="rpt-hh">'+_rptHourLabel(rptNormHour(r.hour))+'</th>';
+  }).join('');
+  var qcItems=[
+    {id:'color',name:'สี',cavity:'ทุก Cavity',method:'สายตา',std:'STD',min:'อยู่ในช่วงที่กำหนด',max:'อยู่ในช่วงที่กำหนด',warn:false},
+    {id:'surface',name:'ผิว',cavity:'ทุก Cavity',method:'สายตา',std:'STD',min:'ตามตัวอย่าง OK',max:'ตามตัวอย่าง OK',warn:false},
+    {id:'complete',name:'ความสมบูรณ์ CCP2-D',cavity:'ทุก Cavity',method:'สายตา',std:'เต็มแบบ ไม่แหว่ง',min:'ตาม Limit Sample',max:'ตาม Limit Sample',warn:true},
+    {id:'foreign',name:'สิ่งปลอมปน CCP2-D',cavity:'ทุก Cavity',method:'สายตา',std:'ไม่มีสิ่งแปลกปลอม',min:'ตาม Limit Sample',max:'ตาม Limit Sample',warn:true}
+  ];
+  var qcRows=qcItems.map(function(qi){
+    var nm=qi.warn?'<span class="rpt-warn">'+qi.name+'</span>':qi.name;
+    var cells=rows.map(function(r){ return _rptQcCell(rpt,qi,shiftKey,rptNormHour(r.hour)); }).join('');
+    return '<tr><td class="rpt-ql">'+nm+'</td><td>'+qi.cavity+'</td><td>'+qi.method+'</td><td>'+qi.std+'</td><td>'+qi.min+'</td><td>'+qi.max+'</td>'+cells+'</tr>';
+  }).join('');
+  var graphX=rows.map(function(r,i){
+    return '<span class="rpt-gx">'+_rptHourLabel(rptNormHour(r.hour))+'</span>';
+  }).join('');
+  var chkDay=isDay?'☑':'☐';
+  var chkNight=isDay?'☐':'☑';
+  return '<div class="rpt-page'+(pageNum>1?' rpt-pb':'')+'">'
+    +'<table class="rpt-hdr-tbl"><tr>'
+    +'<td class="rpt-hdr-l">'+_rptLogoHtml()+'</td>'
+    +'<td class="rpt-hdr-m"><div class="rpt-title">บันทึกการผลิต / บันทึกการตรวจสอบคุณภาพ แผนกฉีด</div>'
+    +'<div class="rpt-shift-tag">'+shiftLabel+'</div></td>'
+    +'<td class="rpt-hdr-r"><div class="rpt-docno">F-PD-I007</div><div class="rpt-rev">REV.01</div>'
+    +'<div class="rpt-pg">หน้า '+pageNum+'/'+totalPages+'</div>'
+    +'<div class="rpt-date">วันที่พิมพ์: '+today+'</div></td>'
+    +'</tr></table>'
+    +'<table class="rpt-info"><tr>'
+    +'<td class="rpt-info-l" rowspan="3">'
+    +'<div><span class="rpt-lbl">วันที่</span> '+_rptEsc(rpt.date||'')+'</div>'
+    +'<div><span class="rpt-lbl">ชื่อชิ้นงาน</span> '+_rptEsc(rpt.jobName||'')+'</div>'
+    +'<div><span class="rpt-lbl">Lot No.</span> '+_rptEsc(rpt.lotNo||'')+'</div>'
+    +'<div><span class="rpt-lbl">จำนวนสั่งผลิต</span> '+_rptEsc(rpt.orderQty||'-')+'</div>'
+    +'<div><span class="rpt-lbl">Cycle time</span> '+_rptEsc(j.ct||'-')+' วินาที</div>'
+  +'</td>'
+    +'<td class="rpt-info-m" rowspan="3">'
+    +'<div>'+chkDay+' เริ่มผลิต (กะเช้า) &nbsp; '+chkNight+' ผลิตต่อ (กะดึก)</div>'
+    +'<div><span class="rpt-lbl">งาน /7</span> ______ &nbsp; <span class="rpt-lbl">งาน /8</span> ______</div>'
+    +'<div><span class="rpt-lbl">หมายเลขเครื่องจักร</span> '+_rptEsc(rpt.machine||'')+'</div>'
+    +'<div><span class="rpt-lbl">หมายเลขแม่พิมพ์</span> '+_rptEsc(j.moldCode||rpt.moldNo||'-')+'</div>'
+    +'<div><span class="rpt-lbl">จำนวนคาวิตี้ที่เปิด</span> '+_rptEsc(j.cav||'-')+' &nbsp; <span class="rpt-lbl">ที่ไม่เปิด</span> ______</div>'
+    +'</td>'
+    +'<td class="rpt-info-r">'
+    +'<div><span class="rpt-lbl">ชนิดเม็ด</span> '+_rptEsc(j.plastic||rpt.plastic||'-')+' &nbsp; <span class="rpt-lbl">เกรด</span> '+_rptEsc(j.grade||'-')+'</div>'
+    +'<div><span class="rpt-lbl">Batch (เม็ด)</span> '+_rptEsc(rpt.matBatch||'-')+' &nbsp; <span class="rpt-lbl">kg</span> ______</div>'
+    +'<div><span class="rpt-lbl">รหัสสี</span> '+_rptEsc(rpt.mbBatch||'-')+' &nbsp; <span class="rpt-lbl">Batch สี kg</span> ______</div>'
+    +'<div><span class="rpt-lbl">ลูกค้า</span> '+_rptEsc(j.customer||'-')+'</div>'
+    +'<div><span class="rpt-lbl">ยอดงานดีก่อนหน้า</span> ______</div>'
+    +'</td></tr></table>'
+    +'<div class="rpt-graph-wrap">'+_rptEffGraphSvg(rows)+'<div class="rpt-graph-x">'+graphX+'</div></div>'
+    +'<table class="rpt-main"><colgroup>'
+    +'<col class="c-tm"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-eff">'
+    +_RPT_NG_COLS.map(function(){ return '<col class="c-ng">'; }).join('')
+    +'<col class="c-n"><col class="c-n"><col class="c-op"><col class="c-op"><col class="c-op">'
+    +_RPT_LT_COLS.map(function(){ return '<col class="c-lt">'; }).join('')
+    +'</colgroup><thead>'
+    +'<tr><th rowspan="2" class="rpt-th">เวลา</th>'
+    +'<th colspan="2">เป้าหมาย</th><th colspan="2">ผลิตได้จริง</th><th colspan="2">ผลต่าง</th>'
+    +'<th rowspan="2">%EFF</th>'
+    +'<th colspan="'+_RPT_NG_COLS.length+'">บันทึกการรายงานเสีย</th>'
+    +'<th rowspan="2">รวม<br>เสีย</th><th rowspan="2">%<br>เสีย</th>'
+    +'<th colspan="3">ผู้ตรวจสอบ</th>'
+    +'<th colspan="'+_RPT_LT_COLS.length+'">ความสูญเสีย</th></tr>'
+    +'<tr><th>Target</th><th>สะสม</th><th>ผลิต</th><th>สะสม</th><th>ผลต่าง</th><th>สะสม</th>'
+    +_RPT_NG_COLS.map(function(c){ return '<th class="rpt-ng-h">'+c.k+'</th>'; }).join('')
+    +'<th>ผู้ปฏิบัติ</th><th>QC</th><th>หัวหน้า</th>'
+    +_RPT_LT_COLS.map(function(c){ return '<th class="rpt-lt-h">'+c.k+'</th>'; }).join('')
+    +'</tr></thead><tbody>'+prodRows+subRow+'</tbody></table>'
+    +'<table class="rpt-sum"><tr>'
+    +'<td><span class="rpt-lbl">เป้าหมาย %EFF</span> 90%</td>'
+    +'<td><span class="rpt-lbl">%EFF จริง</span> '+sEff+'%</td>'
+    +'<td><span class="rpt-lbl">ผู้บันทึก</span> ________________</td>'
+    +'<td><span class="rpt-lbl">หัวหน้ากะ</span> '+_rptEsc(rpt.supervisor||'________')+'</td>'
+    +'<td><span class="rpt-lbl">ปัญหาอันดับแรก</span> ________________</td>'
+    +'</tr></table>'
+    +'<table class="rpt-qc"><thead><tr>'
+    +'<th>จุดตรวจสอบ</th><th>Cavity</th><th>วิธีการตรวจสอบ</th><th>ค่ามาตรฐาน</th><th>MIN</th><th>MAX</th>'
+    +hourHdr
+    +'</tr></thead><tbody>'+qcRows+'</tbody></table>'
+    +'<div class="rpt-note"><strong>หมายเหตุ:</strong> '+_rptEsc(rpt.remark||rpt.qcNote||'')+'</div>'
+    +'</div>';
+}
+function buildDailyRptPrintDocument(rpt){
+  var j=(typeof jobs!=='undefined'?jobs:[]).find(function(jj){ return jj.name===rpt.jobName; })||{};
+  var dayRows=_rptRowsForShift(rpt,'day');
+  var nightRows=_rptRowsForShift(rpt,'night');
+  var pages=[];
+  pages.push(buildDailyRptShiftPage(rpt,j,dayRows,'day',1,2));
+  pages.push(buildDailyRptShiftPage(rpt,j,nightRows,'night',2,2));
+  var css=''
+    +'@page{size:297mm 210mm landscape;margin:4mm 5mm}'
+    +'html,body{width:297mm;margin:0;padding:0}'
+    +'body{font-family:Sarabun,"TH Sarabun New","Noto Sans Thai",sans-serif;font-size:7pt;color:#000;background:#fff;'
+    +'-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.rpt-page{width:287mm;min-height:200mm;padding:2mm 3mm;box-sizing:border-box}'
+    +'.rpt-pb{page-break-before:always}'
+    +'.rpt-hdr-tbl{width:100%;border-collapse:collapse;margin-bottom:2px}'
+    +'.rpt-hdr-tbl td{border:none;vertical-align:top;padding:0 4px}'
+    +'.rpt-hdr-l{width:24%}.rpt-hdr-m{width:52%;text-align:center}.rpt-hdr-r{width:24%;text-align:right}'
+    +'.rpt-title{font-size:11pt;font-weight:700;line-height:1.2}'
+    +'.rpt-shift-tag{font-size:7.5pt;font-weight:700;margin-top:2px;color:#1a3a6e}'
+    +'.rpt-docno{border:2px solid #000;padding:1px 6px;font-size:10pt;font-weight:700;display:inline-block}'
+    +'.rpt-rev,.rpt-pg,.rpt-date{font-size:6.5pt;margin-top:1px}'
+    +'.ap-logo-block{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}'
+    +'.ap-logo-img{width:46px;height:auto;max-height:48px;display:block;object-fit:contain;margin:0 auto}'
+    +'.ap-logo-en{font-size:6.5pt;font-weight:700;color:#1a3a6e;line-height:1.1;text-align:center;width:100%}'
+    +'.ap-logo-th{font-size:6.5pt;font-weight:600;color:#222;line-height:1.1;text-align:center;width:100%}'
+    +'.rpt-info{width:100%;border-collapse:collapse;margin-bottom:2px;table-layout:fixed}'
+    +'.rpt-info td{border:1px solid #000;padding:2px 4px;font-size:7pt;vertical-align:top;line-height:1.35}'
+    +'.rpt-info-l{width:28%}.rpt-info-m{width:32%}.rpt-info-r{width:40%}'
+    +'.rpt-lbl{font-weight:700;font-size:6pt;color:#333}'
+    +'.rpt-graph-wrap{border:1px solid #000;height:22mm;margin-bottom:2px;position:relative;padding:1mm 1mm 4mm}'
+    +'.rpt-graph{width:100%;height:17mm;display:block}'
+    +'.rpt-graph-x{display:flex;justify-content:space-between;font-size:5pt;padding:0 12px 0 14px}'
+    +'.rpt-gx{flex:1;text-align:center;white-space:nowrap;overflow:hidden}'
+    +'.rpt-main,.rpt-qc{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2px}'
+    +'.rpt-main td,.rpt-main th,.rpt-qc td,.rpt-qc th{border:1px solid #000;padding:1px 2px;text-align:center;font-size:6pt;vertical-align:middle;line-height:1.15}'
+    +'.rpt-main th,.rpt-qc th{background:#d9e1f2;font-weight:700}'
+    +'.rpt-th{font-size:6.5pt}.rpt-ng-h,.rpt-lt-h{font-size:5pt;writing-mode:vertical-lr;height:28px;padding:0 1px}'
+    +'.rpt-tm{font-size:6pt;white-space:nowrap}.rpt-acc{font-size:6pt;color:#444}'
+    +'.rpt-sub{background:#e8eef5;font-weight:700}'
+    +'.rpt-ql{text-align:left;font-size:6pt;padding-left:3px!important}'
+    +'.rpt-warn{color:#c00000;font-weight:700}'
+    +'.rpt-hh{font-size:5.5pt;writing-mode:vertical-lr;height:32px;padding:0 1px}'
+    +'.rpt-sum{width:100%;border-collapse:collapse;margin-bottom:2px}'
+    +'.rpt-sum td{border:1px solid #000;padding:2px 4px;font-size:7pt}'
+    +'.rpt-note{border:1px solid #ccc;padding:2px 4px;font-size:6.5pt;min-height:14px}'
+    +'.c-tm{width:5.5%}.c-eff{width:3.2%}.c-n{width:2.8%}.c-ng{width:2.1%}.c-lt{width:2.4%}.c-op{width:3.5%}'
+    +'@media print{html,body{width:297mm}.rpt-page{page-break-inside:avoid}}';
+  return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
+    +'<title>F-PD-I007 '+_rptEsc(rpt.id||'')+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'
+    +'<style>'+css+'</style></head><body class="rpt-doc">'
+    +pages.join('')
+    +'</body></html>';
+}
 function printDailyRpt(){
-  // Support both module var and window.currentRptKey (from TPP_CONFIG printSelected)
-  var _rptKey = (typeof window !== 'undefined' && window.currentRptKey) || currentRptKey;
-  if(_rptKey) currentRptKey = _rptKey;
-  const rpt = currentRptKey ? dailyReports[currentRptKey] : null;
-  if(!rpt){ 
-    // Try opening print panel if no report selected
+  var _rptKey=(typeof window!=='undefined'&&window.currentRptKey)||(typeof currentRptKey!=='undefined'?currentRptKey:null);
+  if(_rptKey&&(typeof currentRptKey!=='undefined')) currentRptKey=_rptKey;
+  const rpt=currentRptKey?dailyReports[currentRptKey]:null;
+  if(!rpt){
     if(typeof openPrintPanel==='function') openPrintPanel('page-dailyrpt');
-    else if(typeof _infoToast==="function") _infoToast('กรุณาเลือกรายงานก่อน: คลิก "สอบกลับ & พิมพ์" เพื่อเลือกรายงาน');
-    return; 
+    else if(typeof _infoToast==='function') _infoToast('กรุณาเลือกรายงานก่อน: คลิก "สอบกลับ & พิมพ์" เพื่อเลือกรายงาน');
+    return;
   }
   rptNormalizeHourlyRowsInPlace(rpt);
-  const j = jobs.find(jj=>jj.name===rpt.jobName)||{};
-  const ngTypes = ['จุดดำ','สีเพี้ยน','รอยขีดข่วน','รอยย่น','รอยพ่น','ฟองอากาศ','ไม่ได้ Spec','เกลียวบี้','คราบน้ำมัน','ฉีดไม่เต็ม'];
-  const lossTypes = ['ติดพิมพ์','ขัดพิมพ์','คนไม่พอ','รอเม็ด','เครื่องเสีย'];
-  // QC check times (inline copy for print popup)
-  const _QC_TIMES = {day:['10:00','12:00','15:00','18:00'],night:['22:00','01:00','04:00','07:00']};
-
-  // แบ่งแถวตามกะ: กะเช้า 08:00-19:00 (hour 8-19), กะดึก 20:00-08:00 (hour 20-23 และ 0-7)
-  const dayRows   = rpt.rows.filter(r => r.hour >= 8 && r.hour < 20);
-  const nightRows = rpt.rows.filter(r => r.hour >= 20 || r.hour < 8);
-  // เรียงลำดับกะดึกให้ถูกต้อง: 20,21,22,23,0,1,...,7
-  nightRows.sort((a,b)=>{
-    const na = a.hour >= 20 ? a.hour : a.hour + 24;
-    const nb = b.hour >= 20 ? b.hour : b.hour + 24;
-    return na - nb;
-  });
-  const allRows = rpt.rows;
-  const totalOk   = allRows.reduce((a,r)=>a+(rptRowGoodInputValue(r)||0),0);
-  const totalNg   = allRows.reduce((a,r)=>a+rptRowNgSum(r),0);
-  const totalProd = allRows.reduce((a,r)=>a+(r.produced||0),0);
-  const totalTgt  = allRows.reduce((a,r)=>a+(r.target||0),0);
-  const eff = totalTgt>0 ? ((totalOk/totalTgt)*100).toFixed(1) : '0';
-
-  // Helper: สร้าง section ตารางบันทึกการผลิตสำหรับแต่ละกะ
-  function makeShiftTable(rows, shiftLabel, shiftColor, bgHeader){
-    if(!rows.length) return `<tr><td colspan="23" style="padding:6px;color:#999;font-style:italic">ไม่มีข้อมูล${shiftLabel}</td></tr>`;
-    const sProd = rows.reduce((a,r)=>a+(r.produced||0),0);
-    const sNg   = rows.reduce((a,r)=>a+rptRowNgSum(r),0);
-    const sGood = rows.reduce((a,r)=>a+(rptRowGoodInputValue(r)||0),0);
-    const sTgt  = rows.reduce((a,r)=>a+(r.target||0),0);
-    const sEff  = sTgt>0?((sGood/sTgt)*100).toFixed(1):0;
-    // Determine shift type to pick correct QC inspector name
-    const isDay = shiftLabel==='กะเช้า';
-    const shiftQC = isDay ? (rpt.qcDay||rpt.qc||'') : (rpt.qcNight||rpt.qc||'');
-    const shiftSup = rpt.supervisor||'';
-    const rowsHtml = rows.map(r=>{
-      var gV = rptRowGoodInputValue(r)||0;
-      var ngS = rptRowNgSum(r);
-      var prod = r.produced||0;
-      const pct = r.target>0 ? ((gV/r.target)*100).toFixed(0)+'%' : '-';
-      const ngPct = prod>0 ? ((ngS/prod)*100).toFixed(1)+'%' : '-';
-      const nextH = r.hour === 23 ? 0 : r.hour+1;
-      const opName = r.operator||'';
-      return `<tr>
-        <td>${String(r.hour).padStart(2,'0')}:00-${String(nextH).padStart(2,'0')}:00</td>
-        <td>${r.target||0}</td>
-        <td style="font-weight:${prod>0?'700':'400'}">${prod}</td>
-        <td style="color:${parseFloat(pct)>=90?'#1a6b2f':'#b91c1c'}">${pct}</td>
-        ${ngTypes.map(()=>'<td></td>').join('')}
-        <td style="color:#b91c1c;font-weight:${ngS>0?'700':'400'}">${ngS||0}</td>
-        <td>${ngPct}</td>
-        <td style="font-size:7pt">${opName}</td>
-        <td style="font-size:7pt">${shiftQC}</td>
-        <td style="font-size:7pt">${shiftSup}</td>
-        ${lossTypes.map((lt,i)=>`<td style="color:${r.ltMins>0&&i===4?'#b45309':'inherit'}">${r.ltMins>0&&r.ltReason&&i===4?r.ltMins:''}</td>`).join('')}
-      </tr>`;
-    }).join('');
-    const subTotal = `<tr style="background:${bgHeader};font-weight:700;font-size:8pt">
-      <td style="text-align:left;padding-left:4px">รวม${shiftLabel}</td>
-      <td>${rows.reduce((a,r)=>a+(r.target||0),0).toLocaleString()}</td>
-      <td>${sProd.toLocaleString()}</td>
-      <td>${sEff}%</td>
-      ${ngTypes.map(()=>'<td></td>').join('')}
-      <td>${sNg.toLocaleString()}</td>
-      <td>${sProd>0?(sNg/sProd*100).toFixed(2)+'%':'-'}</td>
-      <td></td><td></td><td></td>
-      ${lossTypes.map(()=>'<td></td>').join('')}
-    </tr>`;
-    return rowsHtml + subTotal;
-  }
-
-  // Helper: สร้าง QC rows สำหรับแต่ละกะ — with actual inspection data
-  function makeQCRows(rows, shiftLabel, bgColor, totalHourCols){
-    const qcItems = [
-      {id:'color',   name:'สี',               cavity:'ทุก Cavity', method:'สายตา', std:'STD',                              min:'อยู่ในช่วงที่กำหนด', max:'อยู่ในช่วงที่กำหนด'},
-      {id:'surface', name:'ผิว',              cavity:'ทุก Cavity', method:'สายตา', std:'STD',                              min:'ตามตัวอย่าง OK',     max:'ตามตัวอย่าง OK'},
-      {id:'complete',name:'ความสมบูรณ์ CCP2-D', cavity:'ทุก Cavity', method:'สายตา', std:'เต็มแบบ ไม่แหว่ง ไม่มีครีบ',  min:'ตาม Limit Sample',  max:'ตาม Limit Sample'},
-      {id:'foreign', name:'สิ่งปลอมปน CCP2-D', cavity:'ทุก Cavity', method:'สายตา', std:'ไม่มีสิ่งแปลกปลอม',             min:'ตาม Limit Sample',  max:'ตาม Limit Sample'},
-    ];
-    const totalCols = 6 + totalHourCols;
-    // Determine shift for matching QC times
-    const isDay = shiftLabel.includes('กะเช้า');
-    const shiftKey = isDay ? 'day' : 'night';
-    const qcTimes = _QC_TIMES ? _QC_TIMES[shiftKey] : (isDay?['10:00','12:00','15:00','18:00']:['22:00','01:00','04:00','07:00']);
-    const qcData = rpt.qcInspection || {};
-    const shiftHeaderRow = '<tr><td colspan="'+totalCols+'" style="background:'+bgColor+';font-weight:700;font-size:8pt;padding:3px 6px;color:#fff">'+shiftLabel+'</td></tr>';
-    // Build hour→QC result map (match hourly rows to QC inspection times)
-    // QC times like '10:00' map to hour 10; '01:00' → hour 1
-    function qcTimeToHour(t){ return parseInt((t||'00').split(':')[0]); }
-    const qcHourSet = new Set(qcTimes.map(qcTimeToHour));
-    return shiftHeaderRow + qcItems.map(function(qi){
-      // Build a cell for every hour in allRows order (dayRows + nightRows combined)
-      // totalHourCols = dayRows.length + nightRows.length; rows is just this shift's rows
-      // We need to render all totalHourCols cells, in day+night order
-      const allHourRows = [...dayRows, ...nightRows];
-      const cells = allHourRows.map(function(hr){
-        const h = hr.hour;
-        // Find if this hour has a QC record — check if hour matches a qcTime for either shift
-        const dayHours = (_QC_TIMES?_QC_TIMES.day:['10:00','12:00','15:00','18:00']).map(qcTimeToHour);
-        const nightHours = (_QC_TIMES?_QC_TIMES.night:['22:00','01:00','04:00','07:00']).map(qcTimeToHour);
-        let val = '';
-        // Try day shift time key
-        if(dayHours.includes(h)){
-          const tkey = String(h).padStart(2,'0')+':00';
-          val = (qcData[qi.id]||{})['day_'+tkey]||'';
-        }
-        // Try night shift time key
-        if(!val && nightHours.includes(h)){
-          const tkey = String(h).padStart(2,'0')+':00';
-          val = (qcData[qi.id]||{})['night_'+tkey]||'';
-        }
-        const col = val==='OK'?'#1a6b2f':val==='NG'?'#b91c1c':'';
-        const bg  = val==='OK'?'#e8f5e9':val==='NG'?'#fce4ec':'';
-        const display = val==='OK'?'✓':val==='NG'?'✗':val||'';
-        return `<td style="min-width:18px;text-align:center;background:${bg};color:${col};font-weight:700;font-size:9pt">${display}</td>`;
-      }).join('');
-      return '<tr>'
-        +'<td class="td-left">'+qi.name+'</td>'
-        +'<td>'+qi.cavity+'</td>'
-        +'<td>'+qi.method+'</td>'
-        +'<td>'+qi.std+'</td>'
-        +'<td>'+qi.min+'</td>'
-        +'<td>'+qi.max+'</td>'
-        +cells
-        +'</tr>';
-    }).join('');
-  }
-
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    * { font-family: 'Inter', 'Noto Sans Thai', sans-serif; font-size: 9pt; margin: 0; padding: 0; box-sizing: border-box; }
-    body { padding: 8mm 8mm 6mm; background: #fff; color: #000; }
-    .hdr-top { display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 4px; }
-    .co-name { font-size:11pt; font-weight:700; }
-    .co-sub  { font-size:8pt; color:#444; }
-    .doc-title { font-size:13pt; font-weight:800; text-align:center; flex:1; }
-    .doc-no-box { text-align:right; font-size:8pt; border:1px solid #000; padding:4px 8px; min-width:130px; }
-    .info-row { display:flex; gap:0; border: 1px solid #000; margin-bottom:3px; }
-    .info-cell { padding:2px 6px; flex:1; border-right:1px solid #000; font-size:8.5pt; }
-    .info-cell:last-child { border-right:none; }
-    .lbl { font-weight:700; font-size:7.5pt; color:#333; display:block; margin-bottom:1px; }
-    table { width:100%; border-collapse:collapse; margin-bottom:3px; border:1px solid #000; }
-    th, td { border:1px solid #000 !important; padding:2px 3px; font-size:7.5pt; text-align:center; vertical-align:middle; }
-    th { background:#d0d8e8; font-weight:700; }
-    .th-main { background:#b0bfd8; font-size:8pt; }
-    .td-left { text-align:left; padding-left:4px; }
-    .sec-title { background:#4a6fa5; color:#fff; font-weight:700; font-size:9pt; padding:3px 6px; margin: 4px 0 2px; }
-    .shift-day-hdr  { background:#1a5276; color:#fff; font-weight:700; font-size:8.5pt; padding:3px 6px; }
-    .shift-night-hdr{ background:#1a237e; color:#fff; font-weight:700; font-size:8.5pt; padding:3px 6px; }
-    .shift-total-row{ background:#e8eef5; font-weight:700; }
-    .grand-total    { background:#2c3e50; color:#fff; font-weight:700; }
-    .sign-wrap { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:6px; border-top:1px solid #ccc; padding-top:6px; }
-    .sign-box { text-align:center; }
-    .sign-line { border-bottom:1px solid #000; margin-bottom:2px; height:28px; }
-    .note-box { border:1px solid #ccc; min-height:24px; padding:3px 6px; font-size:8pt; margin-top:3px; }
-    .shift-sign-wrap { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:4px 0; padding:4px 6px; border:1px solid #ccc; }
-    @media print { @page { size: A4 landscape; margin: 8mm; } }
-  </style></head><body>
-
-  <!-- ===== HEADER ===== -->
-  <div class="hdr-top">
-    <div><div class="co-name">🏭 ${COMPANY_NAME}</div><div class="co-sub">${COMPANY_NAME_EN}</div></div>
-    <div class="doc-title">บันทึกการผลิต / บันทึกการตรวจสอบคุณภาพ แผนกฉีด</div>
-    <div class="doc-no-box"><strong>F-PD-I007</strong><br>Rev.01<br>วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}</div>
-  </div>
-
-  <!-- ===== INFO ROWS ===== -->
-  <div class="info-row">
-    <div class="info-cell"><span class="lbl">วันที่ (Date)</span>${rpt.date||''}</div>
-    <div class="info-cell"><span class="lbl">ชื่องาน (Part Name)</span>${rpt.jobName||''}</div>
-    <div class="info-cell"><span class="lbl">Lot No.</span>${rpt.lotNo||''}</div>
-    <div class="info-cell"><span class="lbl">Order No.</span>${rpt.orderNo||''}</div>
-  </div>
-  <div class="info-row">
-    <div class="info-cell"><span class="lbl">หมายเลขเครื่องจักร (M/C No.)</span>${rpt.machine||''}</div>
-    <div class="info-cell"><span class="lbl">หมายเลขแม่พิมพ์ (Mold No.)</span>${j.moldCode||rpt.moldNo||'-'}</div>
-    <div class="info-cell"><span class="lbl">จำนวนสั่งผลิต</span>${rpt.orderQty||'-'}</div>
-    <div class="info-cell"><span class="lbl">Cycle Time</span>${j.ct||'-'} วินาที</div>
-  </div>
-  <div class="info-row">
-    <div class="info-cell"><span class="lbl">ชนิดเม็ด</span>${j.plastic||rpt.plastic||'-'}</div>
-    <div class="info-cell"><span class="lbl">เกรดเม็ด</span>${j.grade||'-'}</div>
-    <div class="info-cell"><span class="lbl">Batch No. (เม็ด)</span>${rpt.matBatch||'-'}</div>
-    <div class="info-cell"><span class="lbl">รหัสสี / Batch No. (สี)</span>${rpt.mbBatch||'-'}</div>
-  </div>
-  <div class="info-row">
-    <div class="info-cell"><span class="lbl">จำนวน Cavity ที่ฉีด</span>${j.cav||'-'}</div>
-    <div class="info-cell"><span class="lbl">หัวหน้ากะ / Supervisor</span><b>${rpt.supervisor||'_____________________'}</b></div>
-    <div class="info-cell"><span class="lbl">QC ผู้ตรวจสอบ (กะเช้า)</span><b>${rpt.qcDay||rpt.qc||'_____________________'}</b></div>
-    <div class="info-cell"><span class="lbl">QC ผู้ตรวจสอบ (กะดึก)</span><b>${rpt.qcNight||'_____________________'}</b></div>
-  </div>
-  <div class="info-row">
-    <div class="info-cell"><span class="lbl">เริ่มผลิต</span>_______________</div>
-    <div class="info-cell"><span class="lbl">ผลิตต่อ</span>_______________</div>
-    <div class="info-cell"><span class="lbl">ลูกค้า</span>${j.customer||'-'}</div>
-    <div class="info-cell"><span class="lbl">หมายเหตุ QC</span>${rpt.qcNote||'-'}</div>
-  </div>
-
-  <!-- ===== ตารางบันทึกการผลิต (แบ่ง 2 กะ) ===== -->
-  <div class="sec-title">บันทึกการผลิตรายชั่วโมง &amp; ข้อมูลของเสีย</div>
-  <table>
-    <thead>
-      <tr>
-        <th class="th-main" rowspan="2">เวลา</th>
-        <th class="th-main" rowspan="2">เป้าหมาย</th>
-        <th class="th-main" rowspan="2">ผลิตได้</th>
-        <th class="th-main" rowspan="2">%EFF</th>
-        <th class="th-main" colspan="10">บันทึกอาการงานเสีย (ชิ้น)</th>
-        <th class="th-main" rowspan="2">รวมเสีย</th>
-        <th class="th-main" rowspan="2">%เสีย</th>
-        <th class="th-main" rowspan="2">ผู้ปฏิบัติ</th>
-        <th class="th-main" rowspan="2">QC</th>
-        <th class="th-main" rowspan="2">หัวหน้า</th>
-        <th class="th-main" colspan="5">ความสูญเสีย (นาที)</th>
-      </tr>
-      <tr>
-        ${ngTypes.map(t=>`<th style="writing-mode:vertical-lr;height:40px;padding:2px 1px;font-size:7pt">${t}</th>`).join('')}
-        ${lossTypes.map(t=>`<th style="writing-mode:vertical-lr;height:40px;padding:2px 1px;font-size:7pt">${t}</th>`).join('')}
-      </tr>
-    </thead>
-    <tbody>
-      <!-- ── กะเช้า ── -->
-      <tr><td colspan="23" class="shift-day-hdr">☀️ กะเช้า (Day Shift) &nbsp; 08:00 – 20:00</td></tr>
-      ${makeShiftTable(dayRows,'กะเช้า','#1a5276','#d6e4f0')}
-      <!-- ── กะดึก ── -->
-      <tr><td colspan="23" class="shift-night-hdr">🌙 กะดึก (Night Shift) &nbsp; 20:00 – 08:00</td></tr>
-      ${makeShiftTable(nightRows,'กะดึก','#1a237e','#d3d3f0')}
-    </tbody>
-    <tfoot>
-      <tr class="grand-total">
-        <td>รวมทั้งหมด</td>
-        <td>${allRows.reduce((a,r)=>a+(r.target||0),0).toLocaleString()}</td>
-        <td>${totalProd.toLocaleString()}</td>
-        <td>${eff}%</td>
-        ${ngTypes.map(()=>'<td></td>').join('')}
-        <td>${totalNg.toLocaleString()}</td>
-        <td>${totalProd>0?(totalNg/totalProd*100).toFixed(2)+'%':'-'}</td>
-        <td></td><td></td><td></td>
-        ${lossTypes.map(()=>'<td></td>').join('')}
-      </tr>
-    </tfoot>
-  </table>
-
-  <!-- ===== ลายเซ็น กะเช้า ===== -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:3px">
-    <div style="border:1px solid #ccc;padding:4px 8px">
-      <div style="font-size:7.5pt;font-weight:700;color:#1a5276;margin-bottom:3px">☀️ กะเช้า 08:00-20:00 — ผู้รับผิดชอบ</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${[...new Set(dayRows.map(r=>r.operator).filter(Boolean))].join(', ')||''}</div>
-          <div style="font-size:7pt">ผู้ควบคุมเครื่อง / Operator</div>
-        </div>
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${rpt.supervisor||''}</div>
-          <div style="font-size:7pt">หัวหน้ากะ / Shift Leader</div>
-        </div>
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${rpt.qcDay||rpt.qc||''}</div>
-          <div style="font-size:7pt">QC ผู้ตรวจสอบ</div>
-        </div>
-      </div>
-    </div>
-    <div style="border:1px solid #ccc;padding:4px 8px">
-      <div style="font-size:7.5pt;font-weight:700;color:#1a237e;margin-bottom:3px">🌙 กะดึก 20:00-08:00 — ผู้รับผิดชอบ</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a1a60;padding-bottom:2px">${[...new Set(nightRows.map(r=>r.operator).filter(Boolean))].join(', ')||''}</div>
-          <div style="font-size:7pt">ผู้ควบคุมเครื่อง / Operator</div>
-        </div>
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a1a60;padding-bottom:2px">${rpt.supervisor||''}</div>
-          <div style="font-size:7pt">หัวหน้ากะ / Shift Leader</div>
-        </div>
-        <div style="text-align:center">
-          <div style="border-bottom:1px solid #000;height:22px;display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a1a60;padding-bottom:2px">${rpt.qcNight||rpt.qc||''}</div>
-          <div style="font-size:7pt">QC ผู้ตรวจสอบ</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== ตาราง QC (แบ่ง 2 กะ) ===== -->
-  <div class="sec-title">จุดตรวจสอบคุณภาพ</div>
-  <table>
-    <thead><tr>
-      <th class="th-main">จุดตรวจสอบ</th>
-      <th class="th-main">Cavity</th>
-      <th class="th-main">วิธีการตรวจสอบ</th>
-      <th class="th-main">ค่ามาตรฐาน</th>
-      <th class="th-main">เกณฑ์ยอมรับ (MIN)</th>
-      <th class="th-main">เกณฑ์ยอมรับ (MAX)</th>
-      ${dayRows.map(r=>`<th style="font-size:7pt;writing-mode:vertical-lr;height:38px;padding:1px;background:#d6e4f0">${String(r.hour).padStart(2,'0')}:00</th>`).join('')}
-      ${nightRows.map(r=>`<th style="font-size:7pt;writing-mode:vertical-lr;height:38px;padding:1px;background:#d3d3f0">${String(r.hour).padStart(2,'0')}:00</th>`).join('')}
-    </tr></thead>
-    <tbody>
-      ${makeQCRows(dayRows, '☀️ กะเช้า 08:00-20:00', '#1a5276', dayRows.length+nightRows.length)}
-      ${makeQCRows(nightRows, '🌙 กะดึก 20:00-08:00', '#1a237e', dayRows.length+nightRows.length)}
-    </tbody>
-  </table>
-
-  <!-- ===== สรุปผลรวม ===== -->
-  <div class="info-row" style="margin-top:4px">
-    <div class="info-cell"><span class="lbl">เป้าหมาย %EFF</span>90%</div>
-    <div class="info-cell"><span class="lbl">%EFF จริง (รวม)</span>${eff}%</div>
-    <div class="info-cell"><span class="lbl">ยอดงานดีรวม</span>${totalOk.toLocaleString()} ชิ้น</div>
-    <div class="info-cell"><span class="lbl">ยอดงานดีกล่องเต็ม</span>________________</div>
-  </div>
-  <div class="note-box"><strong>หมายเหตุ:</strong> ${rpt.remark||''}</div>
-
-  <!-- ===== ลายเซ็นผู้จัดการ ===== -->
-  <div class="sign-wrap">
-    <div class="sign-box">
-      <div class="sign-line" style="display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${rpt.supervisor||''}</div>
-      <div>ผู้ควบคุมการผลิต / Production Control</div><div style="font-size:7.5pt;color:#555">วันที่ .....................</div>
-    </div>
-    <div class="sign-box">
-      <div class="sign-line" style="display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${rpt.qcDay||rpt.qc||''}</div>
-      <div>QC กะเช้า / QC Day Shift</div><div style="font-size:7.5pt;color:#555">วันที่ .....................</div>
-    </div>
-    <div class="sign-box">
-      <div class="sign-line" style="display:flex;align-items:flex-end;justify-content:center;font-size:8pt;font-weight:700;color:#1a3a5c;padding-bottom:2px">${rpt.qcNight||rpt.qc||''}</div>
-      <div>QC กะดึก / QC Night Shift</div><div style="font-size:7.5pt;color:#555">วันที่ .....................</div>
-    </div>
-    <div class="sign-box"><div class="sign-line"></div><div>ผู้จัดการโรงงาน / Factory Manager</div><div style="font-size:7.5pt;color:#555">วันที่ .....................</div></div>
-  </div>
-  <scr'+'ipt>window.onload=()=>window.print();<\/scr'+'ipt>
-  </body></html>`;
-
-  safePrint(html, 'F-PD-I007 บันทึกการผลิต', 1400, 950);
+  safePrint(buildDailyRptPrintDocument(rpt),'F-PD-I007 บันทึกการผลิต');
 }
 
 // ==================== F-PD-I002/003: ใบเบิก/รับ วัตถุดิบ ====================
