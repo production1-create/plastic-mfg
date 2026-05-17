@@ -31134,7 +31134,18 @@ function showPrintModal(html, title){
   if(!modal || !frame){ console.error('print-modal not found'); return; }
   titleEl.textContent = title||'เอกสาร';
   modal.style.display = 'flex';
-  // Ensure solid white background in all printed documents
+  const isLandscape = /F-QMR-010|ap-doc|size:\s*A4\s+landscape|size:\s*297mm\s+210mm/i.test(html||'');
+  if(isLandscape){
+    frame.style.width = '297mm';
+    frame.style.minHeight = '210mm';
+    frame.style.maxWidth = '97vw';
+    frame.setAttribute('data-orient','landscape');
+  }else{
+    frame.style.width = '210mm';
+    frame.style.minHeight = '297mm';
+    frame.style.maxWidth = '97vw';
+    frame.setAttribute('data-orient','portrait');
+  }
   const bgFix = `<style>
     html, body {
       background: #ffffff !important;
@@ -31142,11 +31153,8 @@ function showPrintModal(html, title){
       color: #000000 !important;
     }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @media print {
-      html, body { background: #ffffff !important; }
-    }
+    @media print { html, body { background: #ffffff !important; } }
   </style>`;
-  // Inject bg fix right after <head> or at start
   let fixedHtml = html;
   if(fixedHtml.includes('<head>')) {
     fixedHtml = fixedHtml.replace('<head>', '<head>' + bgFix);
@@ -31155,6 +31163,14 @@ function showPrintModal(html, title){
   } else {
     fixedHtml = bgFix + fixedHtml;
   }
+  frame.onload = function(){
+    try{
+      const doc = frame.contentDocument;
+      if(!doc) return;
+      const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+      frame.style.height = (isLandscape ? Math.max(h + 8, 210 * 3.78) : Math.max(h + 8, 297 * 3.78)) + 'px';
+    }catch(e){}
+  };
   frame.srcdoc = fixedHtml;
 }
 
@@ -49924,6 +49940,17 @@ function printTraceReport(orderNo){
 }
 
 // ==================== F-QMR-010: Action Plan (Landscape A4) ====================
+function _apLogoHtml(){
+  return '<div class="ap-logo-block">'
+    +'<svg class="ap-logo-svg" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    +'<circle cx="44" cy="44" r="38" fill="#fff" stroke="#1a3a6e" stroke-width="2.2"/>'
+    +'<text x="44" y="56" text-anchor="middle" font-family="Arial Black,Helvetica,sans-serif" font-size="34" font-weight="900" fill="#1a3a6e">H</text>'
+    +'</svg>'
+    +'<div class="ap-logo-en">A BEST INTER PRODUCTS CO.,LTD</div>'
+    +'<div class="ap-logo-th">'+COMPANY_NAME+'</div>'
+    +'</div>';
+}
+
 function _apParsePeriod(periodMonth){
   const thMonths=['','มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   if(!periodMonth) return {month:'',year:''};
@@ -49993,33 +50020,40 @@ function buildAPPrintHTML(ap){
     return '<span class="ap-res-item">'+(i+1)+'. '+(nm||'________')+' - '+(cost||'________')+' บาท</span>';
   }).join('');
 
+  const kpiCg='<colgroup><col class="ap-kc-y"><col class="ap-kc-v"><col class="ap-kc-t"><col class="ap-kc-v">'
+    +monthNums.map(()=>'<col class="ap-kc-m">').join('')+'<col class="ap-kc-m"></colgroup>';
+  const teamCg='<colgroup>'+Array(9).fill('<col class="ap-tc">').join('')+'</colgroup>';
+  const whyCg='<colgroup><col class="ap-wc-why"><col class="ap-wc-lbl"><col class="ap-wc-cnt"></colgroup>';
+  const ganttCg='<colgroup><col class="ap-gc-k"><col class="ap-gc-m"><col class="ap-gc-r"><col class="ap-gc-t"><col class="ap-gc-p">'
+    +Array(16).fill('<col class="ap-gc-w">').join('')+'</colgroup>';
+
   return '<div class="ap-doc">'
     +'<table class="ap-hdr-table"><tr>'
-    +'<td class="ap-hdr-left"><div class="ap-co-name">'+COMPANY_NAME+'</div><div class="ap-co-en">'+COMPANY_NAME_EN+'</div></td>'
+    +'<td class="ap-hdr-left">'+_apLogoHtml()+'</td>'
     +'<td class="ap-hdr-mid"><div class="ap-title">ใบรายงานการดำเนินการตามค่า KPI ประจำเดือน</div>'
     +'<div class="ap-period-line"><span class="ap-u">'+(period.month||'________')+'</span> ปี <span class="ap-u">'+(period.year||'________')+'</span></div>'
     +'<div class="ap-dept-line">แผนก <span class="ap-u ap-u-wide">'+(ap.dept||'')+'</span> &nbsp; เรื่อง <span class="ap-u ap-u-wide">'+topic+'</span></div></td>'
     +'<td class="ap-hdr-right"><div class="ap-docno">F-QMR-010</div><div class="ap-rev">REV.01</div><div class="ap-print-date">วันที่พิมพ์: '+today+'</div></td>'
     +'</tr></table>'
     +'<div class="ap-sec">1. ผลการดำเนินงานปัจจุบัน</div>'
-    +'<table class="ap-tbl ap-kpi-tbl"><tr>'
+    +'<table class="ap-tbl ap-kpi-tbl">'+kpiCg+'<tr>'
     +'<td class="ap-lbl" rowspan="2">ค่าเฉลี่ยของปี '+kpiYear+'</td><td class="ap-val" rowspan="2">'+(ap.prevAvg??'')+(ap.prevAvg!==''&&ap.prevAvg!=null?'%':'')+'</td>'
     +'<td class="ap-lbl" rowspan="2">เป้าหมาย</td><td class="ap-val ap-target" rowspan="2">'+(ap.targetPct??'')+(ap.targetPct!==''&&ap.targetPct!=null?'%':'')+'</td>'
     +'<td class="ap-lbl ap-kpi-span" colspan="13">ผลการดำเนินการของปี '+kpiYear+'</td></tr><tr>'
     +monthNums.map(n=>'<th class="ap-mon-num">'+n+'</th>').join('')
     +'<th class="ap-mon-num">ค่าเฉลี่ย</th></tr><tr>'
     +'<td colspan="4" class="ap-kpi-note">'+kpiNote+'</td>'+monthValCells+'<td class="ap-num ap-avg">'+avgVal+'</td></tr></table>'
-    +'<div class="ap-sec">2. จัดตั้งทีมงาน</div><table class="ap-tbl ap-team-tbl"><tr>'+teamHdrRow+'</tr><tr>'+teamValRow+'</tr></table>'
+    +'<div class="ap-sec">2. จัดตั้งทีมงาน</div><table class="ap-tbl ap-team-tbl">'+teamCg+'<tr>'+teamHdrRow+'</tr><tr>'+teamValRow+'</tr></table>'
     +'<div class="ap-sec">3. ทำความเข้าใจกับปัญหาปัจจุบันอย่างชัดเจน ปัญหาที่ 1</div><table class="ap-tbl"><tr><td class="ap-issue">'+(ap.issue||'')+'</td></tr></table>'
     +'<div class="ap-sec">4. วิเคราะห์หาสาเหตุหลักของปัญหา (5 Why) &amp; แนวทางแก้ไข</div>'
-    +'<table class="ap-tbl ap-why-tbl"><tr><th class="ap-why-h">สาเหตุหลักของปัญหาที่ 1</th>'
+    +'<table class="ap-tbl ap-why-tbl">'+whyCg+'<tr><th class="ap-why-h">สาเหตุหลักของปัญหาที่ 1</th>'
     +'<th class="ap-cnt-h" colspan="2">แนวทางแก้ไข (แนวทางแก้ไขที่ชัดเจน, ทำแล้วปัญหาไม่เกิดซ้ำ) แนวทางแก้ไขปัญหาที่ 1</th></tr>'
     +whyCntRows+'</table>'
     +'<div class="ap-sec">5. ทรัพยากรที่ต้องใช้</div>'
     +'<table class="ap-tbl ap-res-tbl"><tr><td class="ap-res-row">'+resCells
     +'<span class="ap-res-total">รวม - '+(ap.resTotal?Number(ap.resTotal).toLocaleString():'________')+' บาท</span></td></tr></table>'
     +'<div class="ap-sec">6. วิธีการดำเนินการแก้ไข / แผนการดำเนินงาน (Action Plan)</div>'
-    +'<table class="ap-tbl ap-gantt"><thead><tr>'
+    +'<table class="ap-tbl ap-gantt">'+ganttCg+'<thead><tr>'
     +'<th rowspan="2" class="ap-g-h">ลำดับที่</th><th rowspan="2" class="ap-g-method">วิธีการดำเนินการแก้ไข</th>'
     +'<th rowspan="2" class="ap-g-resp">ผู้รับผิดชอบ</th><th rowspan="2" class="ap-g-track">ผู้ติดตาม</th>'
     +'<th rowspan="2" class="ap-g-pa">แผน/<br>ทำจริง</th>'+monthSpans+'</tr><tr>'+wkHdr+'</tr></thead><tbody>'+stepRows+'</tbody></table>'
@@ -50037,57 +50071,69 @@ function buildAPPrintDocument(ap){
   const body=buildAPPrintHTML(ap);
   return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>'+title+'</title>'
   +'<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'
+  +'<meta name="viewport" content="width=1123">'
   +'<style>'
-  +'@page{size:A4 landscape;margin:6mm 8mm}'
-  +'html,body{font-family:Sarabun,"TH Sarabun New","Noto Sans Thai",sans-serif;font-size:9pt;color:#000;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;margin:0;padding:0}'
-  +'.ap-doc{width:100%;max-width:281mm;margin:0 auto}'
+  +'@page{size:297mm 210mm landscape;margin:5mm 7mm}'
+  +'html{width:297mm;height:210mm;margin:0;padding:0}'
+  +'body{width:297mm;min-height:210mm;margin:0;padding:4mm 6mm;box-sizing:border-box;'
+  +'font-family:Sarabun,"TH Sarabun New","Noto Sans Thai",sans-serif;font-size:8.5pt;color:#000;background:#fff;'
+  +'-webkit-print-color-adjust:exact;print-color-adjust:exact;overflow:hidden}'
+  +'.ap-doc{width:100%;max-width:none;margin:0}'
   +'table.ap-tbl,table.ap-hdr-table{border-collapse:collapse;width:100%;table-layout:fixed}'
-  +'.ap-tbl td,.ap-tbl th,.ap-hdr-table td{border:1px solid #000;padding:2px 4px;vertical-align:middle;font-size:8.5pt;line-height:1.25}'
-  +'.ap-hdr-table td{border:none;vertical-align:top;padding:0 4px 6px}'
-  +'.ap-hdr-left{width:28%}.ap-hdr-mid{width:44%;text-align:center}.ap-hdr-right{width:28%;text-align:right}'
-  +'.ap-co-name{font-size:10pt;font-weight:700}.ap-co-en{font-size:7.5pt;color:#333;margin-top:1px}'
-  +'.ap-title{font-size:13pt;font-weight:700;line-height:1.2}'
-  +'.ap-period-line,.ap-dept-line{font-size:9pt;margin-top:3px}'
-  +'.ap-u{border-bottom:1px solid #000;display:inline-block;min-width:48px;padding:0 2px}.ap-u-wide{min-width:100px}'
-  +'.ap-docno{border:2px solid #000;padding:2px 10px;font-size:12pt;font-weight:700;display:inline-block}'
-  +'.ap-rev{font-size:8pt;font-weight:700;margin-top:2px}.ap-print-date{font-size:7.5pt;margin-top:2px}'
-  +'.ap-sec{font-size:9pt;font-weight:700;margin:4px 0 2px}'
-  +'.ap-lbl{background:#f2f2f2;font-weight:700;text-align:center;white-space:nowrap}'
+  +'.ap-tbl td,.ap-tbl th{border:1px solid #000;padding:1px 3px;vertical-align:middle;font-size:8pt;line-height:1.2;word-wrap:break-word}'
+  +'.ap-hdr-table td{border:none;vertical-align:top;padding:0 3px 4px}'
+  +'.ap-hdr-left{width:22%}.ap-hdr-mid{width:53%;text-align:center}.ap-hdr-right{width:25%;text-align:right}'
+  +'.ap-logo-block{display:flex;flex-direction:column;align-items:flex-start;gap:1px}'
+  +'.ap-logo-svg{width:52px;height:52px;display:block}'
+  +'.ap-logo-en{font-size:7pt;font-weight:700;color:#1a3a6e;letter-spacing:.2px;line-height:1.15}'
+  +'.ap-logo-th{font-size:7pt;font-weight:600;color:#222;line-height:1.15;max-width:52mm}'
+  +'.ap-title{font-size:12.5pt;font-weight:700;line-height:1.15}'
+  +'.ap-period-line,.ap-dept-line{font-size:8.5pt;margin-top:2px}'
+  +'.ap-u{border-bottom:1px solid #000;display:inline-block;min-width:40px;padding:0 2px}'
+  +'.ap-u-wide{min-width:90px}'
+  +'.ap-docno{border:2px solid #000;padding:2px 8px;font-size:11pt;font-weight:700;display:inline-block}'
+  +'.ap-rev{font-size:7.5pt;font-weight:700;margin-top:2px}'
+  +'.ap-print-date{font-size:7pt;margin-top:2px}'
+  +'.ap-sec{font-size:8.5pt;font-weight:700;margin:3px 0 1px}'
+  +'.ap-lbl{background:#f2f2f2;font-weight:700;text-align:center}'
   +'.ap-val{text-align:center;font-weight:700}.ap-target{color:#c00000}'
   +'.ap-kpi-span{text-align:center;background:#f2f2f2}'
-  +'.ap-mon-num{background:#d9e1f2;font-weight:700;text-align:center;font-size:8pt;padding:1px}'
-  +'.ap-num{text-align:center;font-size:8pt}.ap-avg{font-weight:700;color:#1d4ed8}'
-  +'.ap-kpi-note{font-size:7.5pt;text-align:left}'
-  +'.ap-team-tbl .ap-lbl{font-size:7.5pt;padding:2px 1px}.ap-team-tbl td{text-align:center;font-size:8pt;height:22px}'
-  +'.ap-issue{min-height:28px;vertical-align:top;padding:4px}'
-  +'.ap-why-h{background:#fff2cc;text-align:center;font-weight:700;width:42%}'
-  +'.ap-cnt-h{background:#e2efda;text-align:center;font-weight:700}'
-  +'.ap-why-l{vertical-align:top;min-height:16px;width:42%}'
-  +'.ap-cnt-l{background:#e2efda;font-weight:700;text-align:center;width:24px}'
-  +'.ap-cnt-v{vertical-align:top}'
-  +'.ap-res-row{font-size:8.5pt;padding:4px 6px}.ap-res-item{margin-right:14px}.ap-res-total{font-weight:700;margin-left:8px}'
-  +'.ap-gantt{font-size:7.5pt}'
-  +'.ap-g-h{width:22px;background:#4472c4;color:#fff;text-align:center;font-weight:700}'
-  +'.ap-g-method{width:22%}.ap-g-resp,.ap-g-track{width:9%}'
-  +'.ap-g-pa{width:28px;background:#4472c4;color:#fff;text-align:center;font-weight:700;font-size:7pt}'
-  +'.ap-gantt thead th{background:#4472c4;color:#fff;text-align:center;font-weight:700;border:1px solid #000;padding:1px}'
-  +'.ap-mon{background:#9dc3e6;font-size:7.5pt}.ap-wk{background:#bdd7ee;font-size:7pt;width:14px;padding:0}'
-  +'.ap-step-k{background:#dae3f3;font-weight:700;text-align:center;width:22px}'
-  +'.ap-step-txt{vertical-align:top;font-size:7.5pt}'
-  +'.ap-step-resp,.ap-step-track{text-align:center;font-size:7pt}'
-  +'.ap-plan-lbl{background:#fce4d6;text-align:center;font-weight:700;width:28px;font-size:7pt}'
-  +'.ap-act-lbl{background:#e2efda;text-align:center;font-weight:700;width:28px;font-size:7pt}'
-  +'.ap-wk-cell{height:12px;padding:0}'
-  +'.ap-footer{display:flex;align-items:flex-end;justify-content:space-between;margin-top:4px;gap:12px}'
-  +'.ap-legend{font-size:7.5pt;color:#333}'
-  +'.ap-leg-plan{margin-right:12px;border-bottom:2px dashed #333;padding-bottom:1px}'
-  +'.ap-leg-act{border-bottom:2px solid #333;padding-bottom:1px}'
-  +'.ap-sign-tbl{width:55%;border-collapse:collapse}'
-  +'.ap-sign-tbl td{border:1px solid #000;text-align:center;padding:4px;width:50%;vertical-align:bottom}'
-  +'.ap-sign-title{font-weight:700;font-size:8.5pt}.ap-sign-line{height:28px}'
-  +'.ap-sign-name{font-size:8pt;min-height:14px}.ap-sign-date{font-size:7.5pt;color:#555;margin-top:2px}'
-  +'@media print{.ap-doc{max-width:none}}'
-  +'</style></head><body>'+body+'</body></html>';
+  +'.ap-kc-y{width:9%}.ap-kc-v{width:5%}.ap-kc-t{width:6%}.ap-kc-m{width:5.38%}'
+  +'.ap-mon-num{background:#d9e1f2;font-weight:700;text-align:center;font-size:7.5pt}'
+  +'.ap-num{text-align:center;font-size:7.5pt}.ap-avg{font-weight:700}'
+  +'.ap-kpi-note{font-size:7pt;text-align:left}'
+  +'.ap-tc{width:11.11%}'
+  +'.ap-team-tbl .ap-lbl{font-size:7pt}.ap-team-tbl td{text-align:center;font-size:7.5pt;height:18px}'
+  +'.ap-issue{min-height:22px;vertical-align:top;padding:3px;font-size:7.5pt}'
+  +'.ap-wc-why{width:46%}.ap-wc-lbl{width:4%}.ap-wc-cnt{width:50%}'
+  +'.ap-why-h{background:#fff2cc;text-align:center;font-weight:700}'
+  +'.ap-cnt-h{background:#e2efda;text-align:center;font-weight:700;font-size:7.5pt}'
+  +'.ap-why-l{vertical-align:top;min-height:14px;font-size:7.5pt}'
+  +'.ap-cnt-l{background:#e2efda;font-weight:700;text-align:center}'
+  +'.ap-cnt-v{vertical-align:top;font-size:7.5pt}'
+  +'.ap-res-row{font-size:8pt;padding:3px 5px}'
+  +'.ap-res-item{margin-right:12px}.ap-res-total{font-weight:700;margin-left:6px}'
+  +'.ap-gantt{font-size:7pt}'
+  +'.ap-gc-k{width:3%}.ap-gc-m{width:24%}.ap-gc-r{width:8%}.ap-gc-t{width:8%}.ap-gc-p{width:3.5%}.ap-gc-w{width:3.28%}'
+  +'.ap-g-h,.ap-g-method,.ap-g-resp,.ap-g-track,.ap-g-pa{background:#4472c4;color:#fff;text-align:center;font-weight:700}'
+  +'.ap-gantt thead .ap-mon{background:#9dc3e6;color:#000;font-size:7pt}'
+  +'.ap-gantt thead .ap-wk{background:#bdd7ee;color:#000;font-size:6.5pt}'
+  +'.ap-step-k{background:#dae3f3;font-weight:700;text-align:center}'
+  +'.ap-step-txt{vertical-align:top;font-size:7pt}'
+  +'.ap-step-resp,.ap-step-track{text-align:center;font-size:6.5pt}'
+  +'.ap-plan-lbl{background:#fce4d6;text-align:center;font-weight:700;font-size:6.5pt}'
+  +'.ap-act-lbl{background:#e2efda;text-align:center;font-weight:700;font-size:6.5pt}'
+  +'.ap-wk-cell{height:11px;padding:0}'
+  +'.ap-footer{display:flex;align-items:flex-end;justify-content:space-between;margin-top:3px}'
+  +'.ap-legend{font-size:7pt}'
+  +'.ap-leg-plan{margin-right:10px;border-bottom:2px dashed #333}'
+  +'.ap-leg-act{border-bottom:2px solid #333}'
+  +'.ap-sign-tbl{width:52%;border-collapse:collapse}'
+  +'.ap-sign-tbl td{border:1px solid #000;text-align:center;padding:3px;width:50%;vertical-align:bottom}'
+  +'.ap-sign-title{font-weight:700;font-size:8pt}.ap-sign-line{height:24px}'
+  +'.ap-sign-name{font-size:7.5pt}.ap-sign-date{font-size:7pt;color:#555}'
+  +'@media print{html,body{width:297mm;height:210mm}.ap-doc{page-break-inside:avoid}}'
+    +'</style></head><body>'+body+'</body></html>';
 }
 
 function printActionPlanDoc(apId){
@@ -55717,7 +55763,8 @@ function _clRenderChart(){
   <!-- Preview area -->
   <div style="flex:1;overflow:auto;padding:20px 40px;background:var(--bg4, #404040);display:flex;flex-direction:column;align-items:center;gap:16px" id="print-preview-area">
     <iframe id="print-frame"
-      style="width:210mm;min-height:297mm;border:none;border-radius:2px;background:#ffffff;box-shadow:0 4px 32px rgba(0,0,0,0.5);display:block;flex-shrink:0"
+      style="width:297mm;min-height:210mm;border:none;border-radius:2px;background:#ffffff;box-shadow:0 4px 32px rgba(0,0,0,0.5);display:block;flex-shrink:0"
+      data-orient="landscape"
     ></iframe>
   </div>
 </div>
