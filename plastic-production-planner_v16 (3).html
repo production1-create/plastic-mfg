@@ -49940,14 +49940,34 @@ function printTraceReport(orderNo){
 }
 
 // ==================== F-QMR-010: Action Plan (Landscape A4) ====================
+const _AP_LOGO_DATA_URI="data:image/png;base64,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";
 function _apLogoHtml(){
+  var src=(typeof _AP_LOGO_DATA_URI!=='undefined'&&_AP_LOGO_DATA_URI)?_AP_LOGO_DATA_URI:'./abest-logo.png';
   return '<div class="ap-logo-block">'
-    +'<svg class="ap-logo-svg" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-    +'<circle cx="44" cy="44" r="38" fill="#fff" stroke="#1a3a6e" stroke-width="2.2"/>'
-    +'<text x="44" y="56" text-anchor="middle" font-family="Arial Black,Helvetica,sans-serif" font-size="34" font-weight="900" fill="#1a3a6e">H</text>'
-    +'</svg>'
+    +'<img class="ap-logo-img" src="'+src+'" alt="A BEST INTER PRODUCTS">'
     +'<div class="ap-logo-en">A BEST INTER PRODUCTS CO.,LTD</div>'
     +'<div class="ap-logo-th">'+COMPANY_NAME+'</div>'
+    +'</div>';
+}
+
+function _apLegendHtml(){
+  return '<div class="ap-legend">'
+    +'<div class="ap-leg-row">'
+    +'<svg class="ap-leg-svg" width="110" height="14" viewBox="0 0 110 14" aria-hidden="true">'
+    +'<line x1="0" y1="7" x2="82" y2="7" stroke="#000" stroke-width="1.2" stroke-dasharray="5,3"/>'
+    +'<rect x="16" y="5.5" width="2" height="2" fill="#000"/>'
+    +'<rect x="34" y="5.5" width="2" height="2" fill="#000"/>'
+    +'<rect x="52" y="5.5" width="2" height="2" fill="#000"/>'
+    +'<rect x="70" y="5.5" width="2" height="2" fill="#000"/>'
+    +'<polygon points="82,4 96,7 82,10" fill="#000"/>'
+    +'</svg><span class="ap-leg-txt">: การวางแผน</span>'
+    +'</div>'
+    +'<div class="ap-leg-row">'
+    +'<svg class="ap-leg-svg" width="110" height="14" viewBox="0 0 110 14" aria-hidden="true">'
+    +'<line x1="0" y1="7" x2="82" y2="7" stroke="#000" stroke-width="2.8"/>'
+    +'<polygon points="82,4 96,7 82,10" fill="#000"/>'
+    +'</svg><span class="ap-leg-txt">: การปฏิบัติจริง</span>'
+    +'</div>'
     +'</div>';
 }
 
@@ -50057,8 +50077,7 @@ function buildAPPrintHTML(ap){
     +'<th rowspan="2" class="ap-g-h">ลำดับที่</th><th rowspan="2" class="ap-g-method">วิธีการดำเนินการแก้ไข</th>'
     +'<th rowspan="2" class="ap-g-resp">ผู้รับผิดชอบ</th><th rowspan="2" class="ap-g-track">ผู้ติดตาม</th>'
     +'<th rowspan="2" class="ap-g-pa">แผน/<br>ทำจริง</th>'+monthSpans+'</tr><tr>'+wkHdr+'</tr></thead><tbody>'+stepRows+'</tbody></table>'
-    +'<div class="ap-footer"><div class="ap-legend">'
-    +'<span class="ap-leg-plan">→→→→ การวางแผน</span><span class="ap-leg-act">━━━━ การปฏิบัติจริง</span></div>'
+    +'<div class="ap-footer">'+_apLegendHtml()
     +'<table class="ap-sign-tbl"><tr><td><div class="ap-sign-title">ผู้จัดทำ (วศ.ขึ้นไป)</div><div class="ap-sign-line"></div>'
     +'<div class="ap-sign-name">'+(ap.verifyBy||'')+'</div><div class="ap-sign-date">____/____/____</div></td>'
     +'<td><div class="ap-sign-title">ผู้อนุมัติ (ผช.ผจก.ขึ้นไป)</div><div class="ap-sign-line"></div>'
@@ -50084,7 +50103,7 @@ function buildAPPrintDocument(ap){
   +'.ap-hdr-table td{border:none;vertical-align:top;padding:0 3px 4px}'
   +'.ap-hdr-left{width:22%}.ap-hdr-mid{width:53%;text-align:center}.ap-hdr-right{width:25%;text-align:right}'
   +'.ap-logo-block{display:flex;flex-direction:column;align-items:flex-start;gap:1px}'
-  +'.ap-logo-svg{width:52px;height:52px;display:block}'
+  +'.ap-logo-img{width:50px;height:auto;max-height:52px;display:block;object-fit:contain}'
   +'.ap-logo-en{font-size:7pt;font-weight:700;color:#1a3a6e;letter-spacing:.2px;line-height:1.15}'
   +'.ap-logo-th{font-size:7pt;font-weight:600;color:#222;line-height:1.15;max-width:52mm}'
   +'.ap-title{font-size:12.5pt;font-weight:700;line-height:1.15}'
@@ -50125,9 +50144,7 @@ function buildAPPrintDocument(ap){
   +'.ap-act-lbl{background:#e2efda;text-align:center;font-weight:700;font-size:6.5pt}'
   +'.ap-wk-cell{height:11px;padding:0}'
   +'.ap-footer{display:flex;align-items:flex-end;justify-content:space-between;margin-top:3px}'
-  +'.ap-legend{font-size:7pt}'
-  +'.ap-leg-plan{margin-right:10px;border-bottom:2px dashed #333}'
-  +'.ap-leg-act{border-bottom:2px solid #333}'
+  +'.ap-legend{display:flex;flex-direction:column;gap:6px;align-items:flex-start}'+'.ap-leg-row{display:flex;align-items:center;gap:5px;min-height:14px}'+'.ap-leg-svg{flex:0 0 110px;display:block}'+'.ap-leg-txt{font-size:7pt;white-space:nowrap}'
   +'.ap-sign-tbl{width:52%;border-collapse:collapse}'
   +'.ap-sign-tbl td{border:1px solid #000;text-align:center;padding:3px;width:50%;vertical-align:bottom}'
   +'.ap-sign-title{font-weight:700;font-size:8pt}.ap-sign-line{height:24px}'
