@@ -30462,20 +30462,21 @@ function rptApplyShiftOperator(shift){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   rptPersistQuickOps();
   var rpt = dailyReports[currentRptKey];
-  var name = (shift==='กะเช้า' ? (rpt._quickOpDay||'') : (rpt._quickOpNight||'')).trim();
+  var name = (shift==='กะเช้า' ? (rpt._quickOpDay||document.getElementById('rpt-op-day')?.value||'') : (rpt._quickOpNight||document.getElementById('rpt-op-night')?.value||'')).trim();
   if(!name){
     if(typeof _toast==='function') _toast('⚠️ ใส่ชื่อพนักงานในช่อง '+shift+' ด้านบนก่อน');
     else if(typeof _infoToast==='function') _infoToast('ใส่ชื่อพนักงานในช่อง '+shift+' ก่อน');
     return;
   }
+  if(shift==='กะเช้า') rpt._quickOpDay = name; else rpt._quickOpNight = name;
   var ts = new Date().toISOString();
-  rpt.rows.forEach(function(r){
-    if(r.shift===shift){ r.operator = name; r._updatedAt = ts; }
+  var n = 0;
+  rpt.rows.forEach(function(r, i){
+    if(r.shift===shift){ r.operator = name; r._updatedAt = ts; n++; rptRefreshHourRowDom(i); }
   });
   rpt._updatedAt = ts;
   rptPersistDailyReports(true);
-  renderDailyRpt();
-  if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' แล้ว');
+  if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' ('+n+' ชม.) แล้ว');
 }
 
 var _rptDailyReportsSaveTimer = null;
@@ -30534,7 +30535,7 @@ function rptAutoFillGoodNoNg(){
   });
   rpt._updatedAt = ts;
   rptPersistDailyReports(true);
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
   if(typeof _toast==='function') _toast('✅ เติมยอดงานดี = ผลิตได้ ('+n+' ชม.) สำหรับชั่วโมงที่ไม่มี NG แล้ว');
   else if(typeof _infoToast==='function') _infoToast('เติมงานดี '+n+' ชั่วโมงแล้ว');
 }
@@ -30561,7 +30562,10 @@ function loadDailyRpt(){
   if(typeof _loadDailyRptExtra==='function') _loadDailyRptExtra();
 }
 
-function renderDailyRpt(){
+function renderDailyRpt(opts){
+  opts = opts || {};
+  var scrollEl = document.getElementById('pv-content') || document.querySelector('#page-dailyrpt .page') || null;
+  var savedScroll = (opts.preserveScroll && scrollEl) ? scrollEl.scrollTop : 0;
   var rpt = currentRptKey ? dailyReports[currentRptKey] : null;
   if(!rpt){
     document.getElementById('rpt-empty').style.display='block';
@@ -30692,12 +30696,12 @@ function renderDailyRpt(){
     var gDisp = rptRowGoodInputValue(r);
     if(_rptEntryMode === 'package'){
       var packLbl = _rptEscAttr(rptFormatPackRowSummary(r, _rptPackTiers));
-      html += '<div class="hr-cell"><button type="button" onclick="openRptPackEntryModal('+idx+');event.stopPropagation()" style="padding:4px 8px;min-width:72px;font-size:10px;font-weight:700;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.35);color:#3fb950;border-radius:6px;cursor:pointer;font-family:inherit;line-height:1.35">'+packLbl+'</button></div>';
+      html += '<div class="hr-cell"><button type="button" onclick="openRptProdEntry('+idx+');event.stopPropagation()" style="padding:4px 8px;min-width:72px;font-size:10px;font-weight:700;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.35);color:#3fb950;border-radius:6px;cursor:pointer;font-family:inherit;line-height:1.35">'+packLbl+'</button></div>';
     } else {
       html += '<div class="hr-cell"><input class="hr-input hr-good" type="number" value="'+gDisp+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'goodQty\',this.value)" onchange="updateRptRow('+idx+',\'goodQty\',this.value)" style="font-weight:700;width:65px;color:var(--green)"></div>';
     }
     // NG cell
-    html += '<div class="hr-cell" style="cursor:pointer;min-width:120px" onclick="openHrEntryModal('+idx+')">';
+    html += '<div class="hr-cell" style="cursor:pointer;min-width:120px" onclick="rptSelectHourRow('+idx+');openHrEntryModal('+idx+')">';
     if(ngItems.length){
       html += '<div style="display:flex;flex-direction:column;gap:2px">'+(ngBadges||'<span class="ng-tag" style="font-size:10px">🔴 '+r.ng+' ชิ้น</span>')+'</div>';
     } else if(r.ng>0){
@@ -30707,7 +30711,7 @@ function renderDailyRpt(){
     }
     html += '</div>';
     // LT cell
-    html += '<div class="hr-cell" style="cursor:pointer;min-width:110px" onclick="openLtModal('+idx+')">';
+    html += '<div class="hr-cell" style="cursor:pointer;min-width:110px" onclick="rptSelectHourRow('+idx+');openLtModal('+idx+')">';
     if(r.ltMins>0){
       html += '<span class="lt-tag" style="font-size:10px">⏸ '+r.ltMins+'m<br><span style="font-size:9px">'+( r.ltReason||'')+'</span></span>';
     } else {
@@ -30717,7 +30721,7 @@ function renderDailyRpt(){
     // EFF (จากงานดี / เป้า)
     html += '<div class="hr-cell"><span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+((r.produced||0)>0||okGood>0?effHr+'%':'-')+'</span></div>';
     // Edit
-    html += '<div class="hr-cell"><button onclick="openHrEntryModal('+idx+')" style="padding:3px 8px;font-size:10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:#388bfd;border-radius:4px;cursor:pointer">✏</button></div>';
+    html += '<div class="hr-cell"><button onclick="openRptProdEntry('+idx+')" style="padding:3px 8px;font-size:10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:#388bfd;border-radius:4px;cursor:pointer">✏</button></div>';
     html += '</div>';
   });
   document.getElementById('rpt-hourly-rows').innerHTML = html;
@@ -30792,8 +30796,14 @@ function renderDailyRpt(){
 
   // ── Multi-order check ──
   if(rpt.machine && rpt.date){
-    var ttForDay = ttLiveRows(rpt.date).filter(function(x){ return x.machine===rpt.machine; });
-    if(ttForDay.length>1) _rptCheckMultiOrder(rpt.machine, rpt.date);
+    if(rptMachineOrders(rpt.machine, rpt.date).length > 1) _rptCheckMultiOrder(rpt.machine, rpt.date);
+  }
+
+  if(opts.preserveScroll && scrollEl && savedScroll > 0){
+    requestAnimationFrame(function(){ scrollEl.scrollTop = savedScroll; });
+  } else if(opts.scrollToTable){
+    var tblGo = document.getElementById('rpt-table-wrap');
+    if(tblGo) setTimeout(function(){ tblGo.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 80);
   }
 }
 
@@ -30838,8 +30848,14 @@ function updateRptRow(idx, field, val){
           var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
           var prodOut = cells[4] && cells[4].querySelector ? cells[4].querySelector('.hr-prod-out') : null;
           if(prodOut) prodOut.textContent = String(r.produced!=null&&r.produced!==''?Number(r.produced):0);
-          var gInp = cells[5] && cells[5].querySelector ? cells[5].querySelector('input.hr-good') : null;
+          var gCell = cells[5];
+          var gInp = gCell && gCell.querySelector ? gCell.querySelector('input.hr-good') : null;
           if(gInp) gInp.value = String(rptRowGoodInputValue(r));
+          else if(gCell && typeof rptFormatPackRowSummary === 'function' && currentRptKey && dailyReports[currentRptKey] && rptGetEntryMode(dailyReports[currentRptKey]) === 'package'){
+            var _pj = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === dailyReports[currentRptKey].jobName; });
+            var packBtn = gCell.querySelector('button');
+            if(packBtn) packBtn.textContent = rptFormatPackRowSummary(r, rptGetJobPackTiers(_pj));
+          }
           if(cells[8]) cells[8].innerHTML = ((r.produced||0)>0||okGood>0) ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
         }
       }
@@ -30848,6 +30864,49 @@ function updateRptRow(idx, field, val){
   }
   rptUpdateSummary();
   rptPersistDailyReports(false);
+}
+
+/** อัปเดตแถวรายชั่วโมงเดียว — ไม่ re-render ทั้งตาราง (ลดอาการ scroll กระโดด) */
+function rptRefreshHourRowDom(idx){
+  if(!currentRptKey || !dailyReports[currentRptKey]) return;
+  var rpt = dailyReports[currentRptKey];
+  var r = rpt.rows[idx];
+  if(!r) return;
+  var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
+  var rendered = 0;
+  var domRow = null;
+  rpt.rows.forEach(function(row2, i){
+    if(_rptShiftFilter !== 'all' && row2.shift !== _rptShiftFilter) return;
+    if(i === idx) domRow = rows[rendered];
+    rendered++;
+  });
+  if(!domRow) return;
+  var cells = domRow.querySelectorAll('.hr-cell');
+  var okGood = rptRowGoodInputValue(r) || 0;
+  var effHr = r.target > 0 ? Math.round(okGood / r.target * 100) : 0;
+  var effCol = effHr >= 90 ? 'var(--green)' : effHr >= 70 ? 'var(--yellow)' : 'var(--red)';
+  var prodOut = cells[4] && cells[4].querySelector ? cells[4].querySelector('.hr-prod-out') : null;
+  if(prodOut) prodOut.textContent = String(r.produced != null && r.produced !== '' ? Number(r.produced) : 0);
+  var gInp = cells[5] && cells[5].querySelector ? cells[5].querySelector('input.hr-good') : null;
+  if(gInp) gInp.value = String(rptRowGoodInputValue(r));
+  else if(cells[5] && rptGetEntryMode(rpt) === 'package'){
+    var _pj = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === rpt.jobName; });
+    var packBtn = cells[5].querySelector('button');
+    if(packBtn) packBtn.textContent = rptFormatPackRowSummary(r, rptGetJobPackTiers(_pj));
+  }
+  if(cells[6]){
+    var ngItems = r.ngItems || [];
+    if(ngItems.length){
+      cells[6].innerHTML = '<div style="display:flex;flex-direction:column;gap:2px">' + ngItems.map(function(n){
+        return '<span style="background:rgba(248,81,73,0.15);color:#f85149;border-radius:4px;padding:1px 5px;font-size:9px;white-space:nowrap;cursor:pointer" onclick="rptSelectHourRow('+idx+');openHrEntryModal('+idx+')">'+_rptEscAttr(n.defect)+' '+n.qty+'</span>';
+      }).join(' ') + '</div>';
+    } else if(r.ng > 0){
+      cells[6].innerHTML = '<span class="ng-tag" style="font-size:10px">🔴 '+r.ng+' ชิ้น</span>';
+    } else {
+      cells[6].innerHTML = '<span style="color:var(--text3);font-size:10px;border:1px dashed var(--border);padding:2px 6px;border-radius:4px">+ NG</span>';
+    }
+  }
+  if(cells[8]) cells[8].innerHTML = ((r.produced || 0) > 0 || okGood > 0) ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
 }
 
 function rptUpdateSummary(){
@@ -30960,12 +31019,9 @@ function hreAddNgRow(){
 
 function openHrEntryModal(idx){
   _hrEntryIdx = idx;
+  rptSelectHourRow(idx);
   if(!currentRptKey || !dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
-  if(rptGetEntryMode(rpt) === 'package'){
-    openRptPackEntryModal(idx);
-    return;
-  }
   var r   = rpt.rows[idx];
   var el  = function(id){ return document.getElementById(id); };
 
@@ -31070,7 +31126,7 @@ function saveHrEntry(){
   r._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   closeModal('modal-hr-entry');
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
 }
 
 function openNgModal(idx){
@@ -31094,9 +31150,10 @@ function saveNgEntry(){
   r._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   closeModal('modal-ng-detail');
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
 }
 function openLtModal(idx){
+  rptSelectHourRow(idx);
   currentLtHour=idx;
   const rpt=dailyReports[currentRptKey];
   const r=rpt.rows[idx];
@@ -31115,10 +31172,41 @@ function saveLtEntry(){
   r._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   closeModal('modal-lt-detail');
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
 }
-function quickAddNg(defect){ if(currentNgHour!==null) document.getElementById('ng-defect-type').value=defect; }
-function quickAddLt(reason){ if(currentLtHour!==null) document.getElementById('lt-detail').value=reason; }
+function quickAddNg(defect){
+  if(_rptActiveHourIdx == null && currentNgHour == null){
+    if(typeof _infoToast === 'function') _infoToast('⚠️ คลิกช่อง + NG ของชั่วโมงที่ต้องการก่อน');
+    return;
+  }
+  var idx = _rptActiveHourIdx != null ? _rptActiveHourIdx : currentNgHour;
+  if(!currentRptKey || !dailyReports[currentRptKey]) return;
+  var row = dailyReports[currentRptKey].rows[idx];
+  if(!row) return;
+  defect = upsertNgDefectName(defect) || defect;
+  if(!row.ngItems) row.ngItems = [];
+  var hit = row.ngItems.find(function(n){ return n.defect === defect; });
+  if(hit) hit.qty = (parseInt(hit.qty, 10) || 0) + 1;
+  else row.ngItems.push({ defect: defect, qty: 1, note: '' });
+  row.ng = rptRowNgSum(row);
+  row.ngDefect = row.ngItems.map(function(n){ return n.defect; }).join(', ');
+  rptSyncProducedFromGoodAndNg(row);
+  row._updatedAt = new Date().toISOString();
+  rptPersistDailyReports(true);
+  rptRefreshHourRowDom(idx);
+  rptUpdateSummary();
+  if(typeof _toast === 'function') _toast('🔴 เพิ่ม NG: ' + defect);
+}
+function quickAddLt(reason){
+  if(_rptActiveHourIdx == null && currentLtHour == null){
+    if(typeof _infoToast === 'function') _infoToast('⚠️ คลิกช่อง + LT ของชั่วโมงที่ต้องการก่อน');
+    return;
+  }
+  var idx = _rptActiveHourIdx != null ? _rptActiveHourIdx : currentLtHour;
+  openLtModal(idx);
+  var ltd = document.getElementById('lt-detail');
+  if(ltd && reason) ltd.value = reason;
+}
 function addCustomNgDefect(){
   var name = (prompt('เพิ่มอาการเสีย NG ใหม่:','')||'').trim();
   if(!name) return;
@@ -31130,7 +31218,7 @@ function addCustomNgDefect(){
     _hreNgTemp[_hreNgTemp.length-1].defect = name;
     _renderHreNgTable(_hreNgTemp);
   }
-  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt();
+  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
 }
 function addCustomLtReason(){
   var name = (prompt('เพิ่มสาเหตุ Loss/Breakdown ใหม่:','')||'').trim();
@@ -31149,7 +31237,7 @@ function addCustomLtReason(){
   });
   var ltd = document.getElementById('lt-detail');
   if(ltd && !ltd.value) ltd.value = name;
-  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt();
+  if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
 }
 
 function saveDailyRpt(){
@@ -34042,7 +34130,7 @@ function rptShiftFilter(s){
     var btn = document.getElementById('rpt-sf-'+key);
     if(btn){ btn.style.background = x===s?'var(--accent)':'var(--bg3)'; btn.style.color = x===s?'#fff':'var(--text2)'; }
   });
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
 }
 
 var _rptPackEntryIdx = null;
@@ -34063,7 +34151,7 @@ function rptSetEntryMode(mode){
   rpt._updatedAt = new Date().toISOString();
   rptPersistDailyReports(true);
   rptUpdateEntryModeUI(rpt);
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
   if(typeof _toast==='function') _toast(mode === 'package' ? '📦 โหมดลงยอด Package' : '🔢 โหมดกรอกตัวเลข');
 }
 
@@ -34240,7 +34328,7 @@ function saveRptPackEntry(){
   rptPersistDailyReports(true);
   closeModal('modal-rpt-pack-entry');
   _rptPackEntryIdx = null;
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
   if(typeof _toast === 'function') _toast('✓ บันทึก ' + calc.total.toLocaleString() + ' ชิ้น (จาก Package)');
 }
 
@@ -34301,29 +34389,66 @@ function rptLoadTTOptions(){
   }).join('');
 }
 
-function rptOpenFromTT(machine, date, orderNo){
-  // Set manual selectors too (for compatibility)
+/** รายการ Order ที่ผูกกับเครื่อง+วัน (จาก TT) */
+function rptMachineOrders(machine, date){
+  var seen = {};
+  var list = [];
+  ttLiveRows(date).filter(function(x){ return x.machine === machine; }).forEach(function(e){
+    var on = String(e.orderNo || '').trim();
+    if(!on || seen[on]) return;
+    seen[on] = true;
+    list.push({ orderNo: on, jobName: e.jobName || '' });
+  });
+  return list;
+}
+
+function rptReportKey(machine, date, orderNo){
+  var orders = rptMachineOrders(machine, date);
+  if(orders.length <= 1) return machine + '_' + date;
+  var on = String(orderNo || '').trim();
+  if(!on && orders.length) on = orders[0].orderNo;
+  return on ? (machine + '_' + date + '_' + on) : (machine + '_' + date);
+}
+
+function rptMigrateLegacyReportKey(machine, date, orderNo){
+  var legacy = machine + '_' + date;
+  var keyed = rptReportKey(machine, date, orderNo);
+  if(legacy === keyed || !dailyReports[legacy]) return;
+  var leg = dailyReports[legacy];
+  if(orderNo && leg.orderNo && leg.orderNo !== orderNo) return;
+  if(!dailyReports[keyed]){
+    dailyReports[keyed] = leg;
+    delete dailyReports[legacy];
+  }
+}
+
+function rptOpenFromTT(machine, date, orderNo, opts){
+  opts = opts || {};
   var machSel = document.getElementById('rpt-machine');
   if(machSel) machSel.value = machine;
   var dateEl = document.getElementById('rpt-date');
   if(dateEl) dateEl.value = date;
 
-  currentRptKey = machine+'_'+date;
+  var orders = rptMachineOrders(machine, date);
+  if(!orderNo && orders.length) orderNo = orders[0].orderNo;
   _rptCurrentOrderNo = orderNo || '';
+
+  if(orders.length > 1){
+    orders.forEach(function(o){ rptMigrateLegacyReportKey(machine, date, o.orderNo); });
+  }
+
+  currentRptKey = rptReportKey(machine, date, orderNo);
+  window.currentRptKey = currentRptKey;
 
   if(!dailyReports[currentRptKey]){
     _createDailyRptFromTT(machine, date, orderNo);
-  } else if(orderNo && dailyReports[currentRptKey].orderNo !== orderNo){
-    // Multiple orders on same machine+date — prompt which
-    _rptCheckMultiOrder(machine, date);
   }
-  renderDailyRpt();
-  // Scroll to report
-  var tbl = document.getElementById('rpt-table-wrap');
-  if(tbl) setTimeout(function(){ tbl.scrollIntoView({behavior:'smooth',block:'start'}); }, 100);
+
+  renderDailyRpt({ preserveScroll: !!opts.preserveScroll, scrollToTable: opts.scrollToTable !== false && !opts.preserveScroll });
 }
 
 var _rptCurrentOrderNo = '';
+var _rptActiveHourIdx = null;
 
 function _createDailyRptFromTT(machine, date, orderNo){
   var m = MACHINES.find(function(x){ return x.id===machine; });
@@ -34371,23 +34496,48 @@ function _createDailyRptFromTT(machine, date, orderNo){
 }
 
 function _rptCheckMultiOrder(machine, date){
-  var ttEntries = ttLiveRows(date).filter(function(x){ return x.machine===machine; });
-  if(ttEntries.length <= 1) return;
+  var orders = rptMachineOrders(machine, date);
   var wrap = document.getElementById('rpt-multi-order-wrap');
   var pills = document.getElementById('rpt-multi-order-pills');
-  if(!wrap||!pills) return;
+  if(!wrap || !pills) return;
+  if(orders.length <= 1){
+    wrap.style.display = 'none';
+    pills.innerHTML = '';
+    return;
+  }
   wrap.style.display = 'block';
-  pills.innerHTML = ttEntries.map(function(e){
-    var active = e.orderNo === dailyReports[currentRptKey].orderNo;
-    return '<span onclick="rptSwitchOrder(\''+machine+'\',\''+date+'\',\''+e.orderNo+'\')" style="padding:5px 12px;background:'+(active?'var(--accent)':'var(--bg3)')+';border:1px solid '+(active?'var(--accent)':'var(--border2)')+';border-radius:20px;cursor:pointer;font-size:11px;font-weight:'+(active?'700':'400')+'">'+e.orderNo+' — '+e.jobName.substring(0,20)+'</span>';
+  var cur = dailyReports[currentRptKey];
+  pills.innerHTML = orders.map(function(e){
+    var active = cur && cur.orderNo === e.orderNo;
+    var onEsc = _rptEscAttr(e.orderNo);
+    var jobShort = _rptEscAttr((e.jobName || '').substring(0, 28));
+    return '<span role="button" tabindex="0" onclick="rptSwitchOrder(\''+_rptEscAttr(machine)+'\',\''+_rptEscAttr(date)+'\',\''+onEsc+'\')" style="padding:5px 12px;background:'+(active?'var(--accent)':'var(--bg3)')+';border:1px solid '+(active?'var(--accent)':'var(--border2)')+';border-radius:20px;cursor:pointer;font-size:11px;font-weight:'+(active?'700':'400')+'">'+onEsc+' — '+jobShort+'</span>';
   }).join('');
 }
 
 function rptSwitchOrder(machine, date, orderNo){
   _rptCurrentOrderNo = orderNo;
-  currentRptKey = machine+'_'+date+'_'+orderNo;
+  rptMigrateLegacyReportKey(machine, date, orderNo);
+  currentRptKey = rptReportKey(machine, date, orderNo);
+  window.currentRptKey = currentRptKey;
   if(!dailyReports[currentRptKey]) _createDailyRptFromTT(machine, date, orderNo);
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
+}
+
+function rptSelectHourRow(idx){
+  _rptActiveHourIdx = idx;
+  currentNgHour = idx;
+  currentLtHour = idx;
+}
+
+function openRptProdEntry(idx){
+  rptSelectHourRow(idx);
+  if(!currentRptKey || !dailyReports[currentRptKey]) return;
+  if(rptGetEntryMode(dailyReports[currentRptKey]) === 'package'){
+    openRptPackEntryModal(idx);
+  } else {
+    openHrEntryModal(idx);
+  }
 }
 
 function rptAutoFillTarget(){
@@ -34399,7 +34549,7 @@ function rptAutoFillTarget(){
   rpt.rows.forEach(function(r){ r.target = tgt; });
   rpt.targetHr = tgt;
   rptPersistDailyReports(true);
-  renderDailyRpt();
+  renderDailyRpt({ preserveScroll: true });
   if(typeof _toast==='function') _toast('⚡ เติมเป้า '+tgt.toLocaleString()+' ชิ้น/ชม ทุกชั่วโมงแล้ว');
 }
 
@@ -34416,9 +34566,10 @@ function rptFillOperatorsFromHR(){
   }
   if(!machEmp.length) machEmp = empSrc;
   if(!machEmp.length){ if(typeof _toast==='function') _toast('ไม่พบพนักงานที่ผูกกับเครื่อง '+rpt.machine); return; }
-  rpt.rows.forEach(function(r,i){ if(!r.operator) r.operator = machEmp[i%machEmp.length].name; });
+  rpt.rows.forEach(function(r,i){
+    if(!r.operator){ r.operator = machEmp[i % machEmp.length].name; rptRefreshHourRowDom(i); }
+  });
   rptPersistDailyReports(true);
-  renderDailyRpt();
   if(typeof _toast==='function') _toast('👷 เติมชื่อพนักงาน '+machEmp.map(function(e){return e.name;}).join(', ')+' แล้ว');
 }
 
