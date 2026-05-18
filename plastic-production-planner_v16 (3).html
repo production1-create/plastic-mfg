@@ -31230,7 +31230,7 @@ function showPrintModal(html, title){
   if(!modal || !frame){ console.error('print-modal not found'); return; }
   titleEl.textContent = title||'เอกสาร';
   modal.style.display = 'flex';
-  const isLandscape = /F-QMR-010|ap-doc|rpt-doc|F-PD-I007|size:\s*A4\s+landscape|size:\s*297mm\s+210mm/i.test(html||'');
+  const isLandscape = /F-QMR-010|ap-doc|rpt-doc|pr-doc|F-PD-I007|F-PD-I008-PR|size:\s*A4\s+landscape|size:\s*297mm\s+210mm/i.test(html||'');
   if(isLandscape){
     frame.style.width = '297mm';
     frame.style.minHeight = '210mm';
@@ -32644,45 +32644,163 @@ function printCurrentCondDaily(){
 }
 
 // ==================== F-PD-I008: ใบขอซื้อ / PR ====================
-// (existing printPR uses DOC_NUMS.pr - we'll wrap/enhance it)
-function printPRDoc(prId){
-  const pr = purchaseRequests.find(p=>p.id===prId)||purchaseRequests[purchaseRequests.length-1];
-  if(!pr){ if(typeof _infoToast==="function") _infoToast('ไม่พบรายการขอซื้อ'); return; }
-  const cfg = rawMatSettings?.[pr.material]||{};
-  const s = rawMatStock[pr.material]||{};
-  const html = docHeader(DOC_NUMS.pr,'ใบขอซื้อวัตถุดิบ','Purchase Request (PR)','01')
-  + `<table class="info-grid"><tr>
-      <td class="lbl">เลข PR</td><td style="font-weight:700;font-size:14px">${pr.id}</td>
-      <td class="lbl">วันที่ขอ</td><td>${pr.date}</td>
-      <td class="lbl">สถานะ</td><td style="font-weight:700;color:${pr.status==='อนุมัติแล้ว'?'green':'orange'}">${pr.status||'รออนุมัติ'}</td>
-    </tr><tr>
-      <td class="lbl">วัตถุดิบ</td><td>${pr.material} ${s.grade||''}</td>
-      <td class="lbl">หน่วย</td><td>kg</td>
-      <td class="lbl">Lead Time</td><td>${pr.ltDays||cfg.ltDays||'-'} วัน</td>
-    </tr><tr>
-      <td class="lbl">Supplier</td><td>${cfg.supplier||'-'}</td>
-      <td class="lbl">วันรับคาด</td><td>${pr.expectedDate||'-'}</td>
-      <td class="lbl">Stock ปัจจุบัน</td><td>${(s.qty||0).toLocaleString()} kg</td>
-    </tr></table>
-  <table class="data-table"><thead><tr>
-    <th>วัตถุดิบ</th><th>เกรด</th><th>จำนวนที่ขอ (kg)</th><th>ราคาต่อหน่วย (บาท)</th><th>ราคารวม (บาท)</th><th>หมายเหตุ</th>
-  </tr></thead><tbody><tr>
-    <td>${pr.material}</td>
-    <td>${s.grade||'-'}</td>
-    <td style="text-align:right;font-weight:700;font-size:15px">${(pr.qty||0).toLocaleString()}</td>
-    <td style="text-align:right"></td>
-    <td style="text-align:right"></td>
-    <td>${pr.note||'-'}</td>
-  </tr></tbody><tfoot><tr style="background:#e8eef5;font-weight:700">
-    <td colspan="2" style="text-align:right">รวมทั้งสิ้น</td>
-    <td style="text-align:right">${(pr.qty||0).toLocaleString()} kg</td>
-    <td></td><td></td><td></td>
-  </tr></tfoot></table>
-  <div class="note-box">หมายเหตุ / Note: ${pr.note||''}</div>`
-  + signRow('ผู้ขอซื้อ / Requester','หัวหน้าแผนก / Dept. Head','จัดซื้อ / Purchasing','ผู้จัดการ / Manager')
-  + '</div>';
-  openPrintWindow(html, `${DOC_NUMS.pr} ใบขอซื้อ ${pr.id} - ${pr.material}`);
+// (landscape F-AD-P001 layout · merge multiple PR on one print)
+function _prEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function _prLogoHtml(){
+  if(typeof _apLogoHtml==='function') return _apLogoHtml();
+  if(typeof _rptLogoHtml==='function') return _rptLogoHtml();
+  var src=(typeof _AP_LOGO_DATA_URI!=='undefined'&&_AP_LOGO_DATA_URI)?_AP_LOGO_DATA_URI:'./abest-logo.png';
+  return '<div class="ap-logo-block"><img class="ap-logo-img" src="'+src+'" alt="A BEST">'
+    +'<div class="ap-logo-en">A BEST INTER PRODUCTS CO.,LTD</div>'
+    +'<div class="ap-logo-th">'+(typeof COMPANY_NAME!=='undefined'?COMPANY_NAME:'')+'</div></div>';
+}
+function _prFmtDateTh(d){
+  if(!d) return '___/___/___';
+  var p=String(d).split('-');
+  if(p.length>=3) return p[2]+'/'+p[1]+'/'+(parseInt(p[0],10)+543);
+  return _prEsc(d);
+}
+function _prResolveList(prIdOrIds){
+  if(!prIdOrIds) return [];
+  if(Array.isArray(prIdOrIds)){
+    return prIdOrIds.map(function(id){ return purchaseRequests.find(function(p){ return p.id===id; }); }).filter(Boolean);
+  }
+  var one=purchaseRequests.find(function(p){ return p.id===prIdOrIds; });
+  return one?[one]:[];
+}
+function buildPRPrintDocument(prList){
+  prList=prList||[];
+  if(!prList.length) return '';
+  var head=prList[0];
+  var cfg0=rawMatSettings?.[head.material]||{};
+  var sup0=cfg0.supplier||'-';
+  var today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  var prNo=head.id||'';
+  if(prList.length>1) prNo=head.id+' (+รวม '+(prList.length-1)+' รายการ)';
+  var itemRows='';
+  var totalQty=0;
+  prList.forEach(function(pr,i){
+    var s=rawMatStock[pr.material]||{};
+    var grade=s.grade||'-';
+    var desc=_prEsc(pr.material+(grade&&grade!=='-'?' '+grade:''));
+    var qty=parseFloat(pr.qty)||0;
+    totalQty+=qty;
+    var purpose=_prEsc(pr.note||pr.id||'');
+    itemRows+='<tr>'
+      +'<td class="pr-c-no">'+(i+1)+'</td>'
+      +'<td class="pr-c-desc">'+desc+'</td>'
+      +'<td class="pr-c-qty">'+qty.toLocaleString()+'</td>'
+      +'<td class="pr-c-price"></td>'
+      +'<td class="pr-c-total"></td>'
+      +'<td class="pr-c-stock">'+((s.qty||0).toLocaleString())+'</td>'
+      +'<td class="pr-c-purpose">'+purpose+'</td>'
+      +'</tr>';
+  });
+  var minRows=5;
+  for(var j=prList.length;j<minRows;j++){
+    itemRows+='<tr><td class="pr-c-no">'+(j+1)+'</td><td class="pr-c-desc"></td><td class="pr-c-qty"></td>'
+      +'<td class="pr-c-price"></td><td class="pr-c-total"></td><td class="pr-c-stock"></td><td class="pr-c-purpose"></td></tr>';
+  }
+  var reqDate=_prFmtDateTh(head.date);
+  var needDate=_prFmtDateTh(head.expectedDate);
+  var css=''
+    +'@page{size:297mm 210mm landscape;margin:6mm 8mm}'
+    +'html,body{width:297mm;margin:0;padding:0}'
+    +'body{font-family:Sarabun,"TH Sarabun New","Noto Sans Thai",sans-serif;font-size:9pt;color:#000;background:#fff;'
+    +'-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'.pr-doc{width:281mm;margin:0 auto;padding:2mm 0;box-sizing:border-box}'
+    +'.pr-hdr-tbl{width:100%;border-collapse:collapse;margin-bottom:3mm}'
+    +'.pr-hdr-tbl td{border:none;vertical-align:top;padding:0 3mm}'
+    +'.pr-hdr-l{width:26%}.pr-hdr-m{width:48%;text-align:center}.pr-hdr-r{width:26%;text-align:right}'
+    +'.pr-title{font-size:16pt;font-weight:700;letter-spacing:.5px}'
+    +'.pr-docno-box{border:2px solid #000;padding:2px 8px;font-size:11pt;font-weight:700;display:inline-block}'
+    +'.pr-docno-sub{font-size:7.5pt;margin-top:2px}'
+    +'.pr-meta{width:100%;border-collapse:collapse;margin-bottom:2mm}'
+    +'.pr-meta td{border:none;padding:1px 2mm;vertical-align:top;font-size:8.5pt}'
+    +'.pr-vendor-line{border-bottom:1px solid #000;min-width:80mm;display:inline-block;padding:0 2mm}'
+    +'.pr-chk{margin-right:6mm;font-size:8.5pt}'
+    +'.pr-dt-row{text-align:right;font-size:8.5pt;line-height:1.6}'
+    +'.pr-u{border-bottom:1px solid #000;display:inline-block;min-width:18mm;text-align:center}'
+    +'.pr-main{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:3mm}'
+    +'.pr-main th,.pr-main td{border:1px solid #000;padding:2px 3px;font-size:8pt;vertical-align:middle}'
+    +'.pr-main th{background:#d9e1f2;font-weight:700;text-align:center;line-height:1.2}'
+    +'.pr-c-no{width:5%}.pr-c-desc{width:28%}.pr-c-qty{width:9%}.pr-c-price{width:10%}'
+    +'.pr-c-total{width:10%}.pr-c-stock{width:12%}.pr-c-purpose{width:26%}'
+    +'.pr-c-desc,.pr-c-purpose{text-align:left;padding-left:4px}'
+    +'.pr-c-qty,.pr-c-stock{text-align:center}'
+    +'.pr-foot{width:100%;border-collapse:collapse;margin-top:2mm}'
+    +'.pr-foot td{border:none;vertical-align:top;width:50%;font-size:8.5pt;padding:2px 3mm}'
+    +'.pr-sign-line{border-bottom:1px solid #000;height:7mm;margin:1mm 0 2px}'
+    +'.ap-logo-block{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}'
+    +'.ap-logo-img{width:48px;height:auto;max-height:50px;display:block;object-fit:contain;margin:0 auto}'
+    +'.ap-logo-en{font-size:7pt;font-weight:700;color:#1a3a6e;line-height:1.1;text-align:center;width:100%}'
+    +'.ap-logo-th{font-size:7pt;font-weight:600;color:#222;line-height:1.1;text-align:center;width:100%}'
+    +'@media print{html,body{width:297mm}.pr-doc{page-break-inside:avoid}}';
+  var body='<div class="pr-doc">'
+    +'<table class="pr-hdr-tbl"><tr>'
+    +'<td class="pr-hdr-l">'+_prLogoHtml()+'</td>'
+    +'<td class="pr-hdr-m"><div class="pr-title">ใบขอซื้อ</div></td>'
+    +'<td class="pr-hdr-r"><div class="pr-docno-box">F-PD-I008-PR</div>'
+    +'<div class="pr-docno-sub">REV. 01</div>'
+    +'<div class="pr-docno-sub">วันที่พิมพ์: '+today+'</div>'
+    +'<div class="pr-docno-sub" style="margin-top:3px">เลขที่ <span class="pr-vendor-line" style="min-width:28mm">'+_prEsc(prNo)+'</span></div>'
+    +'</td></tr></table>'
+    +'<table class="pr-meta"><tr>'
+    +'<td style="width:55%">'
+    +'<div><span style="font-weight:700">ผู้ขาย/ผู้ใช้บริการ</span> <span class="pr-vendor-line">'+_prEsc(sup0)+'</span></div>'
+    +'<div style="margin-top:3px">'
+    +'<span class="pr-chk">☐ ซ่อมแซม</span><span class="pr-chk">☐ เพิ่มจากเดิม</span><span class="pr-chk">☐ อื่นๆ</span>'
+    +'</div>'
+    +'</td>'
+    +'<td class="pr-dt-row">'
+    +'<div>วันที่ขอซื้อ <span class="pr-u">'+reqDate+'</span> เวลา <span class="pr-u" style="min-width:12mm"> </span> น.</div>'
+    +'<div>วันที่ต้องการ <span class="pr-u">'+needDate+'</span> เวลา <span class="pr-u" style="min-width:12mm"> </span> น.</div>'
+  +'</td></tr></table>'
+    +'<table class="pr-main"><thead><tr>'
+    +'<th class="pr-c-no">ลำดับ</th><th class="pr-c-desc">รายการ</th><th class="pr-c-qty">จำนวน</th>'
+    +'<th class="pr-c-price">ราคา / หน่วย</th><th class="pr-c-total">ราคารวม</th>'
+    +'<th class="pr-c-stock">จ.น. Stock<br>คงเหลือ</th><th class="pr-c-purpose">วัตถุประสงค์การซื้อ</th>'
+    +'</tr></thead><tbody>'+itemRows
+    +'<tr style="font-weight:700;background:#f2f2f2">'
+    +'<td colspan="2" style="text-align:right;padding-right:6px">รวมทั้งสิ้น</td>'
+    +'<td class="pr-c-qty">'+totalQty.toLocaleString()+'</td>'
+    +'<td colspan="4"></td></tr>'
+    +'</tbody></table>'
+    +'<table class="pr-foot"><tr>'
+    +'<td>'
+    +'<div>ผู้ขอซื้อ <span class="pr-sign-line" style="display:block;width:70%"></span></div>'
+    +'<div>วันที่ <span class="pr-u">___/___/___</span> เวลา <span class="pr-u"> </span> น.</div>'
+    +'<div style="margin-top:4mm">ผู้อนุมัติ <span class="pr-sign-line" style="display:block;width:70%"></span></div>'
+    +'<div>วันที่ <span class="pr-u">___/___/___</span> เวลา <span class="pr-u"> </span> น.</div>'
+    +'</td><td>'
+    +'<div>แผนกที่ใช้ <span class="pr-vendor-line" style="min-width:50mm;display:inline-block">แผนกฉีด</span></div>'
+    +'<div style="margin-top:4mm">ผู้จัดซื้อ <span class="pr-sign-line" style="display:block;width:70%"></span></div>'
+    +'<div>วันที่ <span class="pr-u">___/___/___</span> เวลา <span class="pr-u"> </span> น.</div>'
+    +'</td></tr></table>'
+    +'</div>';
+  return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
+    +'<title>F-PD-I008-PR '+_prEsc(head.id||'')+'</title>'
+    +'<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'
+    +'<style>'+css.replace(/motion\.div/g,'div')+'</style></head><body class="pr-doc">'
+    +body.replace(/motion\.div/g,'div')
+    +'</body></html>';
+}
+function printPRDoc(prIdOrIds){
+  var list=_prResolveList(prIdOrIds);
+  if(!list.length){
+    var fallback=purchaseRequests[purchaseRequests.length-1];
+    if(fallback) list=[fallback];
+  }
+  if(!list.length){ if(typeof _infoToast==='function') _infoToast('ไม่พบรายการขอซื้อ'); return; }
+  var title='F-PD-I008-PR ใบขอซื้อ';
+  if(list.length===1) title+=' '+list[0].id+' - '+list[0].material;
+  else title+=' รวม '+list.length+' รายการ';
+  safePrint(buildPRPrintDocument(list),title);
+}
+function printPRMerged(prIds){ printPRDoc(prIds); }
+
 
 // ==================== F-PD-I009: ใบแผนผสมเม็ดพลาสติก ====================
 function printMixingPlan(mixId){
@@ -48521,7 +48639,7 @@ const TPP_CONFIG = {
         {l:'สถานะ',v:r.status||'รออนุมัติ'},{l:'หมายเหตุ',v:r.note||'-'},
       ];
     },
-    printSelected: (sel)=>{ sel.forEach(id=>printPRDoc(id)); },
+    printSelected: (sel)=>{ if(sel&&sel.length) printPRDoc(sel); },
   },
   'page-condstd': {
     title: 'Condition Standard',
