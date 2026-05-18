@@ -5931,7 +5931,15 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <button type="button" onclick="rptAutoFillTarget()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">⚡ เติมเป้าอัตโนมัติ</button>
         <button type="button" onclick="rptAutoFillGoodNoNg()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.35);color:var(--green);border-radius:6px;cursor:pointer;font-size:11px">✅ เติมงานดีอัตโนมัติ</button>
         <button type="button" onclick="rptFillOperatorsFromHR()" style="padding:4px 12px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.25);color:#3fb950;border-radius:6px;cursor:pointer;font-size:11px">👷 เติมชื่อพนักงาน (HR)</button>
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:11px;margin-left:4px">
+          <button type="button" id="rpt-entry-pcs" onclick="rptSetEntryMode('pcs')" title="กรอกจำนวนชิ้นโดยตรง" style="padding:4px 10px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;font-weight:700">🔢 กรอกตัวเลข</button>
+          <button type="button" id="rpt-entry-pack" onclick="rptSetEntryMode('package')" title="นับจำนวน Package ตาม BOM" style="padding:4px 10px;border:none;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit">📦 ลงยอด Package</button>
+        </div>
       </div>
+    </div>
+    <div id="rpt-pack-mode-hint" style="display:none;margin-bottom:10px;padding:8px 12px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.28);border-radius:8px;font-size:11px;color:var(--text2)">
+      <span style="font-weight:700;color:#3fb950">📦 โหมด Package:</span>
+      <span id="rpt-pack-mode-hint-text">คลิกช่อง «ลง Package» ในแต่ละชั่วโมง → กรอกจำนวนแพ็กตาม BOM → กดยืนยัน ระบบคำนวณเป็นชิ้นให้อัตโนมัติ</span>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:11px">
       <span style="color:var(--text3);font-weight:600">เติมชื่อตามกะ (พิมพ์ครั้งเดียว แล้วกดปุ่ม):</span>
@@ -5947,7 +5955,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <div class="hr-cell hr-head" style="min-width:100px">ผู้ปฏิบัติ</div>
         <div class="hr-cell hr-head" style="min-width:65px">เป้า</div>
         <div class="hr-cell hr-head" style="min-width:75px">ผลิตได้ <span style="font-size:8px;color:var(--text3);font-weight:600">(อัตโนมัติ)</span></div>
-        <div class="hr-cell hr-head" style="color:var(--green);min-width:65px">ดีได้</div>
+        <div class="hr-cell hr-head" id="rpt-col-good-head" style="color:var(--green);min-width:85px">ดีได้</div>
         <div class="hr-cell hr-head" style="color:var(--red);min-width:130px">NG รายอาการ</div>
         <div class="hr-cell hr-head" style="color:var(--yellow);min-width:120px">Loss Time</div>
         <div class="hr-cell hr-head" style="min-width:55px">EFF%</div>
@@ -30569,6 +30577,7 @@ function renderDailyRpt(){
   document.getElementById('rpt-table-wrap').style.display='block';
 
   rptNormalizeHourlyRowsInPlace(rpt);
+  rptUpdateEntryModeUI(rpt);
 
   // ── Job info bar ──
   var machDisp = document.getElementById('rpt-machine-display');
@@ -30655,6 +30664,9 @@ function renderDailyRpt(){
 
   // ── Hourly rows ──
   var html = '';
+  var _rptJob = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === rpt.jobName; });
+  var _rptPackTiers = rptGetJobPackTiers(_rptJob);
+  var _rptEntryMode = rptGetEntryMode(rpt);
   var renderRows = (rpt.rows||[]).slice().sort(function(a,b){
     return rptHourOrder(a.hour,a.shift) - rptHourOrder(b.hour,b.shift);
   });
@@ -30678,7 +30690,12 @@ function renderDailyRpt(){
     html += '<div class="hr-cell mono" style="font-size:11px;color:var(--text3)">'+r.target.toLocaleString()+'</div>';
     html += '<div class="hr-cell"><span class="mono hr-prod-out" style="font-weight:700;font-size:12px;color:var(--accent3);min-width:48px;display:inline-block">'+(r.produced!=null&&r.produced!==''?Number(r.produced):'0')+'</span></div>';
     var gDisp = rptRowGoodInputValue(r);
-    html += '<div class="hr-cell"><input class="hr-input hr-good" type="number" value="'+gDisp+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'goodQty\',this.value)" onchange="updateRptRow('+idx+',\'goodQty\',this.value)" style="font-weight:700;width:65px;color:var(--green)"></div>';
+    if(_rptEntryMode === 'package'){
+      var packLbl = _rptEscAttr(rptFormatPackRowSummary(r, _rptPackTiers));
+      html += '<div class="hr-cell"><button type="button" onclick="openRptPackEntryModal('+idx+');event.stopPropagation()" style="padding:4px 8px;min-width:72px;font-size:10px;font-weight:700;background:rgba(63,185,80,0.15);border:1px solid rgba(63,185,80,0.35);color:#3fb950;border-radius:6px;cursor:pointer;font-family:inherit;line-height:1.35">'+packLbl+'</button></div>';
+    } else {
+      html += '<div class="hr-cell"><input class="hr-input hr-good" type="number" value="'+gDisp+'" placeholder="0" min="0" oninput="updateRptRow('+idx+',\'goodQty\',this.value)" onchange="updateRptRow('+idx+',\'goodQty\',this.value)" style="font-weight:700;width:65px;color:var(--green)"></div>';
+    }
     // NG cell
     html += '<div class="hr-cell" style="cursor:pointer;min-width:120px" onclick="openHrEntryModal('+idx+')">';
     if(ngItems.length){
@@ -30945,6 +30962,10 @@ function openHrEntryModal(idx){
   _hrEntryIdx = idx;
   if(!currentRptKey || !dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
+  if(rptGetEntryMode(rpt) === 'package'){
+    openRptPackEntryModal(idx);
+    return;
+  }
   var r   = rpt.rows[idx];
   var el  = function(id){ return document.getElementById(id); };
 
@@ -34022,6 +34043,205 @@ function rptShiftFilter(s){
     if(btn){ btn.style.background = x===s?'var(--accent)':'var(--bg3)'; btn.style.color = x===s?'#fff':'var(--text2)'; }
   });
   renderDailyRpt();
+}
+
+var _rptPackEntryIdx = null;
+var _rptPackEntryTiers = [];
+
+function rptGetEntryMode(rpt){
+  if(!rpt) return 'pcs';
+  return rpt._entryMode === 'package' ? 'package' : 'pcs';
+}
+
+function rptSetEntryMode(mode){
+  if(!currentRptKey || !dailyReports[currentRptKey]){
+    if(typeof _infoToast==='function') _infoToast('กรุณาเปิดรายงานก่อน');
+    return;
+  }
+  var rpt = dailyReports[currentRptKey];
+  rpt._entryMode = mode === 'package' ? 'package' : 'pcs';
+  rpt._updatedAt = new Date().toISOString();
+  rptPersistDailyReports(true);
+  rptUpdateEntryModeUI(rpt);
+  renderDailyRpt();
+  if(typeof _toast==='function') _toast(mode === 'package' ? '📦 โหมดลงยอด Package' : '🔢 โหมดกรอกตัวเลข');
+}
+
+function rptUpdateEntryModeUI(rpt){
+  var mode = rptGetEntryMode(rpt);
+  var pcsBtn = document.getElementById('rpt-entry-pcs');
+  var packBtn = document.getElementById('rpt-entry-pack');
+  var hint = document.getElementById('rpt-pack-mode-hint');
+  var colHead = document.getElementById('rpt-col-good-head');
+  if(pcsBtn){
+    pcsBtn.style.background = mode === 'pcs' ? 'var(--accent)' : 'var(--bg3)';
+    pcsBtn.style.color = mode === 'pcs' ? '#fff' : 'var(--text2)';
+    pcsBtn.style.fontWeight = mode === 'pcs' ? '700' : '400';
+  }
+  if(packBtn){
+    packBtn.style.background = mode === 'package' ? '#3fb950' : 'var(--bg3)';
+    packBtn.style.color = mode === 'package' ? '#fff' : 'var(--text2)';
+    packBtn.style.fontWeight = mode === 'package' ? '700' : '400';
+  }
+  if(hint) hint.style.display = mode === 'package' ? 'block' : 'none';
+  if(colHead) colHead.textContent = mode === 'package' ? '📦 Package' : 'ดีได้';
+  var hintTxt = document.getElementById('rpt-pack-mode-hint-text');
+  if(hintTxt && rpt && rpt.jobName){
+    var job = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === rpt.jobName; });
+    var tiers = rptGetJobPackTiers(job);
+    if(tiers.length){
+      hintTxt.textContent = 'BOM: ' + tiers.map(function(t){
+        return t.icon + ' ' + t.pcsPerUnit.toLocaleString() + ' ชิ้น/' + t.unitLabel;
+      }).join(' · ') + ' — คลิกช่องในแต่ละชั่วโมงเพื่อกรอกจำนวน Package';
+    } else {
+      hintTxt.textContent = '⚠️ ไม่พบ Package ใน BOM — ตั้งค่า Packing ใน BOM หรือใช้โหมดกรอกตัวเลข';
+    }
+  }
+}
+
+function rptGetJobPackTiers(job){
+  if(!job) return [];
+  var pk = job.packingStd || {};
+  var tiers = [];
+  var bagPcs = parseInt(pk.pcsBag || job.packBagPcs, 10) || 0;
+  var bagName = String(pk.bagType || job.packBag || '').trim();
+  if(bagPcs > 0){
+    tiers.push({ key:'bag', label:'ถุง / Bag', unitLabel: bagName || 'ถุง', pcsPerUnit: bagPcs, icon:'👝' });
+  }
+  var boxPcs = parseInt(pk.pcsBox || job.packBoxPcs, 10) || 0;
+  var boxName = String(pk.boxCode || job.packBox || '').trim();
+  if(boxPcs > 0){
+    tiers.push({ key:'box', label:'กล่อง / Box', unitLabel: boxName || 'กล่อง', pcsPerUnit: boxPcs, icon:'📦' });
+  }
+  var boxCtn = parseInt(pk.boxCtn || job.packCrateBox, 10) || 0;
+  var ctnName = String(pk.ctnCode || job.packCrate || '').trim();
+  var pcsCtn = parseInt(pk.pcsCtn, 10) || 0;
+  if(!pcsCtn && boxPcs && boxCtn) pcsCtn = boxPcs * boxCtn;
+  if(pcsCtn > 0){
+    tiers.push({ key:'crate', label:'ลัง / Crate', unitLabel: ctnName || 'ลัง', pcsPerUnit: pcsCtn, icon:'🧱', sub: boxCtn ? (boxCtn + ' กล่อง/ลัง') : '' });
+  }
+  if(!tiers.length){
+    var pq = parseInt(job.packingQty || (pk && pk.qty), 10) || 0;
+    if(pq > 0){
+      tiers.push({ key:'unit', label:'Package', unitLabel: String(pk.unit || job.packingUnit || 'แพ็ค').trim() || 'แพ็ค', pcsPerUnit: pq, icon:'📦' });
+    }
+  }
+  return tiers;
+}
+
+function rptCalcPiecesFromPackCounts(tiers, counts){
+  var total = 0;
+  var parts = [];
+  tiers.forEach(function(t){
+    var n = parseInt(counts[t.key], 10) || 0;
+    if(n > 0){
+      var pcs = n * t.pcsPerUnit;
+      total += pcs;
+      parts.push(n.toLocaleString() + ' ' + t.unitLabel + ' × ' + t.pcsPerUnit.toLocaleString() + ' = ' + pcs.toLocaleString());
+    }
+  });
+  return { total: total, parts: parts };
+}
+
+function rptFormatPackRowSummary(row, tiers){
+  if(!tiers.length) return 'ไม่มี BOM';
+  var good = rptRowGoodInputValue(row) || 0;
+  if(row.packCounts){
+    var parts = [];
+    tiers.forEach(function(t){
+      var n = parseInt(row.packCounts[t.key], 10) || 0;
+      if(n > 0) parts.push(t.icon + ' ' + n);
+    });
+    if(parts.length) return parts.join(' ') + ' → ' + good.toLocaleString();
+  }
+  return good > 0 ? good.toLocaleString() + ' ชิ้น' : '📦 กรอก';
+}
+
+function openRptPackEntryModal(idx){
+  _rptPackEntryIdx = idx;
+  if(!currentRptKey || !dailyReports[currentRptKey]) return;
+  var rpt = dailyReports[currentRptKey];
+  var row = rpt.rows[idx];
+  var job = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === rpt.jobName; });
+  var tiers = rptGetJobPackTiers(job);
+  _rptPackEntryTiers = tiers;
+  if(!tiers.length){
+    if(typeof _infoToast === 'function') _infoToast('⚠️ ไม่พบ Package ใน BOM — ตั้งค่า Packing ใน BOM ก่อน หรือใช้โหมดกรอกตัวเลข');
+    return;
+  }
+  var title = document.getElementById('rpe-title');
+  if(title) title.textContent = '📦 ลง Package — ' + String(row.hour).padStart(2, '0') + ':00';
+  var ctx = document.getElementById('rpe-context');
+  if(ctx) ctx.innerHTML = '<strong>' + _rptEscAttr(rpt.jobName) + '</strong> · เครื่อง ' + _rptEscAttr(rpt.machine) + ' · ' + _rptEscAttr(row.shift);
+  var bomEl = document.getElementById('rpe-bom-info');
+  if(bomEl){
+    bomEl.innerHTML = tiers.map(function(t){
+      return '<div style="margin:4px 0"><span style="font-weight:700">' + t.icon + ' ' + t.label + '</span>: '
+        + '<span style="color:#3fb950;font-weight:700">' + t.pcsPerUnit.toLocaleString() + ' ชิ้น</span> / ' + _rptEscAttr(t.unitLabel)
+        + (t.sub ? ' <span style="color:var(--text3)">(' + t.sub + ')</span>' : '') + '</div>';
+    }).join('');
+  }
+  var fields = document.getElementById('rpe-fields');
+  if(fields){
+    var counts = row.packCounts || {};
+    fields.innerHTML = tiers.map(function(t){
+      var val = counts[t.key] != null ? counts[t.key] : '';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">'
+        + '<span style="font-size:22px;width:32px;text-align:center">' + t.icon + '</span>'
+        + '<div style="flex:1"><div style="font-size:12px;font-weight:700">' + t.label + '</div><div style="font-size:10px;color:var(--text3)">' + t.pcsPerUnit.toLocaleString() + ' ชิ้น / ' + _rptEscAttr(t.unitLabel) + '</div></div>'
+        + '<input type="number" class="rpe-pack-qty" data-tier="' + t.key + '" min="0" step="1" placeholder="0" value="' + (val !== '' ? val : '') + '" oninput="rptPackEntryPreview()" style="width:88px;padding:8px 10px;text-align:center;font-size:18px;font-weight:700;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">'
+        + '</label>';
+    }).join('');
+  }
+  rptPackEntryPreview();
+  openModal('modal-rpt-pack-entry');
+  setTimeout(function(){
+    var first = document.querySelector('#rpe-fields .rpe-pack-qty');
+    if(first) first.focus();
+  }, 80);
+}
+
+function rptPackEntryPreview(){
+  var counts = {};
+  document.querySelectorAll('#rpe-fields .rpe-pack-qty').forEach(function(inp){
+    counts[inp.dataset.tier] = inp.value;
+  });
+  var calc = rptCalcPiecesFromPackCounts(_rptPackEntryTiers, counts);
+  var gEl = document.getElementById('rpe-calc-good');
+  var dEl = document.getElementById('rpe-calc-detail');
+  if(gEl) gEl.textContent = calc.total.toLocaleString();
+  if(dEl) dEl.textContent = calc.parts.length ? calc.parts.join(' + ') : '—';
+}
+
+function saveRptPackEntry(){
+  if(_rptPackEntryIdx == null || !currentRptKey || !dailyReports[currentRptKey]) return;
+  var row = dailyReports[currentRptKey].rows[_rptPackEntryIdx];
+  var counts = {};
+  var hasAny = false;
+  document.querySelectorAll('#rpe-fields .rpe-pack-qty').forEach(function(inp){
+    var v = parseInt(inp.value, 10) || 0;
+    if(v > 0){ counts[inp.dataset.tier] = v; hasAny = true; }
+  });
+  if(!hasAny){
+    if(typeof _infoToast === 'function') _infoToast('⚠️ กรอกจำนวน Package อย่างน้อย 1 ระดับ');
+    return;
+  }
+  var calc = rptCalcPiecesFromPackCounts(_rptPackEntryTiers, counts);
+  if(calc.total <= 0){
+    if(typeof _infoToast === 'function') _infoToast('⚠️ ยอดคำนวณได้ 0 — ตรวจสอบจำนวน Package');
+    return;
+  }
+  row.packCounts = counts;
+  row._entryViaPack = true;
+  row.goodQty = calc.total;
+  rptSyncProducedFromGoodAndNg(row);
+  row._updatedAt = new Date().toISOString();
+  dailyReports[currentRptKey]._entryMode = 'package';
+  rptPersistDailyReports(true);
+  closeModal('modal-rpt-pack-entry');
+  _rptPackEntryIdx = null;
+  renderDailyRpt();
+  if(typeof _toast === 'function') _toast('✓ บันทึก ' + calc.total.toLocaleString() + ' ชิ้น (จาก Package)');
 }
 
 function rptLoadTTOptions(){
@@ -53952,6 +54172,30 @@ function _clRenderChart(){
   <div class="flex gap-2" style="justify-content:flex-end">
     <button class="btn btn-secondary" onclick="closeModal('modal-hr-entry')">ยกเลิก</button>
     <button class="btn btn-primary" onclick="saveHrEntry()">✓ บันทึกชั่วโมงนี้</button>
+  </div>
+</div>
+</div>
+
+<!-- ══════════ Package Entry Modal (ลงยอดตาม BOM) ══════════ -->
+<div class="modal-overlay" id="modal-rpt-pack-entry">
+<div class="modal" style="min-width:360px;max-width:520px;max-height:90vh;overflow-y:auto">
+  <div class="modal-header">
+    <div class="modal-title" id="rpe-title">📦 ลงยอดตาม Package</div>
+    <button class="modal-close" onclick="closeModal('modal-rpt-pack-entry')">✕</button>
+  </div>
+  <div id="rpe-context" style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.5"></div>
+  <div id="rpe-bom-info" style="margin-bottom:12px;padding:10px 12px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.25);border-radius:8px;font-size:11px"></div>
+  <div id="rpe-fields" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+  <div style="text-align:center;padding:12px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:4px">ยอดงานดีที่คำนวณได้</div>
+    <div id="rpe-calc-good" style="font-size:28px;font-weight:800;font-family:monospace;color:var(--green)">0</div>
+    <div style="font-size:10px;color:var(--text3)">ชิ้น (ก่อนบวก NG)</div>
+    <div id="rpe-calc-detail" style="font-size:10px;color:var(--text2);margin-top:6px"></div>
+  </div>
+  <p style="font-size:10px;color:var(--text3);margin-bottom:12px">💡 กรอกเฉพาะระดับที่นับจริงบนพื้น — หากกรอกหลายระดับ ระบบจะรวมเป็นชิ้นทั้งหมด</p>
+  <div class="flex gap-2" style="justify-content:flex-end">
+    <button class="btn btn-secondary" onclick="closeModal('modal-rpt-pack-entry')">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveRptPackEntry()">✓ ยืนยัน & บันทึก</button>
   </div>
 </div>
 </div>
