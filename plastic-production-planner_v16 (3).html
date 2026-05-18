@@ -31461,30 +31461,48 @@ function _rptRowsForShift(rpt,shiftKey){
     return found||{hour:h,target:0,produced:0,ngItems:[],operator:''};
   });
 }
+function _rptHourEffPct(r){
+  var tgt=r.target||0;
+  var g=rptRowGoodInputValue(r)||0;
+  if(tgt<=0) return null;
+  return Math.round((g/tgt)*1000)/10;
+}
 function _rptEffGraphSvg(rows){
+  var W=280,H=100,padL=18,padR=10,padT=8,padB=6;
+  var plotW=W-padL-padR,plotH=H-padT-padB,yMin=40,yMax=100;
+  function effY(pct){
+    var p=Math.max(yMin,Math.min(yMax,Number(pct)));
+    return padT+plotH*(1-(p-yMin)/(yMax-yMin));
+  }
+  function effX(i){
+    var n=rows.length;
+    return n<=1?padL+plotW/2:padL+(i/(n-1))*plotW;
+  }
+  var svg='';
+  [40,50,60,70,80,90,100].forEach(function(v){
+    var y=effY(v);
+    svg+='<line x1="'+padL+'" y1="'+y.toFixed(2)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(2)+'" stroke="#e8e8e8" stroke-width="0.45"/>';
+    svg+='<text x="2" y="'+(y+2).toFixed(2)+'" font-size="5.5" fill="#333">'+v+'</text>';
+  });
+  svg+='<text x="2" y="'+(padT-1)+'" font-size="5" fill="#666">%</text>';
+  var ty=effY(90);
+  svg+='<line x1="'+padL+'" y1="'+ty.toFixed(2)+'" x2="'+(W-padR)+'" y2="'+ty.toFixed(2)+'" stroke="#c00000" stroke-width="0.75" stroke-dasharray="4,2.5"/>';
+  svg+='<text x="'+(W-padR-42)+'" y="'+(ty-2).toFixed(2)+'" font-size="5.5" fill="#c00000" font-weight="700">TARGET = 90%</text>';
   var pts=[];
   rows.forEach(function(r,i){
-    var g=rptRowGoodInputValue(r)||0;
-    var pct=r.target>0?Math.round(g/r.target*100):0;
-    pct=Math.max(40,Math.min(100,pct||40));
-    var x=8+i*((100-16)/(rows.length-1||1));
-    var y=100-((pct-40)/60*88)-6;
-    pts.push({x:x,y:y,pct:pct});
+    var pct=_rptHourEffPct(r);
+    if(pct==null) return;
+    pts.push({x:effX(i),y:effY(pct),pct:pct});
   });
-  var poly=pts.map(function(p){ return p.x+','+p.y; }).join(' ');
-  var dots=pts.map(function(p){ return '<circle cx="'+p.x+'" cy="'+p.y+'" r="1.8" fill="#1a56db"/>'; }).join('');
-  var yLabels=[40,50,60,70,80,90,100].map(function(v){
-    var y=100-((v-40)/60*88)-6;
-    return '<text x="2" y="'+(y+2)+'" font-size="5" fill="#333">'+v+'</text>'
-      +'<line x1="14" y1="'+y+'" x2="100" y2="'+y+'" stroke="#ddd" stroke-width="0.3"/>';
-  }).join('');
-  return '<svg class="rpt-graph" viewBox="0 0 100 100" preserveAspectRatio="none">'
-    +yLabels
-    +'<line x1="14" y1="'+(100-((90-40)/60*88)-6)+'" x2="100" y2="'+(100-((90-40)/60*88)-6)+'" stroke="#c00000" stroke-width="0.6" stroke-dasharray="2,1.5"/>'
-    +'<text x="86" y="'+(100-((90-40)/60*88)-12)+'" font-size="4.5" fill="#c00000" font-weight="700">TARGET=90%</text>'
-    +(pts.length>1?'<polyline fill="none" stroke="#1a56db" stroke-width="0.8" points="'+poly+'"/>':'')
-    +dots
-    +'</svg>';
+  if(pts.length>1){
+    svg+='<polyline fill="none" stroke="#1a56db" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="'
+      +pts.map(function(p){ return p.x.toFixed(2)+','+p.y.toFixed(2); }).join(' ')+'"/>';
+  }
+  pts.forEach(function(p){
+    var col=p.pct>=90?'#1a6b2f':p.pct>0?'#1a56db':'#c00000';
+    svg+='<circle cx="'+p.x.toFixed(2)+'" cy="'+p.y.toFixed(2)+'" r="2.4" fill="'+col+'" stroke="#fff" stroke-width="0.4"/>';
+  });
+  return '<svg class="rpt-graph" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">'+svg+'</svg>';
 }
 function _rptQcCell(rpt,qi,shiftKey,h){
   var qcData=rpt.qcInspection||{};
@@ -31507,7 +31525,7 @@ function buildDailyRptShiftPage(rpt,j,rows,shiftKey,pageNum,totalPages){
     var tgt=r.target||0;
     var diff=prod-tgt;
     accT+=tgt; accP+=prod; accD+=diff;
-    var eff=tgt>0?((g/tgt)*100).toFixed(0):'';
+    var effPct=_rptHourEffPct(r); var eff=effPct!=null?String(Math.round(effPct)):'';
     var ngS=rptRowNgSum(r);
     var ngPct=prod>0?((ngS/prod)*100).toFixed(1)+'%':'';
     var ngCells=_RPT_NG_COLS.map(function(c){ return '<td>'+_rptNgQty(r,c)+'</td>'; }).join('');
@@ -31569,28 +31587,28 @@ function buildDailyRptShiftPage(rpt,j,rows,shiftKey,pageNum,totalPages){
     +'<div class="rpt-date">วันที่พิมพ์: '+today+'</div></td>'
     +'</tr></table>'
     +'<table class="rpt-info"><tr>'
-    +'<td class="rpt-info-l" rowspan="3">'
-    +'<div><span class="rpt-lbl">วันที่</span> '+_rptEsc(rpt.date||'')+'</div>'
-    +'<div><span class="rpt-lbl">ชื่อชิ้นงาน</span> '+_rptEsc(rpt.jobName||'')+'</div>'
-    +'<div><span class="rpt-lbl">Lot No.</span> '+_rptEsc(rpt.lotNo||'')+'</div>'
-    +'<div><span class="rpt-lbl">จำนวนสั่งผลิต</span> '+_rptEsc(rpt.orderQty||'-')+'</div>'
-    +'<div><span class="rpt-lbl">Cycle time</span> '+_rptEsc(j.ct||'-')+' วินาที</div>'
+    +'<td class="rpt-info-l">'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">วันที่</span> '+_rptEsc(rpt.date||'')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">ชื่อชิ้นงาน</span> '+_rptEsc(rpt.jobName||'')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">Lot No.</span> '+_rptEsc(rpt.lotNo||'')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">จำนวนสั่งผลิต</span> '+_rptEsc(rpt.orderQty||'-')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">Cycle time</span> '+_rptEsc(j.ct||'-')+' วินาที</div>'
   +'</td>'
-    +'<td class="rpt-info-m" rowspan="3">'
-    +'<div>'+chkDay+' เริ่มผลิต (กะเช้า) &nbsp; '+chkNight+' ผลิตต่อ (กะดึก)</div>'
-    +'<div><span class="rpt-lbl">งาน /7</span> ______ &nbsp; <span class="rpt-lbl">งาน /8</span> ______</div>'
-    +'<div><span class="rpt-lbl">หมายเลขเครื่องจักร</span> '+_rptEsc(rpt.machine||'')+'</div>'
-    +'<div><span class="rpt-lbl">หมายเลขแม่พิมพ์</span> '+_rptEsc(j.moldCode||rpt.moldNo||'-')+'</div>'
-    +'<div><span class="rpt-lbl">จำนวนคาวิตี้ที่เปิด</span> '+_rptEsc(j.cav||'-')+' &nbsp; <span class="rpt-lbl">ที่ไม่เปิด</span> ______</div>'
+    +'<td class="rpt-info-m">'
+    +'<div class="rpt-info-line">'+chkDay+' เริ่มผลิต (กะเช้า) &nbsp; '+chkNight+' ผลิตต่อ (กะดึก)</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">งาน /7</span> ______ &nbsp; <span class="rpt-lbl">งาน /8</span> ______</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">หมายเลขเครื่องจักร</span> '+_rptEsc(rpt.machine||'')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">หมายเลขแม่พิมพ์</span> '+_rptEsc(j.moldCode||rpt.moldNo||'-')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">จำนวนคาวิตี้ที่เปิด</span> '+_rptEsc(j.cav||'-')+' &nbsp; <span class="rpt-lbl">ที่ไม่เปิด</span> ______</div>'
     +'</td>'
     +'<td class="rpt-info-r">'
-    +'<div><span class="rpt-lbl">ชนิดเม็ด</span> '+_rptEsc(j.plastic||rpt.plastic||'-')+' &nbsp; <span class="rpt-lbl">เกรด</span> '+_rptEsc(j.grade||'-')+'</div>'
-    +'<div><span class="rpt-lbl">Batch (เม็ด)</span> '+_rptEsc(rpt.matBatch||'-')+' &nbsp; <span class="rpt-lbl">kg</span> ______</div>'
-    +'<div><span class="rpt-lbl">รหัสสี</span> '+_rptEsc(rpt.mbBatch||'-')+' &nbsp; <span class="rpt-lbl">Batch สี kg</span> ______</div>'
-    +'<div><span class="rpt-lbl">ลูกค้า</span> '+_rptEsc(j.customer||'-')+'</div>'
-    +'<div><span class="rpt-lbl">ยอดงานดีก่อนหน้า</span> ______</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">ชนิดเม็ด</span> '+_rptEsc(j.plastic||rpt.plastic||'-')+' &nbsp; <span class="rpt-lbl">เกรด</span> '+_rptEsc(j.grade||'-')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">Batch (เม็ด)</span> '+_rptEsc(rpt.matBatch||'-')+' &nbsp; <span class="rpt-lbl">kg</span> ______</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">รหัสสี</span> '+_rptEsc(rpt.mbBatch||'-')+' &nbsp; <span class="rpt-lbl">Batch สี kg</span> ______</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">ลูกค้า</span> '+_rptEsc(j.customer||'-')+'</div>'
+    +'<div class="rpt-info-line"><span class="rpt-lbl">ยอดงานดีก่อนหน้า</span> ______</div>'
     +'</td></tr></table>'
-    +'<div class="rpt-graph-wrap">'+_rptEffGraphSvg(rows)+'<div class="rpt-graph-x">'+graphX+'</div></div>'
+    +'<div class="rpt-graph-wrap"><div class="rpt-graph-body">'+_rptEffGraphSvg(rows)+'</div><div class="rpt-graph-x">'+graphX+'</div></div>'
     +'<table class="rpt-main"><colgroup>'
     +'<col class="c-tm"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-eff">'
     +_RPT_NG_COLS.map(function(){ return '<col class="c-ng">'; }).join('')
@@ -31652,9 +31670,9 @@ function buildDailyRptPrintDocument(rpt){
     +'.rpt-info td{border:1px solid #000;padding:2px 4px;font-size:7pt;vertical-align:top;line-height:1.35}'
     +'.rpt-info-l{width:28%}.rpt-info-m{width:32%}.rpt-info-r{width:40%}'
     +'.rpt-lbl{font-weight:700;font-size:6pt;color:#333}'
-    +'.rpt-graph-wrap{border:1px solid #000;height:22mm;margin-bottom:2px;position:relative;padding:1mm 1mm 4mm}'
-    +'.rpt-graph{width:100%;height:17mm;display:block}'
-    +'.rpt-graph-x{display:flex;justify-content:space-between;font-size:5pt;padding:0 12px 0 14px}'
+    +'.rpt-graph-wrap{border:1px solid #000;margin-bottom:2px;background:#fff}'+'.rpt-graph-body{height:26mm;padding:1mm 2mm 0}'
+    +'.rpt-graph{width:100%;height:24mm;display:block}'
+    +'.rpt-info-line{margin-bottom:1px;line-height:1.35}'+'.rpt-graph-x{display:flex;justify-content:space-between;font-size:5pt;padding:0 16px 1.5mm 18px}'
     +'.rpt-gx{flex:1;text-align:center;white-space:nowrap;overflow:hidden}'
     +'.rpt-main,.rpt-qc{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2px}'
     +'.rpt-main td,.rpt-main th,.rpt-qc td,.rpt-qc th{border:1px solid #000;padding:1px 2px;text-align:center;font-size:6pt;vertical-align:middle;line-height:1.15}'
