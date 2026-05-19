@@ -5944,9 +5944,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:11px">
       <span style="color:var(--text3);font-weight:600">เติมชื่อตามกะ (พิมพ์ครั้งเดียว แล้วกดปุ่ม):</span>
       <label style="display:flex;align-items:center;gap:4px"><span class="badge badge-blue" style="font-size:9px">กะเช้า</span><input id="rpt-op-day" type="text" list="rpt-emp-datalist" placeholder="ชื่อพนักงานกะเช้า" autocomplete="off" onchange="rptPersistQuickOps()" onblur="rptPersistQuickOps()" style="min-width:140px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px"></label>
-      <button type="button" onclick="rptApplyShiftOperator('กะเช้า')" style="padding:4px 10px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.35);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">เติมทุกชม. กะเช้า</button>
+      <button type="button" onclick="rptApplyShiftOperator('กะเช้า',event)" style="padding:4px 10px;background:rgba(56,139,253,0.15);border:1px solid rgba(56,139,253,0.35);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">เติมทุกช่อง กะเช้า</button>
       <label style="display:flex;align-items:center;gap:4px"><span class="badge badge-purple" style="font-size:9px">กะดึก</span><input id="rpt-op-night" type="text" list="rpt-emp-datalist" placeholder="ชื่อพนักงานกะดึก" autocomplete="off" onchange="rptPersistQuickOps()" onblur="rptPersistQuickOps()" style="min-width:140px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px"></label>
-      <button type="button" onclick="rptApplyShiftOperator('กะดึก')" style="padding:4px 10px;background:rgba(210,168,255,0.12);border:1px solid rgba(210,168,255,0.35);color:#d2a8ff;border-radius:6px;cursor:pointer;font-size:11px">เติมทุกชม. กะดึก</button>
+      <button type="button" onclick="rptApplyShiftOperator('กะดึก',event)" style="padding:4px 10px;background:rgba(210,168,255,0.12);border:1px solid rgba(210,168,255,0.35);color:#d2a8ff;border-radius:6px;cursor:pointer;font-size:11px">เติมทุกช่อง กะดึก</button>
     </div>
     <div style="overflow-x:auto">
       <div class="hr-row">
@@ -30399,6 +30399,29 @@ function rptHourOrder(h, shift){
   if(hh>=20) return hh;
   return hh+24;
 }
+/** ลำดับแถวที่แสดงในตาราง (sort + กรองกะ) — ต้องตรงกับ renderDailyRpt */
+function rptEnumerateVisibleRowIndices(){
+  if(!currentRptKey || !dailyReports[currentRptKey] || !dailyReports[currentRptKey].rows) return [];
+  var rpt = dailyReports[currentRptKey];
+  var renderRows = rpt.rows.slice().sort(function(a,b){
+    return rptHourOrder(a.hour, a.shift) - rptHourOrder(b.hour, b.shift);
+  });
+  var out = [];
+  renderRows.forEach(function(r){
+    var idx = rpt.rows.indexOf(r);
+    if(_rptShiftFilter !== 'all' && r.shift !== _rptShiftFilter) return;
+    out.push(idx);
+  });
+  return out;
+}
+function rptGetDomRowForDataIdx(idx){
+  var direct = document.querySelector('#rpt-hourly-rows .hr-row[data-rpt-idx="'+idx+'"]');
+  if(direct) return direct;
+  var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
+  var vis = rptEnumerateVisibleRowIndices();
+  var pos = vis.indexOf(idx);
+  return pos >= 0 ? rows[pos] : null;
+}
 
 function _rptEscAttr(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
@@ -30458,28 +30481,97 @@ function rptNormalizeHourlyRowsInPlace(rpt){
     rptSyncProducedFromGoodAndNg(row);
   });
 }
-function rptApplyShiftOperator(shift){
+function rptGetScrollState(){
+  var pv = document.getElementById('pv-content');
+  return {
+    pv: pv ? pv.scrollTop : 0,
+    win: window.scrollY || document.documentElement.scrollTop || 0,
+    body: document.body.scrollTop || 0
+  };
+}
+function rptGetScrollAnchor(){
+  var st = rptGetScrollState();
+  var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
+  var pv = document.getElementById('pv-content');
+  if(!rows.length || !pv) return { pv: st.pv, win: st.win, dataIdx: null };
+  var pvRect = pv.getBoundingClientRect();
+  var vis = rptEnumerateVisibleRowIndices();
+  for(var i = 0; i < rows.length; i++){
+    var rect = rows[i].getBoundingClientRect();
+    if(rect.bottom > pvRect.top + 48 && rect.top < pvRect.bottom - 24){
+      return { pv: st.pv, win: st.win, dataIdx: vis[i] != null ? vis[i] : null };
+    }
+  }
+  return { pv: st.pv, win: st.win, dataIdx: null };
+}
+function rptRestoreScrollState(st){
+  if(!st) return;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      var pv = document.getElementById('pv-content');
+      if(pv && typeof st.pv === 'number') pv.scrollTop = st.pv;
+      if(typeof st.win === 'number') window.scrollTo(0, st.win);
+      if(typeof st.body === 'number' && st.body) document.body.scrollTop = st.body;
+    });
+  });
+}
+function rptRestoreScrollAnchor(anchor){
+  if(!anchor) return;
+  rptRestoreScrollState(anchor);
+  if(anchor.dataIdx == null) return;
+  requestAnimationFrame(function(){
+    var dom = rptGetDomRowForDataIdx(anchor.dataIdx);
+    if(dom) dom.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  });
+}
+
+function rptRowMatchesShift(r, shift){
+  if(!r) return false;
+  var h = rptNormHour(r.hour);
+  var canonical = Number.isFinite(h) ? rptCanonicalShiftForHour(h) : (r.shift || '');
+  return canonical === shift || r.shift === shift;
+}
+
+function rptApplyShiftOperator(shift, ev){
+  if(ev && ev.preventDefault) ev.preventDefault();
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
   rptPersistQuickOps();
   var rpt = dailyReports[currentRptKey];
-  var name = (shift==='กะเช้า' ? (rpt._quickOpDay||document.getElementById('rpt-op-day')?.value||'') : (rpt._quickOpNight||document.getElementById('rpt-op-night')?.value||'')).trim();
+  rptNormalizeHourlyRowsInPlace(rpt);
+  var dayInp = document.getElementById('rpt-op-day');
+  var nightInp = document.getElementById('rpt-op-night');
+  var name = (shift==='กะเช้า'
+    ? ((dayInp && dayInp.value) || rpt._quickOpDay || '')
+    : ((nightInp && nightInp.value) || rpt._quickOpNight || '')).trim();
   if(!name){
     if(typeof _toast==='function') _toast('⚠️ ใส่ชื่อพนักงานในช่อง '+shift+' ด้านบนก่อน');
     else if(typeof _infoToast==='function') _infoToast('ใส่ชื่อพนักงานในช่อง '+shift+' ก่อน');
     return;
   }
-  if(shift==='กะเช้า') rpt._quickOpDay = name; else rpt._quickOpNight = name;
+  if(shift==='กะเช้า'){ rpt._quickOpDay = name; if(dayInp) dayInp.value = name; }
+  else { rpt._quickOpNight = name; if(nightInp) nightInp.value = name; }
+  var scrollAnchor = rptGetScrollAnchor();
   var ts = new Date().toISOString();
   var n = 0;
   rpt.rows.forEach(function(r, i){
-    if(r.shift===shift){ r.operator = name; r._updatedAt = ts; n++; rptRefreshHourRowDom(i); }
+    if(!rptRowMatchesShift(r, shift)) return;
+    r.shift = shift;
+    r.operator = name;
+    r._updatedAt = ts;
+    n++;
   });
   rpt._updatedAt = ts;
   rptPersistDailyReports(true);
+  if(n) renderDailyRpt({ preserveScroll: true, scrollAnchor: scrollAnchor });
+  if(!n){
+    if(typeof _infoToast==='function') _infoToast('⚠️ ไม่พบชั่วโมงของ'+shift+' (ลองเลือก «ทุกกะ» ที่ตัวกรอง)');
+    return;
+  }
   if(typeof _toast==='function') _toast('👷 เติมชื่อ «'+name+'» ทุกชั่วโมง '+shift+' ('+n+' ชม.) แล้ว');
 }
 
 var _rptDailyReportsSaveTimer = null;
+var _rptDeferSyncReloadTimer = null;
 /** บันทึก dailyReports ลง localStorage — immediate=true บันทึกทันที; false = debounce ~350ms (ลดภาระตอนพิมพ์) */
 function rptPersistDailyReports(immediate){
   var write = function(){
@@ -30490,10 +30582,12 @@ function rptPersistDailyReports(immediate){
       }
       if(typeof dailyReports!=='undefined')
         localStorage.setItem('_dailyReports', JSON.stringify(dailyReports));
-      try{
-        if(typeof fgSyncProductionFromCurrentReport==='function'&&typeof currentRptKey!=='undefined'&&currentRptKey&&dailyReports[currentRptKey])
-          fgSyncProductionFromCurrentReport(dailyReports[currentRptKey]);
-      }catch(_){}
+      if(immediate){
+        try{
+          if(typeof fgSyncProductionFromCurrentReport==='function'&&typeof currentRptKey!=='undefined'&&currentRptKey&&dailyReports[currentRptKey])
+            fgSyncProductionFromCurrentReport(dailyReports[currentRptKey]);
+        }catch(_){}
+      }
     }catch(e){}
   };
   if(immediate){
@@ -30564,8 +30658,10 @@ function loadDailyRpt(){
 
 function renderDailyRpt(opts){
   opts = opts || {};
-  var scrollEl = document.getElementById('pv-content') || document.querySelector('#page-dailyrpt .page') || null;
-  var savedScroll = (opts.preserveScroll && scrollEl) ? scrollEl.scrollTop : 0;
+  var keepScroll = !!(opts.preserveScroll || opts.restoreScroll || (opts.scrollAnchor && currentRptKey));
+  if(opts.preserveScroll == null && currentRptKey && !opts.scrollToTable) keepScroll = true;
+  var scrollAnchor = opts.scrollAnchor || (keepScroll ? rptGetScrollAnchor() : null);
+  var scrollSt = keepScroll && !scrollAnchor ? rptGetScrollState() : null;
   var rpt = currentRptKey ? dailyReports[currentRptKey] : null;
   if(!rpt){
     document.getElementById('rpt-empty').style.display='block';
@@ -30687,7 +30783,7 @@ function renderDailyRpt(opts){
     var ngBadges = ngItems.map(function(n){
       return '<span style="background:rgba(248,81,73,0.15);color:#f85149;border-radius:4px;padding:1px 5px;font-size:9px;white-space:nowrap;cursor:pointer" onclick="openHrEntryModal('+idx+')">'+n.defect+' '+n.qty+'</span>';
     }).join(' ');
-    html += '<div class="hr-row" style="background:'+shiftCol+';">';
+    html += '<div class="hr-row" data-rpt-idx="'+idx+'" style="background:'+shiftCol+';">';
     html += '<div class="hr-cell"><span class="mono" style="font-size:12px;font-weight:700">'+String(r.hour).padStart(2,'0')+':00</span></div>';
     html += '<div class="hr-cell"><span class="badge '+(r.shift==='กะเช้า'?'badge-blue':'badge-purple')+'" style="font-size:9px">'+r.shift+'</span></div>';
     html += '<div class="hr-cell" style="min-width:120px"><input class="hr-input" type="text" list="rpt-emp-datalist" value="'+_rptEscAttr(r.operator||'')+'" placeholder="พิมพ์ค้นหา..." autocomplete="off" onchange="updateRptRow('+idx+',\'operator\',this.value)" onblur="updateRptRow('+idx+',\'operator\',this.value)" style="width:100%;max-width:140px;font-size:10px;padding:2px 4px"></div>';
@@ -30799,8 +30895,10 @@ function renderDailyRpt(opts){
     if(rptMachineOrders(rpt.machine, rpt.date).length > 1) _rptCheckMultiOrder(rpt.machine, rpt.date);
   }
 
-  if(opts.preserveScroll && scrollEl && savedScroll > 0){
-    requestAnimationFrame(function(){ scrollEl.scrollTop = savedScroll; });
+  if(scrollAnchor){
+    rptRestoreScrollAnchor(scrollAnchor);
+  } else if(scrollSt){
+    rptRestoreScrollState(scrollSt);
   } else if(opts.scrollToTable){
     var tblGo = document.getElementById('rpt-table-wrap');
     if(tblGo) setTimeout(function(){ tblGo.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 80);
@@ -30809,6 +30907,7 @@ function renderDailyRpt(opts){
 
 function updateRptRow(idx, field, val){
   if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  var scrollAnchor = (field==='operator'||field==='goodQty'||field==='produced') ? rptGetScrollAnchor() : null;
   var row = dailyReports[currentRptKey].rows[idx];
   if(field==='goodQty'){
     if(val===''||val===null||typeof val==='undefined'){
@@ -30835,35 +30934,11 @@ function updateRptRow(idx, field, val){
   var rpt = dailyReports[currentRptKey];
   var r   = row;
   if(field==='produced'||field==='goodQty'||field==='operator'){
-    var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
-    var rendered = 0;
-    rpt.rows.forEach(function(row2, i){
-      if(_rptShiftFilter!=='all' && row2.shift!==_rptShiftFilter) return;
-      if(i===idx){
-        var domRow = rows[rendered];
-        if(domRow){
-          var cells = domRow.querySelectorAll('.hr-cell');
-          var okGood = rptRowGoodInputValue(r)||0;
-          var effHr = r.target>0 ? Math.round(okGood/r.target*100) : 0;
-          var effCol = effHr>=90?'var(--green)':effHr>=70?'var(--yellow)':'var(--red)';
-          var prodOut = cells[4] && cells[4].querySelector ? cells[4].querySelector('.hr-prod-out') : null;
-          if(prodOut) prodOut.textContent = String(r.produced!=null&&r.produced!==''?Number(r.produced):0);
-          var gCell = cells[5];
-          var gInp = gCell && gCell.querySelector ? gCell.querySelector('input.hr-good') : null;
-          if(gInp) gInp.value = String(rptRowGoodInputValue(r));
-          else if(gCell && typeof rptFormatPackRowSummary === 'function' && currentRptKey && dailyReports[currentRptKey] && rptGetEntryMode(dailyReports[currentRptKey]) === 'package'){
-            var _pj = (typeof jobs !== 'undefined' ? jobs : []).find(function(j){ return j.name === dailyReports[currentRptKey].jobName; });
-            var packBtn = gCell.querySelector('button');
-            if(packBtn) packBtn.textContent = rptFormatPackRowSummary(r, rptGetJobPackTiers(_pj));
-          }
-          if(cells[8]) cells[8].innerHTML = ((r.produced||0)>0||okGood>0) ? '<span class="mono" style="color:'+effCol+';font-size:12px;font-weight:700">'+effHr+'%</span>' : '-';
-        }
-      }
-      rendered++;
-    });
+    rptRefreshHourRowDom(idx);
   }
   rptUpdateSummary();
   rptPersistDailyReports(false);
+  if(scrollAnchor) rptRestoreScrollAnchor(scrollAnchor);
 }
 
 /** อัปเดตแถวรายชั่วโมงเดียว — ไม่ re-render ทั้งตาราง (ลดอาการ scroll กระโดด) */
@@ -30872,16 +30947,13 @@ function rptRefreshHourRowDom(idx){
   var rpt = dailyReports[currentRptKey];
   var r = rpt.rows[idx];
   if(!r) return;
-  var rows = document.querySelectorAll('#rpt-hourly-rows .hr-row');
-  var rendered = 0;
-  var domRow = null;
-  rpt.rows.forEach(function(row2, i){
-    if(_rptShiftFilter !== 'all' && row2.shift !== _rptShiftFilter) return;
-    if(i === idx) domRow = rows[rendered];
-    rendered++;
-  });
+  var domRow = rptGetDomRowForDataIdx(idx);
   if(!domRow) return;
   var cells = domRow.querySelectorAll('.hr-cell');
+  if(cells[2]){
+    var opInp = cells[2].querySelector('input');
+    if(opInp) opInp.value = r.operator || '';
+  }
   var okGood = rptRowGoodInputValue(r) || 0;
   var effHr = r.target > 0 ? Math.round(okGood / r.target * 100) : 0;
   var effCol = effHr >= 90 ? 'var(--green)' : effHr >= 70 ? 'var(--yellow)' : 'var(--red)';
@@ -34567,9 +34639,10 @@ function rptFillOperatorsFromHR(){
   if(!machEmp.length) machEmp = empSrc;
   if(!machEmp.length){ if(typeof _toast==='function') _toast('ไม่พบพนักงานที่ผูกกับเครื่อง '+rpt.machine); return; }
   rpt.rows.forEach(function(r,i){
-    if(!r.operator){ r.operator = machEmp[i % machEmp.length].name; rptRefreshHourRowDom(i); }
+    if(!r.operator){ r.operator = machEmp[i % machEmp.length].name; }
   });
   rptPersistDailyReports(true);
+  renderDailyRpt({ preserveScroll: true });
   if(typeof _toast==='function') _toast('👷 เติมชื่อพนักงาน '+machEmp.map(function(e){return e.name;}).join(', ')+' แล้ว');
 }
 
@@ -36682,7 +36755,12 @@ function renderPage(id){
     if(maMon&&!maMon.value) maMon.value=new Date().toISOString().substring(0,7);
   }
   else if(id==='approvalproc'){ renderApprovalProcList(); }
-  else if(id==='dailyrpt') initDailyRptPage();
+  else if(id==='dailyrpt'){
+    initDailyRptPage();
+    if(currentRptKey && dailyReports[currentRptKey] && typeof renderDailyRpt === 'function'){
+      renderDailyRpt({ preserveScroll: true });
+    }
+  }
   else if(id==='nganalysis') renderNgAnalysis();
   else if(id==='traceability') clearTrace();
   else if(id==='batchstock'){
@@ -36734,7 +36812,9 @@ function renderPage(id){
   }
   if(typeof scrollPvContentToActivePage==='function'){
     setTimeout(function(){
-      if(_pageDomIdFromPage(window._currentPage||'')===id) scrollPvContentToActivePage(id);
+      if(_pageDomIdFromPage(window._currentPage||'') !== id) return;
+      if(id === 'dailyrpt' && currentRptKey && dailyReports[currentRptKey]) return;
+      scrollPvContentToActivePage(id);
     }, 100);
   }
 }
@@ -48562,10 +48642,19 @@ function pmfReloadFromStorage(){
       mpc.forEach(function(x){ mixProdReceiveConfirms.push(x); });
     }
   }catch(e){}
-  // Re-render หน้าปัจจุบันถ้าผู้ใช้กำลังเปิดอยู่ — ใช้ renderPage แทน showPage
-  // เพื่อไม่ดัน navigation/scroll
+  // Re-render หน้าปัจจุบัน — ใบรายงานผลิต: refresh ตารางอย่างเดียว + คงตำแหน่ง scroll
   try{
-    if(window._currentPage && typeof renderPage==='function'){
+    if(window._currentPage === 'dailyrpt' && typeof renderDailyRpt === 'function'){
+      var _ae = document.activeElement;
+      if(_ae && _ae.closest && _ae.closest('#rpt-hourly-rows')){
+        if(_rptDeferSyncReloadTimer) clearTimeout(_rptDeferSyncReloadTimer);
+        _rptDeferSyncReloadTimer = setTimeout(function(){
+          _rptDeferSyncReloadTimer = null;
+          if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
+        }, 900);
+      } else if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
+      else if(typeof initDailyRptPage === 'function') initDailyRptPage();
+    } else if(window._currentPage && typeof renderPage==='function'){
       renderPage(_pageDomIdFromPage(window._currentPage) || window._currentPage);
     }
   }catch(e){}
@@ -58608,7 +58697,7 @@ function deleteDailyRpt(){
     delete dailyReports[currentRptKey];
     currentRptKey=null; window.currentRptKey=null;
     try{ localStorage.setItem('_dailyReports',JSON.stringify(dailyReports)); }catch(e){}
-    renderDailyRpt();
+    renderDailyRpt({ preserveScroll: false, scrollToTable: false });
     if(typeof _toast==='function') _toast('🗑 ลบรายงานแล้ว');
   });
 }
