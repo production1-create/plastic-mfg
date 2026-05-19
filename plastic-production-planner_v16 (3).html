@@ -7857,7 +7857,19 @@ function saveJobRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedu
 function getJobById(id){
   var s=String(id==null?'':id).trim();
   if(!s) return null;
-  return JOB_REGISTRY.find(function(j){ return j && String(j.id)===s; })||null;
+  return JOB_REGISTRY.find(function(j){ return j && !j._deleted && String(j.id)===s; })||null;
+}
+function _pmfAfterLocalSave(){
+  window._pmfSkipSyncReloadUntil = Date.now() + 3500;
+  try{
+    if(window.parent && window.parent !== window)
+      window.parent.postMessage({ type:'pmf-save-now' }, '*');
+  }catch(_){}
+}
+function _rptRequireOpen(){
+  if(currentRptKey && dailyReports[currentRptKey]) return true;
+  if(typeof _infoToast==='function') _infoToast('กรุณาเปิดรายงานก่อน (เลือกเครื่อง + วันที่ แล้วกด โหลดรายงาน)');
+  return false;
 }
 function getJobByName(name){
   var raw=String(name||'').trim();
@@ -8602,15 +8614,22 @@ function jobEffectiveWtPerPc(job, fallbackG){
 function findJobByFlexibleName(jobName){
   var raw=String(jobName||'').trim();
   if(!raw) return null;
+  if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
   var list=(typeof jobs!=='undefined'&&jobs)?jobs:[];
-  if(!list.length) return null;
   var nrm=_normalizeText(raw), col=jobNameCollapseSpaces(raw);
-  var j=list.find(function(jj){ return jj&&jj.name===raw&&!jj._deleted; });
-  if(j) return j;
-  j=list.find(function(jj){ return jj&&jj.name&&!jj._deleted&&_normalizeText(jj.name)===nrm; });
-  if(j) return j;
-  j=list.find(function(jj){ return jj&&jj.name&&!jj._deleted&&jobNameCollapseSpaces(jj.name)===col; });
-  return j||null;
+  if(list.length){
+    var j=list.find(function(jj){ return jj&&jj.name===raw&&!jj._deleted; });
+    if(j) return j;
+    j=list.find(function(jj){ return jj&&jj.name&&!jj._deleted&&_normalizeText(jj.name)===nrm; });
+    if(j) return j;
+    j=list.find(function(jj){ return jj&&jj.name&&!jj._deleted&&jobNameCollapseSpaces(jj.name)===col; });
+    if(j) return j;
+  }
+  if(typeof getJobByName==='function'){
+    var jr=getJobByName(raw);
+    if(jr) return jr;
+  }
+  return null;
 }
 /** อัปเดต plastic ใน ttData ให้ตรงกับ BOM ปัจจุบัน (หลังแก้ทะเบียนงาน) */
 function ttRefreshPlasticFromJobs(){
@@ -9522,6 +9541,7 @@ function saveOrderModal(withTT){
     renderOrders();
     if(withTT) importToTT(no);
     if(typeof _toast==='function') _toast('✅ บันทึกการแก้ไข Order '+no);
+    _pmfAfterLocalSave();
     var savedO2 = orders[idx];
     if(typeof orderScheduleBehindDue==='function' && orderScheduleBehindDue(savedO2) && typeof _toast==='function'){
       _toast('⚠️ แผนนี้คาดว่าไม่ทันกำหนดส่ง — เปิดแท็บ «ขอ OT / ประวัติ»');
@@ -9541,6 +9561,7 @@ function saveOrderModal(withTT){
   renderOrders();
   if(withTT) importToTT(no);
   if(typeof _toast==='function') _toast('✅ เพิ่ม Order '+no+(withTT?' และนำเข้า TT':''));
+  _pmfAfterLocalSave();
   if(typeof orderScheduleBehindDue==='function' && orderScheduleBehindDue(o) && typeof _toast==='function'){
     _toast('⚠️ แผนนี้คาดว่าไม่ทันกำหนดส่ง — เปิดแท็บ «ขอ OT / ประวัติ»');
   }
@@ -13101,6 +13122,7 @@ function jeCustChange(){
 }
 
 function jobregSave(){
+  try{
   var id=document.getElementById('je-id').value;
   var name=document.getElementById('je-name').value.trim();
   if(!name){if(typeof _infoToast==="function") _infoToast('กรุณากรอกชื่องาน');return;}
@@ -13128,7 +13150,7 @@ function jobregSave(){
     mb:document.getElementById('je-mb').value.trim()||'-',
     mbRatio:(function(){ var m=document.getElementById('je-mb').value.trim(); return m?parseFloat(document.getElementById('je-mbratio').value)||0:0; })(),
     cavity:cav,cycleTime:ct,efficiency:eff,targetPerHr:tgt,
-    wt:parseFloat(document.getElementById('je-wt').value)||0,
+    wt:parseFloat((document.getElementById('je-wt')||{}).value)||0,
     process:document.getElementById('je-process').value.trim(),
     processDetail:document.getElementById('je-process-detail')?document.getElementById('je-process-detail').value.trim():'',
     moldCode:document.getElementById('je-moldcode').value.trim(),
@@ -13177,6 +13199,11 @@ function jobregSave(){
   if(typeof renderBom==='function' && window._currentPage==='bom') renderBom();
   if(typeof bomRefreshBomNameDatalist==='function') bomRefreshBomNameDatalist();
   if(typeof _toast==='function') _toast('✅ บันทึกงาน '+name+' แล้ว');
+  _pmfAfterLocalSave();
+  }catch(err){
+    console.error('jobregSave', err);
+    if(typeof _infoToast==='function') _infoToast('บันทึกงานไม่สำเร็จ: '+(err&&err.message?err.message:String(err)));
+  }
 }
 
 function jobregExport(){
@@ -13239,11 +13266,20 @@ function renderEmpRegistry(){
   }).join('')||'<tr><td colspan="11" style="padding:30px;text-align:center;color:var(--text3)">ไม่พบพนักงาน</td></tr>';
 }
 
+function nextEmpRegistryId(){
+  var max=0;
+  (EMPLOYEE_REGISTRY||[]).forEach(function(e){
+    if(!e||e._deleted) return;
+    var m=String(e.id||'').match(/^EMP-(\d+)$/i);
+    if(m) max=Math.max(max, parseInt(m[1],10));
+  });
+  return 'EMP-'+String(max+1).padStart(3,'0');
+}
 function empregAdd(){
   document.getElementById('ee-orig-id').value='';
   document.getElementById('empedit-title').textContent='👤 เพิ่มพนักงานใหม่';
   ['name','position','phone','skills','remark'].forEach(function(f){var el=document.getElementById('ee-'+f);if(el)el.value='';});
-  document.getElementById('ee-id').value='EMP-'+String(EMPLOYEE_REGISTRY.length+1).padStart(3,'0');
+  document.getElementById('ee-id').value=nextEmpRegistryId();
   document.getElementById('ee-startdate').value=new Date().toISOString().split('T')[0];
   document.getElementById('ee-gender').value='ชาย';
   document.getElementById('ee-dept').value='ฉีดพลาสติก';
@@ -13295,11 +13331,22 @@ function empregSave(){
     status:document.getElementById('ee-status').value,
     remark:document.getElementById('ee-remark').value.trim()
   };
+  if(!origId){
+    var dupIdx=EMPLOYEE_REGISTRY.findIndex(function(e){ return e && !e._deleted && e.id===newId; });
+    if(dupIdx>=0){
+      newId=nextEmpRegistryId();
+      var idEl=document.getElementById('ee-id');
+      if(idEl) idEl.value=newId;
+      obj.id=newId;
+    }
+  }
   var idToFind=origId||newId;
-  var idx2=EMPLOYEE_REGISTRY.findIndex(function(e){return e.id===idToFind;});
+  var idx2=EMPLOYEE_REGISTRY.findIndex(function(e){ return e && String(e.id)===String(idToFind); });
   var prevEmp=idx2>=0?EMPLOYEE_REGISTRY[idx2]:null;
   if(prevEmp&&prevEmp.skillScores) obj.skillScores=prevEmp.skillScores;
   else obj.skillScores='{}';
+  obj._deleted=false;
+  obj.updatedAt=new Date().toISOString();
   if(idx2>=0) EMPLOYEE_REGISTRY[idx2]=obj; else EMPLOYEE_REGISTRY.push(obj);
   saveEmployeeRegistry();
   if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
@@ -13310,6 +13357,7 @@ function empregSave(){
     renderOrgChart();
   }
   if(typeof _toast==='function') _toast('✅ บันทึกพนักงาน '+name+' แล้ว');
+  _pmfAfterLocalSave();
 }
 
 function empregExport(){
@@ -27886,9 +27934,21 @@ function openModal(id){
     if(soDate&&!soDate.value) soDate.value=today;
   }
   if(id==='modal-add-order'){
+    if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry();
     const ojSel=document.getElementById('order-job');
-    if(ojSel&&ojSel.options.length<=1){
-      ojSel.innerHTML='<option value="">-- เลือกงาน --</option>'+jobs.map(j=>`<option value="${j.name}">${j.name}</option>`).join('');
+    if(ojSel){
+      var _jobNames=new Set(), _jobOpts=[];
+      (JOB_REGISTRY||[]).forEach(function(jr){
+        if(!jr||jr._deleted||!jr.name||_jobNames.has(jr.name)) return;
+        _jobNames.add(jr.name);
+        _jobOpts.push('<option value="'+_escAttr(jr.name)+'">'+_escHtml(jr.name)+'</option>');
+      });
+      (jobs||[]).forEach(function(j){
+        if(!j||j._deleted||!j.name||_jobNames.has(j.name)) return;
+        _jobNames.add(j.name);
+        _jobOpts.push('<option value="'+_escAttr(j.name)+'">'+_escHtml(j.name)+'</option>');
+      });
+      ojSel.innerHTML='<option value="">-- เลือกงาน --</option>'+_jobOpts.join('');
     }
     const omSel=document.getElementById('order-machine');
     if(omSel&&omSel.options.length<=1){
@@ -30585,6 +30645,19 @@ function rptNormalizeHourlyRowsInPlace(rpt){
     rptSyncProducedFromGoodAndNg(row);
   });
 }
+(function(){
+  if(window._rptFocusGuardBound) return;
+  window._rptFocusGuardBound = true;
+  document.addEventListener('focusin', function(e){
+    if(e.target && e.target.closest && e.target.closest('#rpt-hourly-rows'))
+      window._pmfUserEditing = true;
+  });
+  document.addEventListener('focusout', function(e){
+    if(e.target && e.target.closest && e.target.closest('#rpt-hourly-rows'))
+      setTimeout(function(){ window._pmfUserEditing = false; }, 1500);
+  });
+})();
+
 function rptGetScrollState(){
   var pv = document.getElementById('pv-content');
   return {
@@ -31010,7 +31083,7 @@ function renderDailyRpt(opts){
 }
 
 function updateRptRow(idx, field, val){
-  if(!currentRptKey||!dailyReports[currentRptKey]) return;
+  if(!_rptRequireOpen()) return;
   var scrollAnchor = (field==='operator'||field==='goodQty'||field==='produced') ? rptGetScrollAnchor() : null;
   var row = dailyReports[currentRptKey].rows[idx];
   if(field==='goodQty'){
@@ -31042,6 +31115,7 @@ function updateRptRow(idx, field, val){
   }
   rptUpdateSummary();
   rptPersistDailyReports(false);
+  window._pmfSkipSyncReloadUntil = Date.now() + 2000;
   if(scrollAnchor) rptRestoreScrollAnchor(scrollAnchor);
 }
 
@@ -31194,9 +31268,9 @@ function hreAddNgRow(){
 }
 
 function openHrEntryModal(idx){
+  if(!_rptRequireOpen()) return;
   _hrEntryIdx = idx;
   rptSelectHourRow(idx);
-  if(!currentRptKey || !dailyReports[currentRptKey]) return;
   var rpt = dailyReports[currentRptKey];
   var r   = rpt.rows[idx];
   var el  = function(id){ return document.getElementById(id); };
@@ -31283,7 +31357,7 @@ function openHrEntryModal(idx){
 }
 
 function saveHrEntry(){
-  if(_hrEntryIdx===null||!currentRptKey||!dailyReports[currentRptKey]) return;
+  if(_hrEntryIdx===null||!_rptRequireOpen()) return;
   var r  = dailyReports[currentRptKey].rows[_hrEntryIdx];
   var el = function(id){ return document.getElementById(id); };
   r.operator  = el('hre-operator')?.value||'';
@@ -31303,9 +31377,11 @@ function saveHrEntry(){
   rptPersistDailyReports(true);
   closeModal('modal-hr-entry');
   renderDailyRpt({ preserveScroll: true });
+  _pmfAfterLocalSave();
 }
 
 function openNgModal(idx){
+  if(!_rptRequireOpen()) return;
   currentNgHour=idx;
   const rpt=dailyReports[currentRptKey];
   const r=rpt.rows[idx];
@@ -31317,7 +31393,7 @@ function openNgModal(idx){
   openModal('modal-ng-detail');
 }
 function saveNgEntry(){
-  if(currentNgHour===null||!currentRptKey) return;
+  if(currentNgHour===null||!_rptRequireOpen()) return;
   const r=dailyReports[currentRptKey].rows[currentNgHour];
   r.ng=parseInt(document.getElementById('ng-qty').value)||0;
   r.ngDefect=upsertNgDefectName(document.getElementById('ng-defect-type').value)||'อื่นๆ';
@@ -31327,6 +31403,7 @@ function saveNgEntry(){
   rptPersistDailyReports(true);
   closeModal('modal-ng-detail');
   renderDailyRpt({ preserveScroll: true });
+  _pmfAfterLocalSave();
 }
 function openLtModal(idx){
   rptSelectHourRow(idx);
@@ -31417,7 +31494,7 @@ function addCustomLtReason(){
 }
 
 function saveDailyRpt(){
-  if(!currentRptKey) return;
+  if(!_rptRequireOpen()) return;
   var rpt = dailyReports[currentRptKey];
   if(!rpt) return;
   var supEl = document.getElementById('rpt-supervisor');
@@ -31468,6 +31545,7 @@ function saveDailyRpt(){
   } else {
     if(typeof _infoToast==="function") _infoToast('บันทึกรายงานสำเร็จ!\nเครื่อง: '+rpt.machine+' | วันที่: '+rpt.date);
   }
+  _pmfAfterLocalSave();
 }
 
 function rptUpdateNavBadge(){
@@ -42435,9 +42513,16 @@ function ttQAClose(){
 
 
 function saveApprovalProc(){
-  const id = document.getElementById('ap-doc-id').value;
-  const d  = approvalProcDocs.find(x=>x.id===id && apDocIsLive(x));
-  if(!d){ if(typeof _infoToast==="function") _infoToast('ไม่พบข้อมูลหรือใบนี้ถูกลบแล้ว'); return; }
+  const idEl = document.getElementById('ap-doc-id');
+  const id = (idEl && idEl.value) ? idEl.value : (window._apCurrentId || '');
+  if(!id){ if(typeof _infoToast==='function') _infoToast('กรุณาเลือกใบอนุมัติจากรายการก่อนบันทึก'); return; }
+  var d  = approvalProcDocs.find(function(x){ return x.id===id && apDocIsLive(x); });
+  if(!d){
+    d = approvalProcDocs.find(function(x){ return x.id===id; });
+    if(d) d._deleted=false;
+  }
+  if(!d){ if(typeof _infoToast==='function') _infoToast('ไม่พบข้อมูลหรือใบนี้ถูกลบแล้ว — เปิดใบจากรายการอีกครั้ง'); return; }
+  d._deleted=false;
   const prevStatus = d.status;
   var rad = document.querySelector('input[name="ap-status-radio"]:checked');
   var stFromUi = rad ? rad.value : (document.getElementById('ap-status')?.value||'รออนุมัติ');
@@ -42511,7 +42596,8 @@ function saveApprovalProc(){
     if(typeof renderApprovalLog==='function') renderApprovalLog();
   }
   renderApprovalProcList();
-  if(typeof _infoToast==="function") _infoToast('✅ บันทึกใบอนุมัติเรียบร้อย');
+  if(typeof _infoToast==='function') _infoToast('✅ บันทึกใบอนุมัติเรียบร้อย');
+  _pmfAfterLocalSave();
 }
 
 function addApChangeRow(){
@@ -48458,6 +48544,8 @@ function pmfTombstoneRegistryMatches(arr, ref, fieldChain, stamp){
   return n;
 }
 function pmfReloadFromStorage(){
+  if(window._pmfSkipSyncReloadUntil && Date.now() < window._pmfSkipSyncReloadUntil) return;
+  if(window._pmfUserEditing) return;
   try{
     var j = _pmfSafeParse('_jobs', null);
     if(Array.isArray(j) && typeof jobs!=='undefined'){
@@ -48751,11 +48839,7 @@ function pmfReloadFromStorage(){
     if(window._currentPage === 'dailyrpt' && typeof renderDailyRpt === 'function'){
       var _ae = document.activeElement;
       if(_ae && _ae.closest && _ae.closest('#rpt-hourly-rows')){
-        if(_rptDeferSyncReloadTimer) clearTimeout(_rptDeferSyncReloadTimer);
-        _rptDeferSyncReloadTimer = setTimeout(function(){
-          _rptDeferSyncReloadTimer = null;
-          if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
-        }, 900);
+        /* กำลังพิมพ์ในตาราง — ไม่ reload ทับข้อมูล */
       } else if(currentRptKey && dailyReports[currentRptKey]) renderDailyRpt({ preserveScroll: true });
       else if(typeof initDailyRptPage === 'function') initDailyRptPage();
     } else if(window._currentPage === 'bom'){

@@ -448,7 +448,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-jobreg-edit2"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-save-fix-all"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1598,7 +1598,8 @@
               // _ttData: แถวซ้ำจาก ttRowKey เก่า (ไม่มี orderNo) ทำให้ merge แล้วจำนวนแถวน้อยลง
               // แม้ข้อมูลถูกต้อง — ห้าม skip push ไม่งั้นการลบ Order ไม่ขึ้นคลาวด์
               // _rawMatStock: รวม synonym (AS121+AS SAN W) แล้วจำนวนคีย์ลด — ต้อง push ได้
-              const skipShrinkGuard = key === "_ttData" || key === "_approvalProcDocs" || key === "_rawMatStock";
+              const skipShrinkGuard = key === "_ttData" || key === "_approvalProcDocs" || key === "_rawMatStock"
+                || key === "_jobRegistry" || key === "_employeeRegistry" || key === "_orders" || key === "_dailyReports";
               if (!skipShrinkGuard && cntMerged >= 0 && cntRemote > 0 && cntMerged < cntRemote) {
                 skippedShrink++;
                 continue;
