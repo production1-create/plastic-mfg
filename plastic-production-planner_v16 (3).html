@@ -10119,7 +10119,9 @@ function _navHighlight(text, q){
     +_escHtml(text.slice(idx+q.length));
 }
 function _escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function _escAttr(s){ return String(s).replace(/'/g,'&#39;'); }
+function _escAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+}
 
 function navSearchHover(el){
   el.style.background = 'rgba(247,129,102,0.08)';
@@ -12678,24 +12680,20 @@ function _jobregEscJs(s){
   return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
 function _jobregBindTableActions(){
-  var tbody=document.getElementById('jobreg-tbody');
-  if(!tbody||tbody._jobregClickBound) return;
-  tbody._jobregClickBound=true;
-  tbody.addEventListener('click',function(e){
-    var editBtn=e.target.closest('.jobreg-edit-btn');
-    var delBtn=e.target.closest('.jobreg-del-btn');
-    if(editBtn){
-      e.preventDefault();
-      var id=editBtn.getAttribute('data-id');
-      if(id) jobregEdit(id);
-      return;
-    }
-    if(delBtn){
-      e.preventDefault();
-      var id2=delBtn.getAttribute('data-id');
-      if(id2) jobregDelete(id2);
-    }
-  });
+  /* ปุ่มแก้ไข/ลบ ใช้ onclick + data-id โดยตรง (เสถียรกว่า delegate หลัง re-render) */
+}
+function _jobregEnsureModalOnBody(){
+  var modal=document.getElementById('modal-job-edit');
+  if(!modal) return null;
+  if(modal.parentElement!==document.body) document.body.appendChild(modal);
+  modal.style.zIndex='10050';
+  return modal;
+}
+function _jobregSetField(id, val){
+  var el=document.getElementById(id);
+  if(!el) return;
+  if(el.type==='number') el.value=(val!=null&&val!=='')?String(val):'';
+  else el.value=val!=null?String(val):'';
 }
 function renderJobRegistry(){
   _jobregBindTableActions();
@@ -12766,13 +12764,17 @@ function renderJobRegistry(){
       +'<td style="padding:8px;font-size:10px;color:var(--text3)">'+(j.process||'—')+(j.processDetail?'<div style="font-size:9px;color:var(--text3);opacity:.9;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">↳ '+j.processDetail+'</div>':'')+'</td>'
       +'<td style="padding:8px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+sc+'18;color:'+sc+'">'+j.status+'</span></td>'
       +'<td style="padding:8px;text-align:center">'
-      +'<button type="button" class="jobreg-edit-btn" data-id="'+_escAttr(String(j.id||''))+'" title="แก้ไข" style="padding:4px 10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">✏️</button> '
-      +'<button type="button" class="jobreg-del-btn" data-id="'+_escAttr(String(j.id||''))+'" title="ลบ" style="'+_DEL_BTN+'">🗑</button></td>'
+      +'<button type="button" class="jobreg-edit-btn" data-id="'+_escAttr(String(j.id||''))+'" title="แก้ไข" onclick="event.stopPropagation();jobregEdit(this.getAttribute(\'data-id\'))" style="padding:4px 10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">✏️</button> '
+      +'<button type="button" class="jobreg-del-btn" data-id="'+_escAttr(String(j.id||''))+'" title="ลบ" onclick="event.stopPropagation();jobregDelete(this.getAttribute(\'data-id\'))" style="'+_DEL_BTN+'">🗑</button></td>'
       +'</tr>';
   }).join('')||'<tr><td colspan="12" style="padding:30px;text-align:center;color:var(--text3)">ไม่พบงานที่ตรงกัน</td></tr>';
 }
 
 function jobregAdd(){
+  if(!_jobregEnsureModalOnBody()){
+    if(typeof _infoToast==='function') _infoToast('ไม่พบหน้าต่างเพิ่มงาน — รีเฟรชหน้า');
+    return;
+  }
   document.getElementById('je-id').value='';
   document.getElementById('jobedit-title').textContent='📦 เพิ่มงานใหม่';
   ['name','plastic','grade','mb','moldcode','wicode','process','remark'].forEach(function(f){var el=document.getElementById('je-'+f);if(el)el.value='';});
@@ -12788,38 +12790,47 @@ function jobregAdd(){
 }
 
 function jobregEdit(id){
-  var j=getJobById(id);
-  if(!j){
-    if(typeof _infoToast==='function') _infoToast('ไม่พบงานรหัส «'+String(id||'')+'» — ลองรีเฟรชหน้า');
-    return;
+  try{
+    var sid=String(id==null?'':id).trim();
+    var j=getJobById(sid);
+    if(!j){
+      if(typeof _infoToast==='function') _infoToast('ไม่พบงานรหัส «'+sid+'» — ลองรีเฟรชหน้า');
+      return;
+    }
+    if(!_jobregEnsureModalOnBody()){
+      if(typeof _infoToast==='function') _infoToast('ไม่พบหน้าต่างแก้ไขงาน — รีเฟรชหน้า');
+      return;
+    }
+    openModal('modal-job-edit');
+    _jobregSetField('je-id', sid);
+    var titleEl=document.getElementById('jobedit-title');
+    if(titleEl) titleEl.textContent='📦 แก้ไข — '+String(j.name||'').substring(0,25);
+    _jobregSetField('je-name', j.name||'');
+    _jobregSetField('je-plastic', j.plastic||'');
+    _jobregSetField('je-grade', j.grade||'');
+    _jobregSetField('je-mb', (j.mb&&j.mb!=='-')?j.mb:'');
+    _jobregSetField('je-mbratio', j.mbRatio||'');
+    _jobregSetField('je-cavity', j.cavity||'');
+    _jobregSetField('je-ct', j.cycleTime||'');
+    _jobregSetField('je-eff', j.efficiency||'');
+    _jobregSetField('je-target', j.targetPerHr||'');
+    _jobregSetField('je-wt', (j.wt!=null&&j.wt!=='')?j.wt:'');
+    _jobregSetField('je-process', j.process||'');
+    _jobregSetField('je-process-detail', j.processDetail||'');
+    _jobregSetField('je-moldcode', j.moldCode||'');
+    _jobregSetField('je-wicode', j.wiCode||'');
+    _jobregSetField('je-packqty', j.packingQty||'');
+    _jobregSetField('je-packunit', j.packingUnit||'ชิ้น/กล่อง');
+    _jobregSetField('je-status', j.status||'active');
+    _jobregSetField('je-remark', j.remark||'');
+    _jobregPopulateDropdowns(j.customer,j.machine);
+    try{ jeInitModal(); }catch(_je){}
+    if(j.moldCode&&typeof jeSelectMold==='function') setTimeout(function(){ try{ jeSelectMold(j.moldCode); }catch(_){} }, 80);
+    if(j.plastic&&typeof jeOnPlasticChange==='function') setTimeout(function(){ try{ jeOnPlasticChange(); }catch(_){} }, 80);
+  }catch(err){
+    console.error('jobregEdit', err);
+    if(typeof _infoToast==='function') _infoToast('เปิดแก้ไขไม่ได้: '+(err&&err.message?err.message:String(err)));
   }
-  document.getElementById('je-id').value=id;
-  document.getElementById('jobedit-title').textContent='📦 แก้ไข — '+j.name.substring(0,25);
-  document.getElementById('je-name').value=j.name||'';
-  document.getElementById('je-plastic').value=j.plastic||'';
-  document.getElementById('je-grade').value=j.grade||'';
-  document.getElementById('je-mb').value=(j.mb&&j.mb!=='-')?j.mb:'';
-  document.getElementById('je-mbratio').value=j.mbRatio||'';
-  document.getElementById('je-cavity').value=j.cavity||'';
-  document.getElementById('je-ct').value=j.cycleTime||'';
-  document.getElementById('je-eff').value=j.efficiency||'';
-  document.getElementById('je-target').value=j.targetPerHr||'';
-  document.getElementById('je-wt').value=(j.wt!=null&&j.wt!=='')?j.wt:'';
-  document.getElementById('je-process').value=j.process||'';
-  if(document.getElementById('je-process-detail')) document.getElementById('je-process-detail').value=j.processDetail||'';
-  document.getElementById('je-moldcode').value=j.moldCode||'';
-  document.getElementById('je-wicode').value=j.wiCode||'';
-  document.getElementById('je-packqty').value=j.packingQty||'';
-  document.getElementById('je-packunit').value=j.packingUnit||'ชิ้น/กล่อง';
-  document.getElementById('je-status').value=j.status||'active';
-  document.getElementById('je-remark').value=j.remark||'';
-  _jobregPopulateDropdowns(j.customer,j.machine);
-  jeInitModal();
-  // Restore mold info if moldcode is set
-  if(j.moldCode) setTimeout(function(){jeSelectMold(j.moldCode);},80);
-  // Trigger plastic change to show stock info
-  if(j.plastic) setTimeout(function(){jeOnPlasticChange();},80);
-  openModal('modal-job-edit');
 }
 
 function _jobregPopulateDropdowns(selCust,selMach){
