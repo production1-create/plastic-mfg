@@ -448,7 +448,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-bom-search-wt"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-jobreg-sync"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1658,47 +1658,89 @@
       }
     }
 
+    function normalizePullSince(ts) {
+      if (!ts || typeof ts !== "string") return new Date(0).toISOString();
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return new Date(0).toISOString();
+      return d.toISOString();
+    }
+
+    /** PostgREST: ค่า timestamp ต้องอยู่ในเครื่องหมายคำพูด ไม่งั้น .000Z ทำให้ parse ผิด → HTTP 500 */
+    function pullSinceFilterValue(sinceIso) {
+      return encodeURIComponent('"' + normalizePullSince(sinceIso) + '"');
+    }
+
+    function applyPulledRows(w, rows) {
+      let maxUpdatedAt = lastPullAt;
+      rows.forEach((row) => {
+        let nextVal = row.storage_value;
+        if (MERGE_SKIP_KEYS.has(row.storage_key)) {
+          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+        } else if (usesStructuredMerge(row.storage_key)) {
+          let curVal = null;
+          try { curVal = w.localStorage.getItem(row.storage_key); } catch (e) {}
+          if (typeof curVal === "string") nextVal = mergeStorageKey(row.storage_key, curVal, row.storage_value);
+          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+        } else {
+          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+        }
+        if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+      });
+      lastPullAt = maxUpdatedAt;
+      localStorage.setItem("_sbLastPullAt", lastPullAt);
+    }
+
+    async function pullAllKeysFallback(w) {
+      let n = 0;
+      for (const key of SYNC_KEYS) {
+        try {
+          const remoteVal = await fetchServerValueByKey(key);
+          if (typeof remoteVal !== "string") continue;
+          let curVal = null;
+          try { curVal = w.localStorage.getItem(key); } catch (e) {}
+          let nextVal = remoteVal;
+          if (MERGE_SKIP_KEYS.has(key)) {
+            nextVal = remoteVal;
+          } else if (typeof curVal === "string" && usesStructuredMerge(key)) {
+            nextVal = mergeStorageKey(key, curVal, remoteVal);
+          }
+          try { w.localStorage.setItem(key, nextVal); } catch (e) {}
+          n++;
+        } catch (_) {}
+      }
+      return n;
+    }
+
     async function pullNow() {
       if (!frameReady) return;
-      // Cooperative concurrency — also held by _runPullSafely() for realtime.
-      // Direct callers (manual button, doSaveNow) skip if a push is mid-flight
-      // to avoid interleaved localStorage writes.
       if (pushInFlight) {
         setStatus("รอ push เดิมเสร็จก่อน");
         return;
       }
       setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
-      const f = encodeURIComponent(lastPullAt);
+      const since = normalizePullSince(lastPullAt);
+      const f = pullSinceFilterValue(since);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + f + "&order=updated_at.asc";
       try {
         const r = await fetch(url, { headers: headers() });
         if (!r.ok) {
           const msg = await readErrorText(r);
-          throw new Error("pull failed HTTP " + r.status + (msg ? " - " + msg : ""));
+          const err = new Error("pull failed HTTP " + r.status + (msg ? " - " + msg : ""));
+          if (r.status >= 500) {
+            const n = await pullAllKeysFallback(w);
+            await repairCriticalKeys(w);
+            try {
+              if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-fallback" }, "*");
+            } catch (e) {}
+            setStatus("pull สำเร็จ (โหมดสำรอง " + n + " คีย์)");
+            return;
+          }
+          throw err;
         }
         const rows = await r.json();
-        let maxUpdatedAt = lastPullAt;
-        rows.forEach((row) => {
-          let nextVal = row.storage_value;
-          if (MERGE_SKIP_KEYS.has(row.storage_key)) {
-            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
-          } else if (usesStructuredMerge(row.storage_key)) {
-            let curVal = null;
-            try { curVal = w.localStorage.getItem(row.storage_key); } catch (e) {}
-            if (typeof curVal === "string") nextVal = mergeStorageKey(row.storage_key, curVal, row.storage_value);
-            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
-          } else {
-            try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
-          }
-          if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
-        });
-        lastPullAt = maxUpdatedAt;
-        localStorage.setItem("_sbLastPullAt", lastPullAt);
+        applyPulledRows(w, rows);
         await repairCriticalKeys(w);
-        // Notify iframe so it can reload its in-memory state and re-render
-        // the current page. Without this, soft-deletes and stock updates
-        // pulled from the cloud stay invisible until the user reloads.
         try {
           if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull" }, "*");
         } catch (e) {}
@@ -2143,9 +2185,15 @@
       setSaveFabState("is-saving", "กำลังบันทึก...", "🔄");
       try {
         await pushNow();
-        await pullNow();
+        let pullWarn = "";
+        try {
+          await pullNow();
+        } catch (pullErr) {
+          pullWarn = String(pullErr && pullErr.message ? pullErr.message : pullErr);
+        }
         const now = new Date();
-        setSaveFabState("is-success", "บันทึกแล้ว", "✅");
+        setSaveFabState("is-success", pullWarn ? "บันทึกแล้ว (ดึงกลับไม่สมบูรณ์)" : "บันทึกแล้ว", "✅");
+        if (pullWarn) setStatus("บันทึกขึ้นคลาวด์แล้ว — แต่ pull: " + pullWarn);
         if (saveFabSub) {
           saveFabSub.textContent = "บันทึกล่าสุด: " + fmtTime(now);
           saveFabSub.classList.add("on");

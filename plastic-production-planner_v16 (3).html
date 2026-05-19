@@ -7854,7 +7854,11 @@ function initJobRegistry(){
   }
 }
 function saveJobRegistry(){ if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(JOB_REGISTRY, ['id']); try{localStorage.setItem('_jobRegistry',JSON.stringify(JOB_REGISTRY));}catch(e){} }
-function getJobById(id){ return JOB_REGISTRY.find(function(j){return j.id===id;})||null; }
+function getJobById(id){
+  var s=String(id==null?'':id).trim();
+  if(!s) return null;
+  return JOB_REGISTRY.find(function(j){ return j && String(j.id)===s; })||null;
+}
 function getJobByName(name){
   var raw=String(name||'').trim();
   if(!raw) return null;
@@ -12670,7 +12674,31 @@ function _ordersCombinedSearch(){
 // ════════════════════════════════════════════════════════════════
 // JOB REGISTRY JS
 // ════════════════════════════════════════════════════════════════
+function _jobregEscJs(s){
+  return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+function _jobregBindTableActions(){
+  var tbody=document.getElementById('jobreg-tbody');
+  if(!tbody||tbody._jobregClickBound) return;
+  tbody._jobregClickBound=true;
+  tbody.addEventListener('click',function(e){
+    var editBtn=e.target.closest('.jobreg-edit-btn');
+    var delBtn=e.target.closest('.jobreg-del-btn');
+    if(editBtn){
+      e.preventDefault();
+      var id=editBtn.getAttribute('data-id');
+      if(id) jobregEdit(id);
+      return;
+    }
+    if(delBtn){
+      e.preventDefault();
+      var id2=delBtn.getAttribute('data-id');
+      if(id2) jobregDelete(id2);
+    }
+  });
+}
 function renderJobRegistry(){
+  _jobregBindTableActions();
   var tbody=document.getElementById('jobreg-tbody');
   var summEl=document.getElementById('jobreg-summary');
   if(!tbody) return;
@@ -12737,8 +12765,9 @@ function renderJobRegistry(){
       +'<td style="padding:8px;text-align:center;font-weight:700;color:#3fb950">'+(j.targetPerHr||'—')+'</td>'
       +'<td style="padding:8px;font-size:10px;color:var(--text3)">'+(j.process||'—')+(j.processDetail?'<div style="font-size:9px;color:var(--text3);opacity:.9;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">↳ '+j.processDetail+'</div>':'')+'</td>'
       +'<td style="padding:8px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:'+sc+'18;color:'+sc+'">'+j.status+'</span></td>'
-      +'<td style="padding:8px;text-align:center"><button onclick="jobregEdit(\''+j.id+'\')" style="padding:4px 10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">✏️</button>'
-      +'<button onclick="jobregDelete(\''+j.id+'\')" style="'+_DEL_BTN+'">🗑</button></td>'
+      +'<td style="padding:8px;text-align:center">'
+      +'<button type="button" class="jobreg-edit-btn" data-id="'+_escAttr(String(j.id||''))+'" title="แก้ไข" style="padding:4px 10px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:6px;cursor:pointer;font-size:11px">✏️</button> '
+      +'<button type="button" class="jobreg-del-btn" data-id="'+_escAttr(String(j.id||''))+'" title="ลบ" style="'+_DEL_BTN+'">🗑</button></td>'
       +'</tr>';
   }).join('')||'<tr><td colspan="12" style="padding:30px;text-align:center;color:var(--text3)">ไม่พบงานที่ตรงกัน</td></tr>';
 }
@@ -12759,7 +12788,11 @@ function jobregAdd(){
 }
 
 function jobregEdit(id){
-  var j=getJobById(id);if(!j)return;
+  var j=getJobById(id);
+  if(!j){
+    if(typeof _infoToast==='function') _infoToast('ไม่พบงานรหัส «'+String(id||'')+'» — ลองรีเฟรชหน้า');
+    return;
+  }
   document.getElementById('je-id').value=id;
   document.getElementById('jobedit-title').textContent='📦 แก้ไข — '+j.name.substring(0,25);
   document.getElementById('je-name').value=j.name||'';
@@ -51806,7 +51839,7 @@ function _clRenderChart(){
 
   <!-- Main fields -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-    <div class="form-group" style="margin:0"><div class="form-label">ชื่องาน *</div><input type="text" id="bom-name" placeholder="ชื่อ Part / งาน" onchange="bomRefreshWtFromRegistry()" onblur="bomRefreshWtFromRegistry()"></div>
+    <div class="form-group" style="margin:0"><div class="form-label">ชื่องาน *</div><input type="text" id="bom-name" placeholder="ชื่อ Part / งาน"></div>
     <div class="form-group" style="margin:0"><div class="form-label">รหัสแม่พิมพ์</div>
       <div style="display:flex;gap:4px">
         <input type="text" id="bom-mold" placeholder="เช่น 3-K306WAE-4Cav" style="flex:1">
@@ -51920,7 +51953,7 @@ function _clRenderChart(){
     <!-- Runner + เศษบด -->
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
       <div class="form-group" style="margin:0">
-        <div class="form-label" style="display:flex;align-items:center;gap:4px">น้ำหนักชิ้น (g) <span id="bom-wt-registry-hint" style="display:none;font-size:9px;color:#39c5cf;font-weight:600;margin-left:4px">จากทะเบียนงาน</span> <span style="color:#39c5cf">*</span></div>
+        <div class="form-label" style="display:flex;align-items:center;gap:4px">น้ำหนักชิ้น (g) <span style="color:#39c5cf">*</span></div>
         <input type="number" id="bom-wt" step="0.001" placeholder="15.5" oninput="bomEstimateCost();bomCalcRegrind();bomUpdateFeederShotDisplay()">
       </div>
       <div class="form-group" style="margin:0">
@@ -58865,9 +58898,10 @@ function machineDelete(id){
 
 // ── ทะเบียนงาน/Job ───────────────────────────────────────────────
 function jobregDelete(id){
-  const j=JOB_REGISTRY.find(x=>x.id===id); if(!j) return;
+  const sid=String(id==null?'':id).trim();
+  const j=JOB_REGISTRY.find(x=>x&&String(x.id)===sid); if(!j) return;
   _confirmDel('🗑 ลบงาน: <b>'+j.name+'</b><br>ลูกค้า: '+(j.customer||'—'), function(){
-    const idx=JOB_REGISTRY.findIndex(x=>x.id===id);
+    const idx=JOB_REGISTRY.findIndex(x=>x&&String(x.id)===sid);
     if(idx>=0){
       JOB_REGISTRY[idx]=Object.assign({}, JOB_REGISTRY[idx], { _deleted:true, updatedAt:new Date().toISOString() });
     }
