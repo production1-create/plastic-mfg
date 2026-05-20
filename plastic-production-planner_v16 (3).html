@@ -8789,9 +8789,25 @@ try{
 }catch(e){
   console.error('Error loading ttData:', e);
 }
+if(typeof ttBackfillEntryWorkGroups==='function') ttBackfillEntryWorkGroups();
 /** แถว Time Table ที่ยังใช้งาน — รายการที่ลบแล้วจะเป็น tombstone (_deleted) เพื่อซิงก์ข้ามเครื่อง */
 function ttLiveRows(dk){
   return (ttData[dk]||[]).filter(function(e){ return e && !e._deleted; });
+}
+/** เติม workGroup ให้แถว TT เก่าที่ยังไม่มี (จาก Order) */
+function ttBackfillEntryWorkGroups(){
+  if(typeof ttData==='undefined'||!ttData) return;
+  var ch=false;
+  Object.keys(ttData).forEach(function(dk){
+    (ttData[dk]||[]).forEach(function(en){
+      if(!en||en._deleted||en.workGroup) return;
+      if(typeof ttEntryWorkGroup==='function'){
+        en.workGroup=ttEntryWorkGroup(en);
+        ch=true;
+      }
+    });
+  });
+  if(ch){ try{ localStorage.setItem('_ttData', JSON.stringify(ttData)); }catch(e){} }
 }
 let setupPlans = [];
 const SETUP_STORAGE_KEY = '_setupPlans';
@@ -12447,18 +12463,33 @@ function _lineDeptKeyNorm(key){
   var m = String(key||'').match(/^[aotb]([1-7])$/i);
   return m ? ('o'+m[1]) : String(key||'');
 }
+function _ttEntryMatchesLineDept(j, deptKey){
+  if(!j||!deptKey) return false;
+  var k=_lineDeptKeyNorm(deptKey);
+  if(!k||k==='all') return true;
+  var cfg=ORDER_LINE_DEPTS[k];
+  if(!cfg) return false;
+  var eg=typeof ttEntryWorkGroup==='function'?ttEntryWorkGroup(j):'injection';
+  if(cfg.filter==='assembly') return eg==='assembly';
+  if(cfg.filter==='secondary') return eg==='secondary';
+  return eg==='injection';
+}
 function _matchesLineDeptByMachine(machine, deptKey){
   var k = _lineDeptKeyNorm(deptKey);
   if(!k || k==='all') return true;
   var cfg = ORDER_LINE_DEPTS[k];
   if(!cfg) return false;
   if(cfg.filter==='assembly'){
-    var fake = { machine: machine, jobName: '' };
-    return _orderWorkGroup(fake)==='assembly';
+    var mt=typeof ttMachineWorkGroup==='function'?ttMachineWorkGroup(machine):'injection';
+    if(mt==='assembly'||mt==='secondary') return true;
+    if(/ประกอบ|assembly|คลังรอบ|ไลน์\s*L\.|CPR09/i.test(String(machine||''))) return true;
+    return false;
   }
   if(cfg.filter==='secondary'){
-    var fake2 = { machine: machine, jobName: '' };
-    return _orderWorkGroup(fake2)==='secondary';
+    var mt2=typeof ttMachineWorkGroup==='function'?ttMachineWorkGroup(machine):'injection';
+    if(mt2==='secondary') return true;
+    if(/พ่น|สกรีน|ชุบ|hot\s*stamp|หยอดกาว|โซนิค/i.test(String(machine||''))) return true;
+    return false;
   }
   var tok = _orderMachineToken(machine);
   var pool = (cfg.machines||[]).concat(cfg.extra||[]);
@@ -12543,8 +12574,8 @@ function _ttMachineInLineDept(machId, deptKey){
 function _ttJobInLineDept(j){
   var wg = window._ttLineDept || '';
   if(!wg) return true;
-  if(wg==='all') return ORDER_LINE_DEPT_KEYS.some(function(k){ return _ttMachineInLineDept(j.machine, k); });
-  return _ttMachineInLineDept(j.machine, wg);
+  if(wg==='all') return ORDER_LINE_DEPT_KEYS.some(function(k){ return _ttMachineInLineDept(j.machine, k)||_ttEntryMatchesLineDept(j,k); });
+  return _ttMachineInLineDept(j.machine, wg)||_ttEntryMatchesLineDept(j,wg);
 }
 function _ttLineDeptLabel(wg){
   if(wg==='all') return 'Time Table รวม — ทุกแผนก (7 ไลน์)';
@@ -12645,14 +12676,21 @@ function ttNormalizeMachineId(raw){
   var s = String(raw||'').trim();
   if(!s) return '';
   var first = s.split(/\s+/)[0];
-  if(typeof MACHINES==='undefined' || !MACHINES.length) return first;
+  if(typeof MACHINES==='undefined' || !MACHINES.length) return s;
   var ex = MACHINES.find(function(mm){ return String(mm.id)===s || String(mm.id)===first; });
   if(ex) return String(ex.id);
   ex = MACHINES.find(function(mm){
     return s.indexOf(String(mm.id))===0 || first.indexOf(String(mm.id))===0;
   });
   if(ex) return String(ex.id);
-  return first;
+  if(/^I\d{3,}$/i.test(first)) return first;
+  return s;
+}
+function ttMachinesMatch(a,b){
+  if(String(a||'')===String(b||'')) return true;
+  var na=typeof ttNormalizeMachineId==='function'?ttNormalizeMachineId(a):String(a||'');
+  var nb=typeof ttNormalizeMachineId==='function'?ttNormalizeMachineId(b):String(b||'');
+  return na===nb;
 }
 function ttMachineWorkGroup(machId){
   var tok = String(machId||'').trim().split(/\s+/)[0];
@@ -16750,10 +16788,31 @@ function ttToggleMachPick(){
   p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
   if(p.style.display === 'block' && typeof renderTT === 'function') renderTT();
 }
+/** กลุ่มงานของแถว TT — อิง Order / เครื่อง / ทะเบียนงาน (แก้งานประกอบไม่โผล่หลังกด → TT) */
+function ttEntryWorkGroup(j){
+  if(!j) return 'injection';
+  var wg=String(j.workGroup||j.registryWorkGroup||'').trim().toLowerCase();
+  if(wg==='assembly'||wg==='secondary'||wg==='injection') return wg;
+  if(j.orderNo&&typeof orders!=='undefined'){
+    var o=orders.find(function(x){ return x&&x.orderNo===j.orderNo&&!x._deleted; });
+    if(o&&typeof _orderWorkGroup==='function'){
+      wg=_orderWorkGroup(o);
+      if(wg==='assembly'||wg==='secondary'||wg==='injection') return wg;
+    }
+  }
+  if(typeof ttMachineWorkGroup==='function'){
+    var mt=ttMachineWorkGroup(j.machine);
+    if(mt==='assembly'||mt==='secondary') return mt;
+  }
+  var mname=String(j.machine||'');
+  if(/ประกอบ|assembly|คลังรอบ|ไลน์\s*L\.|CPR09/i.test(mname)) return 'assembly';
+  if(/พ่น|สกรีน|ชุบ|hot\s*stamp|หยอดกาว|โซนิค/i.test(mname)) return 'secondary';
+  var job=jobs.find(function(x){ return x.name===j.jobName; })||(typeof getJobByName==='function'?getJobByName(j.jobName):null);
+  return job?_jobWorkGroup(job):'injection';
+}
 function ttJobPlanningGroup(j){
-  var job = jobs.find(function(x){ return x.name === j.jobName; }) || (typeof getJobByName === 'function' ? getJobByName(j.jobName) : null);
-  var wg = job ? _jobWorkGroup(job) : 'injection';
-  return (wg === 'assembly' || wg === 'secondary') ? 'assembly' : 'injection';
+  var wg=ttEntryWorkGroup(j);
+  return (wg==='assembly'||wg==='secondary')?'assembly':'injection';
 }
 function ttDailyTargetPcsForJob(jobName){
   var j = jobs.find(function(jj){ return jj.name === jobName; }) || (typeof getJobByName === 'function' ? getJobByName(jobName) : null);
@@ -18106,6 +18165,7 @@ function importToTT(orderNo){
           machine:assignedMach, jobName:o.jobName, lot:o.lotNo,
           qty:o.qty, plastic:effPlastic, mb:effMb,
           orderNo:o.orderNo, date:dateStr, dueDate:o.dueDate,
+          workGroup:orderWg,
           groupAssigned:'',
           dayIndex: dPlaced+1, totalDays: daysNeeded,
           orderPlanHours:o.orderPlanHours, planShiftMode:o.planShiftMode, shiftCount:o.shiftCount,
@@ -18375,6 +18435,7 @@ function fillJobInfo(){
 
 // ===================== TIMETABLE =====================
 function renderTT(){
+  if(typeof ttBackfillEntryWorkGroups==='function') ttBackfillEntryWorkGroups();
   const dateEl=document.getElementById('tt-date');
   if(!dateEl.value) dateEl.value=new Date().toISOString().split('T')[0];
   const date=dateEl.value;
@@ -18676,7 +18737,7 @@ function renderTT(){
       const rowBg = mi%2===0?'var(--bg)':'var(--bg3)';
       const hasAnyJob=days.some(function(d){
         return ttRowsForDept(d).find(function(x){
-          if(x.machine!==m.id) return false;
+          if(typeof ttMachinesMatch==='function'?!ttMachinesMatch(x.machine,m.id):x.machine!==m.id) return false;
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
         });
@@ -18695,7 +18756,7 @@ function renderTT(){
         const dt=new Date(d+'T00:00:00');
         const isWknd=dt.getDay()===0||dt.getDay()===6;
         const dayJobs=ttRowsForDept(d).filter(function(x){
-          if(x.machine!==m.id) return false;
+          if(typeof ttMachinesMatch==='function'?!ttMachinesMatch(x.machine,m.id):x.machine!==m.id) return false;
           var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
           return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
         }).map(x=>({...x,date:d,machine:m.id}));
@@ -18734,7 +18795,7 @@ function renderTT(){
     const todayD = today;
     const todayMachWithJobs = machineList.filter(function(m){
       return ttRowsForDept(todayD).find(function(x){
-        if(x.machine!==m.id) return false;
+        if(typeof ttMachinesMatch==='function'?!ttMachinesMatch(x.machine,m.id):x.machine!==m.id) return false;
         var g=typeof ttJobPlanningGroup==='function'?ttJobPlanningGroup(x):'injection';
         return (sheet==='injection'&&g==='injection')||(sheet==='assembly'&&g==='assembly');
       });
@@ -48707,6 +48768,7 @@ function pmfReloadFromStorage(){
     var tt = _pmfSafeParse('_ttData', null);
     if(tt && typeof tt==='object' && typeof ttData!=='undefined'){
       _pmfReplaceObjectInPlace(ttData, tt);
+      if(typeof ttBackfillEntryWorkGroups==='function') ttBackfillEntryWorkGroups();
     }
   }catch(e){}
   try{

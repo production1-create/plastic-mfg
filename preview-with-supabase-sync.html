@@ -448,7 +448,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-save-fix-all"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260519-egress-opt"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -622,7 +622,22 @@
     let loadingCount = 0;
     let autoSyncTimer = null;
     let autoSyncRunning = false;
-    const AUTO_SYNC_MS = 12000;
+    /** ลด egress: ซิงก์พื้นหลังทุก 60 วิ (เดิม 12 วิ) — บันทึกด้วยปุ่ม/ debounce ยังเร็ว */
+    const AUTO_SYNC_MS = 60000;
+    const SAVE_DEBOUNCE_MS = 2500;
+    const RT_PULL_DEBOUNCE_MS = 1500;
+    const REPAIR_MIN_INTERVAL_MS = 180000;
+    const FALLBACK_COOLDOWN_MS = 300000;
+    const REMOTE_CACHE_TTL_MS = 90000;
+    const PUSH_FP_KEY = "_sbPushFingerprints";
+    const SYNC_TEST_EVERY_N = 5;
+
+    let serverValueCache = new Map();
+    let lastRepairAt = 0;
+    let lastFallbackAt = 0;
+    let syncLoopCount = 0;
+    let saveDebounceTimer = null;
+    let skippedUnchangedLastPush = 0;
 
     // ── First-time / fresh-device guard ──────────────────────────────────
     // The very first time this preview opens on a device it must PULL the
@@ -1472,13 +1487,105 @@
       ].includes(key);
     }
 
-    async function fetchServerValueByKey(key) {
+    function fingerprintValue(v) {
+      if (typeof v !== "string") return "";
+      let h = 5381;
+      for (let i = 0; i < v.length; i++) h = ((h << 5) + h) ^ v.charCodeAt(i);
+      return v.length + ":" + (h >>> 0).toString(36);
+    }
+
+    function loadPushFingerprints() {
+      try { return JSON.parse(localStorage.getItem(PUSH_FP_KEY) || "{}"); } catch (e) { return {}; }
+    }
+
+    function savePushFingerprints(fp) {
+      try { localStorage.setItem(PUSH_FP_KEY, JSON.stringify(fp)); } catch (e) {}
+    }
+
+    function localUnchangedSinceLastPush(key, value) {
+      if (typeof value !== "string") return false;
+      const fp = loadPushFingerprints();
+      return fp[key] === fingerprintValue(value);
+    }
+
+    function markKeysPushed(keysWithValues) {
+      const fp = loadPushFingerprints();
+      keysWithValues.forEach(({ key, value }) => {
+        if (typeof value === "string") fp[key] = fingerprintValue(value);
+      });
+      savePushFingerprints(fp);
+    }
+
+    function getCachedServerValue(key) {
+      const hit = serverValueCache.get(key);
+      if (!hit) return undefined;
+      if (Date.now() - hit.at > REMOTE_CACHE_TTL_MS) {
+        serverValueCache.delete(key);
+        return undefined;
+      }
+      return hit.v;
+    }
+
+    function setCachedServerValue(key, v) {
+      serverValueCache.set(key, { v: v, at: Date.now() });
+    }
+
+    async function fetchServerValueByKey(key, opts) {
+      const force = !!(opts && opts.force);
+      if (!force) {
+        const cached = getCachedServerValue(key);
+        if (cached !== undefined) return cached;
+      }
       const q = encodeURIComponent(key);
       const url = sbUrl() + "/rest/v1/app_storage?select=storage_value&storage_key=eq." + q + "&limit=1";
       const r = await fetch(url, { headers: headers() });
       if (!r.ok) return null;
       const rows = await r.json();
-      return rows && rows[0] ? rows[0].storage_value : null;
+      const val = rows && rows[0] ? rows[0].storage_value : null;
+      setCachedServerValue(key, val);
+      return val;
+    }
+
+    /** ดึงหลาย key ในคำขอเดียว — ลดจำนวน round-trip และ egress overhead */
+    async function prefetchServerValues(keys) {
+      const need = [];
+      keys.forEach((key) => {
+        if (getCachedServerValue(key) !== undefined) return;
+        need.push(key);
+      });
+      if (!need.length) return;
+      const chunkSize = 20;
+      for (let i = 0; i < need.length; i += chunkSize) {
+        const chunk = need.slice(i, i + chunkSize);
+        const inFilter = "(" + chunk.map((k) => encodeURIComponent('"' + String(k).replace(/"/g, "") + '"')).join(",") + ")";
+        const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value&storage_key=in." + inFilter;
+        try {
+          const r = await fetch(url, { headers: headers() });
+          if (!r.ok) {
+            for (const key of chunk) {
+              try { await fetchServerValueByKey(key, { force: true }); } catch (_) {}
+            }
+            continue;
+          }
+          const rows = await r.json();
+          const got = new Set();
+          if (Array.isArray(rows)) {
+            rows.forEach((row) => {
+              if (row && row.storage_key) {
+                setCachedServerValue(row.storage_key, row.storage_value);
+                got.add(row.storage_key);
+              }
+            });
+          }
+          chunk.forEach((key) => {
+            if (!got.has(key)) setCachedServerValue(key, null);
+          });
+        } catch (_) {
+          for (const key of chunk) {
+            try { await fetchServerValueByKey(key, { force: true }); } catch (_) {}
+          }
+        }
+      }
     }
 
     async function readErrorText(resp) {
@@ -1557,10 +1664,30 @@
       const rows = [];
       let skippedEmpty = 0;
       let skippedShrink = 0;
+      skippedUnchangedLastPush = 0;
       try {
+        const localSnap = {};
+        const keysNeedRemote = [];
         for (const key of SYNC_KEYS) {
           let value = null;
           try { value = w.localStorage.getItem(key); } catch (e) {}
+          localSnap[key] = value;
+          if (isEmptyBlobStr(value)) {
+            keysNeedRemote.push(key);
+            continue;
+          }
+          if (typeof value === "string" && localUnchangedSinceLastPush(key, value)) {
+            skippedUnchangedLastPush++;
+            continue;
+          }
+          if (typeof value === "string" && usesStructuredMerge(key)) {
+            keysNeedRemote.push(key);
+          }
+        }
+        if (keysNeedRemote.length) await prefetchServerValues(keysNeedRemote);
+
+        for (const key of SYNC_KEYS) {
+          let value = localSnap[key];
 
           // Empty-blob guard: if local is empty but remote has data, skip the
           // key entirely so a fresh device cannot wipe other users' data.
@@ -1575,6 +1702,10 @@
             } catch (_) { /* if remote check fails, fall through and skip */
               if (typeof value !== "string") { skippedEmpty++; continue; }
             }
+          }
+
+          if (typeof value === "string" && localUnchangedSinceLastPush(key, value)) {
+            continue;
           }
 
           if (typeof value === "string" && usesStructuredMerge(key)) {
@@ -1635,6 +1766,7 @@
           const parts = [];
           if (skippedEmpty)  parts.push("ว่าง " + skippedEmpty);
           if (skippedShrink) parts.push("กันทับ " + skippedShrink);
+          if (skippedUnchangedLastPush) parts.push("ไม่เปลี่ยน " + skippedUnchangedLastPush);
           setStatus(parts.length
             ? ("ไม่ push (ข้าม " + parts.join(", ") + " คีย์ — ป้องกันข้อมูลหาย)")
             : "ไม่มีข้อมูลจะ push");
@@ -1647,9 +1779,11 @@
           const msg = await readErrorText(r);
           throw new Error("push failed HTTP " + r.status + (msg ? " - " + msg : ""));
         }
+        markKeysPushed(rows.map((row) => ({ key: row.storage_key, value: row.storage_value })));
         const skipParts = [];
         if (skippedEmpty)  skipParts.push("ว่าง " + skippedEmpty);
         if (skippedShrink) skipParts.push("กันทับ " + skippedShrink);
+        if (skippedUnchangedLastPush) skipParts.push("ไม่เปลี่ยน " + skippedUnchangedLastPush);
         const skipMsg = skipParts.length ? " (ข้าม " + skipParts.join(", ") + ")" : "";
         setStatus("push สำเร็จ " + rows.length + " keys" + skipMsg);
       } finally {
@@ -1692,6 +1826,11 @@
     }
 
     async function pullAllKeysFallback(w) {
+      const keysToFetch = [];
+      for (const key of SYNC_KEYS) {
+        if (getCachedServerValue(key) === undefined) keysToFetch.push(key);
+      }
+      if (keysToFetch.length) await prefetchServerValues(keysToFetch);
       let n = 0;
       for (const key of SYNC_KEYS) {
         try {
@@ -1729,8 +1868,27 @@
           const msg = await readErrorText(r);
           const err = new Error("pull failed HTTP " + r.status + (msg ? " - " + msg : ""));
           if (r.status >= 500) {
+            const sinceEpoch = pullSinceFilterValue(new Date(0).toISOString());
+            const retryUrl = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + sinceEpoch + "&order=updated_at.asc&limit=500";
+            try {
+              const r2 = await fetch(retryUrl, { headers: headers() });
+              if (r2.ok) {
+                const rows2 = await r2.json();
+                applyPulledRows(w, rows2);
+                await repairCriticalKeys(w, { force: true });
+                try {
+                  if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-retry" }, "*");
+                } catch (e) {}
+                setStatus("pull สำเร็จ (ดึงเต็ม " + rows2.length + " รายการ)");
+                return;
+              }
+            } catch (_) {}
+            if (Date.now() - lastFallbackAt < FALLBACK_COOLDOWN_MS) {
+              throw new Error("pull failed HTTP " + r.status + " (รอ " + Math.round((FALLBACK_COOLDOWN_MS - (Date.now() - lastFallbackAt)) / 60000) + " นาทีก่อนโหมดสำรองเต็ม)");
+            }
+            lastFallbackAt = Date.now();
             const n = await pullAllKeysFallback(w);
-            await repairCriticalKeys(w);
+            await repairCriticalKeys(w, { force: true });
             try {
               if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-fallback" }, "*");
             } catch (e) {}
@@ -1757,12 +1915,20 @@
       return !t || t === "[]" || t === "{}" || t === "null";
     }
 
-    async function repairCriticalKeys(w) {
+    async function repairCriticalKeys(w, opts) {
       if (!w || !sbUrl() || !sbKey()) return;
+      const force = !!(opts && opts.force);
+      if (!force && Date.now() - lastRepairAt < REPAIR_MIN_INTERVAL_MS) return;
+      lastRepairAt = Date.now();
+      const emptyKeys = [];
       for (const key of REHYDRATE_KEYS) {
         let curVal = null;
         try { curVal = w.localStorage.getItem(key); } catch (e) {}
         if (!isEmptyStructuredValue(curVal)) continue;
+        emptyKeys.push(key);
+      }
+      if (emptyKeys.length) await prefetchServerValues(emptyKeys);
+      for (const key of emptyKeys) {
         const remoteVal = await fetchServerValueByKey(key);
         if (typeof remoteVal === "string" && !isEmptyStructuredValue(remoteVal)) {
           try { w.localStorage.setItem(key, remoteVal); } catch (e) {}
@@ -1774,7 +1940,8 @@
       if (autoSyncRunning) return;
       autoSyncRunning = true;
       try {
-        await testConn();
+        syncLoopCount++;
+        if (syncLoopCount % SYNC_TEST_EVERY_N === 1) await testConn();
         await pushNow();
         await pullNow();
       } catch (e) {
@@ -1990,7 +2157,6 @@
      * call. Concurrent push/pull are prevented by `pullInFlight` so the
      * iframe's localStorage is never written by two callers at once.
      */
-    const RT_PULL_DEBOUNCE_MS = 600;
     let pullInFlight = false;
     let pullPending = false;
     let rtPullTimer = null;
@@ -2170,7 +2336,26 @@
       }
     }
 
+    function scheduleDebouncedSave() {
+      if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+      if (saveFab && !saveFabBusy) {
+        setSaveFabState("", "รอบันทึก...", "⏳");
+      }
+      saveDebounceTimer = setTimeout(() => {
+        saveDebounceTimer = null;
+        doSaveNow();
+      }, SAVE_DEBOUNCE_MS);
+    }
+
+    function flushDebouncedSave() {
+      if (saveDebounceTimer) {
+        clearTimeout(saveDebounceTimer);
+        saveDebounceTimer = null;
+      }
+    }
+
     async function doSaveNow() {
+      flushDebouncedSave();
       if (!saveFab || saveFab.disabled || saveFabBusy) return;
       if (!sbUrl() || !sbKey()) {
         updateSaveFabReady();
@@ -2348,7 +2533,7 @@
         if (ev.data.type === "pmf-presence-refresh") {
           refreshPresenceTrack();
         } else if (ev.data.type === "pmf-save-now") {
-          doSaveNow();
+          scheduleDebouncedSave();
         } else if (ev.data.type === "pmf-ui-mode") {
           try { localStorage.setItem("_uiMode", ev.data.mode === "smart" ? "smart" : "classic"); } catch (e) {}
           updateUiModeFab(ev.data.mode === "smart" ? "smart" : "classic");
