@@ -9492,6 +9492,12 @@ function openEditOrder(orderNo){
   fillJobInfo();
   if(typeof orderUpdateModalCalcPreview==='function') orderUpdateModalCalcPreview();
 }
+/** สร้างส่วนท้ายรหัส Order เมื่อ Ref ซ้ำแต่ Lot ต่างกัน (หลาย Lot ชื่องานเดียว) */
+function _orderLotSlugForNo(lotStr){
+  var s=String(lotStr||'').trim().replace(/\s+/g,'');
+  if(!s) return 'L'+String(Date.now()).slice(-8);
+  return s.replace(/[^\w\-\u0E00-\u0E7F]+/g,'').slice(0,40);
+}
 function saveOrderModal(withTT){
   var jobName=document.getElementById('order-job').value;
   if(!jobName){ if(typeof _infoToast==='function') _infoToast('กรุณาเลือกงาน'); return; }
@@ -9504,11 +9510,33 @@ function saveOrderModal(withTT){
   var no=noInput||('ORD-LOT-'+lot);
   if(orders.some(function(x){ return x.orderNo===no && x.orderNo!==orig; })){
     if(noInput){
-      if(typeof _infoToast==='function') _infoToast('Order No. ซ้ำกับรายการอื่น'); return;
-    }
-    var i=2, baseNo=no;
-    while(orders.some(function(x){ return x.orderNo===no && x.orderNo!==orig; }) && i<9999){
-      no=baseNo+'-'+i; i++;
+      var conflict=orders.find(function(x){ return x.orderNo===no && x.orderNo!==orig; });
+      var lotConflict=conflict && String(conflict.lotNo||'').trim()===lot;
+      if(conflict && !lotConflict){
+        var slug=_orderLotSlugForNo(lot);
+        var baseDup=no;
+        var candidate=baseDup+'__'+slug;
+        var zi=2;
+        while(orders.some(function(x){ return x.orderNo===candidate && x.orderNo!==orig; }) && zi<9999){
+          candidate=baseDup+'__'+slug+'-'+zi; zi++;
+        }
+        no=candidate;
+        if(typeof _toast==='function'){
+          _toast('ℹ️ Ref/Order No. ซ้ำกับ Lot อื่น — ใช้รหัสอ้างอิงภายใน «'+no+'» (ชื่องานเดียวกันได้หลาย Lot)');
+        }
+      } else {
+        if(typeof _infoToast==='function'){
+          _infoToast(lotConflict
+            ? 'Order No. และ Lot No. ซ้ำกับรายการเดิม — เปลี่ยน Lot หรือ Ref'
+            : 'Order No. ซ้ำกับรายการอื่น — ถ้าเป็นหลาย Lot ชื่องานเดียวกัน ให้ใส่ Lot No. คนละค่า หรือเว้น Order No. ให้ระบบสร้างอัตโนมัติ');
+        }
+        return;
+      }
+    } else {
+      var i=2, baseNo=no;
+      while(orders.some(function(x){ return x.orderNo===no && x.orderNo!==orig; }) && i<9999){
+        no=baseNo+'-'+i; i++;
+      }
     }
   }
   var o={
@@ -16820,9 +16848,22 @@ function ttDailyTargetPcsForJob(jobName){
   if(!isFinite(t) || t <= 0) return 0;
   return Math.round(t * ttGetHoursPerDay());
 }
-function ttDailyOkFromReport(machineId, dateStr){
-  var k = (machineId || '') + '_' + dateStr;
-  var rpt = dailyReports[k];
+function ttDailyOkFromReport(machineId, dateStr, orderNo){
+  var mid = machineId || '';
+  var d = dateStr || '';
+  var on = String(orderNo || '').trim();
+  var rpt = null;
+  if(typeof rptReportKey === 'function' && on){
+    var rk = rptReportKey(mid, d, on);
+    rpt = dailyReports[rk] || null;
+  }
+  if(!rpt){
+    var k = mid + '_' + d;
+    var leg = dailyReports[k];
+    if(leg){
+      if(!on || String(leg.orderNo || '') === on) rpt = leg;
+    }
+  }
   if(!rpt || !Array.isArray(rpt.rows)) return null;
   var tp = 0, tn = 0;
   rpt.rows.forEach(function(r){ tp += (+r.produced || 0); tn += (+r.ng || 0); });
@@ -18593,7 +18634,7 @@ function renderTT(){
         var phr = (jM && jM.target) ? +jM.target : 0;
         var effH = (j.effHoursPerDay != null && isFinite(+j.effHoursPerDay)) ? +j.effHoursPerDay : ((typeof ttGetEffectiveHoursForOrderNo === 'function') ? ttGetEffectiveHoursForOrderNo(j.orderNo) : hoursDay);
         var dayTgt = (typeof ttDailyTargetPcsForTTEntry === 'function') ? ttDailyTargetPcsForTTEntry(j) : Math.round(phr * effH);
-        var okD = (typeof ttDailyOkFromReport === 'function') ? ttDailyOkFromReport(j.machine, rptDate) : null;
+        var okD = (typeof ttDailyOkFromReport === 'function') ? ttDailyOkFromReport(j.machine, rptDate, j.orderNo || '') : null;
         var modeLbl = (typeof orderPlanShiftLabel === 'function') ? orderPlanShiftLabel(j.planShiftMode || 'day') : (j.planShiftMode || '');
         var scn = parseInt(j.shiftCount, 10) || 0;
         var planLine = '<div style="font-size:9px;color:#a371f7;font-weight:700;margin-top:2px">แผนเดิน: '+effH+' ชม./วัน · '+modeLbl
@@ -34724,6 +34765,33 @@ function rptReportKey(machine, date, orderNo){
   if(!on && orders.length) on = orders[0].orderNo;
   return on ? (machine + '_' + date + '_' + on) : (machine + '_' + date);
 }
+/** มีรายงานผลิตของเครื่อง+วันนี้สำหรับ Order นี้ (รองรับทั้ง key แบบมี order และแบบ legacy เดิม) */
+function rptHasDailyReport(machine, date, orderNo){
+  if(!machine || !date) return false;
+  var on = String(orderNo || '').trim();
+  var k = rptReportKey(machine, date, on);
+  if(dailyReports[k]) return true;
+  var leg = machine + '_' + date;
+  if(!dailyReports[leg]) return false;
+  var mo = rptMachineOrders(machine, date);
+  if(mo.length <= 1) return true;
+  if(on && String(dailyReports[leg].orderNo || '') === on) return true;
+  return false;
+}
+/** มีรายงานอย่างน้อยหนึ่งรายการในช่อง TT (เครื่อง+วัน) — ใช้สำหรับไฮไลต์ปุ่ม */
+function rptAnyDailyReportForCell(machine, date){
+  if(!machine || !date) return false;
+  var leg = machine + '_' + date;
+  var mo = rptMachineOrders(machine, date);
+  if(mo.length <= 1) return !!dailyReports[leg];
+  for(var i = 0; i < mo.length; i++){
+    if(rptHasDailyReport(machine, date, mo[i].orderNo)) return true;
+  }
+  return false;
+}
+function _ttEscJsSingleQuote(s){
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
 
 function rptMigrateLegacyReportKey(machine, date, orderNo){
   var legacy = machine + '_' + date;
@@ -34736,6 +34804,42 @@ function rptMigrateLegacyReportKey(machine, date, orderNo){
     delete dailyReports[legacy];
   }
 }
+/** migrate รายงาน key เก่า machine_date -> machine_date_orderNo เฉพาะวันที่มีหลายงาน */
+function rptAutoMigrateLegacyReportKeys(){
+  if(!dailyReports || typeof dailyReports !== 'object') return 0;
+  var changed = 0;
+  var keys = Object.keys(dailyReports);
+  keys.forEach(function(k){
+    var m = String(k || '').match(/^([^_]+)_(\d{4}-\d{2}-\d{2})$/);
+    if(!m) return; // skip keyed report (machine_date_orderNo) and malformed keys
+    var machine = m[1], date = m[2];
+    var rpt = dailyReports[k];
+    if(!rpt || typeof rpt !== 'object') return;
+    var orders = rptMachineOrders(machine, date);
+    if(!orders || orders.length <= 1) return; // keep legacy key when not multi-order day
+    var targetOrderNo = '';
+    var fromRptOrder = String(rpt.orderNo || '').trim();
+    if(fromRptOrder && orders.some(function(o){ return String(o.orderNo || '') === fromRptOrder; })){
+      targetOrderNo = fromRptOrder;
+    } else {
+      var fromRptJob = String(rpt.jobName || '').trim();
+      if(fromRptJob){
+        var hits = orders.filter(function(o){ return String(o.jobName || '') === fromRptJob; });
+        if(hits.length === 1) targetOrderNo = String(hits[0].orderNo || '').trim();
+      }
+    }
+    if(!targetOrderNo) return; // ambiguous mapping -> do not migrate automatically
+    var keyed = machine + '_' + date + '_' + targetOrderNo;
+    if(dailyReports[keyed]) return; // keyed report exists already
+    dailyReports[keyed] = rpt;
+    delete dailyReports[k];
+    changed++;
+  });
+  if(changed > 0){
+    try{ localStorage.setItem('_dailyReports', JSON.stringify(dailyReports)); }catch(e){}
+  }
+  return changed;
+}
 
 function rptOpenFromTT(machine, date, orderNo, opts){
   opts = opts || {};
@@ -34745,6 +34849,13 @@ function rptOpenFromTT(machine, date, orderNo, opts){
   if(dateEl) dateEl.value = date;
 
   var orders = rptMachineOrders(machine, date);
+  if(!String(orderNo || '').trim() && orders.length > 1){
+    var legHint = dailyReports[machine + '_' + date];
+    if(legHint && legHint.orderNo){
+      var hit = orders.find(function(o){ return String(o.orderNo || '') === String(legHint.orderNo || ''); });
+      if(hit) orderNo = hit.orderNo;
+    }
+  }
   if(!orderNo && orders.length) orderNo = orders[0].orderNo;
   _rptCurrentOrderNo = orderNo || '';
 
@@ -34769,10 +34880,12 @@ function _createDailyRptFromTT(machine, date, orderNo){
   var m = MACHINES.find(function(x){ return x.id===machine; });
   // Find job from TT first
   var ttEntries = ttLiveRows(date).filter(function(x){ return x.machine===machine; });
-  var ttEntry = orderNo ? ttEntries.find(function(x){ return x.orderNo===orderNo; }) : ttEntries[0];
-  // Fall back to orders
-  var ord = orders.find(function(o){ return o.machine===machine && (!orderNo||o.orderNo===orderNo); }) ||
-            orders.find(function(o){ return o.machine===machine; }) || {};
+  var ttEntry = orderNo ? ttEntries.find(function(x){ return String(x.orderNo||'')===String(orderNo); }) : ttEntries[0];
+  // Fall back to orders — ห้ามใช้แค่ machine เดียว เพราะวันเดียวอาจมีหลาย Order คนละชิ้นงาน
+  var ord = (orderNo ? orders.find(function(o){ return o && !o._deleted && String(o.orderNo||'')===String(orderNo); }) : null)
+    || (ttEntry && ttEntry.orderNo ? orders.find(function(o){ return o && !o._deleted && String(o.orderNo||'')===String(ttEntry.orderNo||''); }) : null)
+    || (ttEntry && ttEntry.jobName ? orders.find(function(o){ return o && !o._deleted && !o._deleted && String(o.jobName||'')===String(ttEntry.jobName||''); }) : null)
+    || orders.find(function(o){ return o && !o._deleted && o.machine===machine; }) || {};
   var jobName = ttEntry ? ttEntry.jobName : (ord.jobName || '-');
   var j = jobs.find(function(jj){ return jj.name===jobName; }) || {};
   // Batch info
@@ -34783,9 +34896,12 @@ function _createDailyRptFromTT(machine, date, orderNo){
     machine: machine, date: date,
     orderNo: ttEntry ? ttEntry.orderNo : (ord.orderNo||'ORD-'+Date.now().toString().slice(-6)),
     lotNo:   (function(){
-      var fromOrd=fgNormalizeLotCode(ord.lotNo);
+      if(ttEntry && ttEntry.lot){
+        var tLot = fgNormalizeLotCode(ttEntry.lot) || String(ttEntry.lot).trim();
+        if(tLot) return tLot;
+      }
+      var fromOrd = fgNormalizeLotCode(ord.lotNo);
       if(fromOrd) return fromOrd;
-      if(ttEntry&&ttEntry.lot) return fgNormalizeLotCode(ttEntry.lot)||ttEntry.lot;
       return 'LOT-'+Date.now().toString().slice(-4);
     })(),
     jobName: jobName,
@@ -47329,6 +47445,7 @@ function masterInit(){
 
   // ── โหลดข้อมูลจาก localStorage ───────────────────────────────
   loadOrders();             // orders
+  if(typeof rptAutoMigrateLegacyReportKeys==='function') rptAutoMigrateLegacyReportKeys();
   if(typeof loadApprovals==='function') loadApprovals();
   if(typeof loadApprovalLog==='function') loadApprovalLog();
   if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
@@ -51855,7 +51972,7 @@ function _clRenderChart(){
   <input type="hidden" id="order-edit-original" value="">
   <input type="hidden" id="order-after-save-nav" value="">
   <div class="form-row">
-    <div class="form-group"><div class="form-label">Order No. (ไม่บังคับ)</div><input type="text" id="order-no" placeholder="เว้นว่างได้ ระบบสร้างอัตโนมัติ"></div>
+    <div class="form-group"><div class="form-label">Order No. (ไม่บังคับ)</div><input type="text" id="order-no" placeholder="เว้นว่างได้ ระบบสร้างอัตโนมัติ"><div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.35">ชื่องานเดียวกันได้หลาย Lot — แต่ละ Lot ควรมี <b>Lot No.</b> ไม่ซ้ำ; ถ้าใช้ Ref เดิมซ้ำ ระบบจะต่อท้ายรหัสให้ไม่ชนกัน</div></div>
     <div class="form-group"><div class="form-label">Lot No.</div><input type="text" id="lot-no" placeholder="LOT-001"></div>
   </div>
   <div class="form-row">
