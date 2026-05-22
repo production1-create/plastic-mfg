@@ -790,6 +790,16 @@ select option { background: var(--bg3); }
 }
 #ap-detail-section { position: relative; z-index: 1; }
 #ap-calc-panel { position: relative; z-index: 1; }
+.ap-doc-nav{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:12px}
+.ap-nav-btn{padding:6px 11px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.ap-nav-btn:hover{border-color:rgba(56,139,253,0.45);color:var(--accent2)}
+.ap-nav-btn.active{background:rgba(56,139,253,0.18);border-color:rgba(56,139,253,0.55);color:#79c0ff}
+.ap-auto-banner{font-size:11px;padding:8px 12px;margin-bottom:10px;border-radius:6px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.35);color:#3fb950}
+.ap-auto-banner strong{color:#56d364}
+.ap-ro-input{background:rgba(56,139,253,0.06)!important;border-color:rgba(56,139,253,0.25)!important;color:var(--text)!important;cursor:default}
+.ap-table-fpd th{background:#cdd8ea;color:#1a3a6e;font-size:10px;font-weight:700;padding:6px 4px;border:1px solid var(--border)}
+.ap-table-fpd td{border:1px solid var(--border);vertical-align:middle}
+.ap-sec-panel .ap-sign-placeholder{width:72px;min-width:72px}
 
 /* Ensure body scrolls in iframe/artifact contexts */
 html, body { height: auto; overflow-x: hidden; }
@@ -42738,6 +42748,7 @@ function addToApprovalLog(key, label, by, action){
 }
 
 function renderApprovalProcList(){
+  if(typeof apInitDocNav==='function') apInitDocNav();
   if(typeof window._apListTab !== 'string') window._apListTab = 'active';
   apEnsureAssemblyRows();
   const tbody = document.getElementById('approvalproc-tbody');
@@ -42913,8 +42924,10 @@ function openApprovalProcDetail(id){
     apCalcProduction(_o, _j);
     const _panel=document.getElementById('ap-calc-panel');
     if(_panel) _panel.style.display='';
-    if(typeof apHydrateProdRowsFromDailyReport==='function' && _o.orderNo) apHydrateProdRowsFromDailyReport(_o);
+    if(typeof apHydrateProdRowsFromDailyReport==='function' && _o.orderNo) apHydrateProdRowsFromDailyReport(_o, true);
+    if(typeof apSyncExternalData==='function') apSyncExternalData(_o, _j, {force:false});
   }
+  if(typeof apShowSection==='function') apShowSection('all');
   // Refresh sign boxes for this doc
   setTimeout(apRefreshSignBoxes, 50);
 }
@@ -43067,6 +43080,189 @@ function apApplyBomMapToDom(bom){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  ใบอนุมัติ — แท็บหมวด + ดึงข้อมูลจากเมนูผสมเม็ด / แม่พิมพ์ / รายงานผลิต
+// ═══════════════════════════════════════════════════════════════════════════
+function apShowSection(sec){
+  var panels=document.querySelectorAll('#ap-injection-form .ap-sec-panel');
+  panels.forEach(function(p){
+    if(sec==='all') p.style.display='';
+    else p.style.display=(p.getAttribute('data-ap-sec')===sec)?'':'none';
+  });
+  document.querySelectorAll('#ap-doc-nav .ap-nav-btn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-ap-nav')===sec);
+  });
+  var calc=document.getElementById('ap-calc-panel');
+  if(calc) calc.style.display=(sec==='all'||sec==='calc')?'':'none';
+}
+function apSetEl(id,val,force){
+  var el=document.getElementById(id);
+  if(!el) return;
+  if(!force && String(el.value||'').trim()!=='') return;
+  if(el.type==='checkbox') el.checked=(val==='1'||val===true);
+  else el.value=(val==null||val===undefined)?'':String(val);
+}
+function apGatherMixForOrder(orderNo,jobName){
+  return (typeof mixPlans!=='undefined'?mixPlans:[]).filter(function(p){
+    if(!p) return false;
+    if(orderNo && String(p.orderNo)===String(orderNo)) return true;
+    if(jobName && String(p.jobName)===String(jobName)) return true;
+    return false;
+  }).sort(function(a,b){ return (b.date||b.ttProdDate||'').localeCompare(a.date||a.ttProdDate||''); });
+}
+function apGatherDispatches(orderNo){
+  return (typeof mixDispatchHistory!=='undefined'?mixDispatchHistory:[]).filter(function(d){
+    return d && orderNo && String(d.orderNo)===String(orderNo);
+  }).sort(function(a,b){ return (b.dispatchDate||b.at||'').localeCompare(a.dispatchDate||a.at||''); });
+}
+function apSyncMixSection(o,j,force){
+  if(!o) return;
+  var mixes=apGatherMixForOrder(o.orderNo,o.jobName||'');
+  var today=new Date().toISOString().split('T')[0];
+  if(mixes.length){
+    var m=mixes[0];
+    var formula=[];
+    if(m.plastic) formula.push(m.plastic+(m.grade?' ('+m.grade+')':''));
+    if(m.mb && m.mb!=='-') formula.push('MB:'+m.mb+(m.mbRatio?' @'+m.mbRatio+'g/kg':''));
+    apSetEl('ap-1-1-code',formula.join(' + '),force);
+    apSetEl('ap-1-1-status',(m.plastic||'')+(m.grade?' '+m.grade:''),force);
+    apSetEl('ap-1-1-detail','แผนผสมเม็ด: '+(m.status||'-')+(m.weight?' | '+m.weight+' kg':''),force);
+    apSetEl('ap-1-1-date',m.date||m.ttProdDate||today,force);
+    apSetEl('ap-1-1-time',m.time||'',force);
+    var batch=m.batchNo||m.plasticBatch||o.matBatch||(j&&j._matBatch)||'';
+    apSetEl('ap-1-2-code',batch,force);
+    apSetEl('ap-1-2-status',m.plastic||'',force);
+    apSetEl('ap-1-2-detail',m.grade||'',force);
+    apSetEl('ap-1-2-date',m.date||today,force);
+    if(m.mb && m.mb!=='-'){
+      apSetEl('ap-1-4-code',m.mb,force);
+      apSetEl('ap-1-4-status',m.mbKg?(m.mbKg+' kg'):(m.mbRatio?m.mbRatio+' g/kg':''),force);
+      apSetEl('ap-1-4-detail','MB '+m.mb,force);
+      apSetEl('ap-1-4-date',m.date||today,force);
+    }
+    apSetEl('ap-1-5-date',m.date||today,force);
+  }
+  var disps=apGatherDispatches(o.orderNo);
+  if(disps.length){
+    var d0=disps[0];
+    if(d0.plasticBatch) apSetEl('ap-1-2-code',d0.plasticBatch,force);
+    var det=(document.getElementById('ap-1-2-detail')||{}).value||'';
+    if(d0.kg) apSetEl('ap-1-2-detail',(det?det+' | ':'')+'จัดส่ง '+d0.kg+' kg',force);
+  }
+}
+function apSyncMoldPrepSection(o,j,force){
+  if(!o) return;
+  var prep=(typeof moldPrepPlan!=='undefined'?moldPrepPlan:[]).find(function(p){
+    return p && o.orderNo && String(p.orderNo)===String(o.orderNo);
+  });
+  if(!prep && j && j.moldCode){
+    prep=moldPrepPlan.find(function(p){ return p && (p.moldCode===j.moldCode||p.jobName===j.name); });
+  }
+  if(prep){
+    apSetEl('ap-2-1-code',prep.moldCode||'',force);
+    apSetEl('ap-2-1-status',prep.status||'',force);
+    apSetEl('ap-2-1-date',prep.startDate||'',force);
+    apSetEl('ap-2-1-detail',[prep.assignedTo?'ผู้รับผิดชอบ: '+prep.assignedTo:'',prep.note||''].filter(Boolean).join(' | '),force);
+    apSetEl('ap-2-2-date',prep.endDate||'',force);
+    apSetEl('ap-2-3-status',prep.status||'',force);
+    apSetEl('ap-2-3-date',prep.endDate||prep.startDate||'',force);
+    apSetEl('ap-8-1-code',prep.moldCode||'',force);
+    apSetEl('ap-8-1-status',prep.status||'',force);
+    apSetEl('ap-8-1-date',prep.endDate||'',force);
+    apSetEl('ap-8-1-detail',prep.note||'',force);
+  }
+}
+function apSyncSetupSection(o,force){
+  if(!o||!o.orderNo) return;
+  var list=(typeof setupPlans!=='undefined'?setupPlans:[]).filter(function(s){
+    return s && String(s.orderNo)===String(o.orderNo);
+  });
+  if(!list.length && o.machine){
+    list=setupPlans.filter(function(s){ return s && s.machine===o.machine && s.jobName===o.jobName; });
+  }
+  if(!list.length) return;
+  list.sort(function(a,b){ return (b.setupDate||b.date||'').localeCompare(a.setupDate||a.date||''); });
+  var s=list[0];
+  if(s.status) apSetEl('ap-4-1-status',s.status,force);
+  if(s.setupDate||s.date) apSetEl('ap-4-1-date',s.setupDate||s.date,force);
+  if(s.technician) apSetEl('ap-4-1-detail','Setup: '+s.technician,force);
+  if(s.startTime) apSetEl('ap-4-10-time',s.startTime,force);
+  if(s.endTime) apSetEl('ap-4-10-detail','เสร็จ '+s.endTime,force);
+}
+function apSyncDocsSection(o,j,force){
+  if(typeof wiDocs!=='undefined' && j && j.name){
+    var wi=wiDocs.find(function(w){ return w.job===j.name; });
+    if(wi) apSetEl('ap-5-1-code',wi.wiNo||wi.id||'',force);
+  }
+}
+function apEnsureMatRow(n){
+  while(!document.getElementById('ap-mat-'+n+'-date')){
+    if(typeof apAddMatRow!=='function') break;
+    apAddMatRow();
+  }
+}
+function apHydrateMatRowsFromDispatch(o,force){
+  if(!o||!o.orderNo) return;
+  var disps=apGatherDispatches(o.orderNo);
+  disps.slice(0,15).forEach(function(d,ix){
+    var n=ix+1;
+    apEnsureMatRow(n);
+    apSetEl('ap-mat-'+n+'-date',d.dispatchDate||(d.at?String(d.at).slice(0,10):''),force);
+    apSetEl('ap-mat-'+n+'-batch',d.plasticBatch||'',force);
+    apSetEl('ap-mat-'+n+'-open',d.kg||'',force);
+    apSetEl('ap-mat-'+n+'-used',d.kg||'',force);
+    apSetEl('ap-mat-'+n+'-by',d.receiver||'',force);
+    apSetEl('ap-mat-'+n+'-mb',d.jobName||'',force);
+  });
+}
+function apApplyAutoReadonly(){
+  var autoIds=[];
+  document.querySelectorAll('#ap-injection-form [id^="ap-1-"],#ap-injection-form [id^="ap-2-"],#ap-injection-form [id^="ap-5-1"],#ap-injection-form [id^="ap-5-2"],#ap-injection-form [id^="ap-5-5"],#ap-injection-form [id^="ap-5-6"],#ap-injection-form [id^="ap-8-"],#ap-injection-form [id^="ap-prod-"],#ap-injection-form [id^="ap-mat-"]').forEach(function(el){
+    if(!el.id||el.type==='hidden'||el.type==='radio'||el.type==='checkbox') return;
+    autoIds.push(el.id);
+  });
+  autoIds.forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    el.readOnly=true;
+    el.classList.add('ap-ro-input');
+    if(el.tagName==='SELECT'){ el.disabled=true; }
+  });
+  ['ap-prod-add-btn','ap-mat-add-btn'].forEach(function(bid){
+    var b=document.getElementById(bid);
+    if(b) b.style.display='none';
+  });
+}
+function apSyncExternalData(o,j,opts){
+  if(!o) return;
+  opts=opts||{};
+  var force=!!opts.force;
+  j=j||{};
+  if(!j.name && o.jobName) j=jobs.find(function(jj){ return jj.name===o.jobName; })||{};
+  apSyncMixSection(o,j,force);
+  apSyncMoldPrepSection(o,j,force);
+  apSyncSetupSection(o,force);
+  apSyncDocsSection(o,j,force);
+  if(typeof apHydrateProdRowsFromDailyReport==='function') apHydrateProdRowsFromDailyReport(o,force);
+  apHydrateMatRowsFromDispatch(o,force);
+  if(typeof apCalcMatTotal==='function') apCalcMatTotal();
+  if(typeof apCalcProdTotal==='function') apCalcProdTotal();
+  apApplyAutoReadonly();
+  var ban=document.getElementById('ap-sync-banner');
+  if(ban) ban.style.display='';
+}
+function apInitDocNav(){
+  if(window._apDocNavBound) return;
+  var nav=document.getElementById('ap-doc-nav');
+  if(!nav) return;
+  window._apDocNavBound=true;
+  nav.addEventListener('click',function(ev){
+    var btn=ev.target.closest('.ap-nav-btn');
+    if(!btn) return;
+    apShowSection(btn.getAttribute('data-ap-nav')||'all');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  apOnOrderChange — ดึงข้อมูลทุกอย่างจาก BOM + Order + Time Table
 //  แล้วกรอกลงทุก field ในใบอนุมัติกระบวนการอัตโนมัติ
 // ═══════════════════════════════════════════════════════════════════════════
@@ -43131,7 +43327,7 @@ function apOnOrderChange(){
   }
 
   apCalcProduction(o, bom.j);
-  if(typeof apHydrateProdRowsFromDailyReport==='function') apHydrateProdRowsFromDailyReport(o);
+  if(typeof apSyncExternalData==='function') apSyncExternalData(o, bom.j, {force:true});
   const panel = document.getElementById('ap-calc-panel');
   if(panel) panel.style.display = '';
   const badge = document.getElementById('ap-bom-calc-badge');
@@ -43150,8 +43346,9 @@ function apSumDailyReportRows(rpt){
   rpt.rows.forEach(function(r){ tp += (+r.produced||0); tn += (+r.ng||0); });
   return {total:tp, ok:Math.max(0,tp-tn), ng:tn};
 }
-function apHydrateProdRowsFromDailyReport(o){
+function apHydrateProdRowsFromDailyReport(o,force){
   if(!o||!o.orderNo||typeof dailyReports==='undefined') return;
+  force=!!force;
   var mach = typeof ttNormalizeMachineId==='function' ? ttNormalizeMachineId(o.machine||'') : String(o.machine||'').split(/\s+/)[0];
   var matches=[];
   Object.keys(dailyReports).forEach(function(k){
@@ -43168,21 +43365,29 @@ function apHydrateProdRowsFromDailyReport(o){
   }
   if(!matches.length) return;
   matches.sort(function(a,b){ return a.k.localeCompare(b.k); });
-  matches.slice(0,8).forEach(function(m,ix){
+  matches.slice(0,12).forEach(function(m,ix){
     var r=m.r, suf=ix+1, sum=apSumDailyReportRows(r);
+    while(!document.getElementById('ap-prod-'+suf+'-date') && typeof apAddProdRow==='function') apAddProdRow();
     var dateStr = r.date||'';
     if(!dateStr){
       var parts=m.k.split('_');
       if(parts.length>=2 && /^\d{4}-\d{2}-\d{2}$/.test(parts[1])) dateStr=parts[1];
     }
-    var dEl=document.getElementById('ap-prod-'+suf+'-date');
-    if(dEl&&!dEl.value) dEl.value=dateStr;
-    var okEl=document.getElementById('ap-prod-'+suf+'-ok');
-    if(okEl&&(okEl.value===''||okEl.value==='0')) okEl.value=String(sum.ok);
-    var ngEl=document.getElementById('ap-prod-'+suf+'-ng');
-    if(ngEl&&(ngEl.value===''||ngEl.value==='0')) ngEl.value=String(sum.ng);
-    var totEl=document.getElementById('ap-prod-'+suf+'-total');
-    if(totEl&&(totEl.value===''||totEl.value==='0')) totEl.value=String(sum.total);
+    var shift='';
+    if(r.shift) shift=r.shift;
+    else if(m.k.indexOf('_D')>=0) shift='กะเช้า';
+    else if(m.k.indexOf('_N')>=0) shift='กะดึก';
+    apSetEl('ap-prod-'+suf+'-date',dateStr,force);
+    apSetEl('ap-prod-'+suf+'-shift',shift,force);
+    apSetEl('ap-prod-'+suf+'-ok',String(sum.ok),force);
+    apSetEl('ap-prod-'+suf+'-ng',String(sum.ng),force);
+    apSetEl('ap-prod-'+suf+'-total',String(sum.total),force);
+    if(r.rows && r.rows[0]){
+      var topNg=r.rows.reduce(function(best,row){ return (+row.ng||0)>(+best.ng||0)?row:best; }, r.rows[0]);
+      if(topNg.defect) apSetEl('ap-prod-'+suf+'-defect',topNg.defect,force);
+      if(topNg.fix) apSetEl('ap-prod-'+suf+'-fix',topNg.fix,force);
+      if(topNg.operator) apSetEl('ap-prod-'+suf+'-by',topNg.operator,force);
+    }
     if(typeof apCalcNGpct==='function') apCalcNGpct(suf);
   });
 }
@@ -43730,14 +43935,15 @@ function printApprovalProcDoc(docId){
 
   const tHead = `<thead><tr style="background:#cdd8ea">
     <th style="width:28px">ข้อที่</th>
-    <th style="text-align:left;min-width:160px">ขั้นตอน</th>
-    <th style="width:50px">รหัส</th>
-    <th style="width:80px">จำนวน/สถานะ</th>
-    <th style="min-width:100px">รายละเอียด</th>
-    <th style="width:56px">ผู้ปฏิบัติ</th>
-    <th style="width:56px">ตรวจสอบ</th>
-    
+    <th style="text-align:left;min-width:140px">ขั้นตอน</th>
+    <th style="width:44px">รหัส</th>
+    <th style="width:70px">จำนวน/สถานะ</th>
+    <th style="min-width:90px">รายละเอียด</th>
+    <th style="width:52px">ผู้ปฏิบัติ</th>
+    <th style="width:52px">ตรวจสอบ</th>
+    <th style="width:52px">อนุมัติ</th>
   </tr></thead>`;
+  const apPrintLogo = (typeof _apLogoHtml==='function') ? _apLogoHtml() : '';
 
   const oForPrint = orders.find(x=>x.orderNo===d.orderNo)||{};
   var pq = fv('ap-qty-override');
@@ -43787,6 +43993,10 @@ function printApprovalProcDoc(docId){
     *{font-family:Inter,sans-serif;font-size:8pt;margin:0;padding:0;box-sizing:border-box;}
     body{padding:5mm 6mm;background:#fff;color:#000;}
     .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:3px;margin-bottom:3px;}
+    .ap-logo-block{display:flex;flex-direction:column;align-items:center;gap:1px}
+    .ap-logo-img{width:42px;height:auto;max-height:44px;object-fit:contain}
+    .ap-logo-en{font-size:6pt;font-weight:700;color:#1a3a6e}
+    .ap-logo-th{font-size:6pt;font-weight:600;color:#222}
     .co{font-size:10pt;font-weight:800;}.co-sub{font-size:7pt;color:#444;}
     .doc-ttl{font-size:11pt;font-weight:800;}
     .doc-no-b{text-align:right;font-size:7.5pt;border:1px solid #000;padding:2px 6px;}
@@ -43805,10 +44015,14 @@ function printApprovalProcDoc(docId){
   </style></head><body>
 
   <!-- ═══ HEADER ═══ -->
-  <div class="hdr">
-    <div><div class="co">${COMPANY_NAME}</div><div class="co-sub">${COMPANY_NAME_EN}</div></div>
-    <div class="doc-ttl">ใบอนุมัติกระบวนการฉีดพลาสติก</div>
-    <div class="doc-no-b"><strong>F-PD-I008</strong> REV.21<br>วันที่: ${today}</div>
+  <div class="hdr" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+    <div style="flex-shrink:0">${apPrintLogo}</div>
+    <div style="flex:1;text-align:center;padding-top:4px">
+      <div class="co">${COMPANY_NAME}</div>
+      <div class="co-sub">${COMPANY_NAME_EN}</div>
+      <div class="doc-ttl" style="margin-top:4px">ใบอนุมัติกระบวนการฉีดพลาสติก</div>
+    </div>
+    <div class="doc-no-b" style="flex-shrink:0"><strong>F-PD-I008</strong> REV.23<br>วันที่: ${today}</div>
   </div>
 
   <!-- ═══ INFO ROW 1 ═══ -->
@@ -55055,7 +55269,7 @@ function _clRenderChart(){
       <div>
         <div class="page-title" id="ap-main-title">✅ ใบอนุมัติกระบวนการฉีดพลาสติก</div>
         <div class="page-sub" id="ap-main-sub">บันทึกการเตรียมความพร้อมก่อนผลิต — Set up, เคลียร์ไลน์, Start Lot <span id="ap-dept-badge" style="display:none;margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(163,113,247,0.12);border:1px solid rgba(163,113,247,0.35);color:#a371f7;font-weight:700;font-size:11px"></span></div>
-        <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I008 REV.21</div>
+        <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I008 REV.23</div>
       </div>
       <div class="flex gap-2">
         <button class="btn btn-primary" onclick="openNewApprovalProc()">+ สร้างใบอนุมัติใหม่</button>
@@ -55127,7 +55341,7 @@ function _clRenderChart(){
     <div class="card mb-3" style="border-top:3px solid var(--accent)">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
         <div class="card-title" style="font-size:14px;margin:0">📋 รายละเอียดใบอนุมัติกระบวนการ <span id="ap-doc-no-badge" class="doc-badge" style="vertical-align:middle"></span></div>
-        <button class="btn btn-primary btn-sm" onclick="apOnOrderChange()" style="background:linear-gradient(135deg,#388bfd,#58a6ff)">⚡ กรอกข้อมูลอัตโนมัติจาก BOM + แผนผลิต</button>
+        <button class="btn btn-primary btn-sm" onclick="apOnOrderChange()" style="background:linear-gradient(135deg,#388bfd,#58a6ff)">⚡ ดึงข้อมูลอัตโนมัติ (ผสมเม็ด · แม่พิมพ์ · รายงานผลิต)</button>
       </div>
 
       <!-- Quick Order Selector (dropdown ชัดเจน) -->
@@ -55222,8 +55436,25 @@ function _clRenderChart(){
     </div>
 
     <div id="ap-injection-form">
+    <div id="ap-sync-banner" class="ap-auto-banner" style="display:none;margin-bottom:10px">
+      ✅ ดึงข้อมูลจากเมนู <strong>ผสมเม็ด</strong> · <strong>เตรียมแม่พิมพ์</strong> · <strong>รายงานการผลิต</strong> แล้ว — ช่องสีฟ้าเป็นอ่านอย่างเดียว (แก้ที่เมนูต้นทาง)
+    </div>
+    <div id="ap-doc-nav" class="ap-doc-nav">
+      <button type="button" class="ap-nav-btn active" data-ap-nav="all">📋 ทั้งหมด</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="1">1 เตรียมวัตถุดิบ</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="2">2 เตรียม Mold</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="3">3 เคลียร์ก่อน Setup</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="4">4 เครื่องจักร</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="5">5 เอกสารการผลิต</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="6">6 เคลียร์หลัง Setup</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="7">7 Start Lot</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="fill">เติมเม็ด</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="10">รายงานยอด</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="8">8 นำแม่พิมพ์ลง</button>
+      <button type="button" class="ap-nav-btn" data-ap-nav="9">9 เคลียร์หลังลงแม่พิมพ์</button>
+    </div>
     <!-- ══ Production Calculation Panel ══ -->
-    <div id="ap-calc-panel" style="display:none;border-top:3px solid #388bfd" class="card mb-3">
+    <div id="ap-calc-panel" style="display:none;border-top:3px solid #388bfd" class="card mb-3 ap-sec-panel" data-ap-sec="calc">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <span>📊 การคำนวณแผนผลิต <span style="font-size:10px;color:#388bfd">(คำนวณอัตโนมัติจาก BOM + Order + แผนผลิต)</span></span>
         <span id="ap-bom-calc-badge" style="display:none;background:#238636;color:#fff;padding:3px 12px;border-radius:20px;font-size:11px">✅ ดึงข้อมูล BOM + แผนผลิตอัตโนมัติแล้ว</span>
@@ -55325,16 +55556,17 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 1: วัตถุดิบ -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="1">
       <div class="card-title">1. การเตรียมความพร้อมก่อนการฉีด — วัตถุดิบ</div>
-      <div style="overflow-x:auto"><table style="min-width:700px">
-        <thead><tr><th style="min-width:220px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th></tr></thead>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>ผสมเม็ด / วัตถุดิบ</strong> — ไม่ต้องพิมพ์ซ้ำ</div>
+      <div style="overflow-x:auto"><table class="ap-table-fpd" style="min-width:900px">
+        <thead><tr><th style="min-width:200px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th><th>อนุมัติ</th></tr></thead>
         <tbody>
-          <tr><td>1.1 ข้อมูลการใช้เม็ดและสี สูตรผสม</td><td><input class="ap-input" id="ap-1-1-code"></td><td><input class="ap-input" id="ap-1-1-status"></td><td><input class="ap-input ap-time" id="ap-1-1-time"></td><td><input class="ap-input ap-date" id="ap-1-1-date" type="date"></td><td><input class="ap-input" id="ap-1-1-detail" style="min-width:120px"></td></tr>
-          <tr><td>1.2 การเช็ควัตถุดิบ เม็ดพลาสติก 1 (Batch No.)</td><td><input class="ap-input" id="ap-1-2-code"></td><td><input class="ap-input" id="ap-1-2-status"></td><td><input class="ap-input ap-time" id="ap-1-2-time"></td><td><input class="ap-input ap-date" id="ap-1-2-date" type="date"></td><td><input class="ap-input" id="ap-1-2-detail"></td></tr>
-          <tr><td>1.3 การเช็ควัตถุดิบ เม็ดพลาสติก 2 (Batch No.)</td><td><input class="ap-input" id="ap-1-3-code"></td><td><input class="ap-input" id="ap-1-3-status"></td><td><input class="ap-input ap-time" id="ap-1-3-time"></td><td><input class="ap-input ap-date" id="ap-1-3-date" type="date"></td><td><input class="ap-input" id="ap-1-3-detail"></td></tr>
-          <tr><td>1.4 สี (Batch No.) / ปริมาณสีที่ใช้ต่อ 1 kg</td><td><input class="ap-input" id="ap-1-4-code"></td><td><input class="ap-input" id="ap-1-4-status"></td><td><input class="ap-input ap-time" id="ap-1-4-time"></td><td><input class="ap-input ap-date" id="ap-1-4-date" type="date"></td><td><input class="ap-input" id="ap-1-4-detail"></td></tr>
-          <tr><td>1.5 สารผสม (Batch No.)</td><td><input class="ap-input" id="ap-1-5-code"></td><td><input class="ap-input" id="ap-1-5-status"></td><td><input class="ap-input ap-time" id="ap-1-5-time"></td><td><input class="ap-input ap-date" id="ap-1-5-date" type="date"></td><td><input class="ap-input" id="ap-1-5-detail"></td></tr>
+          <tr><td>1.1 ข้อมูลการใช้เม็ดและสี สูตรผสม</td><td><input class="ap-input" id="ap-1-1-code"></td><td><input class="ap-input" id="ap-1-1-status"></td><td><input class="ap-input ap-time" id="ap-1-1-time"></td><td><input class="ap-input ap-date" id="ap-1-1-date" type="date"></td><td><input class="ap-input" id="ap-1-1-detail" style="min-width:120px"></td><td colspan="3" class="ap-sign-placeholder"></td></tr>
+          <tr><td>1.2 การเช็ควัตถุดิบ เม็ดพลาสติก 1 (Batch No.)</td><td><input class="ap-input" id="ap-1-2-code"></td><td><input class="ap-input" id="ap-1-2-status"></td><td><input class="ap-input ap-time" id="ap-1-2-time"></td><td><input class="ap-input ap-date" id="ap-1-2-date" type="date"></td><td><input class="ap-input" id="ap-1-2-detail"></td><td colspan="3" class="ap-sign-placeholder"></td></tr>
+          <tr><td>1.3 การเช็ควัตถุดิบ เม็ดพลาสติก 2 (Batch No.)</td><td><input class="ap-input" id="ap-1-3-code"></td><td><input class="ap-input" id="ap-1-3-status"></td><td><input class="ap-input ap-time" id="ap-1-3-time"></td><td><input class="ap-input ap-date" id="ap-1-3-date" type="date"></td><td><input class="ap-input" id="ap-1-3-detail"></td><td colspan="3" class="ap-sign-placeholder"></td></tr>
+          <tr><td>1.4 สี (Batch No.) / ปริมาณสีที่ใช้ต่อ 1 kg</td><td><input class="ap-input" id="ap-1-4-code"></td><td><input class="ap-input" id="ap-1-4-status"></td><td><input class="ap-input ap-time" id="ap-1-4-time"></td><td><input class="ap-input ap-date" id="ap-1-4-date" type="date"></td><td><input class="ap-input" id="ap-1-4-detail"></td><td colspan="3" class="ap-sign-placeholder"></td></tr>
+          <tr><td>1.5 สารผสม (Batch No.)</td><td><input class="ap-input" id="ap-1-5-code"></td><td><input class="ap-input" id="ap-1-5-status"></td><td><input class="ap-input ap-time" id="ap-1-5-time"></td><td><input class="ap-input ap-date" id="ap-1-5-date" type="date"></td><td><input class="ap-input" id="ap-1-5-detail"></td><td colspan="3" class="ap-sign-placeholder"></td></tr>
         
           <tr class="ap-section-sign-row" style="background:rgba(56,139,253,0.04)"><td colspan="6" style="padding:6px 10px;font-size:11px;font-weight:700;color:var(--accent2);border-top:2px solid rgba(56,139,253,0.2)">✍️ ลงนามรับรองหมวดที่ 1</td><td style="border-top:2px solid rgba(56,139,253,0.2)"><div class="ap-sign-cell" id="cell-ap-s1-by" style="display:flex;align-items:center;gap:4px;min-width:90px"><div id="val-ap-s1-by" style="flex:1;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div><button onclick="apSign('ap-s1-by','ผู้ปฏิบัติ')" style="flex-shrink:0;padding:2px 6px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:10px;white-space:nowrap">✍️</button><input type="hidden" id="ap-s1-by" value=""></div></td><td style="border-top:2px solid rgba(56,139,253,0.2)"><div class="ap-sign-cell" id="cell-ap-s1-check" style="display:flex;align-items:center;gap:4px;min-width:90px"><div id="val-ap-s1-check" style="flex:1;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div><button onclick="apSign('ap-s1-check','ตรวจสอบ')" style="flex-shrink:0;padding:2px 6px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:10px;white-space:nowrap">✍️</button><input type="hidden" id="ap-s1-check" value=""></div></td><td style="border-top:2px solid rgba(56,139,253,0.2)"><div class="ap-sign-cell" id="cell-ap-s1-apv" style="display:flex;align-items:center;gap:4px;min-width:90px"><div id="val-ap-s1-apv" style="flex:1;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div><button onclick="apSign('ap-s1-apv','อนุมัติ')" style="flex-shrink:0;padding:2px 6px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:10px;white-space:nowrap">✍️</button><input type="hidden" id="ap-s1-apv" value=""></div></td></tr>
         </tbody>
@@ -55342,10 +55574,11 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 2: แม่พิมพ์ -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="2">
       <div class="card-title">2. ข้อมูลแม่พิมพ์</div>
-      <div style="overflow-x:auto"><table style="min-width:700px">
-        <thead><tr><th style="min-width:220px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th></tr></thead>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>เตรียมแม่พิมพ์</strong> — ไม่ต้องพิมพ์ซ้ำ</div>
+      <div style="overflow-x:auto"><table class="ap-table-fpd" style="min-width:900px">
+        <thead><tr><th style="min-width:200px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th><th>อนุมัติ</th></tr></thead>
         <tbody>
           <tr><td>2.1 การเช็คแม่พิมพ์</td><td><input class="ap-input" id="ap-2-1-code"></td><td><select class="ap-input" id="ap-2-1-status"><option>--</option><option>พร้อม</option><option>ไม่พร้อม</option></select></td><td><input class="ap-input ap-time" id="ap-2-1-time"></td><td><input class="ap-input ap-date" id="ap-2-1-date" type="date"></td><td><input class="ap-input" id="ap-2-1-detail"></td></tr>
           <tr><td>2.2 สภาพแม่พิมพ์พร้อมใช้งาน (อุด/ไม่อุด)</td><td><input class="ap-input" id="ap-2-2-code"></td><td><select class="ap-input" id="ap-2-2-status"><option>--</option><option>อุด</option><option>ไม่อุด</option></select></td><td><input class="ap-input ap-time" id="ap-2-2-time"></td><td><input class="ap-input ap-date" id="ap-2-2-date" type="date"></td><td><input class="ap-input" id="ap-2-2-detail"></td></tr>
@@ -55357,7 +55590,7 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 3: เคลียร์ไลน์ก่อน -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="3">
       <div class="card-title">3. เคลียร์ไลน์ก่อน Set up</div>
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -55396,10 +55629,10 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 4: เครื่องจักร -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="4">
       <div class="card-title">4. การตรวจสอบและการเตรียมเครื่องจักร</div>
-      <div style="overflow-x:auto"><table style="min-width:700px">
-        <thead><tr><th style="min-width:220px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th></tr></thead>
+      <div style="overflow-x:auto"><table class="ap-table-fpd" style="min-width:900px">
+        <thead><tr><th style="min-width:200px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th><th>อนุมัติ</th></tr></thead>
         <tbody>
           <tr><td>4.1 ตรวจสอบสถานะเครื่องฉีด</td><td></td><td><select class="ap-input" id="ap-4-1-status"><option>--</option><option>พร้อม</option><option>ไม่พร้อม</option></select></td><td><input class="ap-input ap-time" id="ap-4-1-time"></td><td><input class="ap-input ap-date" id="ap-4-1-date" type="date"></td><td><input class="ap-input" id="ap-4-1-detail"></td></tr>
           <tr><td>4.2 ตรวจสอบสถานะโรบอท</td><td></td><td><select class="ap-input" id="ap-4-2-status"><option>--</option><option>พร้อม</option><option>ไม่พร้อม</option><option>ไม่มี</option></select></td><td><input class="ap-input ap-time" id="ap-4-2-time"></td><td><input class="ap-input ap-date" id="ap-4-2-date" type="date"></td><td><input class="ap-input" id="ap-4-2-detail"></td></tr>
@@ -55415,10 +55648,11 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 5: เอกสาร + ทบทวน -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="5">
       <div class="card-title">5. เอกสาร Support และ ทบทวนวิธีปฏิบัติงานของพนักงาน</div>
-      <div style="overflow-x:auto"><table style="min-width:700px">
-        <thead><tr><th>ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th></tr></thead>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>WI / รายงานการผลิต</strong> — ไม่ต้องพิมพ์ซ้ำ</div>
+      <div style="overflow-x:auto"><table class="ap-table-fpd" style="min-width:900px">
+        <thead><tr><th style="min-width:200px">ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th><th>ผู้ปฏิบัติ</th><th>ตรวจสอบ</th><th>อนุมัติ</th></tr></thead>
         <tbody>
           <tr><td>5.1 เอกสาร WI การผลิต</td><td><input class="ap-input" id="ap-5-1-code" placeholder="รหัสเอกสาร..."></td><td>*</td></tr>
           <tr><td>5.2 เอกสาร Condition การผลิต</td><td><input class="ap-input" id="ap-5-2-code" placeholder="รหัสเอกสาร..."></td><td>*</td></tr>
@@ -55433,7 +55667,7 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 7: Start Lot -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="7">
       <div class="card-title">7. การ Start Lot งาน</div>
       <div style="overflow-x:auto"><table style="min-width:700px">
         <thead><tr><th>ขั้นตอน</th><th>รหัส</th><th>จำนวน/สถานะ</th><th>เวลา</th><th>วันที่</th><th>รายละเอียด</th></tr></thead>
@@ -55450,7 +55684,7 @@ function _clRenderChart(){
 
     
     <!-- Section 6: เคลียร์ไลน์หลัง Set up -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="6">
       <div class="card-title">6. เคลียร์ไลน์หลัง Set up</div>
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -55489,8 +55723,9 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 8: นำแม่พิมพ์ลงหลังผลิตจบ -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="8">
       <div class="card-title">8. นำแม่พิมพ์ลงหลังผลิตจบ</div>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>เตรียมแม่พิมพ์</strong> (สถานะนำลง) — ไม่ต้องพิมพ์ซ้ำ</div>
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:11px">
           <thead><tr style="background:var(--bg3)">
@@ -55534,7 +55769,7 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 9: เคลียร์ไลน์หลังเอาแม่พิมพ์ลง -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="9">
       <div class="card-title">9. เคลียร์ไลน์หลังเอาแม่พิมพ์ลง</div>
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
@@ -55573,8 +55808,9 @@ function _clRenderChart(){
     </div>
 
     <!-- Section 10: บันทึกการผลิตประจำวัน -->
-    <div class="card mb-3">
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="10">
       <div class="card-title">10. บันทึกการผลิตประจำวัน (ดี / เสีย)</div>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>รายงานการผลิต (F-PD-I007)</strong> — ไม่ต้องพิมพ์ซ้ำ</div>
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:var(--bg3);font-size:10px">
@@ -55644,7 +55880,7 @@ function _clRenderChart(){
       </table>
       </div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button onclick="apAddProdRow()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:11px">+ เพิ่มแถว</button>
+        <button id="ap-prod-add-btn" onclick="apAddProdRow()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:11px">+ เพิ่มแถว</button>
         <button onclick="apCalcProdTotal()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:5px;cursor:pointer;font-size:11px">∑ คำนวณยอดรวม</button>
       </div>
     </div>
@@ -55691,9 +55927,10 @@ function _clRenderChart(){
       <div class="form-group"><div class="form-label">หมายเหตุบรรจุภัณฑ์</div><input class="ap-input" id="ap-pkg-note" placeholder="หมายเหตุ..."></div>
     </div>
 
-    <!-- Section 13: การใช้เม็ดพลาสติกประจำวัน -->
-    <div class="card mb-3">
-      <div class="card-title">13. บันทึกการใช้เม็ดพลาสติกประจำวัน</div>
+    <!-- Section 13: การใช้เม็ดพลาสติกประจำวัน (เติมเม็ด) -->
+    <div class="card mb-3 ap-sec-panel" data-ap-sec="fill">
+      <div class="card-title">13. บันทึกการใช้เม็ดพลาสติกประจำวัน (เติมเม็ด)</div>
+      <div class="ap-auto-banner">📥 ดึงอัตโนมัติจากเมนู <strong>จัดส่ง/รับเม็ด</strong> (ประวัติเบิกเม็ด) — ไม่ต้องพิมพ์ซ้ำ</div>
       <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="background:var(--bg3);font-size:10px">
@@ -55727,7 +55964,7 @@ function _clRenderChart(){
       </table>
       </div>
       <div style="display:flex;gap:8px;margin-top:6px">
-        <button onclick="apAddMatRow()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:11px">+ เพิ่มแถว</button>
+        <button id="ap-mat-add-btn" onclick="apAddMatRow()" style="padding:4px 12px;background:rgba(56,139,253,0.12);border:1px solid rgba(56,139,253,0.3);color:var(--accent2);border-radius:5px;cursor:pointer;font-size:11px">+ เพิ่มแถว</button>
         <button onclick="apCalcMatTotal()" style="padding:4px 12px;background:rgba(63,185,80,0.12);border:1px solid rgba(63,185,80,0.3);color:#3fb950;border-radius:5px;cursor:pointer;font-size:11px">∑ คำนวณยอดรวม</button>
       </div>
     </div>
