@@ -453,7 +453,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260522-wh-bind"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260522-sync-fix"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1811,32 +1811,74 @@
       if (!ts || typeof ts !== "string") return new Date(0).toISOString();
       const d = new Date(ts);
       if (isNaN(d.getTime())) return new Date(0).toISOString();
+      if (d.getTime() > Date.now() + 120000) return new Date(0).toISOString();
       return d.toISOString();
     }
 
-    /** PostgREST: ค่า timestamp ต้องอยู่ในเครื่องหมายคำพูด ไม่งั้น .000Z ทำให้ parse ผิด → HTTP 500 */
+    /** PostgREST: timestamp ต้องอยู่ในเครื่องหมายคำพูด — .000Z ไม่ใส่ quote มักได้ HTTP 500 */
     function pullSinceFilterValue(sinceIso) {
       return encodeURIComponent('"' + normalizePullSince(sinceIso) + '"');
     }
 
-    function applyPulledRows(w, rows) {
+    const SYNC_KEY_SET = new Set(SYNC_KEYS);
+
+    async function applyRemoteKeyToLocal(w, key) {
+      const remoteVal = await fetchServerValueByKey(key, { force: true });
+      if (typeof remoteVal !== "string") return;
+      let nextVal = remoteVal;
+      if (MERGE_SKIP_KEYS.has(key)) {
+        try { w.localStorage.setItem(key, nextVal); } catch (e) {}
+      } else if (usesStructuredMerge(key)) {
+        let curVal = null;
+        try { curVal = w.localStorage.getItem(key); } catch (e) {}
+        if (typeof curVal === "string") nextVal = mergeStorageKey(key, curVal, remoteVal);
+        try { w.localStorage.setItem(key, nextVal); } catch (e) {}
+      } else {
+        try { w.localStorage.setItem(key, nextVal); } catch (e) {}
+      }
+    }
+
+    /** ดึงเฉพาะ key + updated_at (ไม่ดึง storage_value รวม) — ลดโอกาส HTTP 500 จาก payload ใหญ่ */
+    async function pullIncrementalByMeta(w) {
+      const since = normalizePullSince(lastPullAt);
+      const f = pullSinceFilterValue(since);
+      const PAGE = 100;
+      let offset = 0;
+      const changedKeys = [];
       let maxUpdatedAt = lastPullAt;
-      rows.forEach((row) => {
-        let nextVal = row.storage_value;
-        if (MERGE_SKIP_KEYS.has(row.storage_key)) {
-          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
-        } else if (usesStructuredMerge(row.storage_key)) {
-          let curVal = null;
-          try { curVal = w.localStorage.getItem(row.storage_key); } catch (e) {}
-          if (typeof curVal === "string") nextVal = mergeStorageKey(row.storage_key, curVal, row.storage_value);
-          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
-        } else {
-          try { w.localStorage.setItem(row.storage_key, nextVal); } catch (e) {}
+
+      while (true) {
+        const url = sbUrl()
+          + "/rest/v1/app_storage?select=storage_key,updated_at"
+          + "&updated_at=gt." + f
+          + "&order=updated_at.asc"
+          + "&limit=" + PAGE
+          + "&offset=" + offset;
+        const r = await fetch(url, { headers: headers() });
+        if (!r.ok) {
+          const msg = await readErrorText(r);
+          throw new Error("meta pull HTTP " + r.status + (msg ? " - " + msg : ""));
         }
-        if (row && typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
-      });
+        const rows = await r.json();
+        if (!Array.isArray(rows) || !rows.length) break;
+        rows.forEach((row) => {
+          if (!row || !row.storage_key || !SYNC_KEY_SET.has(row.storage_key)) return;
+          changedKeys.push(row.storage_key);
+          if (typeof row.updated_at === "string" && row.updated_at > maxUpdatedAt) maxUpdatedAt = row.updated_at;
+        });
+        if (rows.length < PAGE) break;
+        offset += PAGE;
+        if (offset > 8000) break;
+      }
+
+      const uniq = [...new Set(changedKeys)];
+      if (uniq.length) {
+        await prefetchServerValues(uniq);
+        for (const key of uniq) await applyRemoteKeyToLocal(w, key);
+      }
       lastPullAt = maxUpdatedAt;
-      localStorage.setItem("_sbLastPullAt", lastPullAt);
+      try { localStorage.setItem("_sbLastPullAt", lastPullAt); } catch (e) {}
+      return uniq.length;
     }
 
     async function pullAllKeysFallback(w) {
@@ -1865,59 +1907,45 @@
       return n;
     }
 
-    async function pullNow() {
+    async function pullAllKeysFallbackWithNotify(w, label) {
+      const n = await pullAllKeysFallback(w);
+      await repairCriticalKeys(w, { force: true });
+      try {
+        if (w) w.postMessage({ type: "pmf-sync-applied", source: label || "pull-fallback" }, "*");
+      } catch (e) {}
+      return n;
+    }
+
+    async function pullNow(opts) {
       if (!frameReady) return;
       if (pushInFlight) {
         setStatus("รอ push เดิมเสร็จก่อน");
         return;
       }
+      const forceFallback = !!(opts && opts.forceFallback);
       setLoading(true);
       const w = document.getElementById("app-frame").contentWindow;
-      const since = normalizePullSince(lastPullAt);
-      const f = pullSinceFilterValue(since);
-      const url = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + f + "&order=updated_at.asc";
       try {
-        const r = await fetch(url, { headers: headers() });
-        if (!r.ok) {
-          const msg = await readErrorText(r);
-          const err = new Error("pull failed HTTP " + r.status + (msg ? " - " + msg : ""));
-          if (r.status >= 500) {
-            const sinceEpoch = pullSinceFilterValue(new Date(0).toISOString());
-            const retryUrl = sbUrl() + "/rest/v1/app_storage?select=storage_key,storage_value,updated_at&updated_at=gt." + sinceEpoch + "&order=updated_at.asc&limit=500";
+        if (!forceFallback) {
+          try {
+            const n = await pullIncrementalByMeta(w);
+            await repairCriticalKeys(w);
             try {
-              const r2 = await fetch(retryUrl, { headers: headers() });
-              if (r2.ok) {
-                const rows2 = await r2.json();
-                applyPulledRows(w, rows2);
-                await repairCriticalKeys(w, { force: true });
-                try {
-                  if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-retry" }, "*");
-                } catch (e) {}
-                setStatus("pull สำเร็จ (ดึงเต็ม " + rows2.length + " รายการ)");
-                return;
-              }
-            } catch (_) {}
-            if (Date.now() - lastFallbackAt < FALLBACK_COOLDOWN_MS) {
-              throw new Error("pull failed HTTP " + r.status + " (รอ " + Math.round((FALLBACK_COOLDOWN_MS - (Date.now() - lastFallbackAt)) / 60000) + " นาทีก่อนโหมดสำรองเต็ม)");
-            }
-            lastFallbackAt = Date.now();
-            const n = await pullAllKeysFallback(w);
-            await repairCriticalKeys(w, { force: true });
-            try {
-              if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-fallback" }, "*");
+              if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull-meta" }, "*");
             } catch (e) {}
-            setStatus("pull สำเร็จ (โหมดสำรอง " + n + " คีย์)");
+            setStatus(n > 0 ? ("pull สำเร็จ " + n + " คีย์ที่อัปเดต") : "pull สำเร็จ (ไม่มีคีย์ใหม่)");
             return;
+          } catch (incErr) {
+            console.warn("[sync] incremental pull:", incErr);
+            if (String(incErr.message || "").includes("500")) {
+              lastPullAt = new Date(0).toISOString();
+              try { localStorage.setItem("_sbLastPullAt", lastPullAt); } catch (e) {}
+            }
           }
-          throw err;
         }
-        const rows = await r.json();
-        applyPulledRows(w, rows);
-        await repairCriticalKeys(w);
-        try {
-          if (w) w.postMessage({ type: "pmf-sync-applied", source: "pull" }, "*");
-        } catch (e) {}
-        setStatus("pull สำเร็จ " + rows.length + " รายการ");
+        const n = await pullAllKeysFallbackWithNotify(w, "pull-fallback");
+        lastFallbackAt = Date.now();
+        setStatus("pull สำเร็จ (ดึงทีละคีย์ " + n + " รายการ)");
       } finally {
         setLoading(false);
       }
@@ -2241,7 +2269,8 @@
     async function initialPullAndListen() {
       try {
         await testConn();
-        await pullNow();
+        lastFallbackAt = 0;
+        await pullNow({ forceFallback: true });
         // First successful pull marks the device as "bootstrapped" so that
         // subsequent pushes are allowed (and won't accidentally wipe cloud
         // data with an empty localStorage).
@@ -2280,6 +2309,8 @@
       if (btn) btn.disabled = true;
       try {
         persistSbInputs();
+        lastFallbackAt = 0;
+        serverValueCache.clear();
         await initialPullAndListen();
         startAutoSync();
         if (hint) hint.classList.add("on");
@@ -2302,7 +2333,10 @@
     });
     document.getElementById("test-conn").addEventListener("click", () => testConn().catch((e) => setStatus("ผิดพลาด: " + e.message)));
     document.getElementById("push-now").addEventListener("click", () => pushNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
-    document.getElementById("pull-now").addEventListener("click", () => pullNow().catch((e) => setStatus("ผิดพลาด: " + e.message)));
+    document.getElementById("pull-now").addEventListener("click", () => {
+      lastFallbackAt = 0;
+      pullNow({ forceFallback: true }).catch((e) => setStatus("ผิดพลาด: " + e.message));
+    });
     document.getElementById("btn-connect-sync").addEventListener("click", () => connectAndStartSync());
 
     // ── Floating "Save now" button (visible on every page) ─────────────────
