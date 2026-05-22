@@ -303,7 +303,8 @@ body {
   transform: translateY(-2px) scale(1.04);
   box-shadow: 0 8px 24px rgba(0,0,0,0.18);
 }
-.hs-app:active { transform: scale(0.90) !important; box-shadow: none; transition: transform 0.08s; }
+  .hs-app:active { transform: scale(0.90) !important; box-shadow: none; transition: transform 0.08s; }
+  .hs-app { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .hs-app.hs-hidden { display: none; }
 
 /* Icon image (rounded square) */
@@ -1860,10 +1861,13 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <!-- 15B --><div class="nav-item" onclick="showPage('orders',this,'postprocess')"><span class="nav-icon">🎨</span><span class="nav-seq">15B</span> Order (ประกอบ · สกรีน · พ่น)</div>
     <!-- 15C --><div class="nav-item" onclick="showPage('order-await',this)"><span class="nav-icon">📦</span><span class="nav-seq">15C</span> Order ผลิตจบ — รอส่ง</div>
     <!-- 15 --> <div class="nav-item" onclick="showPage('stock',this)"><span class="nav-icon">🏪</span><span class="nav-seq">16</span> Stock FG</div>
+    <!-- 16A --><div class="nav-item" onclick="showPage('stock-wip',this)"><span class="nav-icon">📦</span><span class="nav-seq">16A</span> Stock WIP & รอเบิก</div>
+    <!-- 16B --><div class="nav-item" onclick="showPage('wh-area',this)"><span class="nav-icon">📍</span><span class="nav-seq">16B</span> พื้นที่คลัง Fix/Free</div>
     <!-- 16 --> <div class="nav-item" onclick="showPage('timetable',this,'all')"><span class="nav-icon">📅</span><span class="nav-seq">17</span> Time Table รวม (7 แผนก)</div>
     <!-- 16B --> <div class="nav-item" onclick="showPage('setup',this)"><span class="nav-icon">🛠️</span><span class="nav-seq">17B</span> Setup Planning</div>
     <!-- 16C --> <div class="nav-item" onclick="showPage('setup-tt',this)"><span class="nav-icon">📆</span><span class="nav-seq">17C</span> Setup Time Table</div>
     <!-- 16D --> <div class="nav-item" onclick="showPage('setup-std',this)"><span class="nav-icon">📏</span><span class="nav-seq">17D</span> STD SET UP</div>
+    <!-- 16E --> <div class="nav-item" onclick="showPage('plan-cond',this)"><span class="nav-icon">📐</span><span class="nav-seq">17E</span> เงื่อนไขวางแผนผลิต</div>
   </div>
 
   <!-- ══════════════════════════════════════════ -->
@@ -3753,6 +3757,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <th style="white-space:nowrap;color:#39c5cf">♻️ Runner/Shot (g)</th>
       <th style="white-space:nowrap;color:#39c5cf">♻️ เศษบด/ชิ้น (g)</th>
       <th style="white-space:nowrap;color:#39c5cf">% Regrind</th>
+      <th style="white-space:nowrap;color:#39c5cf">📦 คลัง</th>
+      <th style="white-space:nowrap;color:#e3b341">🏷 ประเภทชิ้น</th>
+      <th style="white-space:nowrap;color:#79c0ff">🔗 WIP ที่เบิก (FG)</th>
       <th style="white-space:nowrap;color:#a371f7">👷 คน</th>
       <th style="white-space:nowrap;color:#a371f7">⚙️ กระบวนการ</th>
       <th style="white-space:nowrap;color:#e3b341">💰 BOM Std (฿/ชิ้น)</th>
@@ -3820,6 +3827,97 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
     <div class="card-title">✍️ ลายเซ็นแผนกที่เกี่ยวข้อง</div>
     <div id="eco-sign-wrap" style="display:grid;gap:10px"></div>
     <div style="margin-top:12px;font-size:11px;color:var(--text3)">ลายเซ็นถูกเก็บในเบราว์เซอร์ (คีย์ <span style="font-family:IBM Plex Mono,monospace;font-size:10px">_ecoDeptSignatures</span>) และซิงก์เมื่อใช้ไฟล์ preview กับ Supabase</div>
+  </div>
+</div>
+
+<!-- ========== PLANNING CONDITIONS (per machine) ========== -->
+<div class="page" id="page-plan-cond">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div class="page-title">📐 เงื่อนไขการวางแผนการผลิต</div>
+        <div class="page-sub">กำหนดตามเครื่องจักร — เม็ด · สี · ประเภทงาน · งานที่ต้องเดิน · ใช้ตอนกด TT ใน Order</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="showPage('machgroup',null)">🔗 Group เครื่อง</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="pmcOpenEdit()">+ เพิ่มเงื่อนไขเครื่อง</button>
+      </div>
+    </div>
+  </div>
+  <div style="background:rgba(56,139,253,0.06);border:1px solid rgba(56,139,253,0.25);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.55">
+    <strong>การทำงาน:</strong> กด <b>บันทึก + นำเข้า TT</b> ในหน้า Order → ระบบเลือกเครื่องจากเงื่อนไขนี้ · คำนวณ <b>วันเริ่ม–วันจบ</b> · ตั้ง <b>กำหนดส่ง</b> = จบผลิต + 3 วันทำการ (ไม่ลงวันอาทิตย์) · แก้ไขวันที่ใน Order ได้ภายหลัง
+  </div>
+  <div id="pmc-kpi-row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px"></div>
+  <div class="tbl-wrap" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+    <table>
+      <thead>
+        <tr>
+          <th>เครื่อง</th>
+          <th>เม็ดพลาสติก</th>
+          <th>สี MB</th>
+          <th>ประเภทงาน</th>
+          <th>งานที่ต้องเดิน</th>
+          <th>ลำดับ</th>
+          <th>สถานะ</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="pmc-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-pmc-edit" style="display:none">
+  <div class="modal" style="max-width:720px;width:97%">
+    <div class="modal-header">
+      <div class="modal-title" id="pmc-modal-title">📐 เงื่อนไขเครื่องจักร</div>
+      <button class="modal-close" onclick="closeModal('modal-pmc-edit')">✕</button>
+    </div>
+    <input type="hidden" id="pmc-edit-id" value="">
+    <div style="padding:16px">
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">เครื่องจักร *</div>
+          <select id="pmc-f-machine" style="width:100%"></select>
+        </div>
+        <div class="form-group"><div class="form-label">ลำดับความสำคัญ (ต่ำ=ก่อน)</div>
+          <input type="number" id="pmc-f-priority" min="1" max="99" value="10" style="width:100%">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><div class="form-label">เม็ดพลาสติกที่เดินได้</div>
+          <input id="pmc-f-plastics" placeholder="PP, ABS (ว่าง = ทุกเม็ด)" style="width:100%">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;margin-top:6px;cursor:pointer">
+            <input type="checkbox" id="pmc-f-plastic-strict"> บังคับตรงเม็ดเท่านั้น
+          </label>
+        </div>
+        <div class="form-group"><div class="form-label">สี MB ที่เดินได้</div>
+          <input id="pmc-f-mb" placeholder="ขาวมุก, ดำ (ว่าง = ทุกสี)" style="width:100%">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;margin-top:6px;cursor:pointer">
+            <input type="checkbox" id="pmc-f-mb-strict"> บังคับตรงสีเท่านั้น
+          </label>
+        </div>
+      </div>
+      <div class="form-group"><div class="form-label">ประเภทงานที่รับ</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:12px">
+          <label><input type="checkbox" class="pmc-wg-chk" value="injection" checked> ฉีดพลาสติก</label>
+          <label><input type="checkbox" class="pmc-wg-chk" value="assembly"> ประกอบ</label>
+          <label><input type="checkbox" class="pmc-wg-chk" value="secondary"> ไลน์รอง/หลัง</label>
+        </div>
+      </div>
+      <div class="form-group"><div class="form-label">งานที่ต้องเดินบนเครื่องนี้ (ชื่องาน คั่นด้วย , หรือขึ้นบรรทัดใหม่)</div>
+        <textarea id="pmc-f-required-jobs" rows="3" placeholder="เช่น ฝาครอบหน้า A, ฝาครอบหลัง B" style="width:100%"></textarea>
+      </div>
+      <div class="form-group"><div class="form-label">หมายเหตุ</div>
+        <input id="pmc-f-note" placeholder="เงื่อนไขพิเศษ" style="width:100%">
+      </div>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="pmc-f-enabled" checked> เปิดใช้งานเงื่อนไขนี้
+      </label>
+      <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-pmc-edit')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="pmcSave()">💾 บันทึก</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4545,8 +4643,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
 <div class="page" id="page-stock">
   <div class="page-header">
     <div class="flex items-center justify-between">
-      <div><div class="page-title">FG Stock</div><div class="page-sub">บัญชีคุมสินค้าสำเร็จรูป เบิกเข้า-จ่ายออก</div><div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I004 รับ FG &nbsp;|&nbsp; F-PD-I005 เบิก FG</div></div>
+      <div><div class="page-title">FG Stock</div><div class="page-sub">สินค้าสำเร็จรูป (FG) เท่านั้น — WIP และรอเบิกอยู่เมนู «WIP Stock»</div><div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I004 รับ FG &nbsp;|&nbsp; F-PD-I005 เบิก FG</div></div>
       <div class="flex gap-2">
+        <button class="btn btn-secondary btn-sm" onclick="if(typeof showPage==='function')showPage('stock-wip',null)">📦 WIP Stock</button>
         <button class="page-print-btn" onclick="openPrintPanel('page-stock')">🖨 สอบกลับ & พิมพ์</button>
         <button class="btn btn-green btn-sm" onclick="openModal('modal-stock-in')">📥 รับเข้า</button>
         <button class="btn btn-red btn-sm" onclick="openModal('modal-stock-out')">📤 จ่ายออก</button>
@@ -4570,6 +4669,9 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
         <select id="fg-stock-status" style="max-width:160px" onchange="filterStockStatus(this.value)">
           <option value="">ทุกสถานะ</option><option>ปกติ</option><option>ต่ำกว่า Min</option><option>เกิน Max</option>
         </select>
+        <select id="fg-stock-wh-area" style="max-width:180px" onchange="filterStock(document.getElementById('fg-stock-search')?.value||'', document.getElementById('fg-stock-status')?.value||'')" title="กรองตามพื้นที่คลัง">
+          <option value="">ทุกพื้นที่</option>
+        </select>
       </div>
     </div>
     <div class="card mb-3" style="padding:12px 14px">
@@ -4577,7 +4679,7 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <div id="fg-stock-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px"></div>
     </div>
     <div class="card"><div class="tbl-wrap"><table>
-      <thead><tr><th>ชื่องาน</th><th>Lot คงเหลือ (สูงสุด 4)</th><th>Stock (ชิ้น)</th><th>Min</th><th>Max</th><th>สถานะ Stock</th><th>รับเข้าล่าสุด</th><th>จ่ายออกล่าสุด</th><th>กำหนดส่ง</th><th>จัดการ</th></tr></thead>
+      <thead><tr><th>ชื่องาน</th><th>พื้นที่คลัง</th><th>Lot คงเหลือ (สูงสุด 4)</th><th>Stock (ชิ้น)</th><th>Min</th><th>Max</th><th>สถานะ Stock</th><th>รับเข้าล่าสุด</th><th>จ่ายออกล่าสุด</th><th>กำหนดส่ง</th><th>จัดการ</th></tr></thead>
       <tbody id="stock-tbody"></tbody>
     </table></div></div>
   </div>
@@ -4609,6 +4711,99 @@ if(typeof window!=='undefined') window.QRCode=QRCode;
       <tbody id="fg-ledger-tbody"></tbody>
     </table></div></div>
   </div>
+</div>
+
+<!-- ========== STOCK WIP ========== -->
+<div class="page" id="page-stock-wip">
+  <div class="page-header">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div class="page-title">WIP Stock & รอเบิก</div>
+        <div class="page-sub">คลังงานกึ่งสำเร็จ (WIP) · รายการรอเบิกไปประกอบ/พ่น/สกรีน FG · แยกจาก FG Stock</div>
+        <div class="doc-badge"><span class="doc-badge-icon">📄</span>F-PD-I004-WIP รับ &nbsp;|&nbsp; F-PD-I005-WIP เบิก</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-green btn-sm" onclick="openModal('modal-wip-in')">📥 รับเข้า WIP</button>
+        <button class="btn btn-red btn-sm" onclick="openWipIssueModal('')">📤 เบิก WIP</button>
+        <button class="btn btn-secondary btn-sm" onclick="if(typeof showPage==='function')showPage('stock',null)">🏪 ไป FG Stock</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-3 mb-3">
+    <div class="card"><div class="kpi-label">ยอด WIP รวม (ชิ้น)</div><div class="kpi-value mono" id="wip-kpi-total">0</div></div>
+    <div class="card"><div class="kpi-label">รายการรอเบิก</div><div class="kpi-value" style="color:#e3b341" id="wip-pending-kpi">0</div></div>
+    <div class="card"><div class="kpi-label">หมายเหตุ</div><div style="font-size:11px;color:var(--text2);line-height:1.4">งานฉีด → คลัง WIP (ต้องเบิกก่อนใช้) · งาน FG ใน BOM → รับ FG + สร้างรายการเบิก WIP ตามสูตรประกอบ</div></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(this,'tab-wip-stock')">📦 WIP คงเหลือ</div>
+    <div class="tab" onclick="switchTab(this,'tab-wip-pending')">⏳ รอเบิก (ไปประกอบ FG)</div>
+    <div class="tab" onclick="switchTab(this,'tab-wip-ledger')">📒 บัญชีคุม WIP</div>
+  </div>
+  <div id="tab-wip-stock">
+    <div class="card mb-3">
+      <div class="form-row">
+        <div class="search-box form-group" style="max-width:300px"><span class="search-icon">🔍</span>
+          <input type="text" id="wip-stock-search" placeholder="ค้นหางาน WIP..." oninput="filterWipStock(this.value)">
+        </div>
+        <select id="wip-stock-status" style="max-width:160px" onchange="filterWipStockStatus(this.value)">
+          <option value="">ทุกสถานะ</option><option>ปกติ</option><option>ต่ำกว่า Min</option><option>เกิน Max</option>
+        </select>
+        <select id="wip-stock-wh-area" style="max-width:180px" onchange="filterWipStock(document.getElementById('wip-stock-search')?.value||'')" title="กรองตามพื้นที่คลัง">
+          <option value="">ทุกพื้นที่</option>
+        </select>
+      </div>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>ชื่องาน WIP</th><th>พื้นที่คลัง</th><th>Stock</th><th>Min</th><th>Max</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+      <tbody id="wip-stock-tbody"></tbody>
+    </table></div></div>
+  </div>
+  <div id="tab-wip-pending" style="display:none">
+    <div class="card mb-3">
+      <select id="wip-pending-filter" onchange="renderWipPending()" style="max-width:200px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        <option value="">ทั้งหมด</option><option value="pending">รอเบิก / บางส่วน</option><option value="done">เบิกครบแล้ว</option>
+      </select>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Order</th><th>งาน FG</th><th>WIP ที่ต้องเบิก</th><th>ต้องการ</th><th>เบิกแล้ว</th><th>คงเบิก</th><th>Stock WIP</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+      <tbody id="wip-pending-tbody"></tbody>
+    </table></div></div>
+  </div>
+  <div id="tab-wip-ledger" style="display:none">
+    <div class="card mb-3">
+      <select id="wip-led-job" onchange="renderWipLedger()" style="max-width:320px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        <option value="">ทุกงาน</option>
+      </select>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>วันที่</th><th>งาน</th><th>ประเภท</th><th>จำนวน</th><th>Balance</th><th>หมายเหตุ</th></tr></thead>
+      <tbody id="wip-ledger-tbody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- ========== WAREHOUSE AREAS ========== -->
+<div class="page" id="page-wh-area">
+  <div class="page-header">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <div>
+        <div class="page-title">พื้นที่คลังสินค้า</div>
+        <div class="page-sub">กำหนดพื้นที่ WIP / FG แยก Fix Area (ที่ตายตัว) และ Free Area (จัดวางยืดหยุ่น)</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="whAreaOpenAdd()">+ เพิ่มพื้นที่</button>
+    </div>
+  </div>
+  <div class="card mb-3">
+    <div class="form-row">
+      <select id="wh-filter-zone" onchange="renderWhAreas()" style="max-width:140px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        <option value="">ทุกคลัง</option><option value="wip">WIP</option><option value="fg">FG</option>
+      </select>
+      <select id="wh-filter-type" onchange="renderWhAreas()" style="max-width:160px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px">
+        <option value="">ทุกประเภทพื้นที่</option><option value="fix">Fix Area</option><option value="free">Free Area</option>
+      </select>
+    </div>
+  </div>
+  <div id="wh-area-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
 </div>
 
 <!-- ========== DELIVERY ========== -->
@@ -9443,7 +9638,8 @@ function openNewOrderModal(){
   var t=document.getElementById('order-modal-title'); if(t) t.textContent='+ เพิ่ม Order ใหม่';
   var b1=document.getElementById('order-btn-save-only'); if(b1) b1.style.display='none';
   var b2=document.getElementById('order-btn-save-tt'); if(b2) b2.style.display='';
-  ['order-no','lot-no','order-customer','order-qty','order-due','order-start'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['order-no','lot-no','order-customer','order-qty','order-due','order-start','order-end'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var ad=document.getElementById('order-auto-dates'); if(ad) ad.checked=true;
   var oj=document.getElementById('order-job'); if(oj) oj.value='';
   var calc=document.getElementById('order-calc'); if(calc) calc.style.display='none';
   var prevPlan=document.getElementById('order-calc-plan'); if(prevPlan) prevPlan.remove();
@@ -9472,6 +9668,8 @@ function openEditOrder(orderNo){
   document.getElementById('order-qty').value=o.qty||0;
   document.getElementById('order-due').value=o.dueDate||'';
   document.getElementById('order-start').value=o.startDate||'';
+  var oe=document.getElementById('order-end'); if(oe) oe.value=o.planFinishDate||o.estFinishDate||(typeof orderEstFinishDate==='function'?orderEstFinishDate(o):'')||'';
+  var ad2=document.getElementById('order-auto-dates'); if(ad2) ad2.checked=false;
   var prevPlan=document.getElementById('order-calc-plan'); if(prevPlan) prevPlan.remove();
   var ph=document.getElementById('order-plan-hours');
   if(ph){
@@ -9561,6 +9759,18 @@ function saveOrderModal(withTT){
   };
   if(!isFinite(o.orderPlanHours)||o.orderPlanHours<0.5) o.orderPlanHours=(typeof ttGetHoursPerDay==='function')?ttGetHoursPerDay():20;
   if(o.shiftCount>2) o.shiftCount=2;
+  var autoDatesEl=document.getElementById('order-auto-dates');
+  var endInp=document.getElementById('order-end');
+  if(endInp && endInp.value) o.planFinishDate=endInp.value;
+  if(autoDatesEl && autoDatesEl.checked && typeof orderApplyAutoPlanDates==='function'){
+    o=orderApplyAutoPlanDates(o, { keepDue: !!(document.getElementById('order-due')||{}).value });
+    if(!o.machine){
+      var sug=(typeof orderSuggestMachineFromRules==='function')?orderSuggestMachineFromRules(jobName):'';
+      if(sug) o.machine=sug;
+    }
+  } else if(o.dueDate){
+    o.dueDate=(typeof orderAvoidSunday==='function')?orderAvoidSunday(o.dueDate):o.dueDate;
+  }
   if(orig){
     var idx=orders.findIndex(function(x){ return x.orderNo===orig; });
     if(idx<0){ if(typeof _infoToast==='function') _infoToast('ไม่พบ Order เดิม'); return; }
@@ -9575,8 +9785,8 @@ function saveOrderModal(withTT){
     saveOrders();
     if(typeof fgSyncReportLotFromOrder==='function') fgSyncReportLotFromOrder(orders[idx]);
     var _pdEdit=(typeof fgOrderProducedTotal==='function'?fgOrderProducedTotal(orders[idx].orderNo):0)||orders[idx].produced||0;
-    if(_pdEdit>0&&typeof fgSyncAutoReceiveFromOrder==='function'){
-      fgSyncAutoReceiveFromOrder(orders[idx], _pdEdit, orders[idx].startDate);
+    if(_pdEdit>0&&typeof pdSyncAutoReceiveFromOrder==='function'){
+      pdSyncAutoReceiveFromOrder(orders[idx], _pdEdit, orders[idx].startDate);
       if(typeof saveFgStock==='function') saveFgStock();
       if(typeof saveFgLedger==='function') saveFgLedger();
     }
@@ -9755,6 +9965,44 @@ function getAvailableQty(material){
 }
 let fgStock = {};
 let fgLedger = {};
+let wipStock = {};
+let wipLedger = {};
+let wipPending = []; // รอเบิก WIP สำหรับประกอบ FG {id,fgJob,wipJob,qtyNeeded,qtyIssued,orderNo,status,createdAt}
+let _warehouseAreas = [];
+
+var BOM_PART_TYPES = [
+  {v:'bottle', label:'กระปุก'},
+  {v:'powder_lid', label:'ฝาแป้ง'},
+  {v:'dropper', label:'จุกหยด'},
+  {v:'pe_sheet', label:'แผ่น PE'},
+  {v:'thread_cap', label:'ฝาเกลียว'},
+  {v:'flip_cap', label:'ฝาฟลิป'},
+  {v:'plate_tag', label:'ป้ายทะเบียน'},
+  {v:'spin_shaft', label:'แกนปั่นด้าย'}
+];
+function bomPartTypeLabel(v){
+  var x=BOM_PART_TYPES.find(function(p){ return p.v===v; });
+  return x?x.label:(v||'—');
+}
+function jobByName(n){
+  if(!n) return null;
+  var j=jobs.find(function(x){ return x&&x.name===n&&!x._deleted; });
+  if(j) return j;
+  if(typeof JOB_REGISTRY!=='undefined') return JOB_REGISTRY.find(function(x){ return x&&x.name===n&&!x._deleted; })||null;
+  return null;
+}
+function jobStockClass(jobName){
+  var j=jobByName(jobName);
+  if(j&&j.stockClass==='fg') return 'fg';
+  if(j&&j.stockClass==='wip') return 'wip';
+  if(j){
+    var wg=j.workGroup||'injection';
+    if(wg==='assembly'||wg==='secondary') return 'fg';
+    if(j.wipComponents&&j.wipComponents.length) return 'fg';
+  }
+  return 'wip';
+}
+
 // ── Persist fgStock ──────────────────────────────────────────────
 function saveFgStock(){
   try{ localStorage.setItem('_fgStock', JSON.stringify(fgStock)); }catch(e){}
@@ -9796,6 +10044,131 @@ function loadFgLedger(){
     if(changed){ try{ localStorage.setItem('_fgLedger', JSON.stringify(fgLedger)); }catch(_){} }
   }catch(_){}
   try{ fgPruneLedgerForDeletedStock(); }catch(_){}
+}
+function saveWipStock(){ try{ localStorage.setItem('_wipStock', JSON.stringify(wipStock)); }catch(e){} }
+function loadWipStock(){
+  try{
+    var d=localStorage.getItem('_wipStock');
+    if(d){ var saved=JSON.parse(d); Object.keys(saved).forEach(function(k){ if(!wipStock[k]) wipStock[k]={qty:0,min:200,max:5000,lastIn:0,lastOut:0,lastLot:''}; Object.assign(wipStock[k],saved[k]); }); }
+  }catch(e){}
+}
+function saveWipLedger(){ try{ localStorage.setItem('_wipLedger', JSON.stringify(wipLedger)); }catch(e){} }
+function loadWipLedger(){ try{ var d=localStorage.getItem('_wipLedger'); if(d) wipLedger=JSON.parse(d); }catch(e){} }
+function saveWipPending(){ try{ localStorage.setItem('_wipPending', JSON.stringify(wipPending)); }catch(e){} }
+function loadWipPending(){ try{ var d=localStorage.getItem('_wipPending'); if(d) wipPending=JSON.parse(d); if(!Array.isArray(wipPending)) wipPending=[]; }catch(e){ wipPending=[]; } }
+function saveWarehouseAreas(){ try{ localStorage.setItem('_warehouseAreas', JSON.stringify(_warehouseAreas)); }catch(e){} }
+function loadWarehouseAreas(){
+  try{
+    var d=localStorage.getItem('_warehouseAreas');
+    if(d) _warehouseAreas=JSON.parse(d);
+    if(!Array.isArray(_warehouseAreas)||!_warehouseAreas.length){
+      _warehouseAreas=[
+        {id:'wip-fix-1',stockZone:'wip',areaType:'fix',code:'WIP-FIX-01',name:'WIP Fix Area 1',note:''},
+        {id:'wip-free-1',stockZone:'wip',areaType:'free',code:'WIP-FREE-01',name:'WIP Free Area 1',note:''},
+        {id:'fg-fix-1',stockZone:'fg',areaType:'fix',code:'FG-FIX-01',name:'FG Fix Area 1',note:''},
+        {id:'fg-free-1',stockZone:'fg',areaType:'free',code:'FG-FREE-01',name:'FG Free Area 1',note:''}
+      ];
+    }
+  }catch(e){ _warehouseAreas=[]; }
+}
+function whAreaById(id){ return (_warehouseAreas||[]).find(function(a){ return a&&a.id===id; })||null; }
+function whAreasForZone(zone){
+  return (_warehouseAreas||[]).filter(function(a){ return a&&a.stockZone===zone; }).sort(function(a,b){ return String(a.code||'').localeCompare(String(b.code||'')); });
+}
+function whAreaShortLabel(id){
+  var a=whAreaById(id);
+  if(!a) return '—';
+  var t=a.areaType==='free'?'Free':'Fix';
+  return (a.code||a.name||'?')+' ('+t+')';
+}
+function whAreaBadgeHtml(whAreaId){
+  var a=whAreaById(whAreaId);
+  if(!a) return '<span style="font-size:10px;color:var(--text3)">📍 ยังไม่ผูก</span>';
+  var col=a.areaType==='free'?'#a371f7':'#79c0ff';
+  var z=a.stockZone==='fg'?'FG':'WIP';
+  return '<span style="font-size:10px;font-weight:700;color:'+col+'" title="'+_fgEscHtml(a.name)+'">📍 '+_fgEscHtml(a.code)+'</span><div style="font-size:9px;color:var(--text3)">'+z+' · '+(a.areaType==='free'?'Free':'Fix')+'</div>';
+}
+function whFillAreaSelect(sel, zone, currentId){
+  if(!sel) return;
+  var areas=whAreasForZone(zone);
+  sel.innerHTML='<option value="">— ยังไม่ระบุพื้นที่ —</option>'+areas.map(function(a){
+    return '<option value="'+a.id+'">'+_fgEscHtml(a.code)+' · '+_fgEscHtml(a.name)+' ('+(a.areaType==='free'?'Free':'Fix')+')</option>';
+  }).join('');
+  sel.value=currentId&&whAreaById(currentId)?currentId:'';
+}
+function whApplyDefaultAreaToBucket(bucket, jobName){
+  if(!bucket||bucket.whAreaId) return;
+  var j=jobByName(jobName);
+  if(!j||!j.defaultWhAreaId) return;
+  var zone=jobStockClass(jobName)==='fg'?'fg':'wip';
+  var a=whAreaById(j.defaultWhAreaId);
+  if(a&&a.stockZone===zone) bucket.whAreaId=j.defaultWhAreaId;
+}
+function whJobsAssignedToArea(areaId){
+  var out=[];
+  Object.keys(fgStock||{}).forEach(function(n){
+    var s=fgStock[n]; if(!s||s._deleted||s.whAreaId!==areaId) return;
+    out.push({name:n,zone:'fg',qty:parseInt(s.qty,10)||0});
+  });
+  Object.keys(wipStock||{}).forEach(function(n){
+    var s=wipStock[n]; if(!s||s._deleted||s.whAreaId!==areaId) return;
+    out.push({name:n,zone:'wip',qty:parseInt(s.qty,10)||0});
+  });
+  return out.sort(function(a,b){ return a.name.localeCompare(b.name); });
+}
+function whClearAreaReferences(areaId){
+  Object.keys(fgStock||{}).forEach(function(n){ if(fgStock[n]&&fgStock[n].whAreaId===areaId) delete fgStock[n].whAreaId; });
+  Object.keys(wipStock||{}).forEach(function(n){ if(wipStock[n]&&wipStock[n].whAreaId===areaId) delete wipStock[n].whAreaId; });
+  jobs.forEach(function(j){ if(j&&j.defaultWhAreaId===areaId) j.defaultWhAreaId=''; });
+  if(typeof JOB_REGISTRY!=='undefined') JOB_REGISTRY.forEach(function(j){ if(j&&j.defaultWhAreaId===areaId) j.defaultWhAreaId=''; });
+  if(typeof persistJobs==='function') persistJobs();
+  saveFgStock(); saveWipStock();
+}
+function openStockWhAreaModal(zone, jobName){
+  var bucket, jn=String(jobName||'').trim();
+  if(zone==='fg'){
+    jn=fgResolveFgStockJobKey(jn)||jn;
+    bucket=fgStock[jn];
+  } else {
+    bucket=wipStock[jn];
+  }
+  if(!jn||!bucket||bucket._deleted){ if(typeof _infoToast==='function') _infoToast('ไม่พบสต็อกงานนี้'); return; }
+  var hid=document.getElementById('stk-wh-zone');
+  var hj=document.getElementById('stk-wh-job');
+  var lb=document.getElementById('stk-wh-job-label');
+  var sel=document.getElementById('stk-wh-area');
+  if(hid) hid.value=zone;
+  if(hj) hj.value=jn;
+  if(lb) lb.textContent=jn;
+  whFillAreaSelect(sel, zone, bucket.whAreaId||'');
+  openModal('modal-stock-wh-area');
+}
+function saveStockWhAreaModal(){
+  var zone=document.getElementById('stk-wh-zone')?.value||'wip';
+  var jn=document.getElementById('stk-wh-job')?.value||'';
+  var aid=document.getElementById('stk-wh-area')?.value||'';
+  var bucket=zone==='fg'?(fgStock[jn]||null):(wipStock[jn]||null);
+  if(!bucket){ if(typeof _infoToast==='function') _infoToast('ไม่พบงาน'); return; }
+  if(aid){
+    var a=whAreaById(aid);
+    if(!a||a.stockZone!==zone){ if(typeof _infoToast==='function') _infoToast('พื้นที่ไม่ตรงคลัง '+zone.toUpperCase()); return; }
+    bucket.whAreaId=aid;
+  } else delete bucket.whAreaId;
+  if(zone==='fg'){ _stampStockBucket(fgStock,jn); saveFgStock(); renderStock(); }
+  else { saveWipStock(); renderWipStock(); }
+  closeModal('modal-stock-wh-area');
+  if(typeof _toast==='function') _toast('✅ ผูกพื้นที่ '+whAreaShortLabel(aid||'')+' → '+jn.substring(0,24));
+}
+function whPopulateStockAreaFilters(){
+  ['fg-stock-wh-area','wip-stock-wh-area'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    var zone=id.indexOf('fg')>=0?'fg':'wip';
+    var cur=el.value;
+    el.innerHTML='<option value="">ทุกพื้นที่</option>'+whAreasForZone(zone).map(function(a){
+      return '<option value="'+a.id+'">'+a.code+'</option>';
+    }).join('');
+    if(cur) el.value=cur;
+  });
 }
 let moldData = [];
 /** เบิก–รับ / ซ่อม / เตรียมแม่พิมพ์ — บันทึกร่วมฝ่ายผลิต–ฝ่ายแม่พิมพ์ */
@@ -9975,6 +10348,7 @@ var _navMenuList = [
   {id:'setup',        label:'Setup Planning',            icon:'🛠️', group:'🏭 การผลิต',     keywords:'setup set up เตรียมเครื่อง ช่าง 4M'},
   {id:'setup-tt',     label:'Setup Time Table',          icon:'📆', group:'🏭 การผลิต',     keywords:'setup timetable ปฏิทิน เตรียม setup วันไหน'},
   {id:'setup-std',    label:'STD SET UP',                icon:'📏', group:'🏭 การผลิต',     keywords:'std setup ขั้นตอน เวลาแต่ละขั้น คนที่เคยทำ'},
+  {id:'plan-cond',    label:'เงื่อนไขวางแผนผลิต',        icon:'📐', group:'🏭 การผลิต',     keywords:'เงื่อนไข วางแผน เครื่อง เม็ด สี ประเภทงาน tt order'},
   {id:'order-await',  label:'Order ผลิตจบ — รอส่ง',    icon:'📦', group:'🏭 การผลิต',     keywords:'order พร้อมส่ง รอส่ง ผลิตครบ'},
   {id:'customers',    label:'ทะเบียนลูกค้า',           icon:'🏢', group:'🏭 การผลิต',     keywords:'ลูกค้า customer'},
   {id:'jobreg',       label:'ทะเบียนงาน (ฉีดพลาสติก)',  icon:'🏭', group:'🏭 การผลิต',     keywords:'งาน job ทะเบียน ฉีด injection', workGroup:'injection'},
@@ -10010,6 +10384,8 @@ var _navMenuList = [
   {id:'closedloop',   label:'Close Loop & เศษบด',      icon:'♻️', group:'🧪 วัตถุดิบ',    keywords:'regrind เศษบด recycle closedloop'},
   // คลังสินค้า
   {id:'stock',        label:'FG Stock',                icon:'🏪', group:'🏪 คลังสินค้า',  keywords:'stock fg สินค้า คลัง finished goods'},
+  {id:'stock-wip',    label:'WIP Stock & รอเบิก',       icon:'📦', group:'🏪 คลังสินค้า',  keywords:'wip stock รอเบิก เบิก ประกอบ งานกึ่งสำเร็จ'},
+  {id:'wh-area',      label:'พื้นที่คลัง Fix/Free',     icon:'📍', group:'🏪 คลังสินค้า',  keywords:'พื้นที่คลัง warehouse area fix free wip fg'},
   {id:'delivery',     label:'กำหนดส่งงาน',              icon:'🚚', group:'🏪 คลังสินค้า',  keywords:'ส่งงาน delivery shipping'},
   {id:'shipment-history', label:'ประวัติการจัดส่ง',   icon:'📜', group:'🏪 คลังสินค้า',  keywords:'ส่งแล้ว ประวัติ shipment'},
   // แม่พิมพ์
@@ -10353,6 +10729,7 @@ document.addEventListener('DOMContentLoaded', function(){
 /** ลำดับหน้าก่อนหน้า (สำหรับปุ่ม «เมนูก่อนหน้า» — ไม่ใช่แค่กลับหน้าหลัก) */
 var _pageNavStack = [];
 var _navFromBack = false;
+var _navRenderToken = 0;
 
 function showPage(id, el, workGroup){
   var pageId = id;
@@ -10410,12 +10787,13 @@ function showPage(id, el, workGroup){
     _pageNavStack.push(window._currentPage);
   }
   _navFromBack = false;
+  window._pmfSkipSyncReloadUntil = Date.now() + 2800;
+  var navToken = ++_navRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   var pg = document.getElementById('page-'+domPageId);
   if(pg) pg.classList.add('active');
-  renderPage(domPageId);
   window._currentPage = pageId;
-  // Switch to page-view
+  // Switch to page-view ก่อน render — ให้เห็นหน้าทันที ไม่ค้างที่กริดเมนู
   var hs = document.getElementById('home-screen');
   var pv = document.getElementById('page-view');
   if(hs) hs.style.display = 'none';
@@ -10458,18 +10836,29 @@ function showPage(id, el, workGroup){
     try { document.documentElement.scrollTop = 0; } catch(e){}
     try { document.body.scrollTop = 0; } catch(e){}
   }
+  function _runPageRender(){
+    if(navToken !== _navRenderToken) return;
+    renderPage(domPageId);
+    requestAnimationFrame(function(){
+      if(navToken !== _navRenderToken) return;
+      _resetScrollTop();
+      setTimeout(function(){
+        if(navToken !== _navRenderToken) return;
+        _resetScrollTop();
+      }, 120);
+    });
+    if(id==='admin') setTimeout(function(){
+      if(navToken === _navRenderToken) renderAdminPage();
+    }, 0);
+  }
   requestAnimationFrame(function(){
-    _resetScrollTop();
-    setTimeout(_resetScrollTop, 0);
-    setTimeout(_resetScrollTop, 60);
-    setTimeout(_resetScrollTop, 200);
-    setTimeout(_resetScrollTop, 400);
+    requestAnimationFrame(_runPageRender);
   });
-  if(id==='admin') setTimeout(renderAdminPage, 0);
   if(typeof _sfSyncAfterNavigate==='function') _sfSyncAfterNavigate(pageId);
 }
 
 function goHome(){
+  _navRenderToken++;
   _pageNavStack = [];
   _navFromBack = false;
   if(typeof getUiMode==='function' && getUiMode()==='smart'){
@@ -17012,11 +17401,14 @@ function orderUpdateModalCalcPreview(){
   div.id = 'order-calc-plan';
   div.className = 'alert alert-success';
   div.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:12px';
+  var endEl = document.getElementById('order-end');
+  var endVal = (endEl && endEl.value) ? endEl.value : est;
   var topLine = qty > 0 ? '' : '⏱ ใส่จำนวนสั่งเพื่อคำนวณชม.รวม · ';
   div.innerHTML = topLine + '📅 แผนเดินเครื่อง: <b>' + eff + '</b> ชม./วัน (' + orderPlanShiftLabel(oTmp.planShiftMode)
     + (parseInt(oTmp.shiftCount, 10) > 1 ? ' × ' + oTmp.shiftCount + ' กะ' : '')
     + (oTmp.ot3h ? ' +OT 3ชม.' : '') + ')'
-    + (qty > 0 && est ? '<br>คาดจบผลิต: <b>' + est + '</b>' + (due ? ' (กำหนดส่ง ' + due + ')' : '') + warn : '');
+    + (qty > 0 && (endVal || est) ? '<br>เริ่ม: <b>' + (start || '—') + '</b> → คาดจบ: <b>' + (endVal || est) + '</b>'
+      + (due ? ' · กำหนดส่ง <b>' + due + '</b> (จบ+3วันทำการ, ไม่ลงอาทิตย์)' : '') + warn : '');
   var ob = document.getElementById('order-plan-block');
   var parent = calc.parentNode;
   if(ob && ob.parentNode === parent) parent.insertBefore(div, ob.nextSibling);
@@ -18121,16 +18513,30 @@ function importToTT(orderNo){
   // ── Use machine from Order (ใช้เครื่องที่ระบุใน Order เป็นหลัก) ──────────────────
   let assignedMach = ttNormalizeMachineId(o.machine||'');
   
-  // ถ้าไม่มีเครื่องใน Order ให้ลอง auto-assign จาก Machine Group (เฉพาะงานฉีด)
+  if((!o.startDate || !o.dueDate || !o.planFinishDate) && typeof orderApplyAutoPlanDates==='function'){
+    var patched = orderApplyAutoPlanDates(o, { keepDue: !!o.dueDate });
+    o.startDate = patched.startDate || o.startDate;
+    o.dueDate = patched.dueDate || o.dueDate;
+    o.planFinishDate = patched.planFinishDate || o.planFinishDate;
+    if(patched.shipPlanDate) o.shipPlanDate = patched.shipPlanDate;
+  }
+
+  // ถ้าไม่มีเครื่องใน Order ให้ลอง auto-assign จากเงื่อนไขวางแผน / Machine Group
   if(!assignedMach){
     const usedMachines = (ttData[prodDate]||[]).filter(x=>!x._deleted).map(x=>x.machine);
-    const groupResult  = orderWg==='injection' ? mgFindBestMachine(o.jobName, usedMachines) : null;
+    var groupResult = null;
+    if(typeof pmcFindBestMachineForJob==='function'){
+      groupResult = pmcFindBestMachineForJob(o.jobName, usedMachines);
+    }
+    if(!groupResult && orderWg==='injection'){
+      groupResult = mgFindBestMachine(o.jobName, usedMachines);
+    }
     
     if(groupResult){
       assignedMach = groupResult.machId;
       o.machine = assignedMach; // Update order
       if(typeof _toast==='function'){
-        _toast('🔗 จาก Group "'+groupResult.groupName+'" → เครื่อง '+assignedMach+' (ลำดับที่ '+(groupResult.priority+1)+')');
+        _toast('🔗 จาก '+groupResult.groupName+' → เครื่อง '+assignedMach);
       }
     } else {
       assignedMach = ttPickDefaultMachineForWorkGroup(orderWg, usedMachines);
@@ -18465,8 +18871,16 @@ function fillJobInfo(){
   if(!j) return;
   document.getElementById('order-customer').value=j.customer||'';
   const ms=document.getElementById('order-machine');
-  if(ms&&j.machine){
+  var machPick = (typeof orderSuggestMachineFromRules==='function') ? orderSuggestMachineFromRules(name) : (j.machine||'');
+  if(ms && machPick){
+    for(let opt of ms.options){ if((opt.value||'').split(/\s+/)[0]===machPick) { ms.value=opt.value; break; } }
+  } else if(ms&&j.machine){
     for(let opt of ms.options){ if(opt.value.startsWith(j.machine)) {ms.value=opt.value;break;} }
+  }
+  const autoChk=document.getElementById('order-auto-dates');
+  if(autoChk && autoChk.checked && typeof orderAutoPlanFromModal==='function'){
+    orderAutoPlanFromModal();
+    return;
   }
   const calc=document.getElementById('order-calc');
   const qty=document.getElementById('order-qty').value;
@@ -19672,6 +20086,12 @@ function renderBom(filter,matFilter){
       +'<td class="mono" style="text-align:center">'+runnerDisp+'</td>'
       +'<td class="mono" style="text-align:center">'+regrindDisp+'</td>'
       +'<td style="text-align:center">'+regrindPctDisp+'</td>'
+      +'<td style="text-align:center;white-space:nowrap">'
+        +(j.stockClass==='fg'?'<span class="badge badge-green">FG</span>':'<span class="badge badge-blue">WIP</span>')
+        +(j.stockClass==='fg'&&!(j.wipComponents&&j.wipComponents.length)?'<div style="font-size:9px;color:var(--orange)">⚠ ยังไม่ระบุ WIP เบิก</div>':'')
+      +'</td>'
+      +'<td style="font-size:11px;text-align:center">'+(j.partType?bomPartTypeLabel(j.partType):'—')+'</td>'
+      +'<td style="font-size:10px;max-width:120px;color:#79c0ff">'+(j.wipComponents&&j.wipComponents.length?j.wipComponents.join('<br>'):'—')+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'+workersDisp+'</td>'
       +'<td style="text-align:center;white-space:nowrap">'+processDisp+'</td>'
       +'<td style="text-align:right;white-space:nowrap">'+bomUnitDisp+'</td>'
@@ -19751,6 +20171,12 @@ function editBom(ref){
   var ctnDisp=document.getElementById('bom-pcs-ctn-display');
   if(ctnDisp) ctnDisp.textContent=pcsCtn>0?pcsCtn.toLocaleString()+' ชิ้น':'-';
   bomSetWorkGroupFromJob(j);
+  sv('bom-stock-class', j.stockClass||(j.workGroup==='assembly'||j.workGroup==='secondary'?'fg':'wip'));
+  sv('bom-part-type', j.partType||'');
+  sv('bom-wip-components', (j.wipComponents&&j.wipComponents.length)?j.wipComponents.join(', '):'');
+  if(typeof bomStockClassHint==='function') bomStockClassHint();
+  if(typeof bomWhAreaRefresh==='function') bomWhAreaRefresh();
+  sv('bom-wh-area', j.defaultWhAreaId||'');
   if(!bomIsAssemblyWorkGroupSelected()) sv('bom-ton', j.ton||'');
   if(typeof bomSetPartImageFields==='function') bomSetPartImageFields(j);
   // Reset UI state
@@ -19808,6 +20234,10 @@ function saveBom(){
     ct:     _ctShotOut,
     eff:    parseInt(document.getElementById('bom-eff')?.value)||100,
     workGroup: (document.getElementById('bom-work-group')?.value)||'injection',
+    stockClass: (document.getElementById('bom-stock-class')?.value)||'wip',
+    partType: (document.getElementById('bom-part-type')?.value)||'',
+    wipComponents: bomParseWipComponents(document.getElementById('bom-wip-components')?.value||''),
+    defaultWhAreaId: (document.getElementById('bom-wh-area')?.value||'').trim(),
     ton:    (function(){
       var wg=document.getElementById('bom-work-group')?.value||'injection';
       if(wg==='assembly') return 0;
@@ -19921,6 +20351,11 @@ function saveBom(){
   if(typeof mixRebuildFromTT==='function') mixRebuildFromTT({merge:true});
   if(typeof renderMixing==='function') renderMixing();
   if(typeof renderRawmatLedger==='function') renderRawmatLedger();
+  if(data.defaultWhAreaId){
+    var z=data.stockClass==='fg'?'fg':'wip';
+    var bk=z==='fg'?fgStock[name]:wipStock[name];
+    if(bk&&!bk.whAreaId){ bk.whAreaId=data.defaultWhAreaId; if(z==='fg') saveFgStock(); else saveWipStock(); }
+  }
   closeModal('modal-add-bom');
   renderBom();
   if(bomUnitCost>0&&typeof _toast==='function'){
@@ -20353,6 +20788,32 @@ function _bomFullEstimate(){
 }
 
 
+function bomStockClassHint(){
+  var sc=document.getElementById('bom-stock-class');
+  var wrap=document.getElementById('bom-wip-components-wrap');
+  var hint=document.getElementById('bom-stock-hint');
+  var wg=document.getElementById('bom-work-group')?.value||'injection';
+  if(sc&&wg==='injection'&&!sc.value) sc.value='wip';
+  if(sc&& (wg==='assembly'||wg==='secondary') && sc.value!=='fg') sc.value='fg';
+  var v=sc?sc.value:'wip';
+  if(wrap) wrap.style.display=(v==='fg')?'block':'none';
+  if(hint){
+    hint.textContent=v==='fg'
+      ? 'ผลิตเสร็จ → รับเข้าคลัง FG · ระบบสร้างรายการรอเบิก WIP ตามรายการด้านบน (ประกอบ/พ่น/สกรีน)'
+      : 'ผลิตเสร็จ → รับเข้าคลัง WIP · ต้องเบิกออกจากคลัง WIP ก่อนนำไปใช้งานต่อ';
+  }
+  if(typeof bomWhAreaRefresh==='function') bomWhAreaRefresh();
+}
+function bomWhAreaRefresh(){
+  var sc=document.getElementById('bom-stock-class')?.value||'wip';
+  var sel=document.getElementById('bom-wh-area');
+  var cur=sel?sel.value:'';
+  whFillAreaSelect(sel, sc==='fg'?'fg':'wip', cur);
+}
+function bomParseWipComponents(txt){
+  return String(txt||'').split(/[,;\n]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+}
+
 function bomClearForm(){
   if(typeof bomPopulatePlasticSelectors==='function') bomPopulatePlasticSelectors();
   // Clear all fields
@@ -20381,6 +20842,11 @@ function bomClearForm(){
     wgel.value=d;
   }
   bomUpdateTonFieldVisibility();
+  var scEl=document.getElementById('bom-stock-class'); if(scEl) scEl.value='wip';
+  var ptEl=document.getElementById('bom-part-type'); if(ptEl) ptEl.value='';
+  var wcEl=document.getElementById('bom-wip-components'); if(wcEl) wcEl.value='';
+  var whEl=document.getElementById('bom-wh-area'); if(whEl) whEl.value='';
+  if(typeof bomStockClassHint==='function') bomStockClassHint();
   var bfs=document.getElementById('bom-feeder-shot-line');
   if(bfs) bfs.innerHTML='<span style="color:var(--text3)">—</span>';
   var bfr=document.getElementById('bom-feeder-rate'); if(bfr) bfr.value='';
@@ -23520,65 +23986,150 @@ function _mbMaterialMatchesStockCode(code, j){
 }
 
 /** kind: 'plastic' | 'mb_color' | 'packaging' — ยอดรายเดือนหน่วยตามชนิด (kg หรือ หน่วยบรรจุภัณฑ์) */
-function getStockDemandProfile(materialKey, kind){
-  kind=kind||'plastic';
-  var matKey=String(materialKey||'').trim().toUpperCase();
-  var monthly={};
-  var maxMonthKey='';
-  var maxMonthly=0;
+var _stockDemandIdx = null;
 
-  function _orderMonthKey(o){
-    var dt=(o&&o.dueDate)||(o&&o.startDate)||(o&&o.createdAt)||'';
-    dt=String(dt||'').trim();
-    if(/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt.slice(0,7);
-    if(/^\d{4}-\d{2}$/.test(dt)) return dt;
-    return new Date().toISOString().slice(0,7);
+function _stockDemandSig(kind){
+  var o = orders || [];
+  var rev = 0;
+  for(var i = 0; i < o.length; i++){
+    var x = o[i];
+    if(!x) continue;
+    rev += String(x.orderNo || '').length + String(x.updatedAt || x.dueDate || '').length;
   }
-  function _daysInMonth(yyyyMM){
-    var y=parseInt(String(yyyyMM).slice(0,4),10)||new Date().getFullYear();
-    var m=parseInt(String(yyyyMM).slice(5,7),10)||1;
-    return new Date(y,m,0).getDate()||30;
-  }
+  return (kind || 'plastic') + '|n' + o.length + '|r' + rev;
+}
 
-  (orders||[]).forEach(function(o){
-    if(!o || o.status==='ยกเลิก' || o.status==='cancelled') return;
-    var j=findJobByFlexibleName(o.jobName)||{};
-    var qty=Math.max(0,(parseFloat(o.qty)||0)-(parseFloat(o.produced)||0));
-    var mk=_orderMonthKey(o);
-    var add=0;
+function _sdpOrderMonthKey(o){
+  var dt = (o && o.dueDate) || (o && o.startDate) || (o && o.createdAt) || '';
+  dt = String(dt || '').trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt.slice(0, 7);
+  if(/^\d{4}-\d{2}$/.test(dt)) return dt;
+  return new Date().toISOString().slice(0, 7);
+}
 
-    if(kind==='plastic'){
-      var oPlastic=String(o.plastic||j.plastic||'').trim().toUpperCase();
-      if(!oPlastic || oPlastic!==matKey) return;
-      var wtPerPc=jobEffectiveWtPerPc(j,0);
-      if(!(wtPerPc>0) || !(qty>0)) return;
-      add=(wtPerPc*qty)/1000;
-    }else if(kind==='mb_color'){
-      if(!_mbMaterialMatchesStockCode(materialKey, j)) return;
-      var wt2=jobEffectiveWtPerPc(j,0);
-      if(!(wt2>0) || !(qty>0)) return;
-      var plasticKg=(wt2*qty)/1000;
-      var info=(typeof mbColors!=='undefined')?mbColors[materialKey]:null;
-      var ratioG=(info&&(parseFloat(info.ratio)||parseFloat(info.mbRatio)))||parseFloat(j.mbRatio)||0;
-      if(!(ratioG>0)) return;
-      add=plasticKg*(ratioG/1000);
-    }else if(kind==='packaging'){
-      add=_packagingDemandForOrder(matKey, j, qty);
-      if(!(add>0)) return;
-    }else return;
+function _sdpDaysInMonth(yyyyMM){
+  var y = parseInt(String(yyyyMM).slice(0, 4), 10) || new Date().getFullYear();
+  var m = parseInt(String(yyyyMM).slice(5, 7), 10) || 1;
+  return new Date(y, m, 0).getDate() || 30;
+}
 
-    monthly[mk]=(monthly[mk]||0)+add;
+function _emptyStockDemandProfile(){
+  return { monthly: {}, maxMonthly: 0, maxMonthlyKg: 0, maxMonthKey: '', dailyFromPeak: 0 };
+}
+
+function _sdpFinalize(monthly){
+  var maxMonthly = 0, maxMonthKey = '';
+  Object.keys(monthly || {}).forEach(function(mk){
+    if(monthly[mk] > maxMonthly){ maxMonthly = monthly[mk]; maxMonthKey = mk; }
   });
+  var days = maxMonthKey ? _sdpDaysInMonth(maxMonthKey) : 30;
+  return {
+    monthly: monthly || {},
+    maxMonthly: maxMonthly,
+    maxMonthlyKg: maxMonthly,
+    maxMonthKey: maxMonthKey,
+    dailyFromPeak: days > 0 ? maxMonthly / days : 0
+  };
+}
 
-  Object.keys(monthly).forEach(function(mk){
-    if(monthly[mk]>maxMonthly){
-      maxMonthly=monthly[mk];
-      maxMonthKey=mk;
+function _sdpAdd(monthlyByKey, matKey, mk, add){
+  if(!(add > 0) || matKey == null || matKey === '') return;
+  var k = String(matKey).trim().toUpperCase();
+  if(!k) return;
+  if(!monthlyByKey[k]) monthlyByKey[k] = {};
+  monthlyByKey[k][mk] = (monthlyByKey[k][mk] || 0) + add;
+}
+
+function _collectDemandMaterialKeys(kind){
+  var keys = Object.create(null);
+  function add(code){
+    if(code == null || code === '') return;
+    var k = String(code).trim().toUpperCase();
+    if(k) keys[k] = true;
+  }
+  if(kind === 'plastic'){
+    Object.keys(rawMatStock || {}).forEach(add);
+    (RAWMAT_REGISTRY || []).forEach(function(r){
+      if(!r || !r.code) return;
+      var c = r.category || 'plastic';
+      if(c === 'mb_color' || c === 'packaging') return;
+      add(r.code);
+    });
+  } else if(kind === 'mb_color'){
+    Object.keys(rawMatStock || {}).forEach(add);
+    (RAWMAT_REGISTRY || []).forEach(function(r){
+      if(!r || !r.code) return;
+      if(r.category === 'mb_color' || r.category === 'additive') add(r.code);
+    });
+    if(typeof mbColors !== 'undefined'){
+      Object.keys(mbColors || {}).forEach(add);
+    }
+  } else if(kind === 'packaging'){
+    (RAWMAT_REGISTRY || []).forEach(function(r){
+      if(r && r.code && r.category === 'packaging') add(r.code);
+    });
+    Object.keys(rawMatStock || {}).forEach(add);
+  }
+  return Object.keys(keys);
+}
+
+/** คำนวณ demand ครั้งเดียวต่อชนิด (แทนการวนซ้ำ orders × จำนวนเม็ด) */
+function _buildStockDemandIndex(kind){
+  kind = kind || 'plastic';
+  var monthlyByKey = {};
+  var matKeys = _collectDemandMaterialKeys(kind);
+
+  (orders || []).forEach(function(o){
+    if(!o || o.status === 'ยกเลิก' || o.status === 'cancelled') return;
+    var j = findJobByFlexibleName(o.jobName) || {};
+    var qty = Math.max(0, (parseFloat(o.qty) || 0) - (parseFloat(o.produced) || 0));
+    var mk = _sdpOrderMonthKey(o);
+
+    if(kind === 'plastic'){
+      var oPlastic = String(o.plastic || j.plastic || '').trim().toUpperCase();
+      if(!oPlastic) return;
+      var wtPerPc = jobEffectiveWtPerPc(j, 0);
+      if(!(wtPerPc > 0) || !(qty > 0)) return;
+      _sdpAdd(monthlyByKey, oPlastic, mk, (wtPerPc * qty) / 1000);
+    } else if(kind === 'mb_color'){
+      var wt2 = jobEffectiveWtPerPc(j, 0);
+      if(!(wt2 > 0) || !(qty > 0)) return;
+      var plasticKg = (wt2 * qty) / 1000;
+      matKeys.forEach(function(matKey){
+        if(!_mbMaterialMatchesStockCode(matKey, j)) return;
+        var info = (typeof mbColors !== 'undefined') ? mbColors[matKey] : null;
+        var ratioG = (info && (parseFloat(info.ratio) || parseFloat(info.mbRatio))) || parseFloat(j.mbRatio) || 0;
+        if(!(ratioG > 0)) return;
+        _sdpAdd(monthlyByKey, matKey, mk, plasticKg * (ratioG / 1000));
+      });
+    } else if(kind === 'packaging'){
+      if(!(qty > 0)) return;
+      matKeys.forEach(function(matKey){
+        var add = _packagingDemandForOrder(matKey, j, qty);
+        _sdpAdd(monthlyByKey, matKey, mk, add);
+      });
     }
   });
-  var days=maxMonthKey?_daysInMonth(maxMonthKey):30;
-  var dailyFromPeak=days>0?maxMonthly/days:0;
-  return {monthly:monthly,maxMonthly:maxMonthly,maxMonthlyKg:maxMonthly,maxMonthKey:maxMonthKey,dailyFromPeak:dailyFromPeak};
+
+  var byKey = {};
+  Object.keys(monthlyByKey).forEach(function(k){
+    byKey[k] = _sdpFinalize(monthlyByKey[k]);
+  });
+  return byKey;
+}
+
+function invalidateStockDemandIndex(){
+  _stockDemandIdx = null;
+}
+
+function getStockDemandProfile(materialKey, kind){
+  kind = kind || 'plastic';
+  var sig = _stockDemandSig(kind);
+  if(!_stockDemandIdx || _stockDemandIdx.sig !== sig){
+    _stockDemandIdx = { sig: sig, byKey: _buildStockDemandIndex(kind) };
+  }
+  var key = String(materialKey || '').trim().toUpperCase();
+  return _stockDemandIdx.byKey[key] || _emptyStockDemandProfile();
 }
 
 function getRawmatMonthlyUsage(material, kindOpt){
@@ -26694,6 +27245,7 @@ function openFgMinMaxModal(jobName){
   if(lb) lb.textContent=j;
   if(imin) imin.value=String(minV);
   if(imax) imax.value=String(Math.max(maxV, minV+1));
+  whFillAreaSelect(document.getElementById('fg-mm-wh-area'), 'fg', s.whAreaId||'');
   openModal('modal-fg-minmax');
 }
 function saveFgMinMaxModal(){
@@ -26706,11 +27258,17 @@ function saveFgMinMaxModal(){
   if(minV>=maxV){ if(typeof _infoToast==='function') _infoToast('Max ต้องมากกว่า Min'); return; }
   fgStock[j].min=minV;
   fgStock[j].max=maxV;
+  var aid=document.getElementById('fg-mm-wh-area')?.value||'';
+  if(aid){
+    var a=whAreaById(aid);
+    if(!a||a.stockZone!=='fg'){ if(typeof _infoToast==='function') _infoToast('เลือกพื้นที่คลัง FG'); return; }
+    fgStock[j].whAreaId=aid;
+  } else delete fgStock[j].whAreaId;
   _stampStockBucket(fgStock,j);
   saveFgStock();
   closeModal('modal-fg-minmax');
   renderStock();
-  if(typeof _toast==='function') _toast('✅ บันทึก Min/Max สำหรับ '+j.substring(0,28));
+  if(typeof _toast==='function') _toast('✅ บันทึก Min/Max + พื้นที่ สำหรับ '+j.substring(0,28));
 }
 /** จาก FG ต่ำกว่า Min — เปิดหน้า Order + โมดัลเติมจำนวน แล้วหลังบันทึกไปหน้าใบอนุมัติ (รออนุมัติสั่งผลิต) */
 function fgOpenOrderForLowStock(jobName){
@@ -26815,6 +27373,16 @@ function fgRecalcLedgerBalancesForJob(jobName){
     r.balance=run;
   });
 }
+/** รับเข้าคลังอัตโนมัติตาม stockClass ใน BOM (WIP หรือ FG) */
+function pdSyncAutoReceiveFromOrder(order, producedQty, txnDate){
+  if(!order||!order.jobName) return;
+  if(jobStockClass(order.jobName)==='fg'){
+    fgSyncAutoReceiveFromOrder(order, producedQty, txnDate);
+    wipSyncPendingFromFgOrder(order, producedQty);
+  } else {
+    wipSyncAutoReceiveFromOrder(order, producedQty, txnDate);
+  }
+}
 /** รับเข้า FG อัตโนมัติจากยอดผลิต Order — Lot มาจาก order.lotNo เสมอ (ไม่กู้คืนงานที่ลบแล้ว) */
 function fgSyncAutoReceiveFromOrder(order, producedQty, txnDate){
   if(!order||!order.jobName||order._deleted) return;
@@ -26826,6 +27394,7 @@ function fgSyncAutoReceiveFromOrder(order, producedQty, txnDate){
   var ref=fgAutoReceiveRef(order.orderNo);
   var date=txnDate||new Date().toISOString().split('T')[0];
   if(!fgStock[job]) fgStock[job]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
+  whApplyDefaultAreaToBucket(fgStock[job], job);
   if(!fgLedger[job]) fgLedger[job]=[];
   fgLedger[job]=fgLedger[job].filter(function(r){
     if(!r) return false;
@@ -26868,7 +27437,7 @@ function fgMigrateAutoReceiveAllOrdersFromProduction(){
     var prod=total>0?total:(Number(o.produced)||0);
     if(prod<=0) return;
     fgSyncReportLotFromOrder(o);
-    fgSyncAutoReceiveFromOrder(o, prod, o.startDate||'');
+    pdSyncAutoReceiveFromOrder(o, prod, o.startDate||'');
     touched[job]=true;
   });
   Object.keys(touched).forEach(function(j){ fgRecalcLedgerBalancesForJob(j); });
@@ -26891,9 +27460,14 @@ function fgSyncProductionFromCurrentReport(rpt){
   }
   saveOrders();
   fgSyncReportLotFromOrder(_ord);
-  fgSyncAutoReceiveFromOrder(_ord, _total, rpt.date);
+  pdSyncAutoReceiveFromOrder(_ord, _total, rpt.date);
   if(typeof saveFgStock==='function') saveFgStock();
   if(typeof saveFgLedger==='function') saveFgLedger();
+  if(document.getElementById('page-stock-wip')?.classList?.contains('active')){
+    if(typeof renderWipStock==='function') renderWipStock();
+    if(typeof renderWipPending==='function') renderWipPending();
+    if(typeof renderWipLedger==='function') renderWipLedger();
+  }
   if(document.getElementById('page-stock')?.classList?.contains('active')){
     if(typeof renderStock==='function') renderStock();
     if(typeof renderFgLedger==='function') renderFgLedger();
@@ -27280,8 +27854,11 @@ function renderFgStockDashboard(list){
   }, 30);
 }
 function renderStock(filter='',statusFilter=''){
+  if(typeof whPopulateStockAreaFilters==='function') whPopulateStockAreaFilters();
+  var whF=document.getElementById('fg-stock-wh-area')?.value||'';
   let list=Object.entries(fgStock).filter(function(e){ return !(e[1]&&e[1]._deleted); });
   if(filter) list=list.filter(([name])=>name.toLowerCase().includes(filter.toLowerCase()));
+  if(whF) list=list.filter(function(e){ return (e[1].whAreaId||'')===whF; });
   if(statusFilter==='ต่ำกว่า Min') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)<(parseInt(s.min,10)||0));
   else if(statusFilter==='เกิน Max') list=list.filter(([,s])=>(parseInt(s.qty,10)||0)>(parseInt(s.max,10)||0));
   else if(statusFilter==='ปกติ') list=list.filter(([,s])=>{
@@ -27303,6 +27880,7 @@ function renderStock(filter='',statusFilter=''){
     var b64=_fgJobB64(name);
     return '<tr>'
       +'<td style="font-size:12px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_fgEscHtml(name)+'">'+_fgEscHtml(name)+'</td>'
+      +'<td style="min-width:88px;white-space:nowrap">'+whAreaBadgeHtml(s.whAreaId)+'</td>'
       +'<td style="min-width:150px">'+fgLotMiniHtml(name,4)+'</td>'
       +'<td><div class="flex items-center gap-2"><span class="mono">'+qty.toLocaleString()+'</span><div class="progress" style="width:60px"><div class="progress-fill" style="width:'+pct+'%;background:'+(low?'var(--red)':'var(--green)')+'"></div></div></div></td>'
       +'<td class="mono">'+mn.toLocaleString()+'</td>'
@@ -27312,6 +27890,7 @@ function renderStock(filter='',statusFilter=''){
       +'<td class="mono" style="font-size:12px">-'+(s.lastOut!=null?s.lastOut.toLocaleString():0)+'</td>'
       +'<td class="mono" style="font-size:12px">'+due.toLocaleDateString('th-TH')+'</td>'
       +'<td><button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openFgMinMaxModal(fgBtnJob(this))">⚙ Min/Max</button>'
+      +' <button type="button" class="btn btn-secondary btn-sm" data-fgjb="'+b64+'" onclick="openStockWhAreaModal(\'fg\',fgBtnJob(this))" title="ผูกพื้นที่คลัง">📍</button>'
       +' <button type="button" data-fgjb="'+b64+'" onclick="openFgAdj(fgBtnJob(this))" style="padding:3px 7px;background:rgba(227,179,65,0.12);border:1px solid rgba(227,179,65,0.35);color:#e3b341;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px" title="ปรับยอด">⚖️</button>'
       +' <button type="button" data-fgjb="'+b64+'" onclick="fgDeleteStockRow(fgBtnJob(this))" style="padding:3px 7px;background:rgba(248,81,73,0.1);border:1px solid rgba(248,81,73,0.35);color:#f85149;border-radius:5px;cursor:pointer;font-size:10px;margin-left:3px;font-weight:700" title="ลบรายการ Stock FG (ชื่องานนี้)">ลบ</button></td>'
     +'</tr>';
@@ -27335,6 +27914,7 @@ function renderStock(filter='',statusFilter=''){
       +'<div class="kpi-value mono" style="font-size:20px;color:'+col+'">'+qty.toLocaleString()+'<span style="font-size:11px;color:var(--text3)"> ชิ้น</span></div>'
       +'<div class="progress mt-2"><div class="progress-fill" style="width:'+Math.min(pct,100)+'%;background:'+col+'"></div></div>'
       +'<div style="font-size:10px;color:var(--text2);margin-top:4px;font-weight:700">Min: '+mn.toLocaleString()+' | Max: '+mx.toLocaleString()+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:3px">พื้นที่: '+whAreaShortLabel(s.whAreaId)+'</div>'
       +'<div style="font-size:10px;color:var(--text3);margin-top:3px">Lot คงเหลือ (สูงสุด 4):</div>'
       +'<div style="margin-top:2px">'+fgLotMiniHtml(name,4)+'</div>'
       +(low?'<button type="button" class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%;font-size:10px;font-weight:700" data-fgjb="'+b64+'" onclick="fgOpenOrderForLowStock(fgBtnJob(this))">📋 เพิ่ม Order (รออนุมัติสั่งผลิต)</button>'
@@ -27403,6 +27983,7 @@ function doStockIn(){
     delete fgStock[name]._deletedAt;
   }
   if(!fgStock[name]) fgStock[name]={qty:0,min:500,max:8000,lastIn:0,lastOut:0,lastLot:''};
+  whApplyDefaultAreaToBucket(fgStock[name], name);
   if(fgStock[name]){fgStock[name].qty+=qty;fgStock[name].lastIn=qty;fgStock[name].lastLot=lot;}
   _stampStockBucket(fgStock,name);
   if(!fgLedger[name]) fgLedger[name]=[];
@@ -27435,6 +28016,253 @@ function doStockOut(){
   fgLedger[name].unshift({_fgId:'FGO-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),updatedAt:new Date().toISOString(),date,time:new Date().toTimeString().slice(0,5),type:'out',qty,lot:lot,ref:'SO-'+Date.now().toString().slice(-4),by:cust,balance:fgStock[name]?.qty||0,note:'จ่ายออก FG Stock'});
   saveFgStock(); saveFgLedger();
   closeModal('modal-stock-out'); renderStock(); renderFgLedger();
+}
+
+// ===================== WIP STOCK =====================
+function wipActiveJobKeys(){
+  return Object.keys(wipStock||{}).filter(function(n){ return !(wipStock[n]&&wipStock[n]._deleted); }).sort();
+}
+function wipPopulateJobLists(){
+  var names=jobs.filter(function(j){ return j&&!j._deleted&&jobStockClass(j.name)==='wip'; }).map(function(j){ return j.name; });
+  Object.keys(wipStock||{}).forEach(function(n){ if(names.indexOf(n)<0&&!wipStock[n]._deleted) names.push(n); });
+  names.sort();
+  var dl=document.getElementById('wip-job-datalist');
+  if(dl) dl.innerHTML=names.map(function(n){ return '<option value="'+n.replace(/"/g,'&quot;')+'">'; }).join('');
+  var wl=document.getElementById('wip-led-job');
+  if(wl) wl.innerHTML='<option value="">ทุกงาน</option>'+names.map(function(n){ return '<option value="'+n+'">'+n.substring(0,40)+'</option>'; }).join('');
+}
+function wipRecalcQtyFromLedger(job){
+  if(!wipLedger[job]) return;
+  var run=0;
+  (wipLedger[job]||[]).slice().reverse().forEach(function(r){
+    if(!r) return;
+    var t=String(r.type||'');
+    var q=Math.round(Number(r.qty)||0);
+    if(t==='in') run+=q;
+    else if(t==='out') run=Math.max(0,run-q);
+    else if(t==='adj') run+=Math.round(Number(r.qty)||0);
+    r.balance=run;
+  });
+  if(!wipStock[job]) wipStock[job]={qty:0,min:200,max:5000,lastIn:0,lastOut:0};
+  wipStock[job].qty=run;
+}
+function wipSyncAutoReceiveFromOrder(order, producedQty, txnDate){
+  if(!order||!order.jobName||order._deleted) return;
+  var job=String(order.jobName).trim();
+  if(wipStock[job]&&wipStock[job]._deleted) return;
+  var lot=typeof fgNormalizeLotCode==='function'?fgNormalizeLotCode(order.lotNo):String(order.lotNo||'').trim();
+  if(!lot) return;
+  var qty=Math.round(Number(producedQty)||0);
+  var ref='WIP-AUTO-'+String(order.orderNo||'').replace(/\W/g,'-');
+  var date=txnDate||new Date().toISOString().split('T')[0];
+  if(!wipStock[job]) wipStock[job]={qty:0,min:200,max:5000,lastIn:0,lastOut:0,lastLot:''};
+  whApplyDefaultAreaToBucket(wipStock[job], job);
+  if(!wipLedger[job]) wipLedger[job]=[];
+  wipLedger[job]=wipLedger[job].filter(function(r){
+    return r&&r.ref!==ref&&r._autoPdOrderNo!==order.orderNo;
+  });
+  if(qty>0){
+    wipLedger[job].unshift({
+      _wipId:'WIP-AUTO-'+String(order.orderNo||'').replace(/\W/g,'-'),
+      _autoPdOrderNo:order.orderNo,
+      updatedAt:new Date().toISOString(),
+      date:date,
+      time:new Date().toTimeString().slice(0,5),
+      type:'in', qty:qty, lot:lot, ref:ref,
+      by:'ระบบ (รายงานผลิต)',
+      note:'รับเข้า WIP อัตโนมัติ Order '+order.orderNo,
+      balance:0
+    });
+    wipStock[job].lastLot=lot;
+    wipStock[job].lastIn=qty;
+  }
+  wipRecalcQtyFromLedger(job);
+  saveWipStock(); saveWipLedger();
+}
+function wipSyncPendingFromFgOrder(order, fgQty){
+  if(!order||!order.jobName) return;
+  var j=jobByName(order.jobName);
+  if(!j||jobStockClass(order.jobName)!=='fg') return;
+  var comps=(j.wipComponents||[]).filter(Boolean);
+  if(!comps.length) return;
+  var qty=Math.round(Number(fgQty)||0);
+  if(qty<=0) return;
+  comps.forEach(function(wipName){
+    var id='WP-'+order.orderNo+'-'+wipName.replace(/\W/g,'_');
+    var ex=wipPending.find(function(p){ return p.id===id; });
+    if(ex){
+      ex.qtyNeeded=qty; ex.updatedAt=new Date().toISOString();
+      ex.status=(ex.qtyIssued||0)>=qty?'done':((ex.qtyIssued||0)>0?'partial':'pending');
+    } else {
+      wipPending.unshift({
+        id:id, fgJob:order.jobName, wipJob:wipName, orderNo:order.orderNo||'',
+        qtyNeeded:qty, qtyIssued:0, status:'pending',
+        note:'เบิก WIP ประกอบ/พ่น/สกรีน FG',
+        createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
+      });
+    }
+  });
+  saveWipPending();
+  if(document.getElementById('page-stock-wip')?.classList?.contains('active')&&typeof renderWipPending==='function') renderWipPending();
+}
+function renderWipStock(filter,statusFilter){
+  if(typeof whPopulateStockAreaFilters==='function') whPopulateStockAreaFilters();
+  var whF=document.getElementById('wip-stock-wh-area')?.value||'';
+  var list=Object.entries(wipStock).filter(function(e){ return !(e[1]&&e[1]._deleted); });
+  if(filter) list=list.filter(function(e){ return e[0].toLowerCase().includes(filter.toLowerCase()); });
+  if(whF) list=list.filter(function(e){ return (e[1].whAreaId||'')===whF; });
+  if(statusFilter==='ต่ำกว่า Min') list=list.filter(function(e){ return (parseInt(e[1].qty,10)||0)<(parseInt(e[1].min,10)||0); });
+  else if(statusFilter==='เกิน Max') list=list.filter(function(e){ return (parseInt(e[1].qty,10)||0)>(parseInt(e[1].max,10)||0); });
+  var tbody=document.getElementById('wip-stock-tbody');
+  if(!tbody) return;
+  tbody.innerHTML=list.map(function(e){
+    var name=e[0], s=e[1], qty=parseInt(s.qty,10)||0, mn=parseInt(s.min,10)||0, mx=parseInt(s.max,10)||5000;
+    var low=qty<mn, st=low?'badge-red':'badge-green', stT=low?'ต่ำกว่า Min':'ปกติ';
+    return '<tr><td style="font-size:12px">'+name+'</td><td style="white-space:nowrap">'+whAreaBadgeHtml(s.whAreaId)+'</td><td class="mono">'+qty.toLocaleString()+'</td><td class="mono">'+mn+'</td><td class="mono">'+mx+'</td><td><span class="badge '+st+'">'+stT+'</span></td>'
+      +'<td><button type="button" class="btn btn-secondary btn-sm" onclick="openStockWhAreaModal(\'wip\',\''+name.replace(/'/g,"\\'")+'\')">📍</button> '
+      +'<button type="button" class="btn btn-secondary btn-sm" onclick="openWipIssueModal(\''+name.replace(/'/g,"\\'")+'\')">📤 เบิก</button></td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">ยังไม่มี WIP Stock</td></tr>';
+  var kpi=document.getElementById('wip-kpi-total');
+  if(kpi) kpi.textContent=list.reduce(function(s,e){ return s+(parseInt(e[1].qty,10)||0); },0).toLocaleString();
+}
+function filterWipStock(v){ renderWipStock(v, document.getElementById('wip-stock-status')?.value||''); }
+function filterWipStockStatus(v){ renderWipStock(document.getElementById('wip-stock-search')?.value||'', v); }
+function renderWipPending(){
+  var tbody=document.getElementById('wip-pending-tbody'); if(!tbody) return;
+  var sf=document.getElementById('wip-pending-filter')?.value||'';
+  var rows=wipPending.slice().filter(function(p){
+    if(sf==='pending') return p.status==='pending'||p.status==='partial';
+    if(sf==='done') return p.status==='done';
+    return true;
+  });
+  tbody.innerHTML=rows.map(function(p){
+    var need=Math.round(Number(p.qtyNeeded)||0), iss=Math.round(Number(p.qtyIssued)||0), rem=Math.max(0,need-iss);
+    var wipQ=wipStock[p.wipJob]? (parseInt(wipStock[p.wipJob].qty,10)||0) : 0;
+    var st=p.status==='done'?'badge-green':p.status==='partial'?'badge-yellow':'badge-red';
+    var stL=p.status==='done'?'เบิกครบ':p.status==='partial'?'เบิกบางส่วน':'รอเบิก';
+    return '<tr><td class="mono" style="font-size:11px">'+(p.orderNo||'—')+'</td><td style="font-size:12px">'+p.fgJob+'</td><td style="font-size:12px;color:#79c0ff">'+p.wipJob+'</td>'
+      +'<td class="mono">'+need.toLocaleString()+'</td><td class="mono">'+iss.toLocaleString()+'</td><td class="mono" style="color:#e3b341">'+rem.toLocaleString()+'</td>'
+      +'<td class="mono">'+wipQ.toLocaleString()+'</td><td><span class="badge '+st+'">'+stL+'</span></td>'
+      +'<td><button type="button" class="btn btn-primary btn-sm" '+(rem<=0?'disabled':'')+' onclick="openWipIssueFromPending(\''+p.id+'\')">📤 เบิก WIP</button></td></tr>';
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">ไม่มีรายการรอเบิก</td></tr>';
+  var k=document.getElementById('wip-pending-kpi');
+  if(k) k.textContent=rows.filter(function(p){ return p.status!=='done'; }).length;
+}
+function renderWipLedger(){
+  var tbody=document.getElementById('wip-ledger-tbody'); if(!tbody) return;
+  var jobFilter=document.getElementById('wip-led-job')?.value||'';
+  var rows=[];
+  if(jobFilter) rows=(wipLedger[jobFilter]||[]).map(function(r){ return Object.assign({},r,{jobName:jobFilter}); });
+  else Object.entries(wipLedger||{}).forEach(function(e){
+    if(wipStock[e[0]]&&wipStock[e[0]]._deleted) return;
+    (e[1]||[]).forEach(function(r){ rows.push(Object.assign({},r,{jobName:e[0]})); });
+  });
+  rows.sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  tbody.innerHTML=rows.slice(0,200).map(function(r){
+    var isIn=r.type==='in';
+    return '<tr><td class="mono">'+r.date+'</td><td>'+(r.jobName||'')+'</td><td>'+(isIn?'📥 รับ':'📤 เบิก')+'</td><td class="mono">'+(r.qty||0).toLocaleString()+'</td><td class="mono">'+(r.balance||0).toLocaleString()+'</td><td style="font-size:11px">'+(r.note||'')+'</td></tr>';
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text3)">ยังไม่มีรายการ</td></tr>';
+}
+function openWipIssueModal(jobName){
+  var sel=document.getElementById('wip-issue-job'); if(sel){ sel.innerHTML=wipActiveJobKeys().map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join(''); if(jobName) sel.value=jobName; }
+  openModal('modal-wip-issue');
+}
+function openWipIssueFromPending(pendingId){
+  var p=wipPending.find(function(x){ return x.id===pendingId; });
+  if(!p) return;
+  var sel=document.getElementById('wip-issue-job'); if(sel) sel.value=p.wipJob;
+  var q=document.getElementById('wip-issue-qty'); if(q) q.value=Math.max(0,(p.qtyNeeded||0)-(p.qtyIssued||0));
+  var n=document.getElementById('wip-issue-note'); if(n) n.value='เบิกให้ FG: '+p.fgJob+' | Order '+p.orderNo;
+  window._wipIssuePendingId=pendingId;
+  openModal('modal-wip-issue');
+}
+function doWipIssue(){
+  var job=document.getElementById('wip-issue-job')?.value||'';
+  var qty=parseInt(document.getElementById('wip-issue-qty')?.value,10)||0;
+  var note=document.getElementById('wip-issue-note')?.value||'เบิก WIP';
+  if(!job||qty<=0){ if(typeof _infoToast==='function') _infoToast('เลือกงาน WIP และจำนวน'); return; }
+  if(!wipStock[job]) wipStock[job]={qty:0,min:200,max:5000};
+  if((wipStock[job].qty||0)<qty){ if(typeof _infoToast==='function') _infoToast('WIP ไม่พอ (มี '+wipStock[job].qty+')'); return; }
+  var date=new Date().toISOString().split('T')[0];
+  if(!wipLedger[job]) wipLedger[job]=[];
+  wipLedger[job].unshift({_wipId:'WIPO-'+Date.now(),updatedAt:new Date().toISOString(),date:date,time:new Date().toTimeString().slice(0,5),type:'out',qty:qty,ref:'WIP-ISSUE-'+Date.now().toString().slice(-4),by:'พนักงาน',note:note,balance:0});
+  wipRecalcQtyFromLedger(job);
+  wipStock[job].lastOut=qty;
+  saveWipStock(); saveWipLedger();
+  var pid=window._wipIssuePendingId;
+  if(pid){
+    var p=wipPending.find(function(x){ return x.id===pid; });
+    if(p){ p.qtyIssued=(p.qtyIssued||0)+qty; p.status=(p.qtyIssued||0)>=(p.qtyNeeded||0)?'done':'partial'; p.updatedAt=new Date().toISOString(); saveWipPending(); }
+    window._wipIssuePendingId=null;
+  }
+  closeModal('modal-wip-issue');
+  renderWipStock(); renderWipLedger(); renderWipPending();
+  if(typeof _toast==='function') _toast('✅ เบิก WIP '+job+' '+qty+' ชิ้น');
+}
+function doWipStockIn(){
+  var job=document.getElementById('wip-in-job')?.value?.trim();
+  var qty=parseInt(document.getElementById('wip-in-qty')?.value,10)||0;
+  if(!job||qty<=0){ if(typeof _infoToast==='function') _infoToast('กรอกงานและจำนวน'); return; }
+  if(!wipStock[job]) wipStock[job]={qty:0,min:200,max:5000};
+  whApplyDefaultAreaToBucket(wipStock[job], job);
+  var date=new Date().toISOString().split('T')[0];
+  if(!wipLedger[job]) wipLedger[job]=[];
+  wipLedger[job].unshift({_wipId:'WIPI-'+Date.now(),date:date,time:new Date().toTimeString().slice(0,5),type:'in',qty:qty,ref:'WIP-IN-'+Date.now().toString().slice(-4),by:'พนักงาน',note:'รับเข้า WIP',balance:0});
+  wipRecalcQtyFromLedger(job);
+  saveWipStock(); saveWipLedger();
+  closeModal('modal-wip-in');
+  renderWipStock(); renderWipLedger();
+}
+
+// ===================== WAREHOUSE AREAS =====================
+function renderWhAreas(){
+  var wrap=document.getElementById('wh-area-grid'); if(!wrap) return;
+  var zf=document.getElementById('wh-filter-zone')?.value||'';
+  var af=document.getElementById('wh-filter-type')?.value||'';
+  var list=(_warehouseAreas||[]).filter(function(a){
+    return (!zf||a.stockZone===zf)&&(!af||a.areaType===af);
+  });
+  var zoneLbl={wip:'WIP',fg:'FG'};
+  var typeLbl={fix:'Fix Area',free:'Free Area'};
+  wrap.innerHTML=list.map(function(a){
+    var assigned=whJobsAssignedToArea(a.id);
+    var jobLines=assigned.slice(0,6).map(function(j){
+      return '<div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+_fgEscHtml(j.name)+'">'+_fgEscHtml(j.name)+' <span class="mono" style="color:var(--text3)">'+j.qty.toLocaleString()+'</span></div>';
+    }).join('');
+    return '<div class="card" style="padding:12px"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="min-width:0;flex:1">'
+      +'<div style="font-size:10px;color:var(--text3)">'+zoneLbl[a.stockZone||'wip']+' · '+typeLbl[a.areaType||'fix']+'</div>'
+      +'<div style="font-size:14px;font-weight:700;margin:4px 0">'+a.name+'</div>'
+      +'<div class="mono" style="font-size:11px;color:#79c0ff">'+a.code+'</div>'
+      +'<div style="font-size:10px;margin-top:6px"><span class="badge badge-blue">'+assigned.length+' งาน</span></div>'
+      +(assigned.length?'<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">'+jobLines+(assigned.length>6?'<div style="font-size:9px;color:var(--text3)">+'+(assigned.length-6)+' งาน</div>':'')+'</div>':'<div style="font-size:10px;color:var(--text3);margin-top:6px">ยังไม่มีงานผูกพื้นที่</div>')
+      +(a.note?'<div style="font-size:10px;color:var(--text3);margin-top:6px">'+a.note+'</div>':'')
+      +'</div><button type="button" onclick="whAreaDelete(\''+a.id+'\')" style="padding:4px 8px;font-size:10px;color:#f85149;border:1px solid rgba(248,81,73,0.35);background:transparent;border-radius:5px;cursor:pointer;flex-shrink:0">ลบ</button></div></div>';
+  }).join('')||'<div style="color:var(--text3);padding:20px">ยังไม่มีพื้นที่ — กดเพิ่มพื้นที่</div>';
+}
+function whAreaOpenAdd(){
+  ['wh-area-code','wh-area-name','wh-area-note'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  openModal('modal-wh-area');
+}
+function whAreaSave(){
+  var zone=document.getElementById('wh-area-zone')?.value||'wip';
+  var type=document.getElementById('wh-area-type')?.value||'fix';
+  var code=(document.getElementById('wh-area-code')?.value||'').trim();
+  var name=(document.getElementById('wh-area-name')?.value||'').trim();
+  var note=(document.getElementById('wh-area-note')?.value||'').trim();
+  if(!code||!name){ if(typeof _infoToast==='function') _infoToast('กรอกรหัสและชื่อพื้นที่'); return; }
+  _warehouseAreas.push({id:'wh-'+Date.now(),stockZone:zone,areaType:type,code:code,name:name,note:note,updatedAt:new Date().toISOString()});
+  saveWarehouseAreas();
+  closeModal('modal-wh-area');
+  renderWhAreas();
+}
+function whAreaDelete(id){
+  if(!confirm('ลบพื้นที่นี้? งานที่ผูกไว้จะถูกยกเลิกการผูก')) return;
+  whClearAreaReferences(id);
+  _warehouseAreas=(_warehouseAreas||[]).filter(function(a){ return a.id!==id; });
+  saveWarehouseAreas();
+  renderWhAreas();
+  if(typeof renderStock==='function') renderStock();
+  if(typeof renderWipStock==='function') renderWipStock();
 }
 
 // ===================== DELIVERY =====================
@@ -37015,6 +37843,9 @@ function renderPage(id){
   else if(id==='setup-std'){
     setupStdLoadEditor();
   }
+  else if(id==='plan-cond'){
+    if(typeof renderPlanCondPage==='function') renderPlanCondPage();
+  }
   else if(id==='bom'){ if(typeof jobsMergeFromJobRegistry==='function') jobsMergeFromJobRegistry(); renderBom(); }
   else if(id==='engineering-change'){ setTimeout(function(){ if(typeof ecoRenderPage==='function') ecoRenderPage(); }, 30); }
   else if(id==='dc') dcRender();
@@ -37028,10 +37859,12 @@ function renderPage(id){
   else if(id==='mixing') renderMixing();
   else if(id==='mix-prod-receive'){ if(typeof renderMixProdReceivePage==='function') renderMixProdReceivePage(); }
   else if(id==='rawmat'){
-    renderRawmat();
     var ledMonth=document.getElementById('led-month');
     if(ledMonth&&!ledMonth.value) ledMonth.value=new Date().toISOString().slice(0,7);
-    renderRawmatLedger();
+    setTimeout(function(){
+      if(_pageDomIdFromPage(window._currentPage||'') !== 'rawmat') return;
+      renderRawmat();
+    }, 0);
   }
   else if(id==='stock'){
     renderStock();
@@ -37043,6 +37876,11 @@ function renderPage(id){
     const fgMon=document.getElementById('fg-led-month');
     if(fgMon&&!fgMon.value) fgMon.value=new Date().toISOString().substring(0,7);
   }
+  else if(id==='stock-wip'){
+    if(typeof wipPopulateJobLists==='function') wipPopulateJobLists();
+    renderWipStock(); renderWipPending(); renderWipLedger();
+  }
+  else if(id==='wh-area'){ if(typeof whPopulateStockAreaFilters==='function') whPopulateStockAreaFilters(); renderWhAreas(); }
   else if(id==='delivery') renderDelivery();
   else if(id==='hr'){
     if(typeof syncHrEmployeesFromRegistry==='function') syncHrEmployeesFromRegistry();
@@ -46046,6 +46884,328 @@ function mgFindBestMachine(jobName, excludeMachines){
 }
 
 // ════════════════════════════════════════════════════════════════
+// PLANNING CONDITIONS — เงื่อนไขวางแผนตามเครื่อง (Order + TT)
+// ════════════════════════════════════════════════════════════════
+var planMachRules = [];
+try{
+  var _pmcRaw = localStorage.getItem('_planMachRules');
+  if(_pmcRaw){ var _pmcA = JSON.parse(_pmcRaw); if(Array.isArray(_pmcA)) planMachRules = _pmcA; }
+}catch(e){ planMachRules = []; }
+
+function savePlanMachRules(){
+  if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(planMachRules, ['id']);
+  try{ localStorage.setItem('_planMachRules', JSON.stringify(planMachRules)); }catch(e){}
+}
+
+function pmcParseList(str){
+  return String(str||'').split(/[,;\n]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+}
+
+function pmcRuleForMachine(machineId){
+  var mid = String(machineId||'').trim();
+  if(!mid) return null;
+  return planMachRules.find(function(r){ return r && r.enabled !== false && String(r.machineId||'').trim() === mid; }) || null;
+}
+
+function pmcJobMatchesRule(job, rule){
+  if(!rule || rule.enabled === false) return { ok: false, score: 999, reason: 'ปิดใช้งาน' };
+  if(!job) return { ok: false, score: 999, reason: 'ไม่พบงาน' };
+  var score = parseInt(rule.priority, 10);
+  if(!isFinite(score) || score < 1) score = 10;
+  var wg = (typeof _orderWorkGroupFromJob==='function') ? _orderWorkGroupFromJob(job) : 'injection';
+  var wgs = Array.isArray(rule.workGroups) && rule.workGroups.length ? rule.workGroups : ['injection','assembly','secondary'];
+  if(wgs.indexOf(wg) < 0) return { ok: false, score: 999, reason: 'ประเภทงานไม่ตรง' };
+  var plas = String(job.plastic||'').trim().toUpperCase();
+  var rulePlas = (rule.plastics||[]).map(function(p){ return String(p).trim().toUpperCase(); }).filter(Boolean);
+  if(rule.plasticStrict && rulePlas.length && rulePlas.indexOf(plas) < 0) return { ok: false, score: 999, reason: 'เม็ดไม่ตรง' };
+  if(rulePlas.length && plas && rulePlas.indexOf(plas) < 0) score += 5;
+  var mb = String(job.mb||'-').trim();
+  var ruleMb = (rule.mbColors||[]).map(function(m){ return String(m).trim(); }).filter(Boolean);
+  if(rule.mbStrict && ruleMb.length){
+    var mbOk = ruleMb.some(function(m){
+      return mb === m || mb.indexOf(m) >= 0 || m.indexOf(mb) >= 0;
+    });
+    if(!mbOk) return { ok: false, score: 999, reason: 'สีไม่ตรง' };
+  } else if(ruleMb.length && mb && mb !== '-'){
+    var mbNear = ruleMb.some(function(m){ return mb === m || mb.indexOf(m) >= 0 || m.indexOf(mb) >= 0; });
+    if(!mbNear) score += 3;
+  }
+  var req = (rule.requiredJobs||[]).map(function(n){ return String(n).trim().toLowerCase(); }).filter(Boolean);
+  if(req.length){
+    var jn = String(job.name||'').trim().toLowerCase();
+    var hit = req.some(function(r){ return jn === r || jn.indexOf(r) >= 0 || r.indexOf(jn) >= 0; });
+    if(hit) score -= 8;
+    else score += 12;
+  }
+  return { ok: true, score: score, reason: '' };
+}
+
+function _orderWorkGroupFromJob(job){
+  if(!job) return 'injection';
+  if(job.workGroup === 'assembly' || job.workGroup === 'secondary') return job.workGroup;
+  if(job.machineType === 'assembly') return 'assembly';
+  if(job.machineType === 'secondary') return 'secondary';
+  return 'injection';
+}
+
+function pmcFindBestMachineForJob(jobName, excludeMachines){
+  excludeMachines = excludeMachines || [];
+  var j = findJobByFlexibleName(jobName);
+  if(!j) return null;
+  var candidates = [];
+  planMachRules.forEach(function(rule){
+    if(!rule || rule.enabled === false) return;
+    var mid = String(rule.machineId||'').trim();
+    if(!mid || excludeMachines.indexOf(mid) >= 0) return;
+    var m = pmcJobMatchesRule(j, rule);
+    if(m.ok) candidates.push({ machId: mid, priority: m.score, groupName: 'เงื่อนไขวางแผน', ruleId: rule.id });
+  });
+  if(candidates.length){
+    candidates.sort(function(a,b){ return a.priority - b.priority; });
+    return candidates[0];
+  }
+  if(typeof mgFindBestMachine === 'function'){
+    var mg = mgFindBestMachine(jobName, excludeMachines);
+    if(mg) return mg;
+  }
+  if(j.machine && excludeMachines.indexOf(j.machine) < 0){
+    return { machId: j.machine, priority: 50, groupName: 'BOM' };
+  }
+  return null;
+}
+
+function renderPlanCondPage(){
+  var tb = document.getElementById('pmc-tbody');
+  var kpi = document.getElementById('pmc-kpi-row');
+  if(kpi){
+    var on = planMachRules.filter(function(r){ return r && r.enabled !== false; }).length;
+    kpi.innerHTML =
+      '<div class="card" style="padding:10px;text-align:center"><div style="font-size:10px;color:var(--text3)">เงื่อนไขทั้งหมด</div><div style="font-size:22px;font-weight:800">'+planMachRules.length+'</div></div>'+
+      '<div class="card" style="padding:10px;text-align:center"><div style="font-size:10px;color:var(--text3)">เปิดใช้งาน</div><div style="font-size:22px;font-weight:800;color:#3fb950">'+on+'</div></div>'+
+      '<div class="card" style="padding:10px;text-align:center"><div style="font-size:10px;color:var(--text3)">เครื่องในระบบ</div><div style="font-size:22px;font-weight:800">'+(MACHINES||[]).length+'</div></div>';
+  }
+  if(!tb) return;
+  if(!planMachRules.length){
+    tb.innerHTML = '<tr><td colspan="8" style="padding:28px;text-align:center;color:var(--text3)">ยังไม่มีเงื่อนไข — กด «+ เพิ่มเงื่อนไขเครื่อง»</td></tr>';
+    return;
+  }
+  var sorted = planMachRules.slice().sort(function(a,b){
+    return (parseInt(a.priority,10)||10) - (parseInt(b.priority,10)||10);
+  });
+  tb.innerHTML = sorted.map(function(r){
+    var pl = (r.plastics||[]).join(', ') || 'ทุกเม็ด';
+    var mb = (r.mbColors||[]).join(', ') || 'ทุกสี';
+    var wg = (r.workGroups||[]).map(function(w){
+      return w==='injection'?'ฉีด':(w==='assembly'?'ประกอบ':'รอง');
+    }).join(' · ') || '—';
+    var req = (r.requiredJobs||[]).slice(0,2).join(', ');
+    if((r.requiredJobs||[]).length > 2) req += '…';
+    var st = r.enabled === false ? '<span class="badge badge-red">ปิด</span>' : '<span class="badge badge-green">เปิด</span>';
+    return '<tr>'+
+      '<td class="mono" style="font-weight:700">'+String(r.machineId||'')+'</td>'+
+      '<td style="font-size:11px">'+pl+(r.plasticStrict?' <span style="color:#e3b341">*</span>':'')+'</td>'+
+      '<td style="font-size:11px">'+mb+(r.mbStrict?' <span style="color:#e3b341">*</span>':'')+'</td>'+
+      '<td style="font-size:11px">'+wg+'</td>'+
+      '<td style="font-size:11px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+String((r.requiredJobs||[]).join(', ')).replace(/"/g,'&quot;')+'">'+(req||'—')+'</td>'+
+      '<td class="mono" style="text-align:center">'+(r.priority||10)+'</td>'+
+      '<td>'+st+'</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button type="button" class="btn btn-secondary btn-sm" onclick="pmcOpenEdit(\''+String(r.id).replace(/'/g,"\\'")+'\')">✏️</button> '+
+        '<button type="button" class="btn btn-sm" style="background:rgba(248,81,73,0.12);color:#f85149" onclick="pmcDelete(\''+String(r.id).replace(/'/g,"\\'")+'\')">🗑</button>'+
+      '</td></tr>';
+  }).join('');
+}
+
+function pmcPopulateMachineSelect(selId, selected){
+  var sel = document.getElementById(selId);
+  if(!sel) return;
+  var used = {};
+  planMachRules.forEach(function(r){ if(r && r.machineId) used[r.machineId] = true; });
+  sel.innerHTML = '<option value="">-- เลือกเครื่อง --</option>' +
+    (MACHINES||[]).map(function(m){
+      return '<option value="'+m.id+'">'+m.id+' ('+(m.ton||'?')+'T)</option>';
+    }).join('');
+  if(selected) sel.value = selected;
+}
+
+function pmcOpenEdit(id){
+  var r = id ? planMachRules.find(function(x){ return x.id === id; }) : null;
+  document.getElementById('pmc-edit-id').value = r ? r.id : '';
+  document.getElementById('pmc-modal-title').textContent = r ? '✏️ แก้ไขเงื่อนไข '+r.machineId : '+ เพิ่มเงื่อนไขเครื่อง';
+  pmcPopulateMachineSelect('pmc-f-machine', r ? r.machineId : '');
+  var macEl = document.getElementById('pmc-f-machine');
+  if(macEl) macEl.disabled = !!r;
+  document.getElementById('pmc-f-priority').value = r ? (r.priority||10) : 10;
+  document.getElementById('pmc-f-plastics').value = r ? (r.plastics||[]).join(', ') : '';
+  document.getElementById('pmc-f-mb').value = r ? (r.mbColors||[]).join(', ') : '';
+  document.getElementById('pmc-f-plastic-strict').checked = !!(r && r.plasticStrict);
+  document.getElementById('pmc-f-mb-strict').checked = !!(r && r.mbStrict);
+  document.getElementById('pmc-f-required-jobs').value = r ? (r.requiredJobs||[]).join('\n') : '';
+  document.getElementById('pmc-f-note').value = r ? (r.note||'') : '';
+  document.getElementById('pmc-f-enabled').checked = r ? (r.enabled !== false) : true;
+  var wgs = r && Array.isArray(r.workGroups) ? r.workGroups : ['injection'];
+  document.querySelectorAll('.pmc-wg-chk').forEach(function(ch){
+    ch.checked = wgs.indexOf(ch.value) >= 0;
+  });
+  openModal('modal-pmc-edit');
+}
+
+function pmcSave(){
+  var id = document.getElementById('pmc-edit-id').value;
+  var machineId = (document.getElementById('pmc-f-machine').value||'').trim();
+  if(!machineId){ if(typeof _infoToast==='function') _infoToast('เลือกเครื่องจักร'); return; }
+  var wgs = [];
+  document.querySelectorAll('.pmc-wg-chk:checked').forEach(function(ch){ wgs.push(ch.value); });
+  if(!wgs.length) wgs = ['injection'];
+  var row = {
+    id: id || ('pmc-'+machineId+'-'+Date.now()),
+    machineId: machineId,
+    priority: parseInt(document.getElementById('pmc-f-priority').value, 10) || 10,
+    plastics: pmcParseList(document.getElementById('pmc-f-plastics').value),
+    plasticStrict: !!document.getElementById('pmc-f-plastic-strict').checked,
+    mbColors: pmcParseList(document.getElementById('pmc-f-mb').value),
+    mbStrict: !!document.getElementById('pmc-f-mb-strict').checked,
+    workGroups: wgs,
+    requiredJobs: pmcParseList(document.getElementById('pmc-f-required-jobs').value),
+    note: (document.getElementById('pmc-f-note').value||'').trim(),
+    enabled: !!document.getElementById('pmc-f-enabled').checked,
+    updatedAt: new Date().toISOString()
+  };
+  var idx = planMachRules.findIndex(function(x){ return x.id === row.id; });
+  if(idx >= 0) planMachRules[idx] = Object.assign({}, planMachRules[idx], row);
+  else {
+    var dup = planMachRules.findIndex(function(x){ return x.machineId === machineId; });
+    if(dup >= 0) planMachRules[dup] = Object.assign({}, planMachRules[dup], row);
+    else planMachRules.push(row);
+  }
+  savePlanMachRules();
+  closeModal('modal-pmc-edit');
+  renderPlanCondPage();
+  if(typeof _toast==='function') _toast('✅ บันทึกเงื่อนไขเครื่อง '+machineId);
+}
+
+function pmcDelete(id){
+  _confirmDel('ลบเงื่อนไขเครื่องนี้?', function(){
+    planMachRules = planMachRules.filter(function(x){ return x.id !== id; });
+    savePlanMachRules();
+    renderPlanCondPage();
+    if(typeof _toast==='function') _toast('🗑 ลบแล้ว');
+  });
+}
+
+/** วันอาทิตย์ (ไม่นับเป็นวันลงกำหนดส่งอัตโนมัติ) */
+function orderIsSundayIso(iso){
+  var d = new Date(String(iso||'').slice(0,10) + 'T12:00:00');
+  return !isNaN(d.getTime()) && d.getDay() === 0;
+}
+
+/** เลื่อนวันไม่ให้ตกอาทิตย์ */
+function orderAvoidSunday(iso){
+  var d = new Date(String(iso||'').slice(0,10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return iso;
+  if(d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+
+/** บวก/ลบวันทำการ (จ-ส) — ใช้ buffer ก่อนกำหนดส่ง */
+function orderShiftBizDays(iso, delta){
+  var d = new Date(String(iso||'').slice(0,10) + 'T12:00:00');
+  if(isNaN(d.getTime())) return iso;
+  var step = delta >= 0 ? 1 : -1;
+  var left = Math.abs(parseInt(delta, 10) || 0);
+  var guard = 0;
+  while(left > 0 && guard++ < 400){
+    d.setDate(d.getDate() + step);
+    if(d.getDay() === 0) continue;
+    left--;
+  }
+  return d.toISOString().split('T')[0];
+}
+
+/** กำหนดส่งจากวันจบผลิต (+3 วันทำการ, ไม่ลงอาทิตย์) */
+function orderDueFromFinishDate(finishIso){
+  var due = orderShiftBizDays(finishIso, 3);
+  return orderAvoidSunday(due);
+}
+
+/** วันจบผลิตล่าสุดจากกำหนดส่ง (-3 วันทำการ) */
+function orderFinishDeadlineFromDue(dueIso){
+  return orderShiftBizDays(dueIso, -3);
+}
+
+/** คำนวณและใส่ start / planFinish / due / shipPlan ให้ Order (แก้ไขเองได้ภายหลัง) */
+function orderApplyAutoPlanDates(o, opts){
+  if(!o) return o;
+  opts = opts || {};
+  var today = new Date().toISOString().split('T')[0];
+  var tmp = Object.assign({}, o);
+  if(!tmp.startDate) tmp.startDate = today;
+  tmp.startDate = (typeof orderFirstWorkingDate === 'function') ? orderFirstWorkingDate(tmp.startDate, tmp) : orderAvoidSunday(tmp.startDate);
+  var finish = (typeof orderEstFinishDate === 'function') ? orderEstFinishDate(tmp) : '';
+  if(!finish && tmp.dueDate) finish = orderFinishDeadlineFromDue(tmp.dueDate);
+  if(finish) tmp.planFinishDate = finish;
+  if(!opts.keepDue){
+    if(finish) tmp.dueDate = orderDueFromFinishDate(finish);
+    else if(tmp.dueDate) tmp.dueDate = orderAvoidSunday(tmp.dueDate);
+  } else if(tmp.dueDate){
+    tmp.dueDate = orderAvoidSunday(tmp.dueDate);
+    if(!finish) tmp.planFinishDate = orderFinishDeadlineFromDue(tmp.dueDate);
+  }
+  if(tmp.dueDate && !tmp.shipPlanDate) tmp.shipPlanDate = tmp.dueDate;
+  return tmp;
+}
+
+function orderSuggestMachineFromRules(jobName){
+  var j = findJobByFlexibleName(jobName);
+  if(!j) return '';
+  var pick = pmcFindBestMachineForJob(jobName, []);
+  return pick ? pick.machId : (j.machine || '');
+}
+
+function orderAutoPlanFromModal(){
+  var name = (document.getElementById('order-job')||{}).value;
+  if(!name){ if(typeof _infoToast==='function') _infoToast('เลือกงานก่อน'); return; }
+  var j = findJobByFlexibleName(name);
+  var qty = parseInt((document.getElementById('order-qty')||{}).value, 10) || 0;
+  var oTmp = {
+    jobName: name,
+    qty: qty,
+    produced: 0,
+    startDate: (document.getElementById('order-start')||{}).value || new Date().toISOString().split('T')[0],
+    dueDate: (document.getElementById('order-due')||{}).value || '',
+    plastic: j ? j.plastic : '',
+    mb: j ? j.mb : '',
+    orderPlanHours: parseFloat(String((document.getElementById('order-plan-hours')||{}).value)),
+    planShiftMode: (document.getElementById('order-plan-shift')||{}).value || 'day',
+    shiftCount: parseInt((document.getElementById('order-shift-count')||{}).value, 10) || 1,
+    ot3h: !!(document.getElementById('order-ot3') && document.getElementById('order-ot3').checked),
+    allowSundayOT: !!(document.getElementById('order-sun-ot') && document.getElementById('order-sun-ot').checked),
+    allowCompanyHolidayWork: !!(document.getElementById('order-holiday-work') && document.getElementById('order-holiday-work').checked)
+  };
+  if(!isFinite(oTmp.orderPlanHours) || oTmp.orderPlanHours < 0.5) oTmp.orderPlanHours = (typeof ttGetHoursPerDay==='function') ? ttGetHoursPerDay() : 20;
+  var mach = orderSuggestMachineFromRules(name);
+  if(mach){
+    var ms = document.getElementById('order-machine');
+    if(ms){
+      for(var i = 0; i < ms.options.length; i++){
+        if((ms.options[i].value||'').split(/\s+/)[0] === mach){ ms.selectedIndex = i; break; }
+      }
+    }
+  }
+  var planned = orderApplyAutoPlanDates(oTmp, { keepDue: !!(document.getElementById('order-due')||{}).value });
+  var st = document.getElementById('order-start');
+  var du = document.getElementById('order-due');
+  var en = document.getElementById('order-end');
+  if(st) st.value = planned.startDate || '';
+  if(du) du.value = planned.dueDate || '';
+  if(en) en.value = planned.planFinishDate || '';
+  if(typeof orderUpdateModalCalcPreview==='function') orderUpdateModalCalcPreview();
+  if(typeof _toast==='function'){
+    _toast('📐 คำนวณวันแล้ว'+(mach?' · เครื่อง '+mach:'')+' · กำหนดส่ง '+((planned.dueDate)||'-'));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
 // QR LABEL SYSTEM — วัตถุดิบ / MB / เศษบด / กล่อง / ลัง
 // ════════════════════════════════════════════════════════════════
 var _qrCurrentTab = 'rawmat';
@@ -47451,8 +48611,12 @@ function masterInit(){
   if(typeof initApprovalProcDocs==='function') initApprovalProcDocs();
   if(typeof apBackfillApprovalDocsFromOrders==='function') apBackfillApprovalDocsFromOrders();
   if(typeof loadFgStock==='function') loadFgStock();
+  if(typeof loadWipStock==='function') loadWipStock();
   if(typeof loadRawMatStock==='function') loadRawMatStock();
   if(typeof loadFgLedger==='function') loadFgLedger();
+  if(typeof loadWipLedger==='function') loadWipLedger();
+  if(typeof loadWipPending==='function') loadWipPending();
+  if(typeof loadWarehouseAreas==='function') loadWarehouseAreas();
   if(typeof fgMigrateAutoReceiveAllOrdersFromProduction==='function') fgMigrateAutoReceiveAllOrdersFromProduction();
   if(typeof loadMoldLedger==='function') loadMoldLedger();
   if(typeof syncMoldDataFromMoldDB==='function') syncMoldDataFromMoldDB();
@@ -47513,6 +48677,7 @@ const ALL_PAGES = [
   {id:'setup',        label:'Setup Planning',          icon:'🛠️', section:'การผลิต'},
   {id:'setup-tt',     label:'Setup Time Table',        icon:'📆', section:'การผลิต'},
   {id:'setup-std',    label:'STD SET UP',              icon:'📏', section:'การผลิต'},
+  {id:'plan-cond',    label:'เงื่อนไขวางแผนผลิต',      icon:'📐', section:'การผลิต'},
   {id:'bom',          label:'BOM & งาน',               icon:'🧩', section:'การผลิต'},
   {id:'engineering-change', label:'Engineering Change (ECN)', icon:'📐', section:'การผลิต'},
   {id:'mixing',       label:'แผนผสมเม็ด',               icon:'🧪', section:'วัตถุดิบ'},
@@ -47521,6 +48686,8 @@ const ALL_PAGES = [
   {id:'rawmatreg',   label:'ทะเบียนวัตถุดิบ',             icon:'🧪', section:'วัตถุดิบ'},
   {id:'supplierreg', label:'ทะเบียน Supplier',             icon:'🏭', section:'วัตถุดิบ'},
   {id:'stock',        label:'FG Stock',                icon:'🏪', section:'คลังสินค้า'},
+  {id:'stock-wip',    label:'WIP Stock & รอเบิก',       icon:'📦', section:'คลังสินค้า'},
+  {id:'wh-area',      label:'พื้นที่คลัง (Fix/Free)',    icon:'📍', section:'คลังสินค้า'},
   {id:'delivery',     label:'กำหนดส่งงาน',               icon:'🚚', section:'คลังสินค้า'},
   {id:'order-await',  label:'Order ผลิตจบ — รอส่ง',     icon:'📦', section:'คลังสินค้า'},
   {id:'shipment-history', label:'ประวัติการจัดส่ง',    icon:'📜', section:'คลังสินค้า'},
@@ -48721,9 +49888,20 @@ function pmfTombstoneRegistryMatches(arr, ref, fieldChain, stamp){
   }
   return n;
 }
+var _pmfReloadTimer = null;
+
 function pmfReloadFromStorage(){
   if(window._pmfSkipSyncReloadUntil && Date.now() < window._pmfSkipSyncReloadUntil) return;
   if(window._pmfUserEditing) return;
+  if(_pmfReloadTimer) clearTimeout(_pmfReloadTimer);
+  _pmfReloadTimer = setTimeout(_pmfReloadFromStorageCore, 220);
+}
+
+function _pmfReloadFromStorageCore(){
+  _pmfReloadTimer = null;
+  if(window._pmfSkipSyncReloadUntil && Date.now() < window._pmfSkipSyncReloadUntil) return;
+  if(window._pmfUserEditing) return;
+  invalidateStockDemandIndex();
   try{
     var j = _pmfSafeParse('_jobs', null);
     if(Array.isArray(j) && typeof jobs!=='undefined'){
@@ -48882,6 +50060,14 @@ function pmfReloadFromStorage(){
     }
   }catch(e){}
   try{
+    var pmc = _pmfSafeParse('_planMachRules', null);
+    if(Array.isArray(pmc) && typeof planMachRules!=='undefined'){
+      planMachRules.length = 0;
+      pmc.forEach(function(x){ planMachRules.push(x); });
+      if(typeof pmfDedupeRegistryBiz==='function') pmfDedupeRegistryBiz(planMachRules, ['id']);
+    }
+  }catch(e){}
+  try{
     var tt = _pmfSafeParse('_ttData', null);
     if(tt && typeof tt==='object' && typeof ttData!=='undefined'){
       _pmfReplaceObjectInPlace(ttData, tt);
@@ -48923,6 +50109,22 @@ function pmfReloadFromStorage(){
     if(fgl && typeof fgl==='object' && typeof fgLedger!=='undefined'){
       _pmfReplaceObjectInPlace(fgLedger, fgl);
     }
+  }catch(e){}
+  try{
+    var wps = _pmfSafeParse('_wipStock', null);
+    if(wps && typeof wps==='object' && typeof wipStock!=='undefined') _pmfReplaceObjectInPlace(wipStock, wps);
+  }catch(e){}
+  try{
+    var wpl = _pmfSafeParse('_wipLedger', null);
+    if(wpl && typeof wpl==='object' && typeof wipLedger!=='undefined') _pmfReplaceObjectInPlace(wipLedger, wpl);
+  }catch(e){}
+  try{
+    var wpp = _pmfSafeParse('_wipPending', null);
+    if(Array.isArray(wpp) && typeof wipPending!=='undefined'){ wipPending.length=0; wpp.forEach(function(x){ wipPending.push(x); }); }
+  }catch(e){}
+  try{
+    var wha = _pmfSafeParse('_warehouseAreas', null);
+    if(Array.isArray(wha) && typeof _warehouseAreas!=='undefined') _warehouseAreas = wha;
   }catch(e){}
   try{ if(typeof fgPruneLedgerForDeletedStock==='function') fgPruneLedgerForDeletedStock(); }catch(_){}
   try{
@@ -51985,7 +53187,7 @@ function _clRenderChart(){
   </div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">จำนวนสั่งผลิต (ชิ้น)</div><input type="number" id="order-qty" placeholder="10000" oninput="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
-    <div class="form-group"><div class="form-label">กำหนดส่ง</div><input type="date" id="order-due" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
+    <div class="form-group"><div class="form-label">กำหนดส่ง (ลูกค้า)</div><input type="date" id="order-due" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();" title="อัตโนมัติ = จบผลิต + 3 วันทำการ ไม่ลงอาทิตย์"></div>
   </div>
   <div class="form-row">
     <div class="form-group"><div class="form-label">เครื่องจักร</div>
@@ -51994,6 +53196,15 @@ function _clRenderChart(){
       </select>
     </div>
     <div class="form-group"><div class="form-label">วันที่เริ่มผลิต</div><input type="date" id="order-start" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();"></div>
+  </div>
+  <div class="form-row">
+    <div class="form-group"><div class="form-label">วันคาดจบผลิต</div><input type="date" id="order-end" onchange="if(typeof orderUpdateModalCalcPreview==='function')orderUpdateModalCalcPreview();" title="คำนวณจากเป้าผลิต/กะ — แก้ไขได้"></div>
+    <div class="form-group" style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="order-auto-dates" checked> คำนวณวันที่อัตโนมัติ (+3 วันก่อนส่ง, ไม่ลงอาทิตย์)
+      </label>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="orderAutoPlanFromModal()" style="margin-bottom:6px">📐 คำนวณวัน/เครื่อง</button>
+    </div>
   </div>
   <div id="order-plan-block" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:8px">
     <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px">⏱ แผนเดินเครื่อง (ใช้คำนวณวันจบ + แสดงใน Time Table)</div>
@@ -52075,12 +53286,45 @@ function _clRenderChart(){
   <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
     <div class="form-group" style="margin:0;min-width:220px;flex:1">
       <div class="form-label">กลุ่มงาน *</div>
-      <select id="bom-work-group" onchange="bomWorkGroupChange()" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;font-family:inherit">
+      <select id="bom-work-group" onchange="bomWorkGroupChange();bomStockClassHint()" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px;font-family:inherit">
         <option value="injection">🏭 งานฉีดพลาสติก</option>
         <option value="assembly">🧩 งาน Part ประกอบ</option>
         <option value="secondary">🔧 ไลน์รอง / กระบวนการหลัง</option>
       </select>
     </div>
+    <div class="form-group" style="margin:0;min-width:160px">
+      <div class="form-label">คลังสินค้า (WIP / FG) *</div>
+      <select id="bom-stock-class" onchange="bomStockClassHint()" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
+        <option value="wip">WIP — รับคลัง WIP (ต้องมีการเบิกก่อนใช้)</option>
+        <option value="fg">FG — สำเร็จรูป (เบิก WIP มาประกอบ/พ่น/สกรีน)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0;min-width:200px">
+      <div class="form-label">ประเภทชิ้นงาน</div>
+      <select id="bom-part-type" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
+        <option value="">— เลือกประเภท —</option>
+        <option value="bottle">กระปุก</option>
+        <option value="powder_lid">ฝาแป้ง</option>
+        <option value="dropper">จุกหยด</option>
+        <option value="pe_sheet">แผ่น PE</option>
+        <option value="thread_cap">ฝาเกลียว</option>
+        <option value="flip_cap">ฝาฟลิป</option>
+        <option value="plate_tag">ป้ายทะเบียน</option>
+        <option value="spin_shaft">แกนปั่นด้าย</option>
+      </select>
+    </div>
+  </div>
+  <div id="bom-wip-components-wrap" style="display:none;margin-bottom:10px;padding:10px 12px;background:rgba(121,192,255,0.06);border:1px solid rgba(121,192,255,0.25);border-radius:8px">
+    <div style="font-size:11px;font-weight:700;color:#79c0ff;margin-bottom:6px">🔗 ชิ้นงาน WIP ที่ต้องเบิกมาประกอบ / พ่น / สกรีน (ชื่องาน BOM คั่นด้วย comma)</div>
+    <input type="text" id="bom-wip-components" placeholder="เช่น ฝาเกลียว 50ml, กระปุก 100ml" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;font-size:12px;box-sizing:border-box">
+    <div id="bom-stock-hint" style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.4"></div>
+  </div>
+  <div class="form-group" style="margin:0 0 10px;min-width:260px;flex:1">
+    <div class="form-label">พื้นที่คลังเริ่มต้น (Fix/Free)</div>
+    <select id="bom-wh-area" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px">
+      <option value="">— ยังไม่ระบุ —</option>
+    </select>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">ใช้เมื่อรับเข้า Stock ครั้งแรก · แก้ที่หน้า Stock ได้ภายหลัง</div>
   </div>
 
   <!-- รูปชิ้นงาน (แสดงในตาราง BOM) -->
@@ -52538,6 +53782,71 @@ function _clRenderChart(){
 </div>
 </div>
 
+<!-- WIP Stock modals -->
+<div class="modal-overlay" id="modal-wip-in">
+<div class="modal" style="max-width:440px">
+  <div class="modal-header"><div class="modal-title">📥 รับเข้า WIP Stock</div><button class="modal-close" onclick="closeModal('modal-wip-in')">✕</button></div>
+  <div class="form-group"><div class="form-label">ชื่องาน WIP</div><input type="text" id="wip-in-job" list="wip-job-datalist" placeholder="ชื่องานจาก BOM"></div>
+  <datalist id="wip-job-datalist"></datalist>
+  <div class="form-group"><div class="form-label">จำนวน (ชิ้น)</div><input type="number" id="wip-in-qty" min="1"></div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-wip-in')">ยกเลิก</button>
+    <button class="btn btn-green" onclick="doWipStockIn()">✓ บันทึก</button>
+  </div>
+</div>
+</div>
+<div class="modal-overlay" id="modal-wip-issue">
+<div class="modal" style="max-width:480px">
+  <div class="modal-header"><div class="modal-title">📤 เบิก WIP</div><button class="modal-close" onclick="closeModal('modal-wip-issue')">✕</button></div>
+  <div class="form-group"><div class="form-label">งาน WIP</div><select id="wip-issue-job" style="width:100%"></select></div>
+  <div class="form-group"><div class="form-label">จำนวนเบิก (ชิ้น)</div><input type="number" id="wip-issue-qty" min="1"></div>
+  <div class="form-group"><div class="form-label">หมายเหตุ / ไปประกอบงาน</div><input type="text" id="wip-issue-note" placeholder="เช่น ประกอบ FG / พ่นสี / สกรีน"></div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-wip-issue')">ยกเลิก</button>
+    <button class="btn btn-red" onclick="doWipIssue()">✓ เบิก</button>
+  </div>
+</div>
+</div>
+<div class="modal-overlay" id="modal-wh-area">
+<div class="modal" style="max-width:440px">
+  <div class="modal-header"><div class="modal-title">📍 เพิ่มพื้นที่คลัง</div><button class="modal-close" onclick="closeModal('modal-wh-area')">✕</button></div>
+  <div class="form-row">
+    <div class="form-group"><div class="form-label">คลัง</div>
+      <select id="wh-area-zone" style="width:100%"><option value="wip">WIP</option><option value="fg">FG</option></select>
+    </div>
+    <div class="form-group"><div class="form-label">ประเภทพื้นที่</div>
+      <select id="wh-area-type" style="width:100%"><option value="fix">Fix Area</option><option value="free">Free Area</option></select>
+    </div>
+  </div>
+  <div class="form-group"><div class="form-label">รหัสพื้นที่</div><input type="text" id="wh-area-code" placeholder="เช่น WIP-FIX-02"></div>
+  <div class="form-group"><div class="form-label">ชื่อพื้นที่</div><input type="text" id="wh-area-name"></div>
+  <div class="form-group"><div class="form-label">หมายเหตุ</div><input type="text" id="wh-area-note"></div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-wh-area')">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="whAreaSave()">✓ บันทึก</button>
+  </div>
+</div>
+</div>
+
+<!-- ผูกพื้นที่คลัง (FG / WIP) -->
+<div class="modal-overlay" id="modal-stock-wh-area">
+<div class="modal" style="max-width:440px">
+  <div class="modal-header"><div class="modal-title">📍 ผูกพื้นที่คลัง</div><button class="modal-close" onclick="closeModal('modal-stock-wh-area')">✕</button></div>
+  <input type="hidden" id="stk-wh-zone" value="fg">
+  <input type="hidden" id="stk-wh-job" value="">
+  <div class="form-group"><div class="form-label">ชื่องาน</div><div id="stk-wh-job-label" style="font-size:13px;font-weight:700;word-break:break-word"></div></div>
+  <div class="form-group">
+    <div class="form-label">เลือกพื้นที่ (จากเมนูพื้นที่คลัง)</div>
+    <select id="stk-wh-area" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px"></select>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px"><a href="#" onclick="if(typeof showPage==='function'){closeModal('modal-stock-wh-area');showPage('wh-area',null);}return false;">+ จัดการพื้นที่คลัง</a></div>
+  </div>
+  <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
+    <button class="btn btn-secondary" onclick="closeModal('modal-stock-wh-area')">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveStockWhAreaModal()">✓ บันทึก</button>
+  </div>
+</div>
+</div>
+
 <!-- FG Min/Max (แก้ไขได้ + บันทึกลง localStorage) -->
 <div class="modal-overlay" id="modal-fg-minmax">
 <div class="modal" style="max-width:420px">
@@ -52553,6 +53862,10 @@ function _clRenderChart(){
   <div class="form-row">
     <div class="form-group"><div class="form-label">Min (ชิ้น)</div><input type="number" id="fg-mm-min" min="0" step="1"></div>
     <div class="form-group"><div class="form-label">Max (ชิ้น)</div><input type="number" id="fg-mm-max" min="1" step="1"></div>
+  </div>
+  <div class="form-group">
+    <div class="form-label">📍 พื้นที่คลัง FG (Fix / Free)</div>
+    <select id="fg-mm-wh-area" style="width:100%;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:13px"></select>
   </div>
   <div style="font-size:11px;color:var(--text3);margin-top:4px">บันทึกแล้วจะซิงค์กับ Supabase (ถ้าเปิด sync) ผ่านคีย์ <span class="mono">_fgStock</span></div>
   <div class="flex gap-2" style="justify-content:flex-end;margin-top:16px">
@@ -61127,6 +62440,8 @@ window.HOME_PAGES = [
     {id:'orders-o7',    icon:'<span class="hs-order-line-icon">O7</span>', label:'Order พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'O7'},
     {id:'order-await',  icon:'📦', label:'Order ผลิตจบ — รอส่ง',   color:'#1a2a1a', colorLight:'#e8f5e9', seq:'15C'},
     {id:'stock',        icon:'🏪', label:'Stock FG',             color:'#0e2020', colorLight:'#e0f7fa', seq:16},
+    {id:'stock-wip',    icon:'📦', label:'Stock WIP & รอเบิก',   color:'#1a2530', colorLight:'#e3f2fd', seq:'16A'},
+    {id:'wh-area',      icon:'📍', label:'พื้นที่คลัง Fix/Free', color:'#201a28', colorLight:'#f3e5f5', seq:'16B'},
     {id:'timetable',    icon:'📅', label:'Time Table รวม (7 แผนก)', color:'#201520', colorLight:'#e8eaf6', seq:17, workGroup:'all'},
     {id:'timetable-t1', icon:'<span class="hs-tt-line-icon">T1</span>', label:'Time Table ฉีด Zone 1', color:'#1a2a3e', colorLight:'#e8eaf6', seq:'T1'},
     {id:'timetable-t2', icon:'<span class="hs-tt-line-icon">T2</span>', label:'Time Table ฉีด Zone 2', color:'#1a2e22', colorLight:'#e8f5e9', seq:'T2'},
@@ -61137,6 +62452,7 @@ window.HOME_PAGES = [
     {id:'timetable-t7', icon:'<span class="hs-tt-line-icon">T7</span>', label:'Time Table พ่น·สกรีน', color:'#2a2010', colorLight:'#fff3e0', seq:'T7'},
     {id:'setup-tt',     icon:'📆', label:'Setup Time Table',     color:'#10202a', colorLight:'#e3f2fd', seq:'17C'},
     {id:'setup-std',    icon:'📏', label:'STD SET UP',           color:'#2a2010', colorLight:'#fff3cd', seq:'17D'},
+    {id:'plan-cond',    icon:'📐', label:'เงื่อนไขวางแผนผลิต',   color:'#1a2535', colorLight:'#e3f2fd', seq:'17E'},
   ]},
   { id:'prep', icon:'🏭', label:'เตรียมการผลิต', items:[
     {id:'rawmat',       icon:'📦', label:'วัตถุดิบ Batch',        color:'#201a10', seq:18},

@@ -55,6 +55,11 @@
       backdrop-filter: blur(12px);
       box-shadow: 0 8px 24px rgba(2, 6, 23, 0.45);
       max-width: calc(100vw - 32px);
+      /* ช่องว่างบนแถบไม่บังคลิกใน iframe (เมนู / ไอคอนด้านล่าง) */
+      pointer-events: none;
+    }
+    .pmf-toolbar > * {
+      pointer-events: auto;
     }
 
     .gear-btn {
@@ -448,7 +453,7 @@
     </div>
   </dialog>
 
-  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260520-order-ref-lot-dedupe"></iframe>
+  <iframe id="app-frame" src="./plastic-production-planner_v16%20(3).html?v=20260522-wh-bind"></iframe>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -457,10 +462,10 @@
       "_machines","_moldDB","_customerDB","_specDB","_machineDB","_moldRegistry","_customerRegistry",
       "_qcSpecRegistry","_grinderRegistry","_feederRegistry","_clEntries","_clBomConfig","_jobRegistry",
       "_employeeRegistry","_hrAttendance","_hrDeptMachGroups","_rawmatRegistry","_supplierRegistry","_pmChecklistRegistry","_kpiTargets","_zones",
-      "_orders","_matReservations","_fgStock","_fgLedger","_rawMatStock","_navRecent","_theme","_costSettings",
+      "_orders","_matReservations","_fgStock","_fgLedger","_wipStock","_wipLedger","_wipPending","_warehouseAreas","_rawMatStock","_navRecent","_theme","_costSettings",
       "_manualCostEntries","_dailyReports","_robotRegistry","_ttData","_jobs","_kpiTableData",
       "_dashWidgets","_dashCharts","_dashChartPeriod","_condStdList","_condActualList","_rawMatLedger","_rawMatPRList",
-      "_limitSamples","_machGroups","_qrt_scans","_qrt_scans2","_sigStore","_sigLog","_mbColors","_mbStock","_mbLedger",
+      "_limitSamples","_machGroups","_planMachRules","_qrt_scans","_qrt_scans2","_sigStore","_sigLog","_mbColors","_mbStock","_mbLedger",
       "_rgStock","_rgLedger","_rgExtraPlastics","pmf_users_v5",
       "_mixPlans","_mixFeederPlans","_mixDispatchHistory","_mixStockIssueLog","_mixProdReceiveConfirms","_approvalProcDocs","_approvalLogV1","_shipmentHistory",
       "_moldLedger","_wiDocs","_rwDocs","_devRecords","_approvalsV1",
@@ -511,6 +516,7 @@
       "_robotRegistry": "id",
       "_limitSamples": "id",
       "_machGroups": "id",
+      "_planMachRules": "id",
       "_qrt_scans": "id",
       "_qrt_scans2": "id",
       // Mixing/raw-mat ledgers: append-only, no stable id → composite hash
@@ -544,7 +550,9 @@
       "_hrDeptMachGroups": "id",
       // OT requests have id; orderNo is the natural fallback
       "_otRequests": ["id", "orderNo"],
-      "_actionPlans": ["id"]
+      "_actionPlans": ["id"],
+      "_wipPending": "id",
+      "_warehouseAreas": "id"
     };
 
     /**
@@ -555,6 +563,7 @@
      */
     const OBJECT_BY_KEY_STORES = new Set([
       "_fgStock",      // {jobName: {qty,min,max,...}}
+      "_wipStock",     // {jobName: {qty,min,max,...}}
       "_rawMatStock",  // {material: {qty,...}}
       "_mbColors",     // {colorId: {...}}
       "_mbStock",      // {colorId: {qty,...}}
@@ -564,7 +573,8 @@
 
     /** Object-of-arrays stores: {key: [records...]} merged per-key */
     const OBJECT_OF_ARRAYS_STORES = {
-      "_fgLedger": "_fgId"    // {jobName: [{_fgId,...}]}
+      "_fgLedger": "_fgId",    // {jobName: [{_fgId,...}]}
+      "_wipLedger": "_wipId"
     };
 
     /**
@@ -592,6 +602,10 @@
       "_rawMatPRList",
       "_fgStock",
       "_fgLedger",
+      "_wipStock",
+      "_wipLedger",
+      "_wipPending",
+      "_warehouseAreas",
       "_rawMatStock",
       "_jobRegistry",
       "_employeeRegistry",
@@ -625,7 +639,7 @@
     /** ลด egress: ซิงก์พื้นหลังทุก 60 วิ (เดิม 12 วิ) — บันทึกด้วยปุ่ม/ debounce ยังเร็ว */
     const AUTO_SYNC_MS = 60000;
     const SAVE_DEBOUNCE_MS = 2500;
-    const RT_PULL_DEBOUNCE_MS = 1500;
+    const RT_PULL_DEBOUNCE_MS = 2800;
     const REPAIR_MIN_INTERVAL_MS = 180000;
     const FALLBACK_COOLDOWN_MS = 300000;
     const REMOTE_CACHE_TTL_MS = 90000;
